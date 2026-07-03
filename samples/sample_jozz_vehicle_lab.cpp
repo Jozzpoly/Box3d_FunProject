@@ -326,7 +326,7 @@ public:
 		ImGui::Separator();
 		ImGui::TextWrapped( "Primitive one-corner wheel-joint lab. M2.5 adds a realtime live root mover for suspension stress testing without rebuilding the joint." );
 		ImGui::Spacing();
-		ImGui::TextUnformatted( "Input: W drive forward, S reverse, Space brake, [ lower root, ] raise root, R restart sample." );
+		ImGui::TextUnformatted( "Input: W drive forward, S reverse, Space brake, Q lower root, E raise root, R restart sample." );
 		ImGui::Text( "wheel radius %.2f m, width %.2f m", m_wheelRadius, m_wheelWidth );
 		ImGui::Text( "live root %.2f, live rest center y %.2f", m_liveRootOffset, GetLiveRestWheelCenterY() );
 		ImGui::Text( "relative travel: rebound %.2f down, compression %.2f up", m_reboundTravel, m_compressionTravel );
@@ -457,11 +457,11 @@ public:
 	void Step() override
 	{
 		float rootDirection = 0.0f;
-		if ( IsKeyDown( KEY_LEFT_BRACKET ) )
+		if ( IsKeyDown( KEY_Q ) )
 		{
 			rootDirection -= 1.0f;
 		}
-		if ( IsKeyDown( KEY_RIGHT_BRACKET ) )
+		if ( IsKeyDown( KEY_E ) )
 		{
 			rootDirection += 1.0f;
 		}
@@ -541,7 +541,7 @@ public:
 		}
 
 		DrawTextLine( "Jozz Vehicle Lab M2.5 Primitive Corner" );
-		DrawTextLine( "W/S drive, Space brakes, [/] live root down/up, R restarts." );
+		DrawTextLine( "W/S drive, Space brakes, Q/E live root down/up, R restarts." );
 		DrawTextLine( "root %.2f, wheel y %.2f, speed %.2f m/s, translation %.2f", m_liveRootOffset, (float)wheelPosition.y,
 					  b3Length( wheelVelocity ), actualTranslation );
 		DrawTextLine( "live mount %.2f, live rest %.2f, wheel bottom %.2f", GetLiveChassisMountY(), GetLiveRestWheelCenterY(),
