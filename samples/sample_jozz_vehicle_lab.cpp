@@ -164,6 +164,7 @@ public:
 		m_liveRootSpeed = 2.5f;
 		m_collideConnected = false;
 		m_showAxisDiagnostics = true;
+		m_showAssetSemanticPreview = true;
 		m_structuralSetupDirty = false;
 
 		m_enableSuspension = true;
@@ -211,6 +212,41 @@ public:
 	float GetUpperSuspensionLimit() const
 	{
 		return m_compressionTravel;
+	}
+
+	b3Pos GetWheelAuditPreviewOrigin() const
+	{
+		return { -1.35f, GetLiveRestWheelCenterY(), 1.45f };
+	}
+
+	b3Pos GetSuspensionAuditPreviewOrigin() const
+	{
+		return { 1.35f, GetLiveRestWheelCenterY(), 1.45f };
+	}
+
+	b3Pos WheelAuditPointBU( float x, float y, float z ) const
+	{
+		// Schematic mapping only: authoring Y is vertical, authoring X is drawn
+		// across world Z, authoring Z is drawn across world X. This is not the
+		// final glTF visual transform.
+		constexpr float wheelCenterX = -0.125f;
+		constexpr float wheelCenterY = 0.5f;
+		b3Pos origin = GetWheelAuditPreviewOrigin();
+		return { origin.x + z * m_assetMetersPerBlockbenchUnit, origin.y + ( y - wheelCenterY ) * m_assetMetersPerBlockbenchUnit,
+				 origin.z + ( x - wheelCenterX ) * m_assetMetersPerBlockbenchUnit };
+	}
+
+	b3Pos SuspensionAuditPointBU( float x, float y, float z ) const
+	{
+		// Schematic mapping only. This previews audited suspension semantics near
+		// the current physics corner without making them physics authority.
+		constexpr float suspensionWheelCenterX = -1.1875f;
+		constexpr float suspensionWheelCenterY = 0.5f;
+		constexpr float suspensionWheelCenterZ = -0.0625f;
+		b3Pos origin = GetSuspensionAuditPreviewOrigin();
+		return { origin.x + ( z - suspensionWheelCenterZ ) * m_assetMetersPerBlockbenchUnit,
+				 origin.y + ( y - suspensionWheelCenterY ) * m_assetMetersPerBlockbenchUnit,
+				 origin.z + ( x - suspensionWheelCenterX ) * m_assetMetersPerBlockbenchUnit };
 	}
 
 	void ClampLiveRootOffset()
@@ -371,9 +407,9 @@ public:
 
 	bool DrawControls() override
 	{
-		ImGui::TextUnformatted( "Jozz Vehicle Lab M2.5 + M3A defaults" );
+		ImGui::TextUnformatted( "Jozz Vehicle Lab M2.5 + M3A/M3B debug" );
 		ImGui::Separator();
-		ImGui::TextWrapped( "Primitive one-corner wheel-joint lab. M3A centralizes wheel primitive defaults from current asset audit markers without adding glTF rendering." );
+		ImGui::TextWrapped( "Primitive one-corner wheel-joint lab. M3A centralizes wheel primitive defaults; M3B adds semantic debug preview without glTF mesh rendering." );
 		ImGui::Spacing();
 		ImGui::TextUnformatted( "Input: W drive forward, S reverse, Space brake, Q lower root, E raise root, R restart sample." );
 		ImGui::Text( "wheel radius %.2f m, width %.2f m", m_wheelRadius, m_wheelWidth );
@@ -416,6 +452,8 @@ public:
 			m_structuralSetupDirty = true;
 		}
 		ImGui::Checkbox( "Axis diagnostics", &m_showAxisDiagnostics );
+		ImGui::Checkbox( "M3B semantic preview", &m_showAssetSemanticPreview );
+		ImGui::TextWrapped( "M3B preview draws audited marker schematics near the wheel. It is not final glTF transform and does not drive physics." );
 		ImGui::TextWrapped( "M3A note: visual sockets are not physics frame A; rest drop remains explicit until a dedicated physics rest-anchor contract exists." );
 
 		if ( m_structuralSetupDirty )
@@ -564,6 +602,36 @@ public:
 		Sample::Step();
 	}
 
+	void DrawAssetSemanticPreview()
+	{
+		b3Pos wheelCenter = WheelAuditPointBU( -0.125f, 0.5f, 0.0f );
+		b3Pos wheelMount = WheelAuditPointBU( 0.25f, 0.5f, 0.0f );
+		b3Pos radiusOuter = WheelAuditPointBU( -0.125f, 1.96875f, 0.0f );
+		b3Pos widthLeft = WheelAuditPointBU( -0.75f, 0.5f, 0.0f );
+		b3Pos widthRight = WheelAuditPointBU( 0.5f, 0.5f, 0.0f );
+		b3Pos spinA = WheelAuditPointBU( 0.4375f, 0.5f, 0.0f );
+		b3Pos spinB = WheelAuditPointBU( -1.0625f, 0.5f, 0.0f );
+
+		DrawCross( wheelCenter, 0.10f, MakeVec4( 1.0f, 1.0f, 1.0f, 1.0f ) );
+		DrawCross( wheelMount, 0.08f, MakeVec4( 0.1f, 0.8f, 1.0f, 1.0f ) );
+		DrawCross( radiusOuter, 0.08f, MakeVec4( 1.0f, 0.85f, 0.1f, 1.0f ) );
+		DrawCross( widthLeft, 0.08f, MakeVec4( 0.2f, 0.4f, 1.0f, 1.0f ) );
+		DrawCross( widthRight, 0.08f, MakeVec4( 0.2f, 0.4f, 1.0f, 1.0f ) );
+		DrawCross( spinA, 0.07f, MakeVec4( 0.2f, 1.0f, 0.2f, 1.0f ) );
+		DrawCross( spinB, 0.07f, MakeVec4( 0.2f, 1.0f, 0.2f, 1.0f ) );
+		DrawLine( wheelCenter, radiusOuter, MakeVec4( 1.0f, 0.85f, 0.1f, 1.0f ) );
+		DrawLine( widthLeft, widthRight, MakeVec4( 0.2f, 0.4f, 1.0f, 1.0f ) );
+		DrawLine( spinA, spinB, MakeVec4( 0.2f, 1.0f, 0.2f, 1.0f ) );
+
+		b3Pos suspensionWheelCenter = SuspensionAuditPointBU( -1.1875f, 0.5f, -0.0625f );
+		b3Pos travelTop = SuspensionAuditPointBU( -1.1875f, 1.5f, 0.0f );
+		b3Pos travelBottom = SuspensionAuditPointBU( -1.1875f, -0.5f, 0.0f );
+		DrawCross( suspensionWheelCenter, 0.10f, MakeVec4( 1.0f, 1.0f, 1.0f, 1.0f ) );
+		DrawCross( travelTop, 0.08f, MakeVec4( 0.9f, 0.2f, 1.0f, 1.0f ) );
+		DrawCross( travelBottom, 0.08f, MakeVec4( 0.9f, 0.2f, 1.0f, 1.0f ) );
+		DrawLine( travelBottom, travelTop, MakeVec4( 0.9f, 0.2f, 1.0f, 1.0f ) );
+	}
+
 	void Render() override
 	{
 		Sample::Render();
@@ -593,10 +661,16 @@ public:
 			DrawLine( axleA, axleB, MakeVec4( 1.0f, 0.85f, 0.1f, 1.0f ) );
 		}
 
-		DrawTextLine( "Jozz Vehicle Lab M2.5 + M3A Primitive Corner" );
+		if ( m_showAssetSemanticPreview )
+		{
+			DrawAssetSemanticPreview();
+		}
+
+		DrawTextLine( "Jozz Vehicle Lab M2.5 + M3A/M3B Debug Corner" );
 		DrawTextLine( "W/S drive, Space brakes, Q/E live root down/up, R restarts." );
 		DrawTextLine( "M3A asset defaults: scale %.2f m/BU, wheel r %.2f, width %.2f", m_assetMetersPerBlockbenchUnit,
 					  m_assetWheelRadiusDefault, m_assetWheelWidthDefault );
+		DrawTextLine( "M3B semantic preview: %s, schematic only, no mesh import", m_showAssetSemanticPreview ? "on" : "off" );
 		DrawTextLine( "root %.2f, wheel y %.2f, speed %.2f m/s, translation %.2f", m_liveRootOffset, (float)wheelPosition.y,
 					  b3Length( wheelVelocity ), actualTranslation );
 		DrawTextLine( "live mount %.2f, live rest %.2f, wheel bottom %.2f", GetLiveChassisMountY(), GetLiveRestWheelCenterY(),
@@ -620,6 +694,7 @@ public:
 	bool m_collideConnected;
 	bool m_editCollideConnected;
 	bool m_showAxisDiagnostics;
+	bool m_showAssetSemanticPreview;
 	bool m_structuralSetupDirty;
 	float m_suspensionHertz;
 	float m_suspensionDampingRatio;
