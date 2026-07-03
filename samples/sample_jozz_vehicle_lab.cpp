@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Jozz Vehicle contributors
 // SPDX-License-Identifier: MIT
 
+#include "gfx/keycodes.h"
 #include "imgui.h"
 #include "sample.h"
 
@@ -64,3 +65,248 @@ public:
 };
 
 static int sampleJozzVehicleLabM1 = RegisterSample( "Jozz Vehicle", "Lab M1 Smoke", JozzVehicleLabM1::Create );
+
+class JozzVehiclePrimitiveCornerM2 : public Sample
+{
+public:
+	explicit JozzVehiclePrimitiveCornerM2( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 35.0f, 22.0f, 10.0f, { 0.0f, 1.2f, 0.0f } );
+		}
+
+		m_enableSuspension = true;
+		m_enableSuspensionLimit = true;
+		m_enableSpinMotor = true;
+		m_suspensionHertz = 3.0f;
+		m_suspensionDampingRatio = 0.75f;
+		m_lowerTranslation = -0.65f;
+		m_upperTranslation = 0.35f;
+		m_driveSpeed = 14.0f;
+		m_maxSpinTorque = 80.0f;
+		m_brakeTorque = 160.0f;
+
+		AddGroundBox( 20.0f );
+
+		// A static chassis test rig is deliberate for M2. It isolates the wheel joint
+		// and prevents a full vehicle body from hiding suspension-axis mistakes.
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.position = { 0.0f, 2.35f, 0.0f };
+			bodyDef.name = "jozz_m2_static_chassis_rig";
+			m_chassisId = b3CreateBody( m_worldId, &bodyDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			shapeDef.baseMaterial.friction = 0.8f;
+
+			b3BoxHull chassis = b3MakeBoxHull( 1.25f, 0.16f, 0.55f );
+			b3CreateHullShape( m_chassisId, &shapeDef, &chassis.base );
+		}
+
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_dynamicBody;
+			bodyDef.position = { 0.0f, 1.15f, 0.0f };
+			bodyDef.rotation = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisY, b3Vec3_axisZ );
+			bodyDef.allowFastRotation = true;
+			bodyDef.name = "jozz_m2_primitive_wheel";
+			m_wheelId = b3CreateBody( m_worldId, &bodyDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			shapeDef.density = 18.0f;
+			shapeDef.baseMaterial.friction = 1.2f;
+			shapeDef.baseMaterial.restitution = 0.05f;
+			shapeDef.baseMaterial.rollingResistance = 0.02f;
+
+			b3HullData* wheelHull = b3CreateCylinder( 0.45f, 0.28f, 0.0f, 16 );
+			b3CreateHullShape( m_wheelId, &shapeDef, wheelHull );
+			b3DestroyHull( wheelHull );
+		}
+
+		b3WheelJointDef jointDef = b3DefaultWheelJointDef();
+		jointDef.base.bodyIdA = m_chassisId;
+		jointDef.base.bodyIdB = m_wheelId;
+
+		b3Pos anchor = { 0.0f, 1.35f, 0.0f };
+		jointDef.base.localFrameA.p = b3Body_GetLocalPoint( m_chassisId, anchor );
+		jointDef.base.localFrameB.p = b3Body_GetLocalPoint( m_wheelId, anchor );
+
+		// Matches the known Box3D wheel sample frame pattern. M2 keeps this explicit
+		// so later asset-space conversion has a stable primitive reference.
+		jointDef.base.localFrameA.q = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisX, b3Vec3_axisY );
+		jointDef.base.localFrameB.q = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisZ, b3Vec3_axisY );
+		jointDef.base.collideConnected = false;
+		jointDef.base.drawScale = 1.5f;
+
+		jointDef.enableSuspensionSpring = m_enableSuspension;
+		jointDef.suspensionHertz = m_suspensionHertz;
+		jointDef.suspensionDampingRatio = m_suspensionDampingRatio;
+		jointDef.enableSuspensionLimit = m_enableSuspensionLimit;
+		jointDef.lowerSuspensionLimit = m_lowerTranslation;
+		jointDef.upperSuspensionLimit = m_upperTranslation;
+		jointDef.enableSpinMotor = m_enableSpinMotor;
+		jointDef.spinSpeed = 0.0f;
+		jointDef.maxSpinTorque = m_maxSpinTorque;
+
+		m_jointId = b3CreateWheelJoint( m_worldId, &jointDef );
+	}
+
+	bool DrawControls() override
+	{
+		ImGui::TextUnformatted( "Jozz Vehicle Lab M2" );
+		ImGui::Separator();
+		ImGui::TextWrapped( "Primitive one-corner wheel-joint lab. Still no glTF: this tests the suspension/motor foundation first." );
+		ImGui::Spacing();
+		ImGui::TextUnformatted( "Input: W drive forward, S reverse, Space brake, R restart sample." );
+		ImGui::Separator();
+
+		if ( ImGui::Checkbox( "Suspension spring", &m_enableSuspension ) )
+		{
+			b3WheelJoint_EnableSuspension( m_jointId, m_enableSuspension );
+			b3Joint_WakeBodies( m_jointId );
+		}
+
+		if ( m_enableSuspension )
+		{
+			if ( ImGui::SliderFloat( "Spring hertz", &m_suspensionHertz, 0.0f, 12.0f, "%.2f" ) )
+			{
+				b3WheelJoint_SetSuspensionHertz( m_jointId, m_suspensionHertz );
+				b3Joint_WakeBodies( m_jointId );
+			}
+
+			if ( ImGui::SliderFloat( "Damping ratio", &m_suspensionDampingRatio, 0.0f, 3.0f, "%.2f" ) )
+			{
+				b3WheelJoint_SetSuspensionDampingRatio( m_jointId, m_suspensionDampingRatio );
+				b3Joint_WakeBodies( m_jointId );
+			}
+		}
+
+		ImGui::Separator();
+
+		if ( ImGui::Checkbox( "Suspension limit", &m_enableSuspensionLimit ) )
+		{
+			b3WheelJoint_EnableSuspensionLimit( m_jointId, m_enableSuspensionLimit );
+			b3Joint_WakeBodies( m_jointId );
+		}
+
+		if ( m_enableSuspensionLimit )
+		{
+			if ( ImGui::SliderFloat( "Lower travel", &m_lowerTranslation, -2.0f, 0.0f, "%.2f" ) )
+			{
+				if ( m_lowerTranslation > m_upperTranslation )
+				{
+					m_lowerTranslation = m_upperTranslation;
+				}
+				b3WheelJoint_SetSuspensionLimits( m_jointId, m_lowerTranslation, m_upperTranslation );
+				b3Joint_WakeBodies( m_jointId );
+			}
+
+			if ( ImGui::SliderFloat( "Upper travel", &m_upperTranslation, 0.0f, 2.0f, "%.2f" ) )
+			{
+				if ( m_upperTranslation < m_lowerTranslation )
+				{
+					m_upperTranslation = m_lowerTranslation;
+				}
+				b3WheelJoint_SetSuspensionLimits( m_jointId, m_lowerTranslation, m_upperTranslation );
+				b3Joint_WakeBodies( m_jointId );
+			}
+		}
+
+		ImGui::Separator();
+
+		if ( ImGui::Checkbox( "Spin motor", &m_enableSpinMotor ) )
+		{
+			b3WheelJoint_EnableSpinMotor( m_jointId, m_enableSpinMotor );
+			b3Joint_WakeBodies( m_jointId );
+		}
+
+		if ( m_enableSpinMotor )
+		{
+			if ( ImGui::SliderFloat( "Drive speed", &m_driveSpeed, 0.0f, 40.0f, "%.1f" ) )
+			{
+				b3Joint_WakeBodies( m_jointId );
+			}
+
+			if ( ImGui::SliderFloat( "Drive torque", &m_maxSpinTorque, 0.0f, 400.0f, "%.0f" ) )
+			{
+				b3WheelJoint_SetMaxSpinTorque( m_jointId, m_maxSpinTorque );
+				b3Joint_WakeBodies( m_jointId );
+			}
+
+			if ( ImGui::SliderFloat( "Brake torque", &m_brakeTorque, 0.0f, 800.0f, "%.0f" ) )
+			{
+				b3Joint_WakeBodies( m_jointId );
+			}
+		}
+
+		return true;
+	}
+
+	void Step() override
+	{
+		if ( m_enableSpinMotor )
+		{
+			float targetSpeed = 0.0f;
+			float torque = m_maxSpinTorque;
+
+			if ( IsKeyDown( KEY_W ) )
+			{
+				targetSpeed -= m_driveSpeed;
+			}
+			if ( IsKeyDown( KEY_S ) )
+			{
+				targetSpeed += m_driveSpeed;
+			}
+			if ( IsKeyDown( KEY_SPACE ) )
+			{
+				targetSpeed = 0.0f;
+				torque = m_brakeTorque;
+			}
+
+			b3WheelJoint_SetSpinMotorSpeed( m_jointId, targetSpeed );
+			b3WheelJoint_SetMaxSpinTorque( m_jointId, torque );
+			b3Joint_WakeBodies( m_jointId );
+		}
+
+		Sample::Step();
+	}
+
+	void Render() override
+	{
+		Sample::Render();
+
+		b3Pos wheelPosition = b3Body_GetPosition( m_wheelId );
+		b3Vec3 wheelVelocity = b3Body_GetLinearVelocity( m_wheelId );
+
+		DrawTextLine( "Jozz Vehicle Lab M2 Primitive Corner" );
+		DrawTextLine( "W/S drive the spin motor, Space brakes, R restarts." );
+		DrawTextLine( "wheel y = %.2f, speed = %.2f m/s", (float)wheelPosition.y, b3Length( wheelVelocity ) );
+		DrawTextLine( "spring %.2f Hz, damping %.2f, travel %.2f..%.2f", m_suspensionHertz, m_suspensionDampingRatio,
+					  m_lowerTranslation, m_upperTranslation );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new JozzVehiclePrimitiveCornerM2( context );
+	}
+
+	b3BodyId m_chassisId;
+	b3BodyId m_wheelId;
+	b3JointId m_jointId;
+
+	bool m_enableSuspension;
+	bool m_enableSuspensionLimit;
+	bool m_enableSpinMotor;
+	float m_suspensionHertz;
+	float m_suspensionDampingRatio;
+	float m_lowerTranslation;
+	float m_upperTranslation;
+	float m_driveSpeed;
+	float m_maxSpinTorque;
+	float m_brakeTorque;
+};
+
+static int sampleJozzVehiclePrimitiveCornerM2 =
+	RegisterSample( "Jozz Vehicle", "Lab M2 Primitive Corner", JozzVehiclePrimitiveCornerM2::Create );
