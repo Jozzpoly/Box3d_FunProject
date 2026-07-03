@@ -1,0 +1,326 @@
+[
+  {
+    "file": "Asset_Dumper.gltf",
+    "generator": "Blockbench 5.1.4 glTF exporter",
+    "nodes": 5,
+    "meshes": 1,
+    "skins": 1,
+    "animations": 0,
+    "root_nodes": [
+      {
+        "node": 4,
+        "name": "Dumper_rig_root"
+      }
+    ],
+    "duplicate_node_names": {
+      "Dumper_rig_root": 2
+    },
+    "semantic_nodes": [
+      {
+        "node": 0,
+        "name": "Part_Upper",
+        "world_position": [
+          0.0,
+          1.5,
+          0.0
+        ]
+      },
+      {
+        "node": 1,
+        "name": "Part_Stretch",
+        "world_position": [
+          0.0,
+          0.492188,
+          0.0
+        ]
+      },
+      {
+        "node": 2,
+        "name": "Part_Lower",
+        "world_position": [
+          0.0,
+          -0.46875,
+          0.0
+        ]
+      }
+    ],
+    "vertex_count": 240,
+    "triangle_count": 120,
+    "primitive_count": 1,
+    "world_bounds": {
+      "min": [
+        -0.265625,
+        -0.65625,
+        -0.25
+      ],
+      "max": [
+        0.25,
+        1.6875,
+        0.25
+      ]
+    }
+  },
+  {
+    "file": "Cardan_shaft.gltf",
+    "generator": "Blockbench 5.1.4 glTF exporter",
+    "nodes": 5,
+    "meshes": 1,
+    "skins": 1,
+    "animations": 0,
+    "root_nodes": [
+      {
+        "node": 4,
+        "name": "Cardan_shaft"
+      }
+    ],
+    "duplicate_node_names": {
+      "Cardan_shaft": 2
+    },
+    "semantic_nodes": [],
+    "vertex_count": 456,
+    "triangle_count": 228,
+    "primitive_count": 1,
+    "world_bounds": {
+      "min": [
+        -0.9375,
+        0.25,
+        -0.25
+      ],
+      "max": [
+        0.5,
+        0.75,
+        0.25
+      ]
+    }
+  },
+  {
+    "file": "Offroad_Big_Wheels.gltf",
+    "generator": "Blockbench 5.1.4 glTF exporter",
+    "nodes": 13,
+    "meshes": 1,
+    "skins": 1,
+    "animations": 0,
+    "root_nodes": [
+      {
+        "node": 12,
+        "name": "Big_Wheel"
+      }
+    ],
+    "duplicate_node_names": {
+      "Big_Wheel": 2
+    },
+    "semantic_nodes": [
+      {
+        "node": 5,
+        "name": "Socket_WheelMount",
+        "world_position": [
+          0.25,
+          0.5,
+          0.0
+        ]
+      },
+      {
+        "node": 6,
+        "name": "Axis_WheelSpin_A",
+        "world_position": [
+          0.4375,
+          0.5,
+          0.0
+        ]
+      },
+      {
+        "node": 7,
+        "name": "Axis_WheelSpin_B",
+        "world_position": [
+          -1.0625,
+          0.5,
+          0.0
+        ]
+      },
+      {
+        "node": 8,
+        "name": "Marker_TireRadiusOuter",
+        "world_position": [
+          -0.125,
+          1.96875,
+          0.0
+        ]
+      },
+      {
+        "node": 9,
+        "name": "Marker_TireWidthLeft",
+        "world_position": [
+          -0.75,
+          0.5,
+          0.0
+        ]
+      },
+      {
+        "node": 10,
+        "name": "Marker_TireWidthRight",
+        "world_position": [
+          0.5,
+          0.5,
+          0.0
+        ]
+      }
+    ],
+    "vertex_count": 1224,
+    "triangle_count": 612,
+    "primitive_count": 1,
+    "world_bounds": {
+      "min": [
+        -0.78125,
+        -1.047835,
+        -1.547835
+      ],
+      "max": [
+        0.5,
+        2.047835,
+        1.547835
+      ]
+    }
+  },
+  {
+    "file": "One_Sided_wheel_mount.gltf",
+    "generator": "Blockbench 5.1.4 glTF exporter",
+    "nodes": 14,
+    "meshes": 1,
+    "skins": 1,
+    "animations": 0,
+    "root_nodes": [
+      {
+        "node": 13,
+        "name": "OneSidedSuspension_Rig"
+      }
+    ],
+    "duplicate_node_names": {
+      "OneSidedSuspension_Rig": 2
+    },
+    "semantic_nodes": [
+      {
+        "node": 0,
+        "name": "Socket_ChassisMount",
+        "world_position": [
+          0.015625,
+          1.625,
+          -0.453125
+        ]
+      },
+      {
+        "node": 1,
+        "name": "Socket_WheelCenter",
+        "world_position": [
+          -1.1875,
+          0.5,
+          -0.0625
+        ]
+      },
+      {
+        "node": 2,
+        "name": "Chassis_Top",
+        "world_position": [
+          0.40625,
+          0.96875,
+          0.0
+        ]
+      },
+      {
+        "node": 3,
+        "name": "Chassis_Bottom",
+        "world_position": [
+          0.40625,
+          0.03125,
+          0.0
+        ]
+      },
+      {
+        "node": 4,
+        "name": "Socket_DamperUpper_R",
+        "world_position": [
+          0.046875,
+          1.84375,
+          -0.8125
+        ]
+      },
+      {
+        "node": 5,
+        "name": "Socket_DamperUpper_L",
+        "world_position": [
+          0.046875,
+          1.84375,
+          0.8125
+        ]
+      },
+      {
+        "node": 6,
+        "name": "Socket_DamperLower_R",
+        "world_position": [
+          -0.71875,
+          0.03125,
+          -0.8125
+        ]
+      },
+      {
+        "node": 7,
+        "name": "Socket_DamperLower_L",
+        "world_position": [
+          -0.71875,
+          0.03125,
+          0.8125
+        ]
+      },
+      {
+        "node": 8,
+        "name": "Socket_CardanDrive",
+        "world_position": [
+          0.5,
+          0.5,
+          0.0
+        ]
+      },
+      {
+        "node": 9,
+        "name": "Socket_CardanHub",
+        "world_position": [
+          -0.9375,
+          0.5,
+          0.0
+        ]
+      },
+      {
+        "node": 10,
+        "name": "Axis_SuspensionTravel_Top",
+        "world_position": [
+          -1.1875,
+          1.5,
+          0.0
+        ]
+      },
+      {
+        "node": 11,
+        "name": "Axis_SuspensionTravel_Bottom",
+        "world_position": [
+          -1.1875,
+          -0.5,
+          0.0
+        ]
+      }
+    ],
+    "vertex_count": 456,
+    "triangle_count": 228,
+    "primitive_count": 1,
+    "world_bounds": {
+      "min": [
+        -1.1875,
+        -0.08443,
+        -1.0
+      ],
+      "max": [
+        1.019876,
+        1.909312,
+        1.0
+      ]
+    }
+  }
+]
