@@ -43,7 +43,7 @@ enum
 };
 
 // Spot-check that the aliases still track sokol_app at compile time. One per
-enum source (keycode, modifier, mouse button) is enough to catch a drift.
+// enum source (keycode, modifier, mouse button) is enough to catch a drift.
 // Cast to int so the compare doesn't trip C++'s deprecated cross-enum-type
 // comparison warning under -Werror.
 static_assert( (int)KEY_W == (int)SAPP_KEYCODE_W, "keycode alias drift" );
