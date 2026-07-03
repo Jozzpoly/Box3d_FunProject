@@ -2,7 +2,7 @@
   "assetId": "jozz.asset_dumper.v0",
   "assetType": "damper_visual",
   "source": {
-    "gltf": "../source/asset_dumper.gltf",
+    "gltf": "../source/Asset_Dumper.gltf",
     "authoringTool": "Blockbench",
     "contractVersion": 2
   },
