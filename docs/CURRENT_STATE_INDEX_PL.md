@@ -2,11 +2,11 @@
 
 Date: 2026-07-03  
 Branch: `jozz-vehicle-sandbox-m0`  
-Status: active handoff/index after M3A asset-derived primitive defaults implementation; local build validation pending
+Status: active handoff/index after M3A validation and M3B semantic debug preview implementation; M3B local/manual validation pending
 
 ## 1. Purpose
 
-This document is the first file a future agent should use to orient itself after M2.5/M3A.
+This document is the first file a future agent should use to orient itself after M2.5/M3A/M3B.1.
 
 The project now has enough milestone documents that reading them in the wrong order can easily reintroduce old mistakes. This index tells the next agent what is current, what is historical, and what must not be treated as active architecture.
 
@@ -34,10 +34,10 @@ Current active lab:
 Category: Jozz Vehicle
 Sample:   Lab M2 Primitive Corner
 Source:   samples/sample_jozz_vehicle_lab.cpp
-Panel:    Jozz Vehicle Lab M2.5 + M3A defaults
+Panel:    Jozz Vehicle Lab M2.5 + M3A/M3B debug
 ```
 
-The sample picker name remains `Lab M2 Primitive Corner` because the scene is still the same one-corner primitive lab. M3A changed the source of primitive defaults, not the sample category/architecture.
+The sample picker name remains `Lab M2 Primitive Corner` because the scene is still the same one-corner primitive lab. M3A changed the source of primitive defaults. M3B.1 adds a semantic debug overlay, not a new sample architecture.
 
 The older M1 smoke sample still exists as a basic host sanity check:
 
@@ -47,7 +47,7 @@ Jozz Vehicle / Lab M1 Smoke
 
 ## 4. Authoritative physics baseline
 
-The authoritative physics baseline is still **M2.5 primitive one-corner wheel-joint lab**, now with **M3A asset-derived primitive defaults**.
+The authoritative physics baseline is still **M2.5 primitive one-corner wheel-joint lab**, now with **M3A asset-derived primitive defaults** and **M3B semantic debug preview**.
 
 Current model:
 
@@ -68,12 +68,13 @@ Important physics rules:
 7. M3A radius/width defaults are traced to asset audit markers.
 8. M3A suspension travel from the asset is a hint only.
 9. M3A `restDrop` remains explicit/tuned, not derived from visual sockets.
+10. M3B semantic preview is a debug schematic only and does not drive physics.
 
 Do not return to the M2.3 model where frame A was treated as a visual chassis mount.
 
 ## 5. Runtime vs structural setup separation
 
-M2.5/M3A intentionally separates two control categories:
+M2.5/M3A/M3B intentionally separates two control categories:
 
 ```text
 Structural setup
@@ -92,12 +93,19 @@ Live root stress test
   - realtime
   - moves chassis/root only
   - must not rebuild bodies/joints
+
+Semantic preview
+  - M3B semantic preview checkbox
+  - debug overlay only
+  - no physics authority
+  - no mesh rendering
 ```
 
 Future UI/debug work should preserve this pattern:
 
 ```text
 pending edit values != committed physics values
+semantic debug overlay != physics authority
 ```
 
 Live root must continue reading committed setup values until Apply is pressed.
@@ -106,7 +114,7 @@ Live root must continue reading committed setup values until Apply is pressed.
 
 Sample-host/global keys are owned by the Box3D samples app. Do not add new shortcuts without checking `docs/HOTKEY_AUDIT_PL.md`, `samples/main.cpp`, `samples/gfx/keycodes.h`, and the current Jozz sample code.
 
-Current Jozz Vehicle M2.5/M3A sample keys:
+Current Jozz Vehicle M2.5/M3A/M3B sample keys:
 
 ```text
 W      wheel motor forward
@@ -122,7 +130,7 @@ Important:
 [ and ] are global sample-switching keys. Do not use them for Jozz Vehicle controls.
 ```
 
-M3A added no new hotkeys.
+M3A/M3B added no new hotkeys.
 
 ## 7. Active documentation
 
@@ -136,15 +144,17 @@ Read these first:
 6. `docs/M3A_ASSET_DERIVED_PRIMITIVE_DIMENSIONS_PLAN_PL.md`
 7. `docs/M3A_EXECUTION_PLAN_AND_CRITICAL_REVIEW_PL.md`
 8. `docs/M3A_IMPLEMENTATION_REPORT_PL.md`
-9. `docs/HOTKEY_AUDIT_PL.md`
-10. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
-11. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
-12. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
-13. `docs/PROJECT_DIRECTION_PL.md`
-14. `assets/README.md`
-15. `assets/reports/asset_audit_latest.md`
-16. `samples/sample_jozz_vehicle_lab.cpp`
-17. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
+9. `docs/M3B_METADATA_DEBUG_IMPORT_PLAN_PL.md`
+10. `docs/M3B_SEMANTIC_DEBUG_PREVIEW_IMPLEMENTATION_REPORT_PL.md`
+11. `docs/HOTKEY_AUDIT_PL.md`
+12. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
+13. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
+14. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
+15. `docs/PROJECT_DIRECTION_PL.md`
+16. `assets/README.md`
+17. `assets/reports/asset_audit_latest.md`
+18. `samples/sample_jozz_vehicle_lab.cpp`
+19. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
 
 Also useful as policy background:
 
@@ -178,6 +188,7 @@ Current authority superseding them:
 M2.4 — correct wheel-joint rest-anchor model
 M2.5 — live root stress mover + pending/committed setup separation
 M3A — asset-derived primitive radius/width defaults, travel hint only
+M3B.1 — semantic debug preview overlay, no mesh import
 ```
 
 ## 9. Current assets
@@ -229,7 +240,7 @@ Manual sample check:
 
 ```text
 Open:  Jozz Vehicle / Lab M2 Primitive Corner
-Panel: Jozz Vehicle Lab M2.5 + M3A defaults
+Panel: Jozz Vehicle Lab M2.5 + M3A/M3B debug
 ```
 
 Check:
@@ -243,9 +254,12 @@ Check:
 - structural slider edits do not affect live root until Apply;
 - Apply commits structural setup and rebuilds once;
 - Reset M3A defaults restores asset-derived radius/width;
+- `M3B semantic preview` toggle exists;
+- semantic preview draws schematic marker crosses/lines near the wheel;
+- semantic preview toggle does not change physics;
 - wheel pivot remains centered;
 - collision OFF prevents wheel/chassis collision ambiguity;
-- no glTF visuals are rendered yet.
+- no glTF mesh is rendered yet.
 
 Optional asset/tool checks:
 
@@ -273,7 +287,7 @@ Use them later as references for steering API, four-corner ownership, front stee
 
 ## 12. Current implementation status and next gate
 
-M3A code step is implemented but local build/manual validation is pending.
+M3A was manually validated by Jozz. M3B.1 semantic preview is implemented but needs local build/manual validation.
 
 M3A does:
 
@@ -283,10 +297,19 @@ suspension total travel: stored as asset hint
 rest drop: remains explicit/tuned
 ```
 
-M3A does not do:
+M3B.1 does:
 
 ```text
-runtime glTF rendering
+semantic marker preview overlay
+wheel radius/width/spin schematic
+suspension travel schematic
+toggleable debug-only visualization
+```
+
+M3A/M3B does not do:
+
+```text
+runtime glTF mesh rendering
 runtime JSON loading
 mesh collision
 steering
@@ -294,26 +317,17 @@ four-corner vehicle
 new hotkeys
 ```
 
-After M3A validation, the recommended next gate is not full rigging yet. It should be:
+After M3B.1 validation, the recommended next gate is still not full rigging. Good options are:
 
 ```text
-M3B.0 / M3B.1 — metadata/debug-first visual import preparation
-```
-
-Recommended ladder:
-
-```text
-M3B.0 read/validate metadata only, no rendering
-M3B.1 draw semantic debug points from audited positions, no mesh rendering
-M3B.2 render one static visual wheel mesh at origin
-M3B.3 attach visual wheel mesh to primitive wheel body
-M3B.4 apply explicit visual correction transform
-M3B.5 only then rig suspension/damper/cardan visuals
+M3B.1 polish — add labels/legend for semantic preview
+M3B.2-prep — runtime metadata loading without mesh rendering
+M3B.2 — render one static visual wheel mesh at origin
 ```
 
 ## 13. Explicit no-go list for the next agent
 
-Do not do these before validating M3A:
+Do not do these before validating M3B.1:
 
 - do not start full glTF renderer;
 - do not build full vehicle assembly;
@@ -323,12 +337,13 @@ Do not do these before validating M3A:
 - do not merge visual rig marker positions directly into physics joint frames;
 - do not mix pending structural setup with runtime live root controls;
 - do not treat M2.1/M2.2/M2.3 as current architecture;
-- do not derive `restDrop` directly from visual chassis/wheel sockets.
+- do not derive `restDrop` directly from visual chassis/wheel sockets;
+- do not treat M3B schematic preview as final import transform.
 
 ## 14. Current critical judgement
 
 The project is in a good but fragile place.
 
-M2.5 gave the correct wheel-joint behavior. M3A now connects the primitive wheel radius/width to Jozz's real asset measurements without opening the renderer/importer problem.
+M2.5 gave the correct wheel-joint behavior. M3A connected primitive wheel radius/width to Jozz's real asset measurements. M3B.1 now exposes semantic marker relationships in-game as a safe debug overlay.
 
-The next move should be local validation first, then metadata/debug-first import preparation, not a full visual rig leap.
+The next move should be local validation first, then either semantic-preview polish or runtime metadata loading without mesh rendering.
