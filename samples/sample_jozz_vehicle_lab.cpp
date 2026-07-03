@@ -96,24 +96,36 @@ public:
 		m_wheelRadius = 0.52f;
 		m_wheelWidth = 0.44f;
 
+		m_chassisHalfHeight = 0.16f;
 		m_rigHeight = 1.70f;
-		m_restDrop = 0.98f;
+		m_restDrop = 0.82f;
 		m_collideConnected = false;
 		m_showAxisDiagnostics = true;
+		m_structuralSetupDirty = false;
 
 		m_enableSuspension = true;
 		m_enableSuspensionLimit = true;
 		m_enableSpinMotor = true;
 		m_suspensionHertz = 3.0f;
 		m_suspensionDampingRatio = 0.75f;
-		m_lowerTranslation = -0.65f;
-		m_upperTranslation = 0.35f;
+		m_lowerTranslation = -0.55f;
+		m_upperTranslation = 0.45f;
 		m_driveSpeed = 14.0f;
 		m_maxSpinTorque = 90.0f;
 		m_brakeTorque = 180.0f;
 	}
 
-	void CreateCorner()
+	float GetChassisMountY() const
+	{
+		return m_rigHeight - m_chassisHalfHeight;
+	}
+
+	float GetWheelCenterY() const
+	{
+		return GetChassisMountY() - m_restDrop;
+	}
+
+	void DestroyCorner()
 	{
 		if ( B3_IS_NON_NULL( m_jointId ) )
 		{
@@ -132,8 +144,14 @@ public:
 			b3DestroyBody( m_chassisId );
 			m_chassisId = b3_nullBodyId;
 		}
+	}
 
-		const float wheelCenterY = m_rigHeight - m_restDrop;
+	void CreateCorner()
+	{
+		DestroyCorner();
+
+		const float chassisMountY = GetChassisMountY();
+		const float wheelCenterY = GetWheelCenterY();
 
 		// Static chassis rig: this isolates the wheel joint before a full dynamic
 		// vehicle body adds mass distribution and roll/pitch problems.
@@ -146,7 +164,7 @@ public:
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			shapeDef.baseMaterial.friction = 0.8f;
 
-			b3BoxHull chassis = b3MakeBoxHull( 1.25f, 0.16f, 0.55f );
+			b3BoxHull chassis = b3MakeBoxHull( 1.25f, m_chassisHalfHeight, 0.55f );
 			b3CreateHullShape( m_chassisId, &shapeDef, &chassis.base );
 		}
 
@@ -179,16 +197,16 @@ public:
 		jointDef.base.bodyIdA = m_chassisId;
 		jointDef.base.bodyIdB = m_wheelId;
 
-		// Critical M2.2 fix: the wheel joint's body-B frame is now exactly at the
-		// wheel body origin/center of mass. M2 used a world anchor above the wheel
-		// center for body B, producing an eccentric wheel that spun like an unbalanced
-		// vibration mechanism instead of a centered wheel.
-		b3Pos wheelCenter = { 0.0f, wheelCenterY, 0.0f };
-		jointDef.base.localFrameA.p = b3Body_GetLocalPoint( m_chassisId, wheelCenter );
+		// M2.3 model: body-A is a true chassis mount, body-B is the true wheel
+		// center. Rest drop is now a real initial suspension extension instead of
+		// being hidden by placing both frames at the wheel center.
+		b3Pos chassisMount = { 0.0f, chassisMountY, 0.0f };
+		jointDef.base.localFrameA.p = b3Body_GetLocalPoint( m_chassisId, chassisMount );
 		jointDef.base.localFrameB.p = b3Vec3_zero;
 
-		// Matches the known Box3D wheel sample frame pattern. M2 keeps this explicit
-		// so later asset-space conversion has a stable primitive reference.
+		// Matches the known Box3D wheel sample frame pattern. The local X axis of
+		// frame A is suspension travel, mapped to world Y. Frame B stays centered
+		// on the wheel and maps the wheel spin frame onto the same convention.
 		jointDef.base.localFrameA.q = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisX, b3Vec3_axisY );
 		jointDef.base.localFrameB.q = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisZ, b3Vec3_axisY );
 		jointDef.base.collideConnected = m_collideConnected;
@@ -205,34 +223,42 @@ public:
 		jointDef.maxSpinTorque = 0.0f;
 
 		m_jointId = b3CreateWheelJoint( m_worldId, &jointDef );
+		m_structuralSetupDirty = false;
 	}
 
 	bool DrawControls() override
 	{
-		ImGui::TextUnformatted( "Jozz Vehicle Lab M2.2" );
+		ImGui::TextUnformatted( "Jozz Vehicle Lab M2.3" );
 		ImGui::Separator();
-		ImGui::TextWrapped( "Primitive one-corner wheel-joint lab. M2.2 centers the wheel pivot, adds rig-height/rest-drop controls, and shows axis diagnostics." );
+		ImGui::TextWrapped( "Primitive one-corner wheel-joint lab. M2.3 separates chassis mount from wheel center and rebuilds structure only when applied." );
 		ImGui::Spacing();
 		ImGui::TextUnformatted( "Input: W drive forward, S reverse, Space brake, R restart sample." );
-		ImGui::Text( "Primitive wheel radius %.2f m, width %.2f m", m_wheelRadius, m_wheelWidth );
+		ImGui::Text( "wheel radius %.2f m, width %.2f m", m_wheelRadius, m_wheelWidth );
+		ImGui::Text( "mount y %.2f, wheel center y %.2f, wheel bottom y %.2f", GetChassisMountY(), GetWheelCenterY(),
+					  GetWheelCenterY() - m_wheelRadius );
 		ImGui::Separator();
 
-		bool rebuild = false;
-		ImGui::TextUnformatted( "Rig setup" );
-		rebuild |= ImGui::SliderFloat( "Rig height", &m_rigHeight, 0.75f, 3.50f, "%.2f" );
-		rebuild |= ImGui::SliderFloat( "Chassis-wheel rest drop", &m_restDrop, 0.25f, 2.00f, "%.2f" );
-		rebuild |= ImGui::SliderFloat( "Wheel radius", &m_wheelRadius, 0.20f, 0.90f, "%.2f" );
-		rebuild |= ImGui::SliderFloat( "Wheel width", &m_wheelWidth, 0.12f, 0.90f, "%.2f" );
-		rebuild |= ImGui::Checkbox( "Wheel collides with chassis", &m_collideConnected );
+		ImGui::TextUnformatted( "Structural rig setup" );
+		m_structuralSetupDirty |= ImGui::SliderFloat( "Rig height", &m_rigHeight, 0.75f, 3.50f, "%.2f" );
+		m_structuralSetupDirty |= ImGui::SliderFloat( "Chassis-wheel rest drop", &m_restDrop, 0.25f, 2.00f, "%.2f" );
+		m_structuralSetupDirty |= ImGui::SliderFloat( "Wheel radius", &m_wheelRadius, 0.20f, 0.90f, "%.2f" );
+		m_structuralSetupDirty |= ImGui::SliderFloat( "Wheel width", &m_wheelWidth, 0.12f, 0.90f, "%.2f" );
+		m_structuralSetupDirty |= ImGui::Checkbox( "Wheel collides with chassis", &m_collideConnected );
 		ImGui::Checkbox( "Axis diagnostics", &m_showAxisDiagnostics );
 
-		if ( ImGui::Button( "Reset M2.2 setup" ) )
+		if ( m_structuralSetupDirty )
 		{
-			SetDefaults();
+			ImGui::TextWrapped( "Pending structural change. Press Apply to rebuild bodies/joint cleanly." );
+		}
+
+		if ( ImGui::Button( "Apply rig rebuild" ) )
+		{
 			CreateCorner();
 		}
-		else if ( rebuild )
+		ImGui::SameLine();
+		if ( ImGui::Button( "Reset M2.3 setup" ) )
 		{
+			SetDefaults();
 			CreateCorner();
 		}
 
@@ -365,12 +391,15 @@ public:
 
 		b3Pos wheelPosition = b3Body_GetPosition( m_wheelId );
 		b3Vec3 wheelVelocity = b3Body_GetLinearVelocity( m_wheelId );
+		b3Pos chassisMount = { 0.0f, GetChassisMountY(), 0.0f };
 
 		if ( m_showAxisDiagnostics )
 		{
 			b3WorldTransform wheelTransform = b3Body_GetTransform( m_wheelId );
 			DrawAxes( wheelTransform, m_wheelRadius + 0.25f );
 			DrawCross( wheelPosition, 0.12f, MakeVec4( 1.0f, 1.0f, 0.0f, 1.0f ) );
+			DrawCross( chassisMount, 0.12f, MakeVec4( 0.1f, 0.8f, 1.0f, 1.0f ) );
+			DrawLine( chassisMount, wheelPosition, MakeVec4( 0.1f, 0.8f, 1.0f, 1.0f ) );
 
 			b3Vec3 axle = b3Body_GetWorldVector( m_wheelId, b3Vec3_axisY );
 			float halfAxle = 0.5f * m_wheelWidth + 0.25f;
@@ -381,11 +410,11 @@ public:
 			DrawLine( axleA, axleB, MakeVec4( 1.0f, 0.85f, 0.1f, 1.0f ) );
 		}
 
-		DrawTextLine( "Jozz Vehicle Lab M2.2 Primitive Corner" );
+		DrawTextLine( "Jozz Vehicle Lab M2.3 Primitive Corner" );
 		DrawTextLine( "W/S drive only while held, Space brakes, R restarts." );
 		DrawTextLine( "wheel y = %.2f, speed = %.2f m/s", (float)wheelPosition.y, b3Length( wheelVelocity ) );
-		DrawTextLine( "rig height %.2f, rest drop %.2f, wheel radius %.2f, width %.2f", m_rigHeight, m_restDrop, m_wheelRadius,
-					  m_wheelWidth );
+		DrawTextLine( "mount y %.2f, rest drop %.2f, wheel bottom %.2f", GetChassisMountY(), m_restDrop,
+					  GetWheelCenterY() - m_wheelRadius );
 		DrawTextLine( "spring %.2f Hz, damping %.2f, travel %.2f..%.2f", m_suspensionHertz, m_suspensionDampingRatio,
 					  m_lowerTranslation, m_upperTranslation );
 	}
@@ -404,6 +433,7 @@ public:
 	bool m_enableSpinMotor;
 	bool m_collideConnected;
 	bool m_showAxisDiagnostics;
+	bool m_structuralSetupDirty;
 	float m_suspensionHertz;
 	float m_suspensionDampingRatio;
 	float m_lowerTranslation;
@@ -413,6 +443,7 @@ public:
 	float m_brakeTorque;
 	float m_wheelRadius;
 	float m_wheelWidth;
+	float m_chassisHalfHeight;
 	float m_rigHeight;
 	float m_restDrop;
 };
