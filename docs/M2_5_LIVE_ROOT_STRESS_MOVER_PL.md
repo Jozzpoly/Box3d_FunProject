@@ -64,8 +64,8 @@ Reset live root       returns offset to 0
 Keyboard:
 
 ```text
-[  lower live root
-]  raise live root
+Q  lower live root
+E  raise live root
 ```
 
 The existing controls remain:
@@ -75,6 +75,22 @@ W      drive forward
 S      reverse
 Space  brake
 R      restart sample
+```
+
+## Hotkey conflict correction
+
+Initial M2.5 used `[` and `]` for live root movement. That was wrong because the global sample host already uses them to switch samples.
+
+M2.5 now uses `Q/E` instead:
+
+- `Q` lowers the live root;
+- `E` raises the live root;
+- `Ctrl+Q` remains the global quit shortcut handled by the sample host.
+
+Foundation rule:
+
+```text
+No new keyboard shortcut should be added before checking sample-host/global shortcuts.
 ```
 
 ## Preventing setup/live-root interference
@@ -115,7 +131,7 @@ Jozz Vehicle Lab M2.5
 Test plan:
 
 1. Move `Live root offset` slider quickly up/down. It should move immediately without Apply.
-2. Use `[` and `]` to move root down/up continuously.
+2. Use `Q` and `E` to move root down/up continuously.
 3. The chassis/root should move, but the wheel should not teleport with it.
 4. The suspension should stretch/compress and settle naturally.
 5. Fast downward movement should create stronger ground/contact reactions.
