@@ -38,10 +38,12 @@ Read in this order before making changes:
 4. `docs/HOTKEY_AUDIT_PL.md`
 5. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
 6. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
-7. `docs/PROJECT_DIRECTION_PL.md`
-8. `assets/README.md`
-9. `assets/reports/asset_audit_latest.md`
-10. `samples/sample_jozz_vehicle_lab.cpp`
+7. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
+8. `docs/PROJECT_DIRECTION_PL.md`
+9. `assets/README.md`
+10. `assets/reports/asset_audit_latest.md`
+11. `samples/sample_jozz_vehicle_lab.cpp`
+12. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
 
 Also useful as background:
 
@@ -104,6 +106,23 @@ Do not let pending structural UI values affect live physics until Apply is press
 - For now, every asset may carry temporary orientation/scale correction metadata in its sidecar `.asset.json`.
 - The current physical baseline uses a **single Box3D wheel joint per suspension corner**.
 - Wahacze, damper body, and cardan shaft are **visual-only in v0** unless future tests prove that physical multi-body suspension is worth the added complexity.
+
+## Box3D sample references
+
+`docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md` analyzes:
+
+```text
+Joints / Wheel
+Joints / Driving
+```
+
+Main result:
+
+```text
+Both support the M2.4/M2.5 rest-anchor model.
+```
+
+Use those stock samples later as references for steering API, four-corner ownership and debug readouts. Do not copy them blindly and do not skip M3A because `Joints / Driving` already exists.
 
 ## Current assets
 
@@ -169,7 +188,8 @@ Finish the Foundation Grounding phase:
 1. keep `docs/CURRENT_STATE_INDEX_PL.md` current;
 2. keep M2.1/M2.2/M2.3 clearly marked as superseded/historical;
 3. keep `docs/HOTKEY_AUDIT_PL.md` current;
-4. do not start M3/glTF/full vehicle assembly yet.
+4. keep `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md` as a reference, not an implementation order;
+5. do not start M3/glTF/full vehicle assembly yet.
 
 After this grounding pass, the recommended next technical gate is:
 
