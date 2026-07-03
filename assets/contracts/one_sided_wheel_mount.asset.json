@@ -2,7 +2,7 @@
   "assetId": "jozz.one_sided_wheel_mount.v0",
   "assetType": "suspension_corner_visual",
   "source": {
-    "gltf": "../source/one_sided_wheel_mount.gltf",
+    "gltf": "../source/One_Sided_wheel_mount.gltf",
     "authoringTool": "Blockbench",
     "contractVersion": 2
   },
