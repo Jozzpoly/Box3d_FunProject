@@ -1,15 +1,17 @@
 # Assets — Jozz Vehicle Box3D Native
 
-Source models are intended for `assets/source/`.
+Source models are kept in `assets/source/`.
 
 Sidecar contracts are kept in `assets/contracts/`.
 
 ## Current source files
 
-- `offroad_big_wheel.gltf`
-- `one_sided_wheel_mount.gltf`
-- `asset_dumper.gltf`
-- `cardan_shaft.gltf`
+- `Asset_Dumper.gltf`
+- `Cardan_shaft.gltf`
+- `Offroad_Big_Wheels.gltf`
+- `One_Sided_wheel_mount.gltf`
+
+These names intentionally match Jozz's cleaned local filenames without chat-upload suffix numbers.
 
 ## Important
 
@@ -23,4 +25,10 @@ Known current condition:
 - marker/socket naming is useful but not strong enough alone;
 - importer must compose transforms through parent nodes.
 
-The current uploaded glTF files were audited in `assets/reports/asset_audit_initial_2026-07-03.md`. The model source files themselves still need to be added to the branch through a normal git/file upload path if not already present locally.
+Run the audit after changing source models:
+
+```powershell
+py tools\asset_audit.py
+```
+
+The current generated audit lives in `assets/reports/asset_audit_latest.md` and `assets/reports/asset_audit_latest.json`.
