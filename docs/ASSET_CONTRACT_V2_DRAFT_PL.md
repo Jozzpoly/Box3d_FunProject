@@ -1,6 +1,6 @@
 # Asset Contract v2 Draft — Jozz Vehicle
 
-Status: draft  
+Status: draft, hardened after M2.5 foundation grounding  
 Date: 2026-07-03
 
 ## Purpose
@@ -9,6 +9,16 @@ The old `Socket_`, `Axis_`, `Marker_`, `Part_`, and `Chassis_` node naming syste
 
 Asset Contract v2 adds a sidecar `.asset.json` beside each glTF file.
 
+The contract must prevent a future importer from confusing:
+
+```text
+human-readable marker names
+stable node identity
+visual rig endpoints
+physics joint frames
+physics tuning hints
+```
+
 ## Core principles
 
 1. glTF contains geometry, skin/node hierarchy, and visible authoring markers.
@@ -16,6 +26,8 @@ Asset Contract v2 adds a sidecar `.asset.json` beside each glTF file.
 3. Importer must validate both together.
 4. Duplicate node names are allowed in raw glTF, but importer must not use names as unique IDs.
 5. Model orientation may be corrected later by Jozz; until then, sidecar stores temporary correction metadata.
+6. Visual rig markers are not automatically physics frames.
+7. Physics prefabs must remain separate from visual assets.
 
 ## Minimal schema draft
 
@@ -80,3 +92,184 @@ Why:
 - that gives about `1.03 m` tire diameter, plausible for a large offroad vehicle.
 
 This value is **not final**. It is a prototype constant, but it must be centralized.
+
+## Binding rules before runtime import
+
+The sidecar must eventually distinguish between these concepts:
+
+```text
+nameHint      human-readable expected node name, not unique identity
+nodeIndex     exact glTF node index from the audited source file
+nodePath      stable parent-chain path when available
+role          semantic gameplay/import role
+space         authoring space / game space / local node space
+required      whether missing binding is error or warning
+```
+
+Draft binding object:
+
+```json
+{
+  "role": "wheel.spinAxis.a",
+  "nameHint": "Axis_WheelSpin_A",
+  "nodeIndexHint": 6,
+  "required": true,
+  "space": "authoring_world_after_composed_transforms",
+  "notes": "Name is not unique identity. Importer must resolve and validate path/index."
+}
+```
+
+Why this matters:
+
+Current glTF exports have duplicate root/node names. A future importer that does `findNodeByName()` and assumes uniqueness will be broken by design.
+
+## Role categories
+
+Every semantic marker should eventually declare one of these role categories:
+
+```text
+visual_endpoint       endpoint for procedural visual rigging
+visual_part           named mesh/part to pose or stretch
+physics_hint          may inform generated primitive physics dimensions
+physics_authority     allowed to define physics prefab data
+diagnostic_marker     draw/debug only
+```
+
+Default rule:
+
+```text
+visual_endpoint != physics_authority
+```
+
+A marker cannot become physics authority unless the contract explicitly says so.
+
+## Wheel asset required semantics
+
+For a wheel asset, v2 should require:
+
+```text
+wheel center hint or mount socket
+spin axis A/B
+outer radius marker
+width left/right markers
+scale metadata
+orientation status
+```
+
+Safe M3A derivations:
+
+```text
+radius from wheel center Y to outer radius marker Y, after scale
+width from width marker separation, after scale
+```
+
+Unsafe until stronger contract:
+
+```text
+physics rest drop
+steering pivot
+suspension limits
+```
+
+## Suspension corner visual required semantics
+
+For a suspension-corner visual asset, v2 should require:
+
+```text
+visual chassis mount
+visual wheel center
+suspension travel top/bottom axis markers
+damper upper/lower endpoints
+cardan drive/hub endpoints
+visual moving parts if present
+```
+
+Safe M3A use:
+
+```text
+suspension travel top/bottom as total-travel hint
+```
+
+Unsafe until stronger contract:
+
+```text
+body-A wheel-joint frame
+restDrop directly from Socket_ChassisMount -> Socket_WheelCenter
+full multi-body suspension
+```
+
+Reason:
+
+M2.3 proved that treating the visual chassis/damper mount as the wheel-joint body-A frame creates wrong spring behavior. `b3WheelJoint` needs frame A at the rest wheel-center anchor, not the visible mount.
+
+## Damper visual required semantics
+
+For a damper visual asset, v2 should require:
+
+```text
+upper visual part
+stretch visual part
+lower visual part
+stretch axis
+```
+
+The damper is visual-only in v0.
+
+Future rigging should procedurally place/stretch it between damper sockets from the suspension asset. It should not drive physics.
+
+## Cardan visual required semantics
+
+For a cardan shaft visual asset, v2 should eventually require:
+
+```text
+shaft start socket or local start endpoint
+shaft end socket or local end endpoint
+length axis
+optional rotating visual part
+```
+
+Current cardan source has no semantic nodes. For v0, it may be procedurally placed between:
+
+```text
+Socket_CardanDrive
+Socket_CardanHub
+```
+
+from the suspension asset.
+
+That workaround is acceptable for a first visual placeholder but should not be considered final rig contract quality.
+
+## Contract validation backlog
+
+Future `tools/asset_audit.py --validate-contracts` should check:
+
+1. every contract source file exists;
+2. every required semantic name resolves to at least one node;
+3. duplicate names are detected and contract does not rely on ambiguous name-only binding;
+4. required wheel markers exist;
+5. wheel radius and width marker distances are plausible;
+6. suspension travel axis exists and has plausible length;
+7. damper visual parts exist;
+8. cardan missing semantic nodes are reported as expected warning/error based on contract status;
+9. all contracts share the same prototype scale or explicitly explain why not;
+10. generated markdown report includes warnings severe enough that future agents cannot ignore them.
+
+## M3A contract stance
+
+M3A may use current contracts and audit data as **offline/reference input**.
+
+M3A should not yet require runtime JSON parsing.
+
+The safest M3A path is:
+
+```text
+centralize asset-derived constants in code with comments pointing to audited markers
+```
+
+A later M3A.1 can load the same constants from JSON once contract validation is stronger.
+
+## Final warning
+
+The contract exists to stop the project from lying to itself.
+
+If a value is only a visual hint, call it a visual hint. If it drives physics, it must be explicit, validated, and documented.
