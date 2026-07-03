@@ -1,6 +1,6 @@
 # README_FOR_AGENTS — Jozz Vehicle Box3D Native
 
-Status: M3A manually validated by Jozz; M3B semantic debug preview implemented, validation pending  
+Status: M3A manually validated by Jozz; M3B semantic debug preview anchoring fix implemented, validation pending  
 Date: 2026-07-03  
 Owner/creative director: Jozz / Przemek  
 Working branch: `jozz-vehicle-sandbox-m0`
@@ -41,15 +41,16 @@ Read in this order before making changes:
 7. `docs/M3A_IMPLEMENTATION_REPORT_PL.md`
 8. `docs/M3B_METADATA_DEBUG_IMPORT_PLAN_PL.md`
 9. `docs/M3B_SEMANTIC_DEBUG_PREVIEW_IMPLEMENTATION_REPORT_PL.md`
-10. `docs/HOTKEY_AUDIT_PL.md`
-11. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
-12. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
-13. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
-14. `docs/PROJECT_DIRECTION_PL.md`
-15. `assets/README.md`
-16. `assets/reports/asset_audit_latest.md`
-17. `samples/sample_jozz_vehicle_lab.cpp`
-18. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
+10. `docs/M3B_SEMANTIC_PREVIEW_ANCHORING_FIX_PL.md`
+11. `docs/HOTKEY_AUDIT_PL.md`
+12. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
+13. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
+14. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
+15. `docs/PROJECT_DIRECTION_PL.md`
+16. `assets/README.md`
+17. `assets/reports/asset_audit_latest.md`
+18. `samples/sample_jozz_vehicle_lab.cpp`
+19. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
 
 Also useful as background:
 
@@ -89,6 +90,8 @@ M3B.1 rules:
 ```text
 semantic preview is a debug schematic only
 it draws audited wheel/suspension marker relationships near the physics corner
+wheel preview follows the actual wheel/body
+suspension preview follows chassis/root
 it does not drive physics
 it is not the final glTF visual transform
 no mesh rendering was added
@@ -121,11 +124,13 @@ Live root stress test
 Semantic debug preview
   - toggleable with ImGui
   - no hotkey
+  - wheel schematic follows wheel/body
+  - suspension schematic follows chassis/root
   - no physics authority
   - no mesh rendering
 ```
 
-Do not let pending structural UI values affect live physics until Apply is pressed.
+Do not let pending structural UI values affect live physics until Apply is pressed. Do not let suspension semantic preview become wheel-owned again.
 
 ## Current project stance
 
@@ -146,6 +151,7 @@ Before visual rig/import work, read:
 docs/PRE_RIG_IMPORT_READINESS_AUDIT_PL.md
 docs/M3A_IMPLEMENTATION_REPORT_PL.md
 docs/M3B_SEMANTIC_DEBUG_PREVIEW_IMPLEMENTATION_REPORT_PL.md
+docs/M3B_SEMANTIC_PREVIEW_ANCHORING_FIX_PL.md
 docs/ASSET_CONTRACT_V2_DRAFT_PL.md
 ```
 
@@ -153,11 +159,11 @@ Current judgement:
 
 ```text
 M3A is manually validated by Jozz.
-M3B.1 semantic preview is implemented but still needs local/manual validation.
+M3B.1 semantic preview is implemented with anchoring fix, but the fix still needs local/manual validation.
 Heavy glTF import/rigging is not ready yet.
 ```
 
-Safe after M3B.1 validation:
+Safe after M3B.1 anchoring validation:
 
 ```text
 M3B.1 polish: labels/legend for semantic preview
@@ -258,10 +264,11 @@ Prefer ImGui buttons/sliders for debug controls unless holding a key is genuinel
 - Do not add hotkeys without checking global sample-host conflicts.
 - Do not derive rest drop from visual chassis/wheel sockets until a dedicated physics rest anchor contract exists.
 - Do not treat M3B semantic preview as final import transform.
+- Do not anchor suspension semantic preview to wheel rest drop again.
 
 ## Immediate next engineering target
 
-Validate M3B.1 locally before starting the next feature gate.
+Validate M3B.1 anchoring fix locally before starting the next feature gate.
 
 After validation, the next recommended gate is:
 
@@ -269,7 +276,7 @@ After validation, the next recommended gate is:
 M3B.1 polish or M3B.2-prep
 ```
 
-Do not start full glTF rendering, full visual rigging, steering or full vehicle assembly before M3B.1 is validated.
+Do not start full glTF rendering, full visual rigging, steering or full vehicle assembly before M3B.1 anchoring is validated.
 
 ## Validation commands for Jozz
 
@@ -295,4 +302,4 @@ Expected panel:
 Jozz Vehicle Lab M2.5 + M3A/M3B debug
 ```
 
-Check that the `M3B semantic preview` checkbox exists and that toggling it shows/hides only the schematic marker overlay.
+Check that the `M3B semantic preview` checkbox exists. Wheel schematic should follow the wheel/body. Suspension schematic should follow chassis/root and should not be dragged wholesale by changing `Rest drop` and pressing Apply.
