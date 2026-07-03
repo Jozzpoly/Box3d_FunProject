@@ -6,10 +6,10 @@
 #define JSMN_STATIC
 #include "jsmn.h"
 
-#include <charconv>
+#include <cerrno>
+#include <cstdlib>
 #include <fstream>
 #include <string_view>
-#include <system_error>
 
 namespace
 {
@@ -42,10 +42,16 @@ bool TokenFloat( std::string_view json, const jsmntok_t& token, float* out )
 	}
 
 	std::string text = TokenString( json, token );
-	const char* begin = text.data();
-	const char* end = text.data() + text.size();
-	std::from_chars_result result = std::from_chars( begin, end, *out );
-	return result.ec == std::errc() && result.ptr == end;
+	char* end = nullptr;
+	errno = 0;
+	float value = std::strtof( text.c_str(), &end );
+	if ( errno != 0 || end == text.c_str() || *end != '\0' )
+	{
+		return false;
+	}
+
+	*out = value;
+	return true;
 }
 
 int SkipToken( const std::vector<jsmntok_t>& tokens, int index )
@@ -258,7 +264,7 @@ JozzVehicleAuditMetadata LoadJozzVehicleAuditMetadata()
 		}
 	}
 
-	PopulateFallbackMetadata( &metadata, "using built-in audited fallback; runtime asset audit report not found" );
+	PopulateFallbackMetadata( &metadata, "using built-in audited fallback; runtime asset audit report not found" );	
 	return metadata;
 }
 
