@@ -101,6 +101,8 @@ public:
 		m_restDrop = 0.82f;
 		m_reboundTravel = 0.42f;
 		m_compressionTravel = 0.32f;
+		m_liveRootOffset = 0.0f;
+		m_liveRootSpeed = 2.5f;
 		m_collideConnected = false;
 		m_showAxisDiagnostics = true;
 		m_structuralSetupDirty = false;
@@ -125,6 +127,21 @@ public:
 		return GetChassisMountY() - m_restDrop;
 	}
 
+	float GetLiveRigHeight() const
+	{
+		return m_rigHeight + m_liveRootOffset;
+	}
+
+	float GetLiveChassisMountY() const
+	{
+		return GetChassisMountY() + m_liveRootOffset;
+	}
+
+	float GetLiveRestWheelCenterY() const
+	{
+		return GetRestWheelCenterY() + m_liveRootOffset;
+	}
+
 	float GetLowerSuspensionLimit() const
 	{
 		return -m_reboundTravel;
@@ -133,6 +150,33 @@ public:
 	float GetUpperSuspensionLimit() const
 	{
 		return m_compressionTravel;
+	}
+
+	void ClampLiveRootOffset()
+	{
+		if ( m_liveRootOffset < -1.50f )
+		{
+			m_liveRootOffset = -1.50f;
+		}
+		else if ( m_liveRootOffset > 2.50f )
+		{
+			m_liveRootOffset = 2.50f;
+		}
+	}
+
+	void ApplyLiveRootTransform()
+	{
+		ClampLiveRootOffset();
+
+		if ( B3_IS_NON_NULL( m_chassisId ) )
+		{
+			b3Body_SetTransform( m_chassisId, { 0.0f, GetLiveRigHeight(), 0.0f }, b3Quat_identity );
+		}
+
+		if ( B3_IS_NON_NULL( m_jointId ) )
+		{
+			b3Joint_WakeBodies( m_jointId );
+		}
 	}
 
 	void ApplyTravelLimits()
@@ -169,13 +213,13 @@ public:
 	{
 		DestroyCorner();
 
-		const float restWheelCenterY = GetRestWheelCenterY();
+		const float liveRestWheelCenterY = GetLiveRestWheelCenterY();
 
 		// Static chassis rig: this isolates the wheel joint before a full dynamic
 		// vehicle body adds mass distribution and roll/pitch problems.
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.position = { 0.0f, m_rigHeight, 0.0f };
+			bodyDef.position = { 0.0f, GetLiveRigHeight(), 0.0f };
 			bodyDef.name = "jozz_m2_static_chassis_rig";
 			m_chassisId = b3CreateBody( m_worldId, &bodyDef );
 
@@ -195,7 +239,7 @@ public:
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_dynamicBody;
-			bodyDef.position = { 0.0f, restWheelCenterY, 0.0f };
+			bodyDef.position = { 0.0f, liveRestWheelCenterY, 0.0f };
 
 			// b3CreateCylinder builds along local Y. Rotate local Y onto world Z,
 			// matching the stock Box3D wheel-joint sample and giving the wheel a
@@ -225,11 +269,11 @@ public:
 		jointDef.base.bodyIdA = m_chassisId;
 		jointDef.base.bodyIdB = m_wheelId;
 
-		// M2.4 model: wheel joint spring has implicit rest translation = 0, so
-		// frame A must be the rest wheel-center anchor on the chassis, not the
-		// visual chassis mount above it. The visual mount is drawn separately.
-		b3Pos restWheelCenter = { 0.0f, restWheelCenterY, 0.0f };
-		jointDef.base.localFrameA.p = b3Body_GetLocalPoint( m_chassisId, restWheelCenter );
+		// M2.5 keeps the M2.4 rest-anchor model. The live root offset moves the
+		// chassis body itself; because frame A is local to the chassis, the rest
+		// wheel center follows the root without changing rest drop or travel setup.
+		b3Pos liveRestWheelCenter = { 0.0f, liveRestWheelCenterY, 0.0f };
+		jointDef.base.localFrameA.p = b3Body_GetLocalPoint( m_chassisId, liveRestWheelCenter );
 		jointDef.base.localFrameB.p = b3Vec3_zero;
 
 		// Wheel-joint convention: wheel translates along local X in frame A and
@@ -255,15 +299,34 @@ public:
 
 	bool DrawControls() override
 	{
-		ImGui::TextUnformatted( "Jozz Vehicle Lab M2.4" );
+		ImGui::TextUnformatted( "Jozz Vehicle Lab M2.5" );
 		ImGui::Separator();
-		ImGui::TextWrapped( "Primitive one-corner wheel-joint lab. M2.4 treats rest drop as the rest wheel-center anchor and exposes relative rebound/compression travel." );
+		ImGui::TextWrapped( "Primitive one-corner wheel-joint lab. M2.5 adds a realtime live root mover for suspension stress testing without rebuilding the joint." );
 		ImGui::Spacing();
-		ImGui::TextUnformatted( "Input: W drive forward, S reverse, Space brake, R restart sample." );
+		ImGui::TextUnformatted( "Input: W drive forward, S reverse, Space brake, [ lower root, ] raise root, R restart sample." );
 		ImGui::Text( "wheel radius %.2f m, width %.2f m", m_wheelRadius, m_wheelWidth );
-		ImGui::Text( "mount y %.2f, rest center y %.2f, wheel bottom y %.2f", GetChassisMountY(), GetRestWheelCenterY(),
-					  GetRestWheelCenterY() - m_wheelRadius );
+		ImGui::Text( "live root %.2f, live rest center y %.2f", m_liveRootOffset, GetLiveRestWheelCenterY() );
 		ImGui::Text( "relative travel: rebound %.2f down, compression %.2f up", m_reboundTravel, m_compressionTravel );
+		ImGui::Separator();
+
+		ImGui::TextUnformatted( "Live root stress test" );
+		if ( ImGui::SliderFloat( "Live root offset", &m_liveRootOffset, -1.50f, 2.50f, "%.2f" ) )
+		{
+			ApplyLiveRootTransform();
+		}
+		if ( ImGui::SliderFloat( "Live root key speed", &m_liveRootSpeed, 0.10f, 8.00f, "%.2f m/s" ) )
+		{
+			if ( m_liveRootSpeed < 0.10f )
+			{
+				m_liveRootSpeed = 0.10f;
+			}
+		}
+		if ( ImGui::Button( "Reset live root" ) )
+		{
+			m_liveRootOffset = 0.0f;
+			ApplyLiveRootTransform();
+		}
+		ImGui::TextWrapped( "This moves only the chassis/root in realtime. The wheel is not teleported, so the suspension and ground contact are stressed." );
 		ImGui::Separator();
 
 		ImGui::TextUnformatted( "Structural rig setup" );
@@ -276,7 +339,7 @@ public:
 
 		if ( m_structuralSetupDirty )
 		{
-			ImGui::TextWrapped( "Pending structural change. Press Apply to rebuild bodies/joint cleanly." );
+			ImGui::TextWrapped( "Pending structural change. Press Apply to rebuild bodies/joint cleanly. Live root offset is preserved." );
 		}
 
 		if ( ImGui::Button( "Apply rig rebuild" ) )
@@ -284,7 +347,7 @@ public:
 			CreateCorner();
 		}
 		ImGui::SameLine();
-		if ( ImGui::Button( "Reset M2.4 setup" ) )
+		if ( ImGui::Button( "Reset M2.5 setup" ) )
 		{
 			SetDefaults();
 			CreateCorner();
@@ -365,6 +428,23 @@ public:
 
 	void Step() override
 	{
+		float rootDirection = 0.0f;
+		if ( IsKeyDown( KEY_LEFT_BRACKET ) )
+		{
+			rootDirection -= 1.0f;
+		}
+		if ( IsKeyDown( KEY_RIGHT_BRACKET ) )
+		{
+			rootDirection += 1.0f;
+		}
+
+		if ( rootDirection != 0.0f )
+		{
+			float dt = m_context->hertz > 0.0f ? 1.0f / m_context->hertz : 1.0f / 60.0f;
+			m_liveRootOffset += rootDirection * m_liveRootSpeed * dt;
+			ApplyLiveRootTransform();
+		}
+
 		if ( m_enableSpinMotor )
 		{
 			bool driveForward = IsKeyDown( KEY_W );
@@ -409,19 +489,19 @@ public:
 
 		b3Pos wheelPosition = b3Body_GetPosition( m_wheelId );
 		b3Vec3 wheelVelocity = b3Body_GetLinearVelocity( m_wheelId );
-		b3Pos chassisMount = { 0.0f, GetChassisMountY(), 0.0f };
-		b3Pos restWheelCenter = { 0.0f, GetRestWheelCenterY(), 0.0f };
-		float actualTranslation = (float)( wheelPosition.y - restWheelCenter.y );
+		b3Pos liveChassisMount = { 0.0f, GetLiveChassisMountY(), 0.0f };
+		b3Pos liveRestWheelCenter = { 0.0f, GetLiveRestWheelCenterY(), 0.0f };
+		float actualTranslation = (float)( wheelPosition.y - liveRestWheelCenter.y );
 
 		if ( m_showAxisDiagnostics )
 		{
 			b3WorldTransform wheelTransform = b3Body_GetTransform( m_wheelId );
 			DrawAxes( wheelTransform, m_wheelRadius + 0.25f );
 			DrawCross( wheelPosition, 0.12f, MakeVec4( 1.0f, 1.0f, 0.0f, 1.0f ) );
-			DrawCross( chassisMount, 0.12f, MakeVec4( 0.1f, 0.8f, 1.0f, 1.0f ) );
-			DrawCross( restWheelCenter, 0.10f, MakeVec4( 0.9f, 0.2f, 1.0f, 1.0f ) );
-			DrawLine( chassisMount, restWheelCenter, MakeVec4( 0.1f, 0.8f, 1.0f, 1.0f ) );
-			DrawLine( restWheelCenter, wheelPosition, MakeVec4( 0.9f, 0.2f, 1.0f, 1.0f ) );
+			DrawCross( liveChassisMount, 0.12f, MakeVec4( 0.1f, 0.8f, 1.0f, 1.0f ) );
+			DrawCross( liveRestWheelCenter, 0.10f, MakeVec4( 0.9f, 0.2f, 1.0f, 1.0f ) );
+			DrawLine( liveChassisMount, liveRestWheelCenter, MakeVec4( 0.1f, 0.8f, 1.0f, 1.0f ) );
+			DrawLine( liveRestWheelCenter, wheelPosition, MakeVec4( 0.9f, 0.2f, 1.0f, 1.0f ) );
 
 			b3Vec3 axle = b3Body_GetWorldVector( m_wheelId, b3Vec3_axisY );
 			float halfAxle = 0.5f * m_wheelWidth + 0.25f;
@@ -432,11 +512,11 @@ public:
 			DrawLine( axleA, axleB, MakeVec4( 1.0f, 0.85f, 0.1f, 1.0f ) );
 		}
 
-		DrawTextLine( "Jozz Vehicle Lab M2.4 Primitive Corner" );
-		DrawTextLine( "W/S drive only while held, Space brakes, R restarts." );
-		DrawTextLine( "wheel y = %.2f, speed = %.2f m/s, translation = %.2f", (float)wheelPosition.y, b3Length( wheelVelocity ),
-					  actualTranslation );
-		DrawTextLine( "mount %.2f, rest center %.2f, bottom %.2f", GetChassisMountY(), GetRestWheelCenterY(),
+		DrawTextLine( "Jozz Vehicle Lab M2.5 Primitive Corner" );
+		DrawTextLine( "W/S drive, Space brakes, [/] live root down/up, R restarts." );
+		DrawTextLine( "root %.2f, wheel y %.2f, speed %.2f m/s, translation %.2f", m_liveRootOffset, (float)wheelPosition.y,
+					  b3Length( wheelVelocity ), actualTranslation );
+		DrawTextLine( "live mount %.2f, live rest %.2f, wheel bottom %.2f", GetLiveChassisMountY(), GetLiveRestWheelCenterY(),
 					  (float)wheelPosition.y - m_wheelRadius );
 		DrawTextLine( "travel limit %.2f..%.2f, spring %.2f Hz, damping %.2f", GetLowerSuspensionLimit(), GetUpperSuspensionLimit(),
 					  m_suspensionHertz, m_suspensionDampingRatio );
@@ -469,6 +549,8 @@ public:
 	float m_chassisHalfHeight;
 	float m_rigHeight;
 	float m_restDrop;
+	float m_liveRootOffset;
+	float m_liveRootSpeed;
 };
 
 static int sampleJozzVehiclePrimitiveCornerM2 =
