@@ -2,7 +2,7 @@
 
 Date: 2026-07-03  
 Branch: `jozz-vehicle-sandbox-m0`  
-Status: implemented in code; anchoring bug reported by Jozz and fixed; local build/manual validation of fix pending
+Status: implemented in code; anchoring bug reported by Jozz, fixed, and manually validated by screenshots
 
 ## 1. What changed
 
@@ -84,6 +84,8 @@ This means:
 - suspension schematic should not be dragged around merely because `Rest drop` changes;
 - the overlay still does not drive physics.
 
+Jozz's later screenshots validated this corrected anchoring model well enough to continue.
+
 ## 4. Important limitation
 
 This is not a runtime glTF importer.
@@ -160,6 +162,7 @@ M3B.1 did not add:
 - It does not affect physics.
 - Jozz caught and corrected the bad first anchoring model early.
 - The corrected model separates wheel-owned preview from chassis/suspension-owned preview.
+- Jozz's screenshot validation confirms the corrected ownership model is usable.
 
 ### Risk
 
@@ -177,43 +180,34 @@ Judgement:
 
 Acceptable for M3B.1. The point of this step is in-game semantic visibility without adding runtime import risk. Runtime metadata loading can be a later M3B.2-prep task after this preview is validated.
 
-## 9. Required validation
+## 9. Validation status
 
-Run:
+Jozz manually tested the M3B preview after the anchoring fix and sent screenshots.
 
-```powershell
-cmake --preset windows
-cmake --build --preset windows-debug --target samples
-```
+Validated observations:
 
-Open:
+- sample opens and shows the M3B preview text;
+- semantic preview is visible;
+- wheel schematic follows wheel/body side;
+- suspension schematic follows chassis/root side;
+- live root movement can move the suspension schematic, as expected;
+- rest-drop-focused screenshots show the suspension schematic is not dragged wholesale as a wheel-owned group.
 
-```text
-Jozz Vehicle / Lab M2 Primitive Corner
-```
-
-Expected panel:
+Manual validation status:
 
 ```text
-Jozz Vehicle Lab M2.5 + M3A/M3B debug
+M3B.1 anchoring fix accepted for continuing work
 ```
 
-Check:
+Future regression checks should still verify:
 
-- sample opens without crash;
-- primitive wheel still works;
-- W/S, Space, Q/E still work;
-- `M3B semantic preview` toggle exists;
-- with toggle enabled, colored schematic marker lines/crosses appear near the wheel;
-- disabling the toggle hides only the semantic preview;
 - no glTF mesh appears;
 - physics behavior does not change when toggling preview;
-- changing `Rest drop` and pressing Apply does not drag the whole suspension schematic as if it were owned by the wheel rest center;
-- live root movement may move the suspension schematic because it follows chassis/root.
+- changing `Rest drop` and pressing Apply does not reintroduce wheel-owned suspension preview behavior.
 
 ## 10. Recommended next step after validation
 
-After this preview is validated, the next safe choices are:
+After this preview validation, the next safe choices are:
 
 ```text
 M3B.1 polish: labels/legend for semantic preview
