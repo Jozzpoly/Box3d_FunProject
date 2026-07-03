@@ -1,6 +1,10 @@
 # M2.3 — Suspension Mount Model
 
-Status: ready for local validation  
+> **STATUS: SUPERSEDED / HISTORICAL RECORD — CONTAINS WRONG CURRENT MODEL**  
+> Superseded by `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md` and `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`.  
+> Do not use this document as current architecture. It is useful because it records a real mistake: treating the visual chassis/damper mount as body-A frame for `b3WheelJoint`.
+
+Status: superseded historical record  
 Date: 2026-07-03
 
 ## Why this patch exists
@@ -34,7 +38,7 @@ M2.2 also rebuilt bodies/joints immediately during slider drag. That is a bad la
 
 ## What changed
 
-M2.3 changes the primitive corner model to use explicit geometry:
+M2.3 changed the primitive corner model to use explicit geometry:
 
 ```text
 rig height          = chassis center Y
@@ -43,14 +47,30 @@ wheel center Y      = chassis mount Y - rest drop
 wheel bottom Y      = wheel center Y - wheel radius
 ```
 
-The wheel joint now uses:
+The wheel joint used:
 
 ```cpp
 jointDef.base.localFrameA.p = b3Body_GetLocalPoint(m_chassisId, chassisMount);
 jointDef.base.localFrameB.p = b3Vec3_zero;
 ```
 
-So body A is a real chassis mount and body B is the true wheel center.
+So body A was treated as a real chassis mount and body B as the true wheel center.
+
+## Why this is superseded
+
+This model looked intuitive but was wrong for the current `b3WheelJoint` baseline.
+
+M2.4 proved the important solver/API lesson:
+
+```text
+b3WheelJoint implicit spring rest = translation 0
+Frame A = rest wheel-center anchor on chassis
+Frame B = wheel center
+```
+
+If frame A is placed at the visual chassis/damper mount, the spring tries to pull the wheel toward that mount because the initial joint translation is not zero.
+
+So this document must not guide future implementation except as a warning.
 
 ## UI change
 
@@ -72,9 +92,11 @@ Apply rig rebuild
 
 This destroys/recreates the corner once, cleanly.
 
+This Apply-based idea survived into M2.5, but the frame-A model did not.
+
 ## Diagnostics
 
-Axis diagnostics now show:
+Axis diagnostics in this version showed:
 
 - wheel body axes;
 - yellow cross at wheel center;
@@ -82,9 +104,11 @@ Axis diagnostics now show:
 - cyan line from chassis mount to wheel center;
 - yellow axle line through wheel center.
 
-This should make it obvious whether the joint is using the correct points.
+This helped expose the mismatch that M2.4 later fixed.
 
 ## Local validation
+
+Historical note: this validation section is no longer the current project gate. Use `docs/CURRENT_STATE_INDEX_PL.md` and M2.5 validation instead.
 
 ```powershell
 git pull --ff-only origin jozz-vehicle-sandbox-m0
@@ -98,10 +122,16 @@ Open:
 Jozz Vehicle / Lab M2 Primitive Corner
 ```
 
-Panel should say:
+Panel historically said:
 
 ```text
 Jozz Vehicle Lab M2.3
+```
+
+The current panel should say:
+
+```text
+Jozz Vehicle Lab M2.5
 ```
 
 ## What to test carefully
@@ -116,17 +146,24 @@ Jozz Vehicle Lab M2.3
 
 ## If this still feels wrong
 
-The next step is not glTF.
-
-The next step would be M2.4: a split visualization of three wheel-joint frame variants side-by-side so we can prove which frame convention is physically correct before any real model is attached.
+The correct next step became M2.4: prove the actual wheel-joint rest-anchor model instead of tuning around symptoms.
 
 ## Current judgement
 
-M2.3 is the first version where the lab model matches the mental model needed for real vehicle parts:
+M2.3 is valuable as a failure record, not as current architecture.
+
+What survived:
 
 ```text
-chassis mount != wheel center
+structural setup rebuilds require Apply
 wheel center == body-B pivot
-rest drop == real initial suspension extension
-structural setup rebuilds are explicit and clean
 ```
+
+What did not survive:
+
+```text
+chassis visual mount == body-A frame
+rest drop == direct spring rest distance
+```
+
+The current authority is M2.5, with M2.4 as the core solver/model explanation.
