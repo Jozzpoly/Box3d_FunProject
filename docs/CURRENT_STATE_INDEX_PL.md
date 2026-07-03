@@ -2,7 +2,7 @@
 
 Date: 2026-07-03  
 Branch: `jozz-vehicle-sandbox-m0`  
-Status: active handoff/index after M3A validation and M3B semantic debug preview implementation; M3B local/manual validation pending
+Status: active handoff/index after M3A validation and M3B semantic debug preview anchoring fix; M3B fix validation pending
 
 ## 1. Purpose
 
@@ -69,12 +69,14 @@ Important physics rules:
 8. M3A suspension travel from the asset is a hint only.
 9. M3A `restDrop` remains explicit/tuned, not derived from visual sockets.
 10. M3B semantic preview is a debug schematic only and does not drive physics.
+11. M3B wheel preview follows the actual primitive wheel body.
+12. M3B suspension preview follows chassis/root, not wheel rest drop.
 
 Do not return to the M2.3 model where frame A was treated as a visual chassis mount.
 
 ## 5. Runtime vs structural setup separation
 
-M2.5/M3A/M3B intentionally separates two control categories:
+M2.5/M3A/M3B intentionally separates three control categories:
 
 ```text
 Structural setup
@@ -97,6 +99,8 @@ Live root stress test
 Semantic preview
   - M3B semantic preview checkbox
   - debug overlay only
+  - wheel schematic follows wheel/body
+  - suspension schematic follows chassis/root
   - no physics authority
   - no mesh rendering
 ```
@@ -106,6 +110,7 @@ Future UI/debug work should preserve this pattern:
 ```text
 pending edit values != committed physics values
 semantic debug overlay != physics authority
+suspension semantic preview != wheel-owned marker group
 ```
 
 Live root must continue reading committed setup values until Apply is pressed.
@@ -146,15 +151,16 @@ Read these first:
 8. `docs/M3A_IMPLEMENTATION_REPORT_PL.md`
 9. `docs/M3B_METADATA_DEBUG_IMPORT_PLAN_PL.md`
 10. `docs/M3B_SEMANTIC_DEBUG_PREVIEW_IMPLEMENTATION_REPORT_PL.md`
-11. `docs/HOTKEY_AUDIT_PL.md`
-12. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
-13. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
-14. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
-15. `docs/PROJECT_DIRECTION_PL.md`
-16. `assets/README.md`
-17. `assets/reports/asset_audit_latest.md`
-18. `samples/sample_jozz_vehicle_lab.cpp`
-19. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
+11. `docs/M3B_SEMANTIC_PREVIEW_ANCHORING_FIX_PL.md`
+12. `docs/HOTKEY_AUDIT_PL.md`
+13. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
+14. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
+15. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
+16. `docs/PROJECT_DIRECTION_PL.md`
+17. `assets/README.md`
+18. `assets/reports/asset_audit_latest.md`
+19. `samples/sample_jozz_vehicle_lab.cpp`
+20. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
 
 Also useful as policy background:
 
@@ -189,6 +195,7 @@ M2.4 — correct wheel-joint rest-anchor model
 M2.5 — live root stress mover + pending/committed setup separation
 M3A — asset-derived primitive radius/width defaults, travel hint only
 M3B.1 — semantic debug preview overlay, no mesh import
+M3B.1 anchoring fix — wheel preview follows wheel/body; suspension preview follows chassis/root
 ```
 
 ## 9. Current assets
@@ -256,6 +263,10 @@ Check:
 - Reset M3A defaults restores asset-derived radius/width;
 - `M3B semantic preview` toggle exists;
 - semantic preview draws schematic marker crosses/lines near the wheel;
+- wheel preview follows the primitive wheel/body;
+- suspension preview follows chassis/root;
+- changing `Rest drop` and pressing Apply does not drag the whole suspension schematic as if it were wheel-owned;
+- live root movement may move suspension preview because live root moves chassis/root;
 - semantic preview toggle does not change physics;
 - wheel pivot remains centered;
 - collision OFF prevents wheel/chassis collision ambiguity;
@@ -287,7 +298,7 @@ Use them later as references for steering API, four-corner ownership, front stee
 
 ## 12. Current implementation status and next gate
 
-M3A was manually validated by Jozz. M3B.1 semantic preview is implemented but needs local build/manual validation.
+M3A was manually validated by Jozz. M3B.1 semantic preview is implemented. The first M3B.1 anchoring model was criticized by Jozz and then fixed; validation of that fix is pending.
 
 M3A does:
 
@@ -304,6 +315,8 @@ semantic marker preview overlay
 wheel radius/width/spin schematic
 suspension travel schematic
 toggleable debug-only visualization
+wheel preview anchored to wheel/body
+suspension preview anchored to chassis/root
 ```
 
 M3A/M3B does not do:
@@ -317,7 +330,7 @@ four-corner vehicle
 new hotkeys
 ```
 
-After M3B.1 validation, the recommended next gate is still not full rigging. Good options are:
+After M3B.1 anchoring fix validation, the recommended next gate is still not full rigging. Good options are:
 
 ```text
 M3B.1 polish — add labels/legend for semantic preview
@@ -327,7 +340,7 @@ M3B.2 — render one static visual wheel mesh at origin
 
 ## 13. Explicit no-go list for the next agent
 
-Do not do these before validating M3B.1:
+Do not do these before validating M3B.1 anchoring fix:
 
 - do not start full glTF renderer;
 - do not build full vehicle assembly;
@@ -338,12 +351,13 @@ Do not do these before validating M3B.1:
 - do not mix pending structural setup with runtime live root controls;
 - do not treat M2.1/M2.2/M2.3 as current architecture;
 - do not derive `restDrop` directly from visual chassis/wheel sockets;
-- do not treat M3B schematic preview as final import transform.
+- do not treat M3B schematic preview as final import transform;
+- do not let suspension semantic preview become wheel-owned again.
 
 ## 14. Current critical judgement
 
 The project is in a good but fragile place.
 
-M2.5 gave the correct wheel-joint behavior. M3A connected primitive wheel radius/width to Jozz's real asset measurements. M3B.1 now exposes semantic marker relationships in-game as a safe debug overlay.
+M2.5 gave the correct wheel-joint behavior. M3A connected primitive wheel radius/width to Jozz's real asset measurements. M3B.1 now exposes semantic marker relationships in-game as a safe debug overlay, and Jozz's critique improved the ownership model.
 
-The next move should be local validation first, then either semantic-preview polish or runtime metadata loading without mesh rendering.
+The next move should be local validation of the anchoring fix first, then either semantic-preview polish or runtime metadata loading without mesh rendering.
