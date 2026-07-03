@@ -2,7 +2,7 @@
   "assetId": "jozz.cardan_shaft.v0",
   "assetType": "cardan_shaft_visual",
   "source": {
-    "gltf": "../source/cardan_shaft.gltf",
+    "gltf": "../source/Cardan_shaft.gltf",
     "authoringTool": "Blockbench",
     "contractVersion": 2
   },
