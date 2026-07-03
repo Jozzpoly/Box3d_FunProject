@@ -116,6 +116,8 @@ set(SAMPLE_FILES
     jsmn.h
     tiny_obj_loader.h
     earcut.h
+    jozz_vehicle_asset_metadata.cpp
+    jozz_vehicle_asset_metadata.h
     sample_benchmark.cpp
     sample_bodies.cpp
     sample_character.cpp
