@@ -99,6 +99,8 @@ public:
 		m_chassisHalfHeight = 0.16f;
 		m_rigHeight = 1.70f;
 		m_restDrop = 0.82f;
+		m_reboundTravel = 0.42f;
+		m_compressionTravel = 0.32f;
 		m_collideConnected = false;
 		m_showAxisDiagnostics = true;
 		m_structuralSetupDirty = false;
@@ -108,8 +110,6 @@ public:
 		m_enableSpinMotor = true;
 		m_suspensionHertz = 3.0f;
 		m_suspensionDampingRatio = 0.75f;
-		m_lowerTranslation = -0.55f;
-		m_upperTranslation = 0.45f;
 		m_driveSpeed = 14.0f;
 		m_maxSpinTorque = 90.0f;
 		m_brakeTorque = 180.0f;
@@ -120,9 +120,28 @@ public:
 		return m_rigHeight - m_chassisHalfHeight;
 	}
 
-	float GetWheelCenterY() const
+	float GetRestWheelCenterY() const
 	{
 		return GetChassisMountY() - m_restDrop;
+	}
+
+	float GetLowerSuspensionLimit() const
+	{
+		return -m_reboundTravel;
+	}
+
+	float GetUpperSuspensionLimit() const
+	{
+		return m_compressionTravel;
+	}
+
+	void ApplyTravelLimits()
+	{
+		if ( B3_IS_NON_NULL( m_jointId ) )
+		{
+			b3WheelJoint_SetSuspensionLimits( m_jointId, GetLowerSuspensionLimit(), GetUpperSuspensionLimit() );
+			b3Joint_WakeBodies( m_jointId );
+		}
 	}
 
 	void DestroyCorner()
@@ -151,7 +170,7 @@ public:
 		DestroyCorner();
 
 		const float chassisMountY = GetChassisMountY();
-		const float wheelCenterY = GetWheelCenterY();
+		const float restWheelCenterY = GetRestWheelCenterY();
 
 		// Static chassis rig: this isolates the wheel joint before a full dynamic
 		// vehicle body adds mass distribution and roll/pitch problems.
@@ -163,6 +182,12 @@ public:
 
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			shapeDef.baseMaterial.friction = 0.8f;
+			if ( m_collideConnected == false )
+			{
+				// Belt-and-suspenders with joint collideConnected=false. This makes the
+				lab unambiguous when testing clearance against the chassis block.
+				shapeDef.filter.groupIndex = -17;
+			}
 
 			b3BoxHull chassis = b3MakeBoxHull( 1.25f, m_chassisHalfHeight, 0.55f );
 			b3CreateHullShape( m_chassisId, &shapeDef, &chassis.base );
@@ -171,7 +196,7 @@ public:
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_dynamicBody;
-			bodyDef.position = { 0.0f, wheelCenterY, 0.0f };
+			bodyDef.position = { 0.0f, restWheelCenterY, 0.0f };
 
 			// b3CreateCylinder builds along local Y. Rotate local Y onto world Z,
 			// matching the stock Box3D wheel-joint sample and giving the wheel a
@@ -186,6 +211,10 @@ public:
 			shapeDef.baseMaterial.friction = 1.25f;
 			shapeDef.baseMaterial.restitution = 0.02f;
 			shapeDef.baseMaterial.rollingResistance = 0.02f;
+			if ( m_collideConnected == false )
+			{
+				shapeDef.filter.groupIndex = -17;
+			}
 
 			// API order is height, radius, yOffset, sides. Height is the wheel width.
 			b3HullData* wheelHull = b3CreateCylinder( m_wheelWidth, m_wheelRadius, 0.0f, 32 );
@@ -197,16 +226,15 @@ public:
 		jointDef.base.bodyIdA = m_chassisId;
 		jointDef.base.bodyIdB = m_wheelId;
 
-		// M2.3 model: body-A is a true chassis mount, body-B is the true wheel
-		// center. Rest drop is now a real initial suspension extension instead of
-		// being hidden by placing both frames at the wheel center.
-		b3Pos chassisMount = { 0.0f, chassisMountY, 0.0f };
-		jointDef.base.localFrameA.p = b3Body_GetLocalPoint( m_chassisId, chassisMount );
+		// M2.4 model: wheel joint spring has implicit rest translation = 0, so
+		// frame A must be the rest wheel-center anchor on the chassis, not the
+		// visual chassis mount above it. The visual mount is drawn separately.
+		b3Pos restWheelCenter = { 0.0f, restWheelCenterY, 0.0f };
+		jointDef.base.localFrameA.p = b3Body_GetLocalPoint( m_chassisId, restWheelCenter );
 		jointDef.base.localFrameB.p = b3Vec3_zero;
 
-		// Matches the known Box3D wheel sample frame pattern. The local X axis of
-		// frame A is suspension travel, mapped to world Y. Frame B stays centered
-		// on the wheel and maps the wheel spin frame onto the same convention.
+		// Wheel-joint convention: wheel translates along local X in frame A and
+		// rotates around local Z in frame B. We map frame-A X onto world Y.
 		jointDef.base.localFrameA.q = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisX, b3Vec3_axisY );
 		jointDef.base.localFrameB.q = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisZ, b3Vec3_axisY );
 		jointDef.base.collideConnected = m_collideConnected;
@@ -216,8 +244,8 @@ public:
 		jointDef.suspensionHertz = m_suspensionHertz;
 		jointDef.suspensionDampingRatio = m_suspensionDampingRatio;
 		jointDef.enableSuspensionLimit = m_enableSuspensionLimit;
-		jointDef.lowerSuspensionLimit = m_lowerTranslation;
-		jointDef.upperSuspensionLimit = m_upperTranslation;
+		jointDef.lowerSuspensionLimit = GetLowerSuspensionLimit();
+		jointDef.upperSuspensionLimit = GetUpperSuspensionLimit();
 		jointDef.enableSpinMotor = m_enableSpinMotor;
 		jointDef.spinSpeed = 0.0f;
 		jointDef.maxSpinTorque = 0.0f;
@@ -228,19 +256,20 @@ public:
 
 	bool DrawControls() override
 	{
-		ImGui::TextUnformatted( "Jozz Vehicle Lab M2.3" );
+		ImGui::TextUnformatted( "Jozz Vehicle Lab M2.4" );
 		ImGui::Separator();
-		ImGui::TextWrapped( "Primitive one-corner wheel-joint lab. M2.3 separates chassis mount from wheel center and rebuilds structure only when applied." );
+		ImGui::TextWrapped( "Primitive one-corner wheel-joint lab. M2.4 treats rest drop as the rest wheel-center anchor and exposes relative rebound/compression travel." );
 		ImGui::Spacing();
 		ImGui::TextUnformatted( "Input: W drive forward, S reverse, Space brake, R restart sample." );
 		ImGui::Text( "wheel radius %.2f m, width %.2f m", m_wheelRadius, m_wheelWidth );
-		ImGui::Text( "mount y %.2f, wheel center y %.2f, wheel bottom y %.2f", GetChassisMountY(), GetWheelCenterY(),
-					  GetWheelCenterY() - m_wheelRadius );
+		ImGui::Text( "mount y %.2f, rest center y %.2f, wheel bottom y %.2f", GetChassisMountY(), GetRestWheelCenterY(),
+					  GetRestWheelCenterY() - m_wheelRadius );
+		ImGui::Text( "relative travel: rebound %.2f down, compression %.2f up", m_reboundTravel, m_compressionTravel );
 		ImGui::Separator();
 
 		ImGui::TextUnformatted( "Structural rig setup" );
 		m_structuralSetupDirty |= ImGui::SliderFloat( "Rig height", &m_rigHeight, 0.75f, 3.50f, "%.2f" );
-		m_structuralSetupDirty |= ImGui::SliderFloat( "Chassis-wheel rest drop", &m_restDrop, 0.25f, 2.00f, "%.2f" );
+		m_structuralSetupDirty |= ImGui::SliderFloat( "Rest drop", &m_restDrop, 0.25f, 2.00f, "%.2f" );
 		m_structuralSetupDirty |= ImGui::SliderFloat( "Wheel radius", &m_wheelRadius, 0.20f, 0.90f, "%.2f" );
 		m_structuralSetupDirty |= ImGui::SliderFloat( "Wheel width", &m_wheelWidth, 0.12f, 0.90f, "%.2f" );
 		m_structuralSetupDirty |= ImGui::Checkbox( "Wheel collides with chassis", &m_collideConnected );
@@ -256,7 +285,7 @@ public:
 			CreateCorner();
 		}
 		ImGui::SameLine();
-		if ( ImGui::Button( "Reset M2.3 setup" ) )
+		if ( ImGui::Button( "Reset M2.4 setup" ) )
 		{
 			SetDefaults();
 			CreateCorner();
@@ -295,24 +324,14 @@ public:
 
 		if ( m_enableSuspensionLimit )
 		{
-			if ( ImGui::SliderFloat( "Lower travel", &m_lowerTranslation, -2.0f, 0.0f, "%.2f" ) )
+			if ( ImGui::SliderFloat( "Rebound travel down", &m_reboundTravel, 0.0f, 1.50f, "%.2f" ) )
 			{
-				if ( m_lowerTranslation > m_upperTranslation )
-				{
-					m_lowerTranslation = m_upperTranslation;
-				}
-				b3WheelJoint_SetSuspensionLimits( m_jointId, m_lowerTranslation, m_upperTranslation );
-				b3Joint_WakeBodies( m_jointId );
+				ApplyTravelLimits();
 			}
 
-			if ( ImGui::SliderFloat( "Upper travel", &m_upperTranslation, 0.0f, 2.0f, "%.2f" ) )
+			if ( ImGui::SliderFloat( "Compression travel up", &m_compressionTravel, 0.0f, 1.50f, "%.2f" ) )
 			{
-				if ( m_upperTranslation < m_lowerTranslation )
-				{
-					m_upperTranslation = m_lowerTranslation;
-				}
-				b3WheelJoint_SetSuspensionLimits( m_jointId, m_lowerTranslation, m_upperTranslation );
-				b3Joint_WakeBodies( m_jointId );
+				ApplyTravelLimits();
 			}
 		}
 
@@ -392,6 +411,8 @@ public:
 		b3Pos wheelPosition = b3Body_GetPosition( m_wheelId );
 		b3Vec3 wheelVelocity = b3Body_GetLinearVelocity( m_wheelId );
 		b3Pos chassisMount = { 0.0f, GetChassisMountY(), 0.0f };
+		b3Pos restWheelCenter = { 0.0f, GetRestWheelCenterY(), 0.0f };
+		float actualTranslation = (float)( wheelPosition.y - restWheelCenter.y );
 
 		if ( m_showAxisDiagnostics )
 		{
@@ -399,7 +420,9 @@ public:
 			DrawAxes( wheelTransform, m_wheelRadius + 0.25f );
 			DrawCross( wheelPosition, 0.12f, MakeVec4( 1.0f, 1.0f, 0.0f, 1.0f ) );
 			DrawCross( chassisMount, 0.12f, MakeVec4( 0.1f, 0.8f, 1.0f, 1.0f ) );
-			DrawLine( chassisMount, wheelPosition, MakeVec4( 0.1f, 0.8f, 1.0f, 1.0f ) );
+			DrawCross( restWheelCenter, 0.10f, MakeVec4( 0.9f, 0.2f, 1.0f, 1.0f ) );
+			DrawLine( chassisMount, restWheelCenter, MakeVec4( 0.1f, 0.8f, 1.0f, 1.0f ) );
+			DrawLine( restWheelCenter, wheelPosition, MakeVec4( 0.9f, 0.2f, 1.0f, 1.0f ) );
 
 			b3Vec3 axle = b3Body_GetWorldVector( m_wheelId, b3Vec3_axisY );
 			float halfAxle = 0.5f * m_wheelWidth + 0.25f;
@@ -410,13 +433,14 @@ public:
 			DrawLine( axleA, axleB, MakeVec4( 1.0f, 0.85f, 0.1f, 1.0f ) );
 		}
 
-		DrawTextLine( "Jozz Vehicle Lab M2.3 Primitive Corner" );
+		DrawTextLine( "Jozz Vehicle Lab M2.4 Primitive Corner" );
 		DrawTextLine( "W/S drive only while held, Space brakes, R restarts." );
-		DrawTextLine( "wheel y = %.2f, speed = %.2f m/s", (float)wheelPosition.y, b3Length( wheelVelocity ) );
-		DrawTextLine( "mount y %.2f, rest drop %.2f, wheel bottom %.2f", GetChassisMountY(), m_restDrop,
-					  GetWheelCenterY() - m_wheelRadius );
-		DrawTextLine( "spring %.2f Hz, damping %.2f, travel %.2f..%.2f", m_suspensionHertz, m_suspensionDampingRatio,
-					  m_lowerTranslation, m_upperTranslation );
+		DrawTextLine( "wheel y = %.2f, speed = %.2f m/s, translation = %.2f", (float)wheelPosition.y, b3Length( wheelVelocity ),
+					  actualTranslation );
+		DrawTextLine( "mount %.2f, rest center %.2f, bottom %.2f", GetChassisMountY(), GetRestWheelCenterY(),
+					  (float)wheelPosition.y - m_wheelRadius );
+		DrawTextLine( "travel limit %.2f..%.2f, spring %.2f Hz, damping %.2f", GetLowerSuspensionLimit(), GetUpperSuspensionLimit(),
+					  m_suspensionHertz, m_suspensionDampingRatio );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -436,8 +460,8 @@ public:
 	bool m_structuralSetupDirty;
 	float m_suspensionHertz;
 	float m_suspensionDampingRatio;
-	float m_lowerTranslation;
-	float m_upperTranslation;
+	float m_reboundTravel;
+	float m_compressionTravel;
 	float m_driveSpeed;
 	float m_maxSpinTorque;
 	float m_brakeTorque;
