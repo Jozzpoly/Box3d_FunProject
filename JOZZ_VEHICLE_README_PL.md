@@ -2,7 +2,7 @@
 
 Date: 2026-07-03  
 Branch: `jozz-vehicle-sandbox-m0`  
-Status: dokument wejściowy dla gałęzi Jozz Vehicle po M2.5 + M3A defaults
+Status: dokument wejściowy dla gałęzi Jozz Vehicle po M2.5 + M3A + M3B semantic preview
 
 ## Co to jest
 
@@ -16,7 +16,7 @@ Ważne: główny `README.md` nadal opisuje upstream Box3D. To nie jest błąd. T
 
 Aktualnie projekt nie ma jeszcze osobnego executable dla Jozz Vehicle.
 
-Praktyczna rzeczywistość po M2.5/M3A:
+Praktyczna rzeczywistość po M2.5/M3A/M3B.1:
 
 ```text
 Jozz Vehicle działa jako lab w istniejącym Box3D samples host.
@@ -27,13 +27,13 @@ Aktywny sample:
 ```text
 Category: Jozz Vehicle
 Sample:   Lab M2 Primitive Corner
-Panel:    Jozz Vehicle Lab M2.5 + M3A defaults
+Panel:    Jozz Vehicle Lab M2.5 + M3A/M3B debug
 Source:   samples/sample_jozz_vehicle_lab.cpp
 ```
 
 To jest świadomy wybór na ten etap. Sample host daje już okno, kamerę, ImGui, debug draw, input i integrację z buildem, więc nie tracimy czasu na przepisywanie fundamentu zanim fizyka narożnika jest dobrze ugruntowana.
 
-## Co działa w M2.5/M3A
+## Co działa w M2.5/M3A/M3B.1
 
 Ręcznie zwalidowany baseline M2.5:
 
@@ -53,6 +53,13 @@ M3A dodaje:
 - wheel radius/width wyciągnięte z aktualnych markerów audytu assetu koła;
 - suspension travel z assetu jako hint;
 - widoczny opis w panelu, że rest drop nadal jest explicit/tuned.
+
+M3B.1 dodaje:
+
+- checkbox `M3B semantic preview`;
+- debugowy schemat markerów koła: radius, width, spin axis, wheel mount;
+- debugowy schemat osi travel zawieszenia;
+- brak mesh renderingu i brak wpływu na fizykę.
 
 Najważniejsza lekcja fizyki:
 
@@ -85,8 +92,16 @@ Jozz Vehicle / Lab M2 Primitive Corner
 Panel po prawej powinien pokazywać:
 
 ```text
-Jozz Vehicle Lab M2.5 + M3A defaults
+Jozz Vehicle Lab M2.5 + M3A/M3B debug
 ```
+
+Sprawdź też checkbox:
+
+```text
+M3B semantic preview
+```
+
+Powinien pokazywać/ukrywać debugowy schemat markerów, ale nie zmieniać fizyki.
 
 ## Aktualne sterowanie w labie
 
@@ -100,6 +115,8 @@ E      live root up
 
 Nie używać `[ ]` dla kontroli Jozz Vehicle. Box3D samples host używa ich globalnie do przełączania sample'i.
 
+M3B nie dodało nowych hotkeyów.
+
 ## Gdzie zacząć czytanie
 
 Najważniejsze pliki:
@@ -110,13 +127,14 @@ Najważniejsze pliki:
 4. `docs/FOUNDATION_GROUNDING_PHASE_PLAN_PL.md`
 5. `docs/PRE_RIG_IMPORT_READINESS_AUDIT_PL.md`
 6. `docs/M3A_IMPLEMENTATION_REPORT_PL.md`
-7. `docs/HOTKEY_AUDIT_PL.md`
-8. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
-9. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
-10. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
-11. `assets/README.md`
-12. `assets/reports/asset_audit_latest.md`
-13. `samples/sample_jozz_vehicle_lab.cpp`
+7. `docs/M3B_SEMANTIC_DEBUG_PREVIEW_IMPLEMENTATION_REPORT_PL.md`
+8. `docs/HOTKEY_AUDIT_PL.md`
+9. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
+10. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
+11. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
+12. `assets/README.md`
+13. `assets/reports/asset_audit_latest.md`
+14. `samples/sample_jozz_vehicle_lab.cpp`
 
 ## Aktualne assety
 
@@ -153,16 +171,19 @@ Na aktualnym etapie nie zaczynać:
 - nowych hotkeyów bez audytu;
 - mieszania markerów wizualnych z frame'ami jointów fizyki;
 - zmian, które cofają M2.4/M2.5 rest-anchor model;
-- automatycznego `restDrop` z `Socket_ChassisMount -> Socket_WheelCenter`.
+- automatycznego `restDrop` z `Socket_ChassisMount -> Socket_WheelCenter`;
+- traktowania M3B semantic preview jako finalnego import transformu.
 
 ## Najbliższy zalecany krok
 
-Najpierw zwalidować lokalnie M3A.
+Najpierw zwalidować lokalnie M3B.1.
 
-Po walidacji nie skakać od razu w pełny rig/import. Najbezpieczniejszy następny techniczny gate:
+Po walidacji nie skakać od razu w pełny rig/import. Najbezpieczniejsze następne techniczne gate'y:
 
 ```text
-M3B.0 / M3B.1 — metadata/debug-first visual import preparation
+M3B.1 polish — labels/legend for semantic preview
+M3B.2-prep — runtime metadata loading without mesh rendering
+M3B.2 — render one static visual wheel mesh at origin
 ```
 
-Czyli najpierw odczyt/walidacja metadata i debug points z semantyki assetów, bez pełnego renderera meshów. Dopiero później visual-only wheel mesh attachment.
+Czyli najpierw dopracowanie/metadata, dopiero później visual-only wheel mesh attachment.
