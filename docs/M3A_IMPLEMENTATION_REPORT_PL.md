@@ -2,7 +2,7 @@
 
 Date: 2026-07-03  
 Branch: `jozz-vehicle-sandbox-m0`  
-Status: implemented in code, local build/manual validation pending
+Status: implemented in code and manually validated by Jozz; local agent build not run
 
 ## 1. What changed
 
@@ -75,20 +75,22 @@ because visual sockets are not physics frame A.
 
 ## 4. UI/debug changes
 
-The panel now identifies the lab as:
+M3A introduced the panel identity:
 
 ```text
 Jozz Vehicle Lab M2.5 + M3A defaults
 ```
 
-It displays:
+It displayed:
 
 ```text
 asset defaults: scale 0.35 m/BU, wheel r 0.51, width 0.44
 asset travel hint 0.70 m; rest drop 0.82 m is explicit/tuned
 ```
 
-The debug text also prints the M3A asset defaults.
+The debug text also printed the M3A asset defaults.
+
+Note: after M3B.1, the panel text may include M3B debug wording too, but the M3A default values remain the same.
 
 ## 5. What was not added
 
@@ -108,7 +110,29 @@ M3A did not add:
 
 This is intentional.
 
-## 6. Critical self-review
+## 6. Jozz manual validation
+
+Jozz reported that the sample opens, runs, and shows:
+
+```text
+Jozz Vehicle Lab M2.5 + M3A defaults
+```
+
+Jozz also confirmed:
+
+```text
+for me everything works
+```
+
+Manual validation status:
+
+```text
+accepted by Jozz for continuing into M3B planning/implementation
+```
+
+The agent did not run a local compiler/build. The manual validation came from Jozz's local build/run.
+
+## 7. Critical self-review
 
 ### Good
 
@@ -116,7 +140,8 @@ This is intentional.
 - The M2.5 rest-anchor model is untouched.
 - Radius/width are now traceable to real asset audit values.
 - Travel from the suspension asset is recorded as a hint, not forced into physics.
-- The UI now tells Jozz what is asset-derived and what is still tuned.
+- The UI tells Jozz what is asset-derived and what is still tuned.
+- Jozz locally confirmed that the lab opens and works.
 
 ### Risk
 
@@ -124,19 +149,11 @@ This is intentional.
 
 Judgement:
 
-This is acceptable because it is a tiny numerical change and moves the values from rounded hand-tuned approximations to exact audit-derived constants. Manual validation should still check that the wheel looks/feels effectively unchanged.
+This is acceptable because it is a tiny numerical change and moves the values from rounded hand-tuned approximations to exact audit-derived constants. Jozz's manual run did not report a visible problem.
 
-### Risk
+## 8. Required local validation for future agents
 
-The panel now says `M3A defaults`, but local build validation has not been run by the agent.
-
-Judgement:
-
-Acceptable as long as this document clearly marks local validation as pending.
-
-## 7. Required local validation
-
-Run from repo root:
+Future agents should still run from repo root:
 
 ```powershell
 py tools\asset_audit.py
@@ -151,10 +168,10 @@ Open:
 Jozz Vehicle / Lab M2 Primitive Corner
 ```
 
-Expected panel:
+Expected panel after M3B.1 may now be:
 
 ```text
-Jozz Vehicle Lab M2.5 + M3A defaults
+Jozz Vehicle Lab M2.5 + M3A/M3B debug
 ```
 
 Manual checks:
@@ -168,17 +185,14 @@ Manual checks:
 - structural sliders remain pending until Apply;
 - Apply rebuild works once;
 - reset restores M3A defaults;
-- no glTF visuals are rendered;
-- no new hotkeys were added.
+- no glTF mesh is rendered.
 
-## 8. Recommended next step after validation
+## 9. Recommended next step
 
-Do not jump directly into full rig/import.
-
-After M3A validation, recommended next gate is:
+M3A is now good enough to move into M3B.0/M3B.1:
 
 ```text
-M3B.0 / M3B.1 — visual import preparation, metadata/debug first
+metadata/debug-first visual import preparation
 ```
 
 Specifically:
@@ -190,7 +204,7 @@ M3B.1 draw semantic debug points from audited positions, no mesh rendering
 
 Only after that should visual wheel mesh attachment begin.
 
-## 9. Final judgement
+## 10. Final judgement
 
 M3A now does what it should: it connects Jozz's asset measurements to primitive physics defaults without opening the renderer/importer problem yet.
 
