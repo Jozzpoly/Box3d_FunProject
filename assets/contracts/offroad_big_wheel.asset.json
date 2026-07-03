@@ -2,7 +2,7 @@
   "assetId": "jozz.offroad_big_wheel.v0",
   "assetType": "wheel",
   "source": {
-    "gltf": "../source/offroad_big_wheel.gltf",
+    "gltf": "../source/Offroad_Big_Wheels.gltf",
     "authoringTool": "Blockbench",
     "contractVersion": 2
   },
