@@ -87,6 +87,16 @@ public:
 		CreateCorner();
 	}
 
+	void SyncEditSetupFromCommitted()
+	{
+		m_editWheelRadius = m_wheelRadius;
+		m_editWheelWidth = m_wheelWidth;
+		m_editRigHeight = m_rigHeight;
+		m_editRestDrop = m_restDrop;
+		m_editCollideConnected = m_collideConnected;
+		m_structuralSetupDirty = false;
+	}
+
 	void SetDefaults()
 	{
 		// Primitive dimensions are intentionally close to the current audited
@@ -115,6 +125,8 @@ public:
 		m_driveSpeed = 14.0f;
 		m_maxSpinTorque = 90.0f;
 		m_brakeTorque = 180.0f;
+
+		SyncEditSetupFromCommitted();
 	}
 
 	float GetChassisMountY() const
@@ -177,6 +189,17 @@ public:
 		{
 			b3Joint_WakeBodies( m_jointId );
 		}
+	}
+
+	void ApplyPendingStructuralSetup()
+	{
+		m_wheelRadius = m_editWheelRadius;
+		m_wheelWidth = m_editWheelWidth;
+		m_rigHeight = m_editRigHeight;
+		m_restDrop = m_editRestDrop;
+		m_collideConnected = m_editCollideConnected;
+		CreateCorner();
+		SyncEditSetupFromCommitted();
 	}
 
 	void ApplyTravelLimits()
@@ -330,21 +353,26 @@ public:
 		ImGui::Separator();
 
 		ImGui::TextUnformatted( "Structural rig setup" );
-		m_structuralSetupDirty |= ImGui::SliderFloat( "Rig height", &m_rigHeight, 0.75f, 3.50f, "%.2f" );
-		m_structuralSetupDirty |= ImGui::SliderFloat( "Rest drop", &m_restDrop, 0.25f, 2.00f, "%.2f" );
-		m_structuralSetupDirty |= ImGui::SliderFloat( "Wheel radius", &m_wheelRadius, 0.20f, 0.90f, "%.2f" );
-		m_structuralSetupDirty |= ImGui::SliderFloat( "Wheel width", &m_wheelWidth, 0.12f, 0.90f, "%.2f" );
-		m_structuralSetupDirty |= ImGui::Checkbox( "Wheel collides with chassis", &m_collideConnected );
+		bool structuralEdited = false;
+		structuralEdited |= ImGui::SliderFloat( "Rig height", &m_editRigHeight, 0.75f, 3.50f, "%.2f" );
+		structuralEdited |= ImGui::SliderFloat( "Rest drop", &m_editRestDrop, 0.25f, 2.00f, "%.2f" );
+		structuralEdited |= ImGui::SliderFloat( "Wheel radius", &m_editWheelRadius, 0.20f, 0.90f, "%.2f" );
+		structuralEdited |= ImGui::SliderFloat( "Wheel width", &m_editWheelWidth, 0.12f, 0.90f, "%.2f" );
+		structuralEdited |= ImGui::Checkbox( "Wheel collides with chassis", &m_editCollideConnected );
+		if ( structuralEdited )
+		{
+			m_structuralSetupDirty = true;
+		}
 		ImGui::Checkbox( "Axis diagnostics", &m_showAxisDiagnostics );
 
 		if ( m_structuralSetupDirty )
 		{
-			ImGui::TextWrapped( "Pending structural change. Press Apply to rebuild bodies/joint cleanly. Live root offset is preserved." );
+			ImGui::TextWrapped( "Pending structural change. Press Apply to rebuild bodies/joint cleanly. Live root uses the committed setup until Apply." );
 		}
 
 		if ( ImGui::Button( "Apply rig rebuild" ) )
 		{
-			CreateCorner();
+			ApplyPendingStructuralSetup();
 		}
 		ImGui::SameLine();
 		if ( ImGui::Button( "Reset M2.5 setup" ) )
@@ -535,6 +563,7 @@ public:
 	bool m_enableSuspensionLimit;
 	bool m_enableSpinMotor;
 	bool m_collideConnected;
+	bool m_editCollideConnected;
 	bool m_showAxisDiagnostics;
 	bool m_structuralSetupDirty;
 	float m_suspensionHertz;
@@ -551,6 +580,10 @@ public:
 	float m_restDrop;
 	float m_liveRootOffset;
 	float m_liveRootSpeed;
+	float m_editWheelRadius;
+	float m_editWheelWidth;
+	float m_editRigHeight;
+	float m_editRestDrop;
 };
 
 static int sampleJozzVehiclePrimitiveCornerM2 =
