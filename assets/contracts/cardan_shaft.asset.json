@@ -1,0 +1,39 @@
+{
+  "assetId": "jozz.cardan_shaft.v0",
+  "assetType": "cardan_shaft_visual",
+  "source": {
+    "gltf": "../source/cardan_shaft.gltf",
+    "authoringTool": "Blockbench",
+    "contractVersion": 2
+  },
+  "units": {
+    "metersPerBlockbenchUnit": 0.35,
+    "status": "prototype_scale"
+  },
+  "orientation": {
+    "status": "authoring_orientation_not_final",
+    "authoringUp": "+Y",
+    "knownAuthoringHints": {
+      "shaftLengthAxisFromMeshBounds": "X"
+    },
+    "temporaryImporterCorrection": {
+      "enabled": true,
+      "note": "Final orientation will be adjusted after native in-game visual tests."
+    }
+  },
+  "semantics": {
+    "visualParts": {
+      "firstPart": "First_Part",
+      "midPart": "Mid_Part",
+      "lastPart": "Last_Part"
+    },
+    "sockets": {}
+  },
+  "visualRig": {
+    "v0Treatment": "procedural_place_between_Socket_CardanDrive_and_Socket_CardanHub",
+    "notes": "No semantic Socket_/Axis_ nodes exist in the current glTF; use suspension sockets as endpoints for v0."
+  },
+  "physics": {
+    "v0Treatment": "visual_only_no_torque_transfer"
+  }
+}
