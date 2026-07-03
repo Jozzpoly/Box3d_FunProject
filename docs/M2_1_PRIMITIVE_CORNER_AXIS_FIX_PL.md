@@ -1,6 +1,10 @@
 # M2.1 — Primitive Corner Axis / Dimension Fix
 
-Status: ready for local validation  
+> **STATUS: SUPERSEDED / HISTORICAL RECORD**  
+> Superseded by `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md` and `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`.  
+> Do not use this document as current architecture. It remains useful only for the cylinder dimension/order lesson.
+
+Status: superseded historical record  
 Date: 2026-07-03
 
 ## Why this patch exists
@@ -32,6 +36,8 @@ M2.1 updates `samples/sample_jozz_vehicle_lab.cpp`:
 - spin motor now uses torque only while W/S is held or Space brakes, instead of behaving like a constant idle brake.
 
 ## What to validate
+
+Historical note: this validation section is no longer the current project gate. Use `docs/CURRENT_STATE_INDEX_PL.md` and M2.5 validation instead.
 
 Pull and rebuild:
 
@@ -70,4 +76,4 @@ The next debugging step should add an explicit axis diagnostic mode:
 
 ## Current design judgement
 
-M2 is promising but not finished. The fact that bounce/damping/hertz/travel/limit worked is good. The bad spin was a real issue and should be treated as a physics-authoring alignment bug, not as an acceptable rough edge.
+M2.1 was promising but not finished. The cylinder argument-order lesson remains important, but the current architecture is M2.5.
