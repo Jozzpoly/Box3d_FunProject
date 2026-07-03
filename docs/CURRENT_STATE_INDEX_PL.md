@@ -125,15 +125,17 @@ Read these first:
 2. `docs/CURRENT_STATE_INDEX_PL.md`
 3. `docs/PROJECT_AUDIT_2026_07_03_PL.md`
 4. `docs/FOUNDATION_GROUNDING_PHASE_PLAN_PL.md`
-5. `docs/HOTKEY_AUDIT_PL.md`
-6. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
-7. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
-8. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
-9. `docs/PROJECT_DIRECTION_PL.md`
-10. `assets/README.md`
-11. `assets/reports/asset_audit_latest.md`
-12. `samples/sample_jozz_vehicle_lab.cpp`
-13. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
+5. `docs/PRE_RIG_IMPORT_READINESS_AUDIT_PL.md`
+6. `docs/M3A_ASSET_DERIVED_PRIMITIVE_DIMENSIONS_PLAN_PL.md`
+7. `docs/HOTKEY_AUDIT_PL.md`
+8. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
+9. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
+10. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
+11. `docs/PROJECT_DIRECTION_PL.md`
+12. `assets/README.md`
+13. `assets/reports/asset_audit_latest.md`
+14. `samples/sample_jozz_vehicle_lab.cpp`
+15. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
 
 Also useful as policy background:
 
@@ -195,6 +197,14 @@ assets/reports/asset_audit_latest.md
 assets/reports/asset_audit_latest.json
 ```
 
+New contract audit helper:
+
+```text
+tools/asset_contract_audit.py
+```
+
+It validates sidecar contracts against referenced glTF files and reports missing/ambiguous/name-only bindings. It is not a runtime importer.
+
 ## 10. Validation commands for Jozz
 
 From repo root:
@@ -224,6 +234,13 @@ Check:
 - Apply commits structural setup and rebuilds once;
 - wheel pivot remains centered;
 - collision OFF prevents wheel/chassis collision ambiguity.
+
+Optional asset/tool checks:
+
+```powershell
+py tools\asset_audit.py
+py tools\asset_contract_audit.py
+```
 
 ## 11. Box3D sample references
 
@@ -256,11 +273,13 @@ Goal:
 Keep primitive physics and M2.5 behavior, but derive the default wheel radius, wheel width, rest drop and travel defaults from current asset audit/contracts.
 ```
 
-Why this is preferred:
+Important refinement after the pre-rig audit:
 
-- it connects Jozz's real models to the physics lab;
-- it does not introduce glTF renderer risk yet;
-- it keeps the M2.5 wheel-joint baseline testable.
+```text
+wheel radius/width: safe to derive now
+suspension total travel: safe as a hint
+rest drop: not safe to derive from visual Socket_ChassisMount yet
+```
 
 Only after that should the project move to a visual-only glTF wheel attachment.
 
@@ -275,7 +294,8 @@ Do not do these during foundation grounding:
 - do not add new hotkeys without audit;
 - do not merge visual rig marker positions directly into physics joint frames;
 - do not mix pending structural setup with runtime live root controls;
-- do not treat M2.1/M2.2/M2.3 as current architecture.
+- do not treat M2.1/M2.2/M2.3 as current architecture;
+- do not derive `restDrop` directly from visual chassis/wheel sockets.
 
 ## 14. Current critical judgement
 
@@ -283,4 +303,4 @@ The project is in a good but fragile place.
 
 M2.5 is a real foundation: centered wheel pivot, usable rest drop, rebound/compression travel, collision toggle, and live root stress movement are now understandable. The danger is rushing into models/rendering before the documented mental model becomes impossible to misread.
 
-The correct next move is still organization first, then one small technical gate.
+The correct next move is still organization first, then one small technical gate: M3A asset-derived primitive dimensions.
