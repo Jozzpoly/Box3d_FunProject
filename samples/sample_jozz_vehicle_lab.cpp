@@ -67,6 +67,53 @@ public:
 
 static int sampleJozzVehicleLabM1 = RegisterSample( "Jozz Vehicle", "Lab M1 Smoke", JozzVehicleLabM1::Create );
 
+struct JozzVehiclePrimitiveDefaults
+{
+	float metersPerBlockbenchUnit;
+	float wheelRadius;
+	float wheelWidth;
+	float assetSuspensionTravelHint;
+	float reboundTravel;
+	float compressionTravel;
+	float chassisHalfHeight;
+	float rigHeight;
+	float restDrop;
+};
+
+static JozzVehiclePrimitiveDefaults GetJozzVehicleM3ADefaults()
+{
+	// M3A deliberately keeps these as centralized code constants instead of
+	// runtime JSON. They are traced to the current offline audit/contract data
+	// while avoiding importer/path/package risk before visual glTF work exists.
+	constexpr float metersPerBlockbenchUnit = 0.35f;
+
+	// assets/reports/asset_audit_latest.json, Offroad_Big_Wheels.gltf:
+	// wheel center Y ~= 0.5 BU, Marker_TireRadiusOuter Y = 1.96875 BU
+	// radius = (1.96875 - 0.5) * 0.35 = 0.5140625 m
+	constexpr float wheelRadius = 1.46875f * metersPerBlockbenchUnit;
+
+	// Marker_TireWidthLeft X = -0.75 BU, Marker_TireWidthRight X = 0.5 BU
+	// width = 1.25 * 0.35 = 0.4375 m
+	constexpr float wheelWidth = 1.25f * metersPerBlockbenchUnit;
+
+	// One_Sided_wheel_mount.gltf travel markers: top Y 1.5 BU, bottom Y -0.5 BU
+	// total travel hint = 2.0 * 0.35 = 0.70 m. M3A records this as a hint only;
+	// current rebound/compression stay at the Jozz-validated M2.5 feel values.
+	constexpr float assetSuspensionTravelHint = 2.0f * metersPerBlockbenchUnit;
+
+	return {
+		metersPerBlockbenchUnit,
+		wheelRadius,
+		wheelWidth,
+		assetSuspensionTravelHint,
+		0.42f,
+		0.32f,
+		0.16f,
+		1.70f,
+		0.82f,
+	};
+}
+
 class JozzVehiclePrimitiveCornerM2 : public Sample
 {
 public:
@@ -99,18 +146,20 @@ public:
 
 	void SetDefaults()
 	{
-		// Primitive dimensions are intentionally close to the current audited
-		// Offroad_Big_Wheels asset at 0.35 m / Blockbench unit.
-		// radius ~= 1.46875 * 0.35 = 0.514 m
-		// width  ~= 1.25    * 0.35 = 0.438 m
-		m_wheelRadius = 0.52f;
-		m_wheelWidth = 0.44f;
+		JozzVehiclePrimitiveDefaults defaults = GetJozzVehicleM3ADefaults();
+		m_assetMetersPerBlockbenchUnit = defaults.metersPerBlockbenchUnit;
+		m_assetWheelRadiusDefault = defaults.wheelRadius;
+		m_assetWheelWidthDefault = defaults.wheelWidth;
+		m_assetSuspensionTravelHint = defaults.assetSuspensionTravelHint;
 
-		m_chassisHalfHeight = 0.16f;
-		m_rigHeight = 1.70f;
-		m_restDrop = 0.82f;
-		m_reboundTravel = 0.42f;
-		m_compressionTravel = 0.32f;
+		m_wheelRadius = defaults.wheelRadius;
+		m_wheelWidth = defaults.wheelWidth;
+
+		m_chassisHalfHeight = defaults.chassisHalfHeight;
+		m_rigHeight = defaults.rigHeight;
+		m_restDrop = defaults.restDrop;
+		m_reboundTravel = defaults.reboundTravel;
+		m_compressionTravel = defaults.compressionTravel;
 		m_liveRootOffset = 0.0f;
 		m_liveRootSpeed = 2.5f;
 		m_collideConnected = false;
@@ -322,12 +371,15 @@ public:
 
 	bool DrawControls() override
 	{
-		ImGui::TextUnformatted( "Jozz Vehicle Lab M2.5" );
+		ImGui::TextUnformatted( "Jozz Vehicle Lab M2.5 + M3A defaults" );
 		ImGui::Separator();
-		ImGui::TextWrapped( "Primitive one-corner wheel-joint lab. M2.5 adds a realtime live root mover for suspension stress testing without rebuilding the joint." );
+		ImGui::TextWrapped( "Primitive one-corner wheel-joint lab. M3A centralizes wheel primitive defaults from current asset audit markers without adding glTF rendering." );
 		ImGui::Spacing();
 		ImGui::TextUnformatted( "Input: W drive forward, S reverse, Space brake, Q lower root, E raise root, R restart sample." );
 		ImGui::Text( "wheel radius %.2f m, width %.2f m", m_wheelRadius, m_wheelWidth );
+		ImGui::Text( "asset defaults: scale %.2f m/BU, wheel r %.2f, width %.2f", m_assetMetersPerBlockbenchUnit,
+					 m_assetWheelRadiusDefault, m_assetWheelWidthDefault );
+		ImGui::Text( "asset travel hint %.2f m; rest drop %.2f m is explicit/tuned", m_assetSuspensionTravelHint, m_restDrop );
 		ImGui::Text( "live root %.2f, live rest center y %.2f", m_liveRootOffset, GetLiveRestWheelCenterY() );
 		ImGui::Text( "relative travel: rebound %.2f down, compression %.2f up", m_reboundTravel, m_compressionTravel );
 		ImGui::Separator();
@@ -364,6 +416,7 @@ public:
 			m_structuralSetupDirty = true;
 		}
 		ImGui::Checkbox( "Axis diagnostics", &m_showAxisDiagnostics );
+		ImGui::TextWrapped( "M3A note: visual sockets are not physics frame A; rest drop remains explicit until a dedicated physics rest-anchor contract exists." );
 
 		if ( m_structuralSetupDirty )
 		{
@@ -375,7 +428,7 @@ public:
 			ApplyPendingStructuralSetup();
 		}
 		ImGui::SameLine();
-		if ( ImGui::Button( "Reset M2.5 setup" ) )
+		if ( ImGui::Button( "Reset M3A defaults" ) )
 		{
 			SetDefaults();
 			CreateCorner();
@@ -534,14 +587,16 @@ public:
 			b3Vec3 axle = b3Body_GetWorldVector( m_wheelId, b3Vec3_axisY );
 			float halfAxle = 0.5f * m_wheelWidth + 0.25f;
 			b3Pos axleA = { wheelPosition.x - halfAxle * axle.x, wheelPosition.y - halfAxle * axle.y,
-							  wheelPosition.z - halfAxle * axle.z };
+						  wheelPosition.z - halfAxle * axle.z };
 			b3Pos axleB = { wheelPosition.x + halfAxle * axle.x, wheelPosition.y + halfAxle * axle.y,
-							  wheelPosition.z + halfAxle * axle.z };
+						  wheelPosition.z + halfAxle * axle.z };
 			DrawLine( axleA, axleB, MakeVec4( 1.0f, 0.85f, 0.1f, 1.0f ) );
 		}
 
-		DrawTextLine( "Jozz Vehicle Lab M2.5 Primitive Corner" );
+		DrawTextLine( "Jozz Vehicle Lab M2.5 + M3A Primitive Corner" );
 		DrawTextLine( "W/S drive, Space brakes, Q/E live root down/up, R restarts." );
+		DrawTextLine( "M3A asset defaults: scale %.2f m/BU, wheel r %.2f, width %.2f", m_assetMetersPerBlockbenchUnit,
+					  m_assetWheelRadiusDefault, m_assetWheelWidthDefault );
 		DrawTextLine( "root %.2f, wheel y %.2f, speed %.2f m/s, translation %.2f", m_liveRootOffset, (float)wheelPosition.y,
 					  b3Length( wheelVelocity ), actualTranslation );
 		DrawTextLine( "live mount %.2f, live rest %.2f, wheel bottom %.2f", GetLiveChassisMountY(), GetLiveRestWheelCenterY(),
@@ -584,6 +639,10 @@ public:
 	float m_editWheelWidth;
 	float m_editRigHeight;
 	float m_editRestDrop;
+	float m_assetMetersPerBlockbenchUnit;
+	float m_assetWheelRadiusDefault;
+	float m_assetWheelWidthDefault;
+	float m_assetSuspensionTravelHint;
 };
 
 static int sampleJozzVehiclePrimitiveCornerM2 =
