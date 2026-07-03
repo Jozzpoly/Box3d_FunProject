@@ -1,6 +1,10 @@
 # M2 — Primitive Corner Lab
 
-Status: ready for local validation  
+> **STATUS: SUPERSEDED / HISTORICAL RECORD**  
+> Superseded by `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md` and `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`.  
+> Do not use this document as current architecture. Use it only to understand the first M2 baseline and the path that led to M2.5.
+
+Status: superseded historical record  
 Date: 2026-07-03
 
 ## What changed
@@ -112,6 +116,8 @@ Do not only check that it compiles. Actually play with it:
 - No visual damper/cardans/wahacze yet.
 
 ## Next decision after local validation
+
+Historical note: this section is no longer current. The current baseline is M2.5 and the recommended next gate is documented in `docs/CURRENT_STATE_INDEX_PL.md`.
 
 If M2 is stable enough, the next step should be M3A:
 
