@@ -264,7 +264,7 @@ JozzVehicleAuditMetadata LoadJozzVehicleAuditMetadata()
 		}
 	}
 
-	PopulateFallbackMetadata( &metadata, "using built-in audited fallback; runtime asset audit report not found" );	
+	PopulateFallbackMetadata( &metadata, "using built-in audited fallback; runtime asset audit report not found" );
 	return metadata;
 }
 
