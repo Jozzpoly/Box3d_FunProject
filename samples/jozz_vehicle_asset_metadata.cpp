@@ -9,6 +9,7 @@
 #include <charconv>
 #include <fstream>
 #include <string_view>
+#include <system_error>
 
 namespace
 {
@@ -152,12 +153,13 @@ bool ReadTextFile( const char* path, std::string* out )
 	}
 
 	input.seekg( 0, std::ios::end );
-	std::streampos size = input.tellg();
-	if ( size <= 0 )
+	std::streampos fileSize = input.tellg();
+	if ( fileSize <= 0 )
 	{
 		return false;
 	}
 
+	std::streamsize size = static_cast<std::streamsize>( fileSize );
 	out->resize( (size_t)size );
 	input.seekg( 0, std::ios::beg );
 	input.read( out->data(), size );
