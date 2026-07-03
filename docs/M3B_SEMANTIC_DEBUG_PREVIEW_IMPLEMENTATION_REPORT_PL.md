@@ -2,7 +2,7 @@
 
 Date: 2026-07-03  
 Branch: `jozz-vehicle-sandbox-m0`  
-Status: implemented in code; local build/manual validation pending
+Status: implemented in code; anchoring bug reported by Jozz and fixed; local build/manual validation of fix pending
 
 ## 1. What changed
 
@@ -59,7 +59,32 @@ It draws:
 - top/bottom travel crosses;
 - travel axis line.
 
-## 3. Important limitation
+## 3. Anchoring model after Jozz critique
+
+Jozz reported that the first implementation moved the additional semantic markers when `Rest drop` changed. That critique was correct.
+
+The fix separates ownership:
+
+```text
+wheel semantic preview      -> follows actual primitive wheel body
+suspension semantic preview -> follows live chassis/root side
+```
+
+Code-level rule:
+
+```text
+wheel preview origin uses wheelPosition
+suspension preview origin uses GetLiveChassisMountY()
+```
+
+This means:
+
+- wheel schematic can move with the physical wheel/body;
+- suspension schematic can move with live root/chassis;
+- suspension schematic should not be dragged around merely because `Rest drop` changes;
+- the overlay still does not drive physics.
+
+## 4. Important limitation
 
 This is not a runtime glTF importer.
 
@@ -75,7 +100,7 @@ authoring Z -> world X
 
 That mapping is only for debug readability. It should not be treated as the final Blockbench-to-game transform.
 
-## 4. What this does not drive
+## 5. What this does not drive
 
 The M3B semantic preview does not drive:
 
@@ -89,21 +114,27 @@ The M3B semantic preview does not drive:
 
 This is deliberate. Visual sockets are still not physics frames.
 
-## 5. UI/debug text
+## 6. UI/debug text
 
-The panel now identifies the lab as:
+The panel identifies the lab as:
 
 ```text
 Jozz Vehicle Lab M2.5 + M3A/M3B debug
 ```
 
+The panel explains:
+
+```text
+wheel schematic follows the wheel body; suspension schematic follows chassis/root
+```
+
 The HUD prints:
 
 ```text
-M3B semantic preview: on/off, schematic only, no mesh import
+M3B preview: on/off, wheel->body, suspension->chassis/root
 ```
 
-## 6. What was not added
+## 7. What was not added
 
 M3B.1 did not add:
 
@@ -119,7 +150,7 @@ M3B.1 did not add:
 - new hotkeys;
 - CMake/source split.
 
-## 7. Critical self-review
+## 8. Critical self-review
 
 ### Good
 
@@ -127,7 +158,8 @@ M3B.1 did not add:
 - It makes wheel radius/width/spin markers visible as relationships.
 - It makes suspension travel top/bottom visible as a relationship.
 - It does not affect physics.
-- It continues the low-risk M3 ladder.
+- Jozz caught and corrected the bad first anchoring model early.
+- The corrected model separates wheel-owned preview from chassis/suspension-owned preview.
 
 ### Risk
 
@@ -135,7 +167,7 @@ The schematic overlay may look visually separate from the real wheel and could c
 
 Judgement:
 
-This is intentional for now. The current authoring orientation and final visual transform are not locked. Snapping the points onto the physics wheel would create false confidence that the importer transform is solved.
+This is intentional for now. The current authoring orientation and final visual transform are not locked. Snapping every semantic point onto the physics wheel would create false confidence that the importer transform is solved.
 
 ### Risk
 
@@ -145,7 +177,7 @@ Judgement:
 
 Acceptable for M3B.1. The point of this step is in-game semantic visibility without adding runtime import risk. Runtime metadata loading can be a later M3B.2-prep task after this preview is validated.
 
-## 8. Required validation
+## 9. Required validation
 
 Run:
 
@@ -175,9 +207,11 @@ Check:
 - with toggle enabled, colored schematic marker lines/crosses appear near the wheel;
 - disabling the toggle hides only the semantic preview;
 - no glTF mesh appears;
-- physics behavior does not change when toggling preview.
+- physics behavior does not change when toggling preview;
+- changing `Rest drop` and pressing Apply does not drag the whole suspension schematic as if it were owned by the wheel rest center;
+- live root movement may move the suspension schematic because it follows chassis/root.
 
-## 9. Recommended next step after validation
+## 10. Recommended next step after validation
 
 After this preview is validated, the next safe choices are:
 
@@ -189,6 +223,6 @@ M3B.2: render one static visual wheel mesh at origin
 
 Do not jump directly to full suspension/damper/cardan rigging.
 
-## 10. Final judgement
+## 11. Final judgement
 
-M3B.1 gives the project a safe bridge between raw asset audit data and future visual import. It lets Jozz see semantic relationships in the native lab before any mesh renderer or rig code can hide mistakes behind pretty visuals.
+M3B.1 gives the project a safe bridge between raw asset audit data and future visual import. Jozz's anchoring critique improved it: the overlay now better expresses semantic ownership before any mesh renderer or rig code can hide mistakes behind pretty visuals.
