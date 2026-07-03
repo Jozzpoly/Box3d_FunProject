@@ -128,10 +128,12 @@ Read these first:
 5. `docs/HOTKEY_AUDIT_PL.md`
 6. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
 7. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
-8. `docs/PROJECT_DIRECTION_PL.md`
-9. `assets/README.md`
-10. `assets/reports/asset_audit_latest.md`
-11. `samples/sample_jozz_vehicle_lab.cpp`
+8. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
+9. `docs/PROJECT_DIRECTION_PL.md`
+10. `assets/README.md`
+11. `assets/reports/asset_audit_latest.md`
+12. `samples/sample_jozz_vehicle_lab.cpp`
+13. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
 
 Also useful as policy background:
 
@@ -223,7 +225,24 @@ Check:
 - wheel pivot remains centered;
 - collision OFF prevents wheel/chassis collision ambiguity.
 
-## 11. Recommended next implementation gate
+## 11. Box3D sample references
+
+`docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md` analyzes upstream/reference samples:
+
+```text
+Joints / Wheel
+Joints / Driving
+```
+
+Main takeaway:
+
+```text
+Both support the M2.4/M2.5 rest-anchor model.
+```
+
+Use them later as references for steering API, four-corner ownership, front steering/rear drive split and debug readouts. Do not copy them blindly and do not use their existence as a reason to skip M3A.
+
+## 12. Recommended next implementation gate
 
 After Foundation Grounding is complete, the recommended next gate is:
 
@@ -245,7 +264,7 @@ Why this is preferred:
 
 Only after that should the project move to a visual-only glTF wheel attachment.
 
-## 12. Explicit no-go list for the next agent
+## 13. Explicit no-go list for the next agent
 
 Do not do these during foundation grounding:
 
@@ -258,7 +277,7 @@ Do not do these during foundation grounding:
 - do not mix pending structural setup with runtime live root controls;
 - do not treat M2.1/M2.2/M2.3 as current architecture.
 
-## 13. Current critical judgement
+## 14. Current critical judgement
 
 The project is in a good but fragile place.
 
