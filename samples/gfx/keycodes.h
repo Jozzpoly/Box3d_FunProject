@@ -14,6 +14,7 @@ enum
 	KEY_A = SAPP_KEYCODE_A,
 	KEY_B = SAPP_KEYCODE_B,
 	KEY_D = SAPP_KEYCODE_D,
+	KEY_E = SAPP_KEYCODE_E,
 	KEY_F = SAPP_KEYCODE_F,
 	KEY_L = SAPP_KEYCODE_L,
 	KEY_M = SAPP_KEYCODE_M,
@@ -42,10 +43,11 @@ enum
 };
 
 // Spot-check that the aliases still track sokol_app at compile time. One per
-// enum source (keycode, modifier, mouse button) is enough to catch a drift.
+enum source (keycode, modifier, mouse button) is enough to catch a drift.
 // Cast to int so the compare doesn't trip C++'s deprecated cross-enum-type
 // comparison warning under -Werror.
 static_assert( (int)KEY_W == (int)SAPP_KEYCODE_W, "keycode alias drift" );
+static_assert( (int)KEY_E == (int)SAPP_KEYCODE_E, "keycode alias drift" );
 static_assert( (int)KEY_ESCAPE == (int)SAPP_KEYCODE_ESCAPE, "keycode alias drift" );
 static_assert( (int)MOD_SHIFT == (int)SAPP_MODIFIER_SHIFT, "modifier alias drift" );
 static_assert( (int)MOUSE_LEFT == (int)SAPP_MOUSEBUTTON_LEFT, "mouse button alias drift" );
