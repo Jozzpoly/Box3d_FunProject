@@ -169,7 +169,6 @@ public:
 	{
 		DestroyCorner();
 
-		const float chassisMountY = GetChassisMountY();
 		const float restWheelCenterY = GetRestWheelCenterY();
 
 		// Static chassis rig: this isolates the wheel joint before a full dynamic
@@ -185,7 +184,7 @@ public:
 			if ( m_collideConnected == false )
 			{
 				// Belt-and-suspenders with joint collideConnected=false. This makes the
-				lab unambiguous when testing clearance against the chassis block.
+				// lab unambiguous when testing clearance against the chassis block.
 				shapeDef.filter.groupIndex = -17;
 			}
 
