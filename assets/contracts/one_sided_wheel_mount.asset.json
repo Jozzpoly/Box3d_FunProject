@@ -1,0 +1,50 @@
+{
+  "assetId": "jozz.one_sided_wheel_mount.v0",
+  "assetType": "suspension_corner_visual",
+  "source": {
+    "gltf": "../source/one_sided_wheel_mount.gltf",
+    "authoringTool": "Blockbench",
+    "contractVersion": 2
+  },
+  "units": {
+    "metersPerBlockbenchUnit": 0.35,
+    "status": "prototype_scale"
+  },
+  "orientation": {
+    "status": "authoring_orientation_not_final",
+    "authoringUp": "+Y",
+    "knownAuthoringHints": {
+      "suspensionTravelAxisFromMarkers": "+Y"
+    },
+    "temporaryImporterCorrection": {
+      "enabled": true,
+      "note": "Final orientation will be adjusted after native in-game visual tests."
+    }
+  },
+  "semantics": {
+    "sockets": {
+      "chassisMount": "Socket_ChassisMount",
+      "wheelCenter": "Socket_WheelCenter",
+      "damperUpperR": "Socket_DamperUpper_R",
+      "damperUpperL": "Socket_DamperUpper_L",
+      "damperLowerR": "Socket_DamperLower_R",
+      "damperLowerL": "Socket_DamperLower_L",
+      "cardanDrive": "Socket_CardanDrive",
+      "cardanHub": "Socket_CardanHub"
+    },
+    "axes": {
+      "suspensionTravel": [
+        "Axis_SuspensionTravel_Top",
+        "Axis_SuspensionTravel_Bottom"
+      ]
+    },
+    "visualParts": {
+      "chassisTop": "Chassis_Top",
+      "chassisBottom": "Chassis_Bottom"
+    }
+  },
+  "physics": {
+    "v0Treatment": "visual_only_attached_to_wheel_joint_corner",
+    "futureTreatment": "candidate_for_multi_body_suspension_after_v0"
+  }
+}
