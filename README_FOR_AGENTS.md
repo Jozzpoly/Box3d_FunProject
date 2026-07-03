@@ -125,9 +125,9 @@ Do not let pending structural UI values affect live physics until Apply is press
 Before visual rig/import work, read:
 
 ```text
-docs/PRE_RIG_IMPORT_READINESS_AUDIT_PL
-docs/M3A_IMPLEMENTATION_REPORT_PL
-docs/ASSET_CONTRACT_V2_DRAFT_PL
+docs/PRE_RIG_IMPORT_READINESS_AUDIT_PL.md
+docs/M3A_IMPLEMENTATION_REPORT_PL.md
+docs/ASSET_CONTRACT_V2_DRAFT_PL.md
 ```
 
 Current judgement:
