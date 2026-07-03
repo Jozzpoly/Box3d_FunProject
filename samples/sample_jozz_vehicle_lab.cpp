@@ -214,38 +214,41 @@ public:
 		return m_compressionTravel;
 	}
 
-	b3Pos GetWheelAuditPreviewOrigin() const
+	b3Pos GetWheelAuditPreviewOrigin( b3Pos wheelPosition ) const
 	{
-		return { -1.35f, GetLiveRestWheelCenterY(), 1.45f };
+		return { wheelPosition.x - 1.35f, wheelPosition.y, wheelPosition.z + 1.45f };
 	}
 
 	b3Pos GetSuspensionAuditPreviewOrigin() const
 	{
-		return { 1.35f, GetLiveRestWheelCenterY(), 1.45f };
+		// The suspension schematic is chassis/root anchored. Rest drop must not
+		// drag this whole preview because that would imply suspension semantics are
+		// owned by the wheel rest center.
+		return { 1.35f, GetLiveChassisMountY(), 1.45f };
 	}
 
-	b3Pos WheelAuditPointBU( float x, float y, float z ) const
+	b3Pos WheelAuditPointBU( b3Pos origin, float x, float y, float z ) const
 	{
 		// Schematic mapping only: authoring Y is vertical, authoring X is drawn
 		// across world Z, authoring Z is drawn across world X. This is not the
 		// final glTF visual transform.
 		constexpr float wheelCenterX = -0.125f;
 		constexpr float wheelCenterY = 0.5f;
-		b3Pos origin = GetWheelAuditPreviewOrigin();
 		return { origin.x + z * m_assetMetersPerBlockbenchUnit, origin.y + ( y - wheelCenterY ) * m_assetMetersPerBlockbenchUnit,
 				 origin.z + ( x - wheelCenterX ) * m_assetMetersPerBlockbenchUnit };
 	}
 
 	b3Pos SuspensionAuditPointBU( float x, float y, float z ) const
 	{
-		// Schematic mapping only. This previews audited suspension semantics near
-		// the current physics corner without making them physics authority.
+		// Schematic mapping only. Travel top is anchored to the live chassis/root
+		// side, not the wheel/rest-drop side. This previews suspension semantics
+		// without making them physics authority.
 		constexpr float suspensionWheelCenterX = -1.1875f;
-		constexpr float suspensionWheelCenterY = 0.5f;
 		constexpr float suspensionWheelCenterZ = -0.0625f;
+		constexpr float suspensionTravelTopY = 1.5f;
 		b3Pos origin = GetSuspensionAuditPreviewOrigin();
 		return { origin.x + ( z - suspensionWheelCenterZ ) * m_assetMetersPerBlockbenchUnit,
-				 origin.y + ( y - suspensionWheelCenterY ) * m_assetMetersPerBlockbenchUnit,
+				 origin.y + ( y - suspensionTravelTopY ) * m_assetMetersPerBlockbenchUnit,
 				 origin.z + ( x - suspensionWheelCenterX ) * m_assetMetersPerBlockbenchUnit };
 	}
 
@@ -453,7 +456,7 @@ public:
 		}
 		ImGui::Checkbox( "Axis diagnostics", &m_showAxisDiagnostics );
 		ImGui::Checkbox( "M3B semantic preview", &m_showAssetSemanticPreview );
-		ImGui::TextWrapped( "M3B preview draws audited marker schematics near the wheel. It is not final glTF transform and does not drive physics." );
+		ImGui::TextWrapped( "M3B preview: wheel schematic follows the wheel body; suspension schematic follows chassis/root. It is not final glTF transform and does not drive physics." );
 		ImGui::TextWrapped( "M3A note: visual sockets are not physics frame A; rest drop remains explicit until a dedicated physics rest-anchor contract exists." );
 
 		if ( m_structuralSetupDirty )
@@ -602,15 +605,16 @@ public:
 		Sample::Step();
 	}
 
-	void DrawAssetSemanticPreview()
+	void DrawAssetSemanticPreview( b3Pos wheelPosition )
 	{
-		b3Pos wheelCenter = WheelAuditPointBU( -0.125f, 0.5f, 0.0f );
-		b3Pos wheelMount = WheelAuditPointBU( 0.25f, 0.5f, 0.0f );
-		b3Pos radiusOuter = WheelAuditPointBU( -0.125f, 1.96875f, 0.0f );
-		b3Pos widthLeft = WheelAuditPointBU( -0.75f, 0.5f, 0.0f );
-		b3Pos widthRight = WheelAuditPointBU( 0.5f, 0.5f, 0.0f );
-		b3Pos spinA = WheelAuditPointBU( 0.4375f, 0.5f, 0.0f );
-		b3Pos spinB = WheelAuditPointBU( -1.0625f, 0.5f, 0.0f );
+		b3Pos wheelOrigin = GetWheelAuditPreviewOrigin( wheelPosition );
+		b3Pos wheelCenter = WheelAuditPointBU( wheelOrigin, -0.125f, 0.5f, 0.0f );
+		b3Pos wheelMount = WheelAuditPointBU( wheelOrigin, 0.25f, 0.5f, 0.0f );
+		b3Pos radiusOuter = WheelAuditPointBU( wheelOrigin, -0.125f, 1.96875f, 0.0f );
+		b3Pos widthLeft = WheelAuditPointBU( wheelOrigin, -0.75f, 0.5f, 0.0f );
+		b3Pos widthRight = WheelAuditPointBU( wheelOrigin, 0.5f, 0.5f, 0.0f );
+		b3Pos spinA = WheelAuditPointBU( wheelOrigin, 0.4375f, 0.5f, 0.0f );
+		b3Pos spinB = WheelAuditPointBU( wheelOrigin, -1.0625f, 0.5f, 0.0f );
 
 		DrawCross( wheelCenter, 0.10f, MakeVec4( 1.0f, 1.0f, 1.0f, 1.0f ) );
 		DrawCross( wheelMount, 0.08f, MakeVec4( 0.1f, 0.8f, 1.0f, 1.0f ) );
@@ -663,14 +667,14 @@ public:
 
 		if ( m_showAssetSemanticPreview )
 		{
-			DrawAssetSemanticPreview();
+			DrawAssetSemanticPreview( wheelPosition );
 		}
 
 		DrawTextLine( "Jozz Vehicle Lab M2.5 + M3A/M3B Debug Corner" );
 		DrawTextLine( "W/S drive, Space brakes, Q/E live root down/up, R restarts." );
 		DrawTextLine( "M3A asset defaults: scale %.2f m/BU, wheel r %.2f, width %.2f", m_assetMetersPerBlockbenchUnit,
 					  m_assetWheelRadiusDefault, m_assetWheelWidthDefault );
-		DrawTextLine( "M3B semantic preview: %s, schematic only, no mesh import", m_showAssetSemanticPreview ? "on" : "off" );
+		DrawTextLine( "M3B preview: %s, wheel->body, suspension->chassis/root", m_showAssetSemanticPreview ? "on" : "off" );
 		DrawTextLine( "root %.2f, wheel y %.2f, speed %.2f m/s, translation %.2f", m_liveRootOffset, (float)wheelPosition.y,
 					  b3Length( wheelVelocity ), actualTranslation );
 		DrawTextLine( "live mount %.2f, live rest %.2f, wheel bottom %.2f", GetLiveChassisMountY(), GetLiveRestWheelCenterY(),
