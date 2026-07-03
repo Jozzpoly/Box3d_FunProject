@@ -1,6 +1,6 @@
 # README_FOR_AGENTS — Jozz Vehicle Box3D Native
 
-Status: Foundation Grounding after Jozz-validated M2.5 primitive corner lab  
+Status: M3A asset-derived primitive defaults implemented; local validation pending  
 Date: 2026-07-03  
 Owner/creative director: Jozz / Przemek  
 Working branch: `jozz-vehicle-sandbox-m0`
@@ -11,7 +11,7 @@ This branch starts **Jozz Vehicle Box3D Native**, a Windows/native vehicle sandb
 
 The long-term goal is not to keep modifying random Box3D samples forever. The goal is to use the Box3D repo as a proven physics/render-host foundation, then grow a separate Jozz Vehicle game/lab layer around vehicle assembly, wheel suspension, visual rigs, and Blockbench-authored parts.
 
-## Current reality after M2.5
+## Current reality after M2.5/M3A
 
 Jozz Vehicle is currently implemented as a lab inside the existing Box3D `samples` host.
 
@@ -21,7 +21,7 @@ Current active sample:
 Category: Jozz Vehicle
 Sample:   Lab M2 Primitive Corner
 Source:   samples/sample_jozz_vehicle_lab.cpp
-Panel:    Jozz Vehicle Lab M2.5
+Panel:    Jozz Vehicle Lab M2.5 + M3A defaults
 ```
 
 This is intentional for the current phase. The existing sample host already provides windowing, camera, debug draw, ImGui, input, sample registration and build integration.
@@ -37,15 +37,17 @@ Read in this order before making changes:
 3. `docs/FOUNDATION_GROUNDING_PHASE_PLAN_PL.md`
 4. `docs/PRE_RIG_IMPORT_READINESS_AUDIT_PL.md`
 5. `docs/M3A_ASSET_DERIVED_PRIMITIVE_DIMENSIONS_PLAN_PL.md`
-6. `docs/HOTKEY_AUDIT_PL.md`
-7. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
-8. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
-9. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
-10. `docs/PROJECT_DIRECTION_PL.md`
-11. `assets/README.md`
-12. `assets/reports/asset_audit_latest.md`
-13. `samples/sample_jozz_vehicle_lab.cpp`
-14. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
+6. `docs/M3A_EXECUTION_PLAN_AND_CRITICAL_REVIEW_PL.md`
+7. `docs/M3A_IMPLEMENTATION_REPORT_PL.md`
+8. `docs/HOTKEY_AUDIT_PL.md`
+9. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
+10. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
+11. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
+12. `docs/PROJECT_DIRECTION_PL.md`
+13. `assets/README.md`
+14. `assets/reports/asset_audit_latest.md`
+15. `samples/sample_jozz_vehicle_lab.cpp`
+16. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
 
 Also useful as background:
 
@@ -56,9 +58,9 @@ Also useful as background:
 - `docs/adr/0003-physics-v0-wheel-joint.md`
 - `docs/adr/0004-renderer-strategy.md`
 
-## Authoritative M2.5 baseline
+## Authoritative baseline
 
-M2.5 is the current wheel-corner physics baseline.
+M2.5 is still the current wheel-corner physics baseline. M3A adds asset-derived primitive defaults on top of it.
 
 Do not override it with older M2/M2.1/M2.2/M2.3 assumptions.
 
@@ -71,11 +73,20 @@ Frame B = wheel center / wheel body origin
 Rest drop = where the rest wheel-center anchor is placed relative to chassis
 ```
 
+M3A rules:
+
+```text
+wheel radius/width are centralized from current asset audit markers
+suspension total travel from the asset is a hint only
+rest drop remains explicit/tuned
+no glTF rendering/importing was added
+```
+
 The visual chassis/damper mount is diagnostic/visual information. It is not automatically the physics joint frame A.
 
 ## Runtime vs structural setup rule
 
-M2.5 intentionally separates structural setup from runtime debug controls.
+M2.5/M3A intentionally separates structural setup from runtime debug controls.
 
 ```text
 Structural setup
@@ -114,23 +125,23 @@ Do not let pending structural UI values affect live physics until Apply is press
 Before visual rig/import work, read:
 
 ```text
-docs/PRE_RIG_IMPORT_READINESS_AUDIT_PL.md
-docs/M3A_ASSET_DERIVED_PRIMITIVE_DIMENSIONS_PLAN_PL.md
-docs/ASSET_CONTRACT_V2_DRAFT_PL.md
+docs/PRE_RIG_IMPORT_READINESS_AUDIT_PL
+docs/M3A_IMPLEMENTATION_REPORT_PL
+docs/ASSET_CONTRACT_V2_DRAFT_PL
 ```
 
 Current judgement:
 
 ```text
-M3A is allowed next.
+M3A code is implemented; local build/manual validation is pending.
 Heavy glTF import/rigging is not ready yet.
 ```
 
-Safe for M3A:
+Safe after M3A validation:
 
 ```text
-wheel radius/width from audit markers
-suspension travel total as hint
+M3B.0 read/validate metadata only, no rendering
+M3B.1 draw semantic debug points from audited positions, no mesh rendering
 ```
 
 Not safe yet:
@@ -139,6 +150,7 @@ Not safe yet:
 restDrop derived directly from visual Socket_ChassisMount -> Socket_WheelCenter
 runtime importer relying on unique node names
 visual sockets treated as physics frames
+full visual rig leap
 ```
 
 ## Box3D sample references
@@ -156,7 +168,7 @@ Main result:
 Both support the M2.4/M2.5 rest-anchor model.
 ```
 
-Use those stock samples later as references for steering API, four-corner ownership and debug readouts. Do not copy them blindly and do not skip M3A because `Joints / Driving` already exists.
+Use those stock samples later as references for steering API, four-corner ownership and debug readouts. Do not copy them blindly.
 
 ## Current assets
 
@@ -188,7 +200,7 @@ py tools\asset_contract_audit.py
 
 The Box3D samples host owns global shortcuts. Jozz Vehicle sample shortcuts must not conflict with them.
 
-Current Jozz Vehicle M2.5 shortcuts:
+Current Jozz Vehicle M2.5/M3A shortcuts:
 
 ```text
 W      wheel motor forward
@@ -227,15 +239,15 @@ Prefer ImGui buttons/sliders for debug controls unless holding a key is genuinel
 
 ## Immediate next engineering target
 
-Finish the Foundation Grounding phase, then implement exactly one small gate:
+Validate M3A locally before starting the next feature gate.
+
+After validation, the next recommended gate is:
 
 ```text
-M3A — Asset-derived primitive dimensions
+M3B.0 / M3B.1 — metadata/debug-first visual import preparation
 ```
 
-Meaning: keep M2.5 primitive physics, but make wheel radius, wheel width and travel hints traceable to current asset audit/contracts.
-
-Do not start full glTF rendering, visual rigging, steering or full vehicle assembly before M3A is implemented and validated.
+Do not start full glTF rendering, visual rigging, steering or full vehicle assembly before M3A is validated.
 
 ## Validation commands for Jozz
 
@@ -243,6 +255,8 @@ From repo root:
 
 ```powershell
 git pull --ff-only origin jozz-vehicle-sandbox-m0
+py tools\asset_audit.py
+py tools\asset_contract_audit.py
 cmake --preset windows
 cmake --build --preset windows-debug --target samples
 ```
@@ -256,5 +270,5 @@ Jozz Vehicle / Lab M2 Primitive Corner
 Expected panel:
 
 ```text
-Jozz Vehicle Lab M2.5
+Jozz Vehicle Lab M2.5 + M3A defaults
 ```
