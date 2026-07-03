@@ -35,15 +35,17 @@ Read in this order before making changes:
 1. `docs/CURRENT_STATE_INDEX_PL.md`
 2. `docs/PROJECT_AUDIT_2026_07_03_PL.md`
 3. `docs/FOUNDATION_GROUNDING_PHASE_PLAN_PL.md`
-4. `docs/HOTKEY_AUDIT_PL.md`
-5. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
-6. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
-7. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
-8. `docs/PROJECT_DIRECTION_PL.md`
-9. `assets/README.md`
-10. `assets/reports/asset_audit_latest.md`
-11. `samples/sample_jozz_vehicle_lab.cpp`
-12. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
+4. `docs/PRE_RIG_IMPORT_READINESS_AUDIT_PL.md`
+5. `docs/M3A_ASSET_DERIVED_PRIMITIVE_DIMENSIONS_PLAN_PL.md`
+6. `docs/HOTKEY_AUDIT_PL.md`
+7. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
+8. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
+9. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
+10. `docs/PROJECT_DIRECTION_PL.md`
+11. `assets/README.md`
+12. `assets/reports/asset_audit_latest.md`
+13. `samples/sample_jozz_vehicle_lab.cpp`
+14. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
 
 Also useful as background:
 
@@ -107,6 +109,38 @@ Do not let pending structural UI values affect live physics until Apply is press
 - The current physical baseline uses a **single Box3D wheel joint per suspension corner**.
 - Wahacze, damper body, and cardan shaft are **visual-only in v0** unless future tests prove that physical multi-body suspension is worth the added complexity.
 
+## Pre-rig / import stance
+
+Before visual rig/import work, read:
+
+```text
+docs/PRE_RIG_IMPORT_READINESS_AUDIT_PL.md
+docs/M3A_ASSET_DERIVED_PRIMITIVE_DIMENSIONS_PLAN_PL.md
+docs/ASSET_CONTRACT_V2_DRAFT_PL.md
+```
+
+Current judgement:
+
+```text
+M3A is allowed next.
+Heavy glTF import/rigging is not ready yet.
+```
+
+Safe for M3A:
+
+```text
+wheel radius/width from audit markers
+suspension travel total as hint
+```
+
+Not safe yet:
+
+```text
+restDrop derived directly from visual Socket_ChassisMount -> Socket_WheelCenter
+runtime importer relying on unique node names
+visual sockets treated as physics frames
+```
+
 ## Box3D sample references
 
 `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md` analyzes:
@@ -140,6 +174,15 @@ One_Sided_wheel_mount.gltf
 ```
 
 The current audit report intentionally records duplicate roots/nodes and unfinished orientation decisions. Do not trust node names alone.
+
+Asset audit tools:
+
+```powershell
+py tools\asset_audit.py
+py tools\asset_contract_audit.py
+```
+
+`asset_contract_audit.py` is a pre-import validator helper, not a runtime importer.
 
 ## Current hotkey rule
 
@@ -180,26 +223,19 @@ Prefer ImGui buttons/sliders for debug controls unless holding a key is genuinel
 - Do not rebuild bodies/joints during slider drag.
 - Do not let pending structural setup values affect runtime live-root debug behavior.
 - Do not add hotkeys without checking global sample-host conflicts.
+- Do not derive rest drop from visual chassis/wheel sockets until a dedicated physics rest anchor contract exists.
 
 ## Immediate next engineering target
 
-Finish the Foundation Grounding phase:
-
-1. keep `docs/CURRENT_STATE_INDEX_PL.md` current;
-2. keep M2.1/M2.2/M2.3 clearly marked as superseded/historical;
-3. keep `docs/HOTKEY_AUDIT_PL.md` current;
-4. keep `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md` as a reference, not an implementation order;
-5. do not start M3/glTF/full vehicle assembly yet.
-
-After this grounding pass, the recommended next technical gate is:
+Finish the Foundation Grounding phase, then implement exactly one small gate:
 
 ```text
 M3A — Asset-derived primitive dimensions
 ```
 
-Meaning: keep M2.5 primitive physics, but derive default wheel radius, wheel width, rest drop and travel defaults from the current asset audit/contracts.
+Meaning: keep M2.5 primitive physics, but make wheel radius, wheel width and travel hints traceable to current asset audit/contracts.
 
-Only after that should the project move to a visual-only glTF wheel attachment.
+Do not start full glTF rendering, visual rigging, steering or full vehicle assembly before M3A is implemented and validated.
 
 ## Validation commands for Jozz
 
