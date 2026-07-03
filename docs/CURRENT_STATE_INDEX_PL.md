@@ -2,11 +2,11 @@
 
 Date: 2026-07-03  
 Branch: `jozz-vehicle-sandbox-m0`  
-Status: active handoff/index after M3A validation and M3B semantic debug preview anchoring fix validation
+Status: active handoff/index after M3A validation, M3B semantic preview validation, and M3B.2-prep runtime metadata implementation
 
 ## 1. Purpose
 
-This document is the first file a future agent should use to orient itself after M2.5/M3A/M3B.1.
+This document is the first file a future agent should use to orient itself after M2.5/M3A/M3B.
 
 The project now has enough milestone documents that reading them in the wrong order can easily reintroduce old mistakes. This index tells the next agent what is current, what is historical, and what must not be treated as active architecture.
 
@@ -37,7 +37,7 @@ Source:   samples/sample_jozz_vehicle_lab.cpp
 Panel:    Jozz Vehicle Lab M2.5 + M3A/M3B debug
 ```
 
-The sample picker name remains `Lab M2 Primitive Corner` because the scene is still the same one-corner primitive lab. M3A changed the source of primitive defaults. M3B.1 adds a semantic debug overlay, not a new sample architecture.
+The sample picker name remains `Lab M2 Primitive Corner` because the scene is still the same one-corner primitive lab. M3A changed the source of primitive defaults. M3B adds semantic/debug metadata plumbing, not a new sample architecture.
 
 The older M1 smoke sample still exists as a basic host sanity check:
 
@@ -47,7 +47,7 @@ Jozz Vehicle / Lab M1 Smoke
 
 ## 4. Authoritative physics baseline
 
-The authoritative physics baseline is still **M2.5 primitive one-corner wheel-joint lab**, now with **M3A asset-derived primitive defaults** and **M3B semantic debug preview**.
+The authoritative physics baseline is still **M2.5 primitive one-corner wheel-joint lab**, now with **M3A asset-derived primitive defaults**, **M3B semantic debug preview**, and **M3B.2-prep runtime asset audit metadata**.
 
 Current model:
 
@@ -71,12 +71,13 @@ Important physics rules:
 10. M3B semantic preview is a debug schematic only and does not drive physics.
 11. M3B wheel preview follows the actual primitive wheel body.
 12. M3B suspension preview follows chassis/root, not wheel rest drop.
+13. M3B.2-prep can load semantic positions from `assets/reports/asset_audit_latest.json` at runtime, with a built-in fallback.
 
 Do not return to the M2.3 model where frame A was treated as a visual chassis mount.
 
 ## 5. Runtime vs structural setup separation
 
-M2.5/M3A/M3B intentionally separates three control categories:
+M2.5/M3A/M3B intentionally separates four control categories:
 
 ```text
 Structural setup
@@ -103,6 +104,12 @@ Semantic preview
   - suspension schematic follows chassis/root
   - no physics authority
   - no mesh rendering
+
+Runtime metadata
+  - reads asset audit report when reachable
+  - falls back to built-in audited metadata when not reachable
+  - must not crash the lab if files are missing
+  - does not load meshes/materials/skins/animations
 ```
 
 Future UI/debug work should preserve this pattern:
@@ -111,6 +118,7 @@ Future UI/debug work should preserve this pattern:
 pending edit values != committed physics values
 semantic debug overlay != physics authority
 suspension semantic preview != wheel-owned marker group
+runtime metadata != mesh renderer
 ```
 
 Live root must continue reading committed setup values until Apply is pressed.
@@ -152,15 +160,18 @@ Read these first:
 9. `docs/M3B_METADATA_DEBUG_IMPORT_PLAN_PL.md`
 10. `docs/M3B_SEMANTIC_DEBUG_PREVIEW_IMPLEMENTATION_REPORT_PL.md`
 11. `docs/M3B_SEMANTIC_PREVIEW_ANCHORING_FIX_PL.md`
-12. `docs/HOTKEY_AUDIT_PL.md`
-13. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
-14. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
-15. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
-16. `docs/PROJECT_DIRECTION_PL.md`
-17. `assets/README.md`
-18. `assets/reports/asset_audit_latest.md`
-19. `samples/sample_jozz_vehicle_lab.cpp`
-20. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
+12. `docs/M3B_2_PREP_RUNTIME_METADATA_REPORT_PL.md`
+13. `docs/HOTKEY_AUDIT_PL.md`
+14. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
+15. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
+16. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
+17. `docs/PROJECT_DIRECTION_PL.md`
+18. `assets/README.md`
+19. `assets/reports/asset_audit_latest.md`
+20. `samples/sample_jozz_vehicle_lab.cpp`
+21. `samples/jozz_vehicle_asset_metadata.h`
+22. `samples/jozz_vehicle_asset_metadata.cpp`
+23. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
 
 Also useful as policy background:
 
@@ -196,6 +207,7 @@ M2.5 — live root stress mover + pending/committed setup separation
 M3A — asset-derived primitive radius/width defaults, travel hint only
 M3B.1 — semantic debug preview overlay, no mesh import
 M3B.1 anchoring fix — wheel preview follows wheel/body; suspension preview follows chassis/root
+M3B.2-prep — runtime asset audit metadata without mesh rendering
 ```
 
 ## 9. Current assets
@@ -218,11 +230,18 @@ Current asset status:
 - marker/socket naming is useful but cannot be trusted alone;
 - importer must use stable node index/path/parent chain and composed transforms.
 
-Current audit report:
+Current audit report used by runtime metadata when reachable:
 
 ```text
 assets/reports/asset_audit_latest.md
 assets/reports/asset_audit_latest.json
+```
+
+New metadata loader:
+
+```text
+samples/jozz_vehicle_asset_metadata.h
+samples/jozz_vehicle_asset_metadata.cpp
 ```
 
 New contract audit helper:
@@ -252,6 +271,11 @@ Panel: Jozz Vehicle Lab M2.5 + M3A/M3B debug
 
 Regression check:
 
+- build succeeds;
+- sample opens;
+- panel shows a `metadata:` status line;
+- HUD shows `M3B metadata: runtime audit` or `M3B metadata: built-in fallback`;
+- `Reload metadata + reset defaults` does not crash;
 - live root slider moves root realtime without Apply;
 - Q lowers root;
 - E raises root;
@@ -260,7 +284,6 @@ Regression check:
 - Space brake works;
 - structural slider edits do not affect live root until Apply;
 - Apply commits structural setup and rebuilds once;
-- Reset M3A defaults restores asset-derived radius/width;
 - `M3B semantic preview` toggle exists;
 - semantic preview draws schematic marker crosses/lines near the wheel;
 - wheel preview follows the primitive wheel/body;
@@ -298,7 +321,7 @@ Use them later as references for steering API, four-corner ownership, front stee
 
 ## 12. Current implementation status and next gate
 
-M3A was manually validated by Jozz. M3B.1 semantic preview is implemented. The first M3B.1 anchoring model was criticized by Jozz, fixed, and then manually validated by Jozz screenshots.
+M3A was manually validated by Jozz. M3B.1 semantic preview is implemented. The first M3B.1 anchoring model was criticized by Jozz, fixed, and then manually validated by Jozz screenshots. M3B.2-prep runtime asset audit metadata is implemented but needs build/manual validation.
 
 M3A does:
 
@@ -319,28 +342,35 @@ wheel preview anchored to wheel/body
 suspension preview anchored to chassis/root
 ```
 
+M3B.2-prep does:
+
+```text
+runtime load attempt for assets/reports/asset_audit_latest.json
+fallback to built-in audited metadata
+metadata status shown in UI/HUD
+M3A defaults and M3B preview read through metadata source
+```
+
 M3A/M3B does not do:
 
 ```text
 runtime glTF mesh rendering
-runtime JSON loading
 mesh collision
 steering
 four-corner vehicle
 new hotkeys
 ```
 
-After M3B.1 anchoring validation, the recommended next gate is still not full rigging. Good options are:
+After M3B.2-prep validation, choose based on metadata result:
 
 ```text
-M3B.1 polish — add labels/legend for semantic preview
-M3B.2-prep — runtime metadata loading without mesh rendering
-M3B.2 — render one static visual wheel mesh at origin
+If runtime audit loads: M3B.2 static wheel visual mesh at origin
+If fallback is used: fix runtime asset/report path discovery first
 ```
 
 ## 13. Explicit no-go list for the next agent
 
-Do not do these before the next small M3 gate:
+Do not do these before validating M3B.2-prep:
 
 - do not start full glTF renderer;
 - do not build full vehicle assembly;
@@ -352,12 +382,13 @@ Do not do these before the next small M3 gate:
 - do not treat M2.1/M2.2/M2.3 as current architecture;
 - do not derive `restDrop` directly from visual chassis/wheel sockets;
 - do not treat M3B schematic preview as final import transform;
-- do not let suspension semantic preview become wheel-owned again.
+- do not let suspension semantic preview become wheel-owned again;
+- do not proceed to mesh rendering if runtime metadata path discovery is broken and only fallback works.
 
 ## 14. Current critical judgement
 
 The project is in a good but fragile place.
 
-M2.5 gave the correct wheel-joint behavior. M3A connected primitive wheel radius/width to Jozz's real asset measurements. M3B.1 now exposes semantic marker relationships in-game as a safe debug overlay, and Jozz's critique improved the ownership model.
+M2.5 gave the correct wheel-joint behavior. M3A connected primitive wheel radius/width to Jozz's real asset measurements. M3B.1 exposed semantic marker relationships in-game as a safe debug overlay, and Jozz's critique improved the ownership model. M3B.2-prep now begins the runtime asset-data path.
 
-The next move can be semantic-preview polish/labels or runtime metadata loading without mesh rendering. Full rig/import should still wait.
+The next move is build/manual validation. If runtime metadata loads, the project can attempt one static wheel visual mesh at origin. If not, fix asset path staging first.
