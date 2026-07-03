@@ -4,9 +4,12 @@
 #include "gfx/draw.h"
 #include "gfx/keycodes.h"
 #include "imgui.h"
+#include "jozz_vehicle_asset_metadata.h"
 #include "sample.h"
 
 #include "box3d/box3d.h"
+
+#include <cmath>
 
 class JozzVehicleLabM1 : public Sample
 {
@@ -80,26 +83,34 @@ struct JozzVehiclePrimitiveDefaults
 	float restDrop;
 };
 
-static JozzVehiclePrimitiveDefaults GetJozzVehicleM3ADefaults()
+static b3Vec3 FindPointOrFallback( const JozzVehicleAuditMetadata& metadata, const char* assetFile, const char* semanticName,
+								  b3Vec3 fallback )
 {
-	// M3A deliberately keeps these as centralized code constants instead of
-	// runtime JSON. They are traced to the current offline audit/contract data
-	// while avoiding importer/path/package risk before visual glTF work exists.
+	b3Vec3 result = fallback;
+	FindJozzVehicleSemanticPoint( metadata, assetFile, semanticName, &result );
+	return result;
+}
+
+static JozzVehiclePrimitiveDefaults GetJozzVehicleM3ADefaults( const JozzVehicleAuditMetadata& metadata )
+{
+	// M3A/M3B.2-prep derives primitive defaults from runtime-loaded audit
+	// metadata when available. If the report cannot be found from the executable
+	// working directory, LoadJozzVehicleAuditMetadata() provides the same audited
+	// fallback constants. This keeps the lab robust while moving toward runtime
+	// asset metadata.
 	constexpr float metersPerBlockbenchUnit = 0.35f;
 
-	// assets/reports/asset_audit_latest.json, Offroad_Big_Wheels.gltf:
-	// wheel center Y ~= 0.5 BU, Marker_TireRadiusOuter Y = 1.96875 BU
-	// radius = (1.96875 - 0.5) * 0.35 = 0.5140625 m
-	constexpr float wheelRadius = 1.46875f * metersPerBlockbenchUnit;
+	b3Vec3 wheelMount = FindPointOrFallback( metadata, "Offroad_Big_Wheels.gltf", "Socket_WheelMount", { 0.25f, 0.5f, 0.0f } );
+	b3Vec3 radiusOuter = FindPointOrFallback( metadata, "Offroad_Big_Wheels.gltf", "Marker_TireRadiusOuter", { -0.125f, 1.96875f, 0.0f } );
+	b3Vec3 widthLeft = FindPointOrFallback( metadata, "Offroad_Big_Wheels.gltf", "Marker_TireWidthLeft", { -0.75f, 0.5f, 0.0f } );
+	b3Vec3 widthRight = FindPointOrFallback( metadata, "Offroad_Big_Wheels.gltf", "Marker_TireWidthRight", { 0.5f, 0.5f, 0.0f } );
+	b3Vec3 travelTop = FindPointOrFallback( metadata, "One_Sided_wheel_mount.gltf", "Axis_SuspensionTravel_Top", { -1.1875f, 1.5f, 0.0f } );
+	b3Vec3 travelBottom =
+		FindPointOrFallback( metadata, "One_Sided_wheel_mount.gltf", "Axis_SuspensionTravel_Bottom", { -1.1875f, -0.5f, 0.0f } );
 
-	// Marker_TireWidthLeft X = -0.75 BU, Marker_TireWidthRight X = 0.5 BU
-	// width = 1.25 * 0.35 = 0.4375 m
-	constexpr float wheelWidth = 1.25f * metersPerBlockbenchUnit;
-
-	// One_Sided_wheel_mount.gltf travel markers: top Y 1.5 BU, bottom Y -0.5 BU
-	// total travel hint = 2.0 * 0.35 = 0.70 m. M3A records this as a hint only;
-	// current rebound/compression stay at the Jozz-validated M2.5 feel values.
-	constexpr float assetSuspensionTravelHint = 2.0f * metersPerBlockbenchUnit;
+	float wheelRadius = std::fabs( radiusOuter.y - wheelMount.y ) * metersPerBlockbenchUnit;
+	float wheelWidth = std::fabs( widthRight.x - widthLeft.x ) * metersPerBlockbenchUnit;
+	float assetSuspensionTravelHint = std::fabs( travelTop.y - travelBottom.y ) * metersPerBlockbenchUnit;
 
 	return {
 		metersPerBlockbenchUnit,
@@ -146,7 +157,8 @@ public:
 
 	void SetDefaults()
 	{
-		JozzVehiclePrimitiveDefaults defaults = GetJozzVehicleM3ADefaults();
+		m_assetMetadata = LoadJozzVehicleAuditMetadata();
+		JozzVehiclePrimitiveDefaults defaults = GetJozzVehicleM3ADefaults( m_assetMetadata );
 		m_assetMetersPerBlockbenchUnit = defaults.metersPerBlockbenchUnit;
 		m_assetWheelRadiusDefault = defaults.wheelRadius;
 		m_assetWheelWidthDefault = defaults.wheelWidth;
@@ -227,29 +239,25 @@ public:
 		return { 1.35f, GetLiveChassisMountY(), 1.45f };
 	}
 
-	b3Pos WheelAuditPointBU( b3Pos origin, float x, float y, float z ) const
+	b3Pos WheelAuditPointBU( b3Pos origin, b3Vec3 pointBU, b3Vec3 centerBU ) const
 	{
 		// Schematic mapping only: authoring Y is vertical, authoring X is drawn
 		// across world Z, authoring Z is drawn across world X. This is not the
 		// final glTF visual transform.
-		constexpr float wheelCenterX = -0.125f;
-		constexpr float wheelCenterY = 0.5f;
-		return { origin.x + z * m_assetMetersPerBlockbenchUnit, origin.y + ( y - wheelCenterY ) * m_assetMetersPerBlockbenchUnit,
-				 origin.z + ( x - wheelCenterX ) * m_assetMetersPerBlockbenchUnit };
+		return { origin.x + ( pointBU.z - centerBU.z ) * m_assetMetersPerBlockbenchUnit,
+				 origin.y + ( pointBU.y - centerBU.y ) * m_assetMetersPerBlockbenchUnit,
+				 origin.z + ( pointBU.x - centerBU.x ) * m_assetMetersPerBlockbenchUnit };
 	}
 
-	b3Pos SuspensionAuditPointBU( float x, float y, float z ) const
+	b3Pos SuspensionAuditPointBU( b3Vec3 pointBU, b3Vec3 travelTopBU ) const
 	{
 		// Schematic mapping only. Travel top is anchored to the live chassis/root
 		// side, not the wheel/rest-drop side. This previews suspension semantics
 		// without making them physics authority.
-		constexpr float suspensionWheelCenterX = -1.1875f;
-		constexpr float suspensionWheelCenterZ = -0.0625f;
-		constexpr float suspensionTravelTopY = 1.5f;
 		b3Pos origin = GetSuspensionAuditPreviewOrigin();
-		return { origin.x + ( z - suspensionWheelCenterZ ) * m_assetMetersPerBlockbenchUnit,
-				 origin.y + ( y - suspensionTravelTopY ) * m_assetMetersPerBlockbenchUnit,
-				 origin.z + ( x - suspensionWheelCenterX ) * m_assetMetersPerBlockbenchUnit };
+		return { origin.x + ( pointBU.z - travelTopBU.z ) * m_assetMetersPerBlockbenchUnit,
+				 origin.y + ( pointBU.y - travelTopBU.y ) * m_assetMetersPerBlockbenchUnit,
+				 origin.z + ( pointBU.x - travelTopBU.x ) * m_assetMetersPerBlockbenchUnit };
 	}
 
 	void ClampLiveRootOffset()
@@ -412,13 +420,18 @@ public:
 	{
 		ImGui::TextUnformatted( "Jozz Vehicle Lab M2.5 + M3A/M3B debug" );
 		ImGui::Separator();
-		ImGui::TextWrapped( "Primitive one-corner wheel-joint lab. M3A centralizes wheel primitive defaults; M3B adds semantic debug preview without glTF mesh rendering." );
+		ImGui::TextWrapped( "Primitive one-corner wheel-joint lab. M3A centralizes wheel primitive defaults; M3B uses semantic metadata without glTF mesh rendering." );
 		ImGui::Spacing();
 		ImGui::TextUnformatted( "Input: W drive forward, S reverse, Space brake, Q lower root, E raise root, R restart sample." );
 		ImGui::Text( "wheel radius %.2f m, width %.2f m", m_wheelRadius, m_wheelWidth );
 		ImGui::Text( "asset defaults: scale %.2f m/BU, wheel r %.2f, width %.2f", m_assetMetersPerBlockbenchUnit,
 					 m_assetWheelRadiusDefault, m_assetWheelWidthDefault );
 		ImGui::Text( "asset travel hint %.2f m; rest drop %.2f m is explicit/tuned", m_assetSuspensionTravelHint, m_restDrop );
+		ImGui::TextWrapped( "metadata: %s", m_assetMetadata.status.c_str() );
+		if ( m_assetMetadata.loadedFromRuntimeReport )
+		{
+			ImGui::TextWrapped( "source: %s", m_assetMetadata.sourcePath.c_str() );
+		}
 		ImGui::Text( "live root %.2f, live rest center y %.2f", m_liveRootOffset, GetLiveRestWheelCenterY() );
 		ImGui::Text( "relative travel: rebound %.2f down, compression %.2f up", m_reboundTravel, m_compressionTravel );
 		ImGui::Separator();
@@ -469,7 +482,7 @@ public:
 			ApplyPendingStructuralSetup();
 		}
 		ImGui::SameLine();
-		if ( ImGui::Button( "Reset M3A defaults" ) )
+		if ( ImGui::Button( "Reload metadata + reset defaults" ) )
 		{
 			SetDefaults();
 			CreateCorner();
@@ -607,14 +620,22 @@ public:
 
 	void DrawAssetSemanticPreview( b3Pos wheelPosition )
 	{
+		b3Vec3 wheelMountBU = FindPointOrFallback( m_assetMetadata, "Offroad_Big_Wheels.gltf", "Socket_WheelMount", { 0.25f, 0.5f, 0.0f } );
+		b3Vec3 radiusOuterBU = FindPointOrFallback( m_assetMetadata, "Offroad_Big_Wheels.gltf", "Marker_TireRadiusOuter", { -0.125f, 1.96875f, 0.0f } );
+		b3Vec3 widthLeftBU = FindPointOrFallback( m_assetMetadata, "Offroad_Big_Wheels.gltf", "Marker_TireWidthLeft", { -0.75f, 0.5f, 0.0f } );
+		b3Vec3 widthRightBU = FindPointOrFallback( m_assetMetadata, "Offroad_Big_Wheels.gltf", "Marker_TireWidthRight", { 0.5f, 0.5f, 0.0f } );
+		b3Vec3 spinABU = FindPointOrFallback( m_assetMetadata, "Offroad_Big_Wheels.gltf", "Axis_WheelSpin_A", { 0.4375f, 0.5f, 0.0f } );
+		b3Vec3 spinBBU = FindPointOrFallback( m_assetMetadata, "Offroad_Big_Wheels.gltf", "Axis_WheelSpin_B", { -1.0625f, 0.5f, 0.0f } );
+		b3Vec3 wheelCenterBU = { radiusOuterBU.x, wheelMountBU.y, wheelMountBU.z };
+
 		b3Pos wheelOrigin = GetWheelAuditPreviewOrigin( wheelPosition );
-		b3Pos wheelCenter = WheelAuditPointBU( wheelOrigin, -0.125f, 0.5f, 0.0f );
-		b3Pos wheelMount = WheelAuditPointBU( wheelOrigin, 0.25f, 0.5f, 0.0f );
-		b3Pos radiusOuter = WheelAuditPointBU( wheelOrigin, -0.125f, 1.96875f, 0.0f );
-		b3Pos widthLeft = WheelAuditPointBU( wheelOrigin, -0.75f, 0.5f, 0.0f );
-		b3Pos widthRight = WheelAuditPointBU( wheelOrigin, 0.5f, 0.5f, 0.0f );
-		b3Pos spinA = WheelAuditPointBU( wheelOrigin, 0.4375f, 0.5f, 0.0f );
-		b3Pos spinB = WheelAuditPointBU( wheelOrigin, -1.0625f, 0.5f, 0.0f );
+		b3Pos wheelCenter = WheelAuditPointBU( wheelOrigin, wheelCenterBU, wheelCenterBU );
+		b3Pos wheelMount = WheelAuditPointBU( wheelOrigin, wheelMountBU, wheelCenterBU );
+		b3Pos radiusOuter = WheelAuditPointBU( wheelOrigin, radiusOuterBU, wheelCenterBU );
+		b3Pos widthLeft = WheelAuditPointBU( wheelOrigin, widthLeftBU, wheelCenterBU );
+		b3Pos widthRight = WheelAuditPointBU( wheelOrigin, widthRightBU, wheelCenterBU );
+		b3Pos spinA = WheelAuditPointBU( wheelOrigin, spinABU, wheelCenterBU );
+		b3Pos spinB = WheelAuditPointBU( wheelOrigin, spinBBU, wheelCenterBU );
 
 		DrawCross( wheelCenter, 0.10f, MakeVec4( 1.0f, 1.0f, 1.0f, 1.0f ) );
 		DrawCross( wheelMount, 0.08f, MakeVec4( 0.1f, 0.8f, 1.0f, 1.0f ) );
@@ -627,9 +648,15 @@ public:
 		DrawLine( widthLeft, widthRight, MakeVec4( 0.2f, 0.4f, 1.0f, 1.0f ) );
 		DrawLine( spinA, spinB, MakeVec4( 0.2f, 1.0f, 0.2f, 1.0f ) );
 
-		b3Pos suspensionWheelCenter = SuspensionAuditPointBU( -1.1875f, 0.5f, -0.0625f );
-		b3Pos travelTop = SuspensionAuditPointBU( -1.1875f, 1.5f, 0.0f );
-		b3Pos travelBottom = SuspensionAuditPointBU( -1.1875f, -0.5f, 0.0f );
+		b3Vec3 suspensionWheelCenterBU =
+			FindPointOrFallback( m_assetMetadata, "One_Sided_wheel_mount.gltf", "Socket_WheelCenter", { -1.1875f, 0.5f, -0.0625f } );
+		b3Vec3 travelTopBU = FindPointOrFallback( m_assetMetadata, "One_Sided_wheel_mount.gltf", "Axis_SuspensionTravel_Top", { -1.1875f, 1.5f, 0.0f } );
+		b3Vec3 travelBottomBU =
+			FindPointOrFallback( m_assetMetadata, "One_Sided_wheel_mount.gltf", "Axis_SuspensionTravel_Bottom", { -1.1875f, -0.5f, 0.0f } );
+
+		b3Pos suspensionWheelCenter = SuspensionAuditPointBU( suspensionWheelCenterBU, travelTopBU );
+		b3Pos travelTop = SuspensionAuditPointBU( travelTopBU, travelTopBU );
+		b3Pos travelBottom = SuspensionAuditPointBU( travelBottomBU, travelTopBU );
 		DrawCross( suspensionWheelCenter, 0.10f, MakeVec4( 1.0f, 1.0f, 1.0f, 1.0f ) );
 		DrawCross( travelTop, 0.08f, MakeVec4( 0.9f, 0.2f, 1.0f, 1.0f ) );
 		DrawCross( travelBottom, 0.08f, MakeVec4( 0.9f, 0.2f, 1.0f, 1.0f ) );
@@ -674,6 +701,7 @@ public:
 		DrawTextLine( "W/S drive, Space brakes, Q/E live root down/up, R restarts." );
 		DrawTextLine( "M3A asset defaults: scale %.2f m/BU, wheel r %.2f, width %.2f", m_assetMetersPerBlockbenchUnit,
 					  m_assetWheelRadiusDefault, m_assetWheelWidthDefault );
+		DrawTextLine( "M3B metadata: %s", m_assetMetadata.loadedFromRuntimeReport ? "runtime audit" : "built-in fallback" );
 		DrawTextLine( "M3B preview: %s, wheel->body, suspension->chassis/root", m_showAssetSemanticPreview ? "on" : "off" );
 		DrawTextLine( "root %.2f, wheel y %.2f, speed %.2f m/s, translation %.2f", m_liveRootOffset, (float)wheelPosition.y,
 					  b3Length( wheelVelocity ), actualTranslation );
@@ -692,6 +720,7 @@ public:
 	b3BodyId m_wheelId;
 	b3JointId m_jointId;
 
+	JozzVehicleAuditMetadata m_assetMetadata;
 	bool m_enableSuspension;
 	bool m_enableSuspensionLimit;
 	bool m_enableSpinMotor;
