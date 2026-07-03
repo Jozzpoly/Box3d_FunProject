@@ -1,0 +1,45 @@
+{
+  "assetId": "jozz.offroad_big_wheel.v0",
+  "assetType": "wheel",
+  "source": {
+    "gltf": "../source/offroad_big_wheel.gltf",
+    "authoringTool": "Blockbench",
+    "contractVersion": 2
+  },
+  "units": {
+    "metersPerBlockbenchUnit": 0.35,
+    "status": "prototype_scale"
+  },
+  "orientation": {
+    "status": "authoring_orientation_not_final",
+    "authoringUp": "+Y",
+    "knownAuthoringHints": {
+      "wheelSpinAxisFromMarkers": "-X"
+    },
+    "temporaryImporterCorrection": {
+      "enabled": true,
+      "note": "Final orientation will be adjusted after native in-game visual tests."
+    }
+  },
+  "semantics": {
+    "sockets": {
+      "wheelMount": "Socket_WheelMount"
+    },
+    "axes": {
+      "wheelSpin": [
+        "Axis_WheelSpin_A",
+        "Axis_WheelSpin_B"
+      ]
+    },
+    "markers": {
+      "tireRadiusOuter": "Marker_TireRadiusOuter",
+      "tireWidthLeft": "Marker_TireWidthLeft",
+      "tireWidthRight": "Marker_TireWidthRight"
+    }
+  },
+  "physics": {
+    "v0Treatment": "wheel_body_visual_and_simple_collision",
+    "radiusSource": "marker_distance",
+    "collisionSource": "generated_primitive_not_raw_mesh"
+  }
+}
