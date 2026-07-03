@@ -2,11 +2,11 @@
 
 Date: 2026-07-03  
 Branch: `jozz-vehicle-sandbox-m0`  
-Status: active handoff/index after Jozz-validated M2.5 primitive corner lab
+Status: active handoff/index after M3A asset-derived primitive defaults implementation; local build validation pending
 
 ## 1. Purpose
 
-This document is the first file a future agent should use to orient itself after M2.5.
+This document is the first file a future agent should use to orient itself after M2.5/M3A.
 
 The project now has enough milestone documents that reading them in the wrong order can easily reintroduce old mistakes. This index tells the next agent what is current, what is historical, and what must not be treated as active architecture.
 
@@ -34,8 +34,10 @@ Current active lab:
 Category: Jozz Vehicle
 Sample:   Lab M2 Primitive Corner
 Source:   samples/sample_jozz_vehicle_lab.cpp
-Panel:    Jozz Vehicle Lab M2.5
+Panel:    Jozz Vehicle Lab M2.5 + M3A defaults
 ```
+
+The sample picker name remains `Lab M2 Primitive Corner` because the scene is still the same one-corner primitive lab. M3A changed the source of primitive defaults, not the sample category/architecture.
 
 The older M1 smoke sample still exists as a basic host sanity check:
 
@@ -45,7 +47,7 @@ Jozz Vehicle / Lab M1 Smoke
 
 ## 4. Authoritative physics baseline
 
-The authoritative baseline is **M2.5 primitive one-corner wheel-joint lab**.
+The authoritative physics baseline is still **M2.5 primitive one-corner wheel-joint lab**, now with **M3A asset-derived primitive defaults**.
 
 Current model:
 
@@ -63,12 +65,15 @@ Important physics rules:
 4. `Rest drop` positions the rest wheel-center anchor relative to the chassis.
 5. Rebound/compression limits are relative to that rest position.
 6. Primitive wheel collision remains a cylinder/hull, not the glTF mesh.
+7. M3A radius/width defaults are traced to asset audit markers.
+8. M3A suspension travel from the asset is a hint only.
+9. M3A `restDrop` remains explicit/tuned, not derived from visual sockets.
 
 Do not return to the M2.3 model where frame A was treated as a visual chassis mount.
 
 ## 5. Runtime vs structural setup separation
 
-M2.5 intentionally separates two control categories:
+M2.5/M3A intentionally separates two control categories:
 
 ```text
 Structural setup
@@ -101,7 +106,7 @@ Live root must continue reading committed setup values until Apply is pressed.
 
 Sample-host/global keys are owned by the Box3D samples app. Do not add new shortcuts without checking `docs/HOTKEY_AUDIT_PL.md`, `samples/main.cpp`, `samples/gfx/keycodes.h`, and the current Jozz sample code.
 
-Current Jozz Vehicle M2.5 sample keys:
+Current Jozz Vehicle M2.5/M3A sample keys:
 
 ```text
 W      wheel motor forward
@@ -117,6 +122,8 @@ Important:
 [ and ] are global sample-switching keys. Do not use them for Jozz Vehicle controls.
 ```
 
+M3A added no new hotkeys.
+
 ## 7. Active documentation
 
 Read these first:
@@ -127,15 +134,17 @@ Read these first:
 4. `docs/FOUNDATION_GROUNDING_PHASE_PLAN_PL.md`
 5. `docs/PRE_RIG_IMPORT_READINESS_AUDIT_PL.md`
 6. `docs/M3A_ASSET_DERIVED_PRIMITIVE_DIMENSIONS_PLAN_PL.md`
-7. `docs/HOTKEY_AUDIT_PL.md`
-8. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
-9. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
-10. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
-11. `docs/PROJECT_DIRECTION_PL.md`
-12. `assets/README.md`
-13. `assets/reports/asset_audit_latest.md`
-14. `samples/sample_jozz_vehicle_lab.cpp`
-15. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
+7. `docs/M3A_EXECUTION_PLAN_AND_CRITICAL_REVIEW_PL.md`
+8. `docs/M3A_IMPLEMENTATION_REPORT_PL.md`
+9. `docs/HOTKEY_AUDIT_PL.md`
+10. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
+11. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
+12. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
+13. `docs/PROJECT_DIRECTION_PL.md`
+14. `assets/README.md`
+15. `assets/reports/asset_audit_latest.md`
+16. `samples/sample_jozz_vehicle_lab.cpp`
+17. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
 
 Also useful as policy background:
 
@@ -168,6 +177,7 @@ Current authority superseding them:
 ```text
 M2.4 — correct wheel-joint rest-anchor model
 M2.5 — live root stress mover + pending/committed setup separation
+M3A — asset-derived primitive radius/width defaults, travel hint only
 ```
 
 ## 9. Current assets
@@ -219,7 +229,7 @@ Manual sample check:
 
 ```text
 Open:  Jozz Vehicle / Lab M2 Primitive Corner
-Panel: Jozz Vehicle Lab M2.5
+Panel: Jozz Vehicle Lab M2.5 + M3A defaults
 ```
 
 Check:
@@ -232,8 +242,10 @@ Check:
 - Space brake works;
 - structural slider edits do not affect live root until Apply;
 - Apply commits structural setup and rebuilds once;
+- Reset M3A defaults restores asset-derived radius/width;
 - wheel pivot remains centered;
-- collision OFF prevents wheel/chassis collision ambiguity.
+- collision OFF prevents wheel/chassis collision ambiguity;
+- no glTF visuals are rendered yet.
 
 Optional asset/tool checks:
 
@@ -257,37 +269,53 @@ Main takeaway:
 Both support the M2.4/M2.5 rest-anchor model.
 ```
 
-Use them later as references for steering API, four-corner ownership, front steering/rear drive split and debug readouts. Do not copy them blindly and do not use their existence as a reason to skip M3A.
+Use them later as references for steering API, four-corner ownership, front steering/rear drive split and debug readouts. Do not copy them blindly.
 
-## 12. Recommended next implementation gate
+## 12. Current implementation status and next gate
 
-After Foundation Grounding is complete, the recommended next gate is:
+M3A code step is implemented but local build/manual validation is pending.
 
-```text
-M3A — Asset-derived primitive dimensions
-```
-
-Goal:
+M3A does:
 
 ```text
-Keep primitive physics and M2.5 behavior, but derive the default wheel radius, wheel width, rest drop and travel defaults from current asset audit/contracts.
+wheel radius/width: centralized and asset-derived from audit markers
+suspension total travel: stored as asset hint
+rest drop: remains explicit/tuned
 ```
 
-Important refinement after the pre-rig audit:
+M3A does not do:
 
 ```text
-wheel radius/width: safe to derive now
-suspension total travel: safe as a hint
-rest drop: not safe to derive from visual Socket_ChassisMount yet
+runtime glTF rendering
+runtime JSON loading
+mesh collision
+steering
+four-corner vehicle
+new hotkeys
 ```
 
-Only after that should the project move to a visual-only glTF wheel attachment.
+After M3A validation, the recommended next gate is not full rigging yet. It should be:
+
+```text
+M3B.0 / M3B.1 — metadata/debug-first visual import preparation
+```
+
+Recommended ladder:
+
+```text
+M3B.0 read/validate metadata only, no rendering
+M3B.1 draw semantic debug points from audited positions, no mesh rendering
+M3B.2 render one static visual wheel mesh at origin
+M3B.3 attach visual wheel mesh to primitive wheel body
+M3B.4 apply explicit visual correction transform
+M3B.5 only then rig suspension/damper/cardan visuals
+```
 
 ## 13. Explicit no-go list for the next agent
 
-Do not do these during foundation grounding:
+Do not do these before validating M3A:
 
-- do not start M3/full glTF renderer;
+- do not start full glTF renderer;
 - do not build full vehicle assembly;
 - do not replace the primitive collision with mesh collision;
 - do not rewrite Box3D internals;
@@ -301,6 +329,6 @@ Do not do these during foundation grounding:
 
 The project is in a good but fragile place.
 
-M2.5 is a real foundation: centered wheel pivot, usable rest drop, rebound/compression travel, collision toggle, and live root stress movement are now understandable. The danger is rushing into models/rendering before the documented mental model becomes impossible to misread.
+M2.5 gave the correct wheel-joint behavior. M3A now connects the primitive wheel radius/width to Jozz's real asset measurements without opening the renderer/importer problem.
 
-The correct next move is still organization first, then one small technical gate: M3A asset-derived primitive dimensions.
+The next move should be local validation first, then metadata/debug-first import preparation, not a full visual rig leap.
