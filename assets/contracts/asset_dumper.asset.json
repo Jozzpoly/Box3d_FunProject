@@ -1,0 +1,38 @@
+{
+  "assetId": "jozz.asset_dumper.v0",
+  "assetType": "damper_visual",
+  "source": {
+    "gltf": "../source/asset_dumper.gltf",
+    "authoringTool": "Blockbench",
+    "contractVersion": 2
+  },
+  "units": {
+    "metersPerBlockbenchUnit": 0.35,
+    "status": "prototype_scale"
+  },
+  "orientation": {
+    "status": "authoring_orientation_not_final",
+    "authoringUp": "+Y",
+    "knownAuthoringHints": {
+      "stretchAxis": "+Y"
+    },
+    "temporaryImporterCorrection": {
+      "enabled": true,
+      "note": "Final orientation will be adjusted after native in-game visual tests."
+    }
+  },
+  "semantics": {
+    "visualParts": {
+      "upper": "Part_Upper",
+      "stretch": "Part_Stretch",
+      "lower": "Part_Lower"
+    }
+  },
+  "visualRig": {
+    "v0Treatment": "procedural_stretch_between_damper_sockets",
+    "stretchAxis": "+Y"
+  },
+  "physics": {
+    "v0Treatment": "visual_only"
+  }
+}
