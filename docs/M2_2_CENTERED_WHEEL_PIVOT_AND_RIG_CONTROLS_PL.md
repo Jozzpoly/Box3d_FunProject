@@ -1,6 +1,10 @@
 # M2.2 — Centered Wheel Pivot and Rig Controls
 
-Status: ready for local validation  
+> **STATUS: SUPERSEDED / HISTORICAL RECORD**  
+> Superseded by `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md` and `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`.  
+> Do not use this document as current architecture. It remains useful for the centered body-B pivot lesson and for why immediate rebuild-on-slider-drag was not enough.
+
+Status: superseded historical record  
 Date: 2026-07-03
 
 ## Why this patch exists
@@ -30,7 +34,7 @@ The chassis/body-A frame can still reference that same world wheel-center point,
 
 ## What changed
 
-`Jozz Vehicle / Lab M2 Primitive Corner` is now M2.2 internally.
+`Jozz Vehicle / Lab M2 Primitive Corner` became M2.2 internally.
 
 Changes:
 
@@ -49,6 +53,8 @@ Changes:
 
 ## Local validation commands
 
+Historical note: this validation section is no longer the current project gate. Use `docs/CURRENT_STATE_INDEX_PL.md` and M2.5 validation instead.
+
 ```powershell
 git pull --ff-only origin jozz-vehicle-sandbox-m0
 cmake --preset windows
@@ -61,10 +67,16 @@ Open:
 Jozz Vehicle / Lab M2 Primitive Corner
 ```
 
-Right-side panel should say:
+Right-side panel should say historically:
 
 ```text
 Jozz Vehicle Lab M2.2
+```
+
+The current panel should say:
+
+```text
+Jozz Vehicle Lab M2.5
 ```
 
 ## What to validate now
@@ -90,8 +102,8 @@ Rig controls:
 
 If M2.2 still spins off-center, do not continue toward glTF.
 
-The next step would be a deeper axis-frame diagnostic with multiple axis variants. But the main known eccentric-pivot bug is now fixed, so M2.2 should be a much cleaner baseline.
+The next step would be a deeper axis-frame diagnostic with multiple axis variants. But the main known eccentric-pivot bug was fixed here, so M2.2 became a cleaner intermediate baseline.
 
 ## Current limitation
 
-This is still a static chassis test rig, not a full car. That is intentional. The goal is to prove the corner before adding full vehicle mass, steering, tire model, and real visual meshes.
+This was still a static chassis test rig, not a full car. That remains intentional in M2.5. The current authoritative behavior is documented in M2.4/M2.5.
