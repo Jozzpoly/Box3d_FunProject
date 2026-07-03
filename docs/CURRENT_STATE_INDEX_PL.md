@@ -2,7 +2,7 @@
 
 Date: 2026-07-03  
 Branch: `jozz-vehicle-sandbox-m0`  
-Status: active handoff/index after M3A validation and M3B semantic debug preview anchoring fix; M3B fix validation pending
+Status: active handoff/index after M3A validation and M3B semantic debug preview anchoring fix validation
 
 ## 1. Purpose
 
@@ -250,7 +250,7 @@ Open:  Jozz Vehicle / Lab M2 Primitive Corner
 Panel: Jozz Vehicle Lab M2.5 + M3A/M3B debug
 ```
 
-Check:
+Regression check:
 
 - live root slider moves root realtime without Apply;
 - Q lowers root;
@@ -298,7 +298,7 @@ Use them later as references for steering API, four-corner ownership, front stee
 
 ## 12. Current implementation status and next gate
 
-M3A was manually validated by Jozz. M3B.1 semantic preview is implemented. The first M3B.1 anchoring model was criticized by Jozz and then fixed; validation of that fix is pending.
+M3A was manually validated by Jozz. M3B.1 semantic preview is implemented. The first M3B.1 anchoring model was criticized by Jozz, fixed, and then manually validated by Jozz screenshots.
 
 M3A does:
 
@@ -330,7 +330,7 @@ four-corner vehicle
 new hotkeys
 ```
 
-After M3B.1 anchoring fix validation, the recommended next gate is still not full rigging. Good options are:
+After M3B.1 anchoring validation, the recommended next gate is still not full rigging. Good options are:
 
 ```text
 M3B.1 polish — add labels/legend for semantic preview
@@ -340,7 +340,7 @@ M3B.2 — render one static visual wheel mesh at origin
 
 ## 13. Explicit no-go list for the next agent
 
-Do not do these before validating M3B.1 anchoring fix:
+Do not do these before the next small M3 gate:
 
 - do not start full glTF renderer;
 - do not build full vehicle assembly;
@@ -360,4 +360,4 @@ The project is in a good but fragile place.
 
 M2.5 gave the correct wheel-joint behavior. M3A connected primitive wheel radius/width to Jozz's real asset measurements. M3B.1 now exposes semantic marker relationships in-game as a safe debug overlay, and Jozz's critique improved the ownership model.
 
-The next move should be local validation of the anchoring fix first, then either semantic-preview polish or runtime metadata loading without mesh rendering.
+The next move can be semantic-preview polish/labels or runtime metadata loading without mesh rendering. Full rig/import should still wait.
