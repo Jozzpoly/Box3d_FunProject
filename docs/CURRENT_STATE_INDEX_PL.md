@@ -1,8 +1,8 @@
 # Current State Index — Jozz Vehicle Box3D Native
 
-Date: 2026-07-04
+Date: 2026-07-05
 Branch: `jozz-vehicle-sandbox-m0`  
-Status: M2.5/M3A/M3B baseline validated; M3B.2.1 static textured wheel proof implemented; M3B.3 visual attach not started
+Status: M2.5/M3A/M3B.3 baseline validated; M4 Foundation contract runtime and suspension visual proof implemented; 2026-07-05 Jozz screenshot smoke confirmed
 
 ## 1. Current active sample
 
@@ -10,7 +10,7 @@ Status: M2.5/M3A/M3B baseline validated; M3B.2.1 static textured wheel proof imp
 Category: Jozz Vehicle
 Sample:   Lab M2 Primitive Corner
 Source:   samples/sample_jozz_vehicle_lab.cpp + samples/jozz_vehicle_primitive_corner_lab.cpp
-Panel:    Jozz Vehicle Lab M2.5 + M3A/M3B.2.1 debug
+Panel:    Jozz Vehicle Lab M2.5 + M3A/M3B.3 + M4 foundation debug
 ```
 
 The sample picker name remains `Lab M2 Primitive Corner` because the scene is still the same one-corner primitive lab.
@@ -32,6 +32,12 @@ M3B semantic preview anchoring fix works
 M3B.2-prep runtime audit metadata path works
 M3B.2 static visual-only wheel mesh proof exists
 M3B.2.1 baseColor texture proof exists for the same static wheel mesh
+M3B.3 visual-only wheel mesh attach follows the primitive wheel body
+M3B.3 hardening centers the primitive collision wheel and can hide its debug shape
+M4F.1 asset contract runtime resolves sidecar bindings from source glTF
+M4A one-sided suspension mount visual proof exists
+M4B narrow moving endpoint debug preview exists
+2026-07-05 Jozz screenshots confirm suspension model, texture, transparency and helper-line visibility in the active lab
 ```
 
 Latest observed runtime metadata state:
@@ -42,7 +48,7 @@ metadata: loaded runtime asset audit report
 source: ../../assets/reports/asset_audit_latest.json
 ```
 
-M3B.2 renders one static `Offroad_Big_Wheels.gltf` mesh primitive at a fixed debug origin. M3B.2.1 adds the narrow baseColor texture path for that same proof. It is not attached to physics and is not a full glTF/material/skin/animation/collision importer.
+M3B.2 renders one static `Offroad_Big_Wheels.gltf` mesh primitive at a fixed debug origin. M3B.2.1 adds the narrow baseColor texture path for that same proof. M3B.3 reuses the same mesh and draws it through `DrawAtTransform(...)` so it follows the primitive wheel body. M3B.3 hardening centers the primitive cylinder on the wheel body origin and adds a panel toggle for the orange primitive wheel debug shape; hiding it does not disable the physics body, primitive collision, or wheel joint. The mesh remains visual-only and is not a full glTF/material/skin/animation/collision importer.
 
 ## 3. Authoritative physics baseline
 
@@ -61,7 +67,7 @@ Rules:
 3. Frame B is the wheel center/body origin.
 4. `Rest drop` is explicit/tuned.
 5. Visual sockets are not automatically physics frames.
-6. Primitive wheel collision remains cylinder/hull, not glTF mesh.
+6. Primitive wheel collision remains centered cylinder/hull, not glTF mesh.
 7. M3B semantic preview is debug-only and does not drive physics.
 8. Runtime metadata is a data source only, not a renderer.
 
@@ -79,6 +85,7 @@ Structural setup
   - wheel width
   - collision toggle
   - pending values + Apply rig rebuild
+  - primitive wheel cylinder is centered on body origin because Frame B is wheel center
 
 Live root stress test
   - realtime chassis/root movement
@@ -100,8 +107,35 @@ Static visual proof
   - reads TEXCOORD_0 and one pbr baseColorTexture PNG data URI
   - decodes PNG to RGBA8 through isolated Windows/WIC helper
   - draws one mesh at a fixed debug origin
+  - remains available as debug/comparison and is not attached to physics
+
+Attached visual proof
+  - reuses the same Offroad_Big_Wheels.gltf mesh
+  - draws through JozzVehicleVisualMesh::DrawAtTransform(...)
+  - follows the primitive wheel body transform
+  - applies a local render-only correction for the current authored wheel orientation and center
+  - centers against loaded mesh bounds when available, with semantic points as fallback
   - no multi-material/normal-map/metallic-roughness/skin/animation/collision/full importer
-  - no physics attachment yet
+  - no physics authority or mesh collision
+
+Primitive wheel debug shape
+  - orange Box3D debug shape for the primitive collision wheel
+  - can be hidden independently from the attached visual mesh through the debug adapter hidden-shape path
+  - hiding it does not change physics/collision
+  - hidden mode leaves no collision mesh/edge overlay
+
+Asset contract runtime
+  - reads assets/contracts/*.asset.json, not assets/reports/*latest*, for M4 runtime binding data
+  - resolves nodeIndexHint/nodePathHint/nameHint against the source glTF
+  - composes node parent transforms before resolving positions
+  - keeps duplicate node-name warnings visible
+
+Suspension visual foundation
+  - loads one_sided_wheel_mount.asset.json and One_Sided_wheel_mount.gltf
+  - draws a visual-only one-sided suspension mount proof
+  - overlays contract wheel center, chassis mount, travel top and travel bottom
+  - draws debug-only moving damper/cardan endpoints
+  - does not change b3WheelJoint, Frame A/Frame B, restDrop, or primitive collision
 ```
 
 Known visual debt after M3B.2.1:
@@ -120,34 +154,46 @@ Read first:
 
 1. `README_FOR_AGENTS.md`
 2. `docs/CURRENT_STATE_INDEX_PL.md`
-3. `docs/PROJECT_STABILIZATION_AUDIT_2026_07_03_PL.md`
-4. `docs/CODEX_HANDOFF_M3_STABILIZATION_IMPORT_PREP_PL.md`
-5. `docs/CODEX_START_PROMPT_M3_STABILIZATION_PL.md`
-6. `docs/M3B_2_RUNTIME_METADATA_VALIDATION_PL.md`
-7. `docs/M3B_2_PREP_RUNTIME_METADATA_REPORT_PL.md`
-8. `docs/M3B_SEMANTIC_PREVIEW_ANCHORING_FIX_PL.md`
-9. `docs/M3B_SEMANTIC_DEBUG_PREVIEW_IMPLEMENTATION_REPORT_PL.md`
-10. `docs/M3A_IMPLEMENTATION_REPORT_PL.md`
-11. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
-12. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
-13. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
-14. `assets/README.md`
-15. `assets/reports/asset_audit_latest.md`
-16. `samples/sample_jozz_vehicle_lab.cpp`
-17. `samples/jozz_vehicle_asset_metadata.h`
-18. `samples/jozz_vehicle_asset_metadata.cpp`
-19. `samples/jozz_vehicle_asset_dimensions.h`
-20. `samples/jozz_vehicle_asset_dimensions.cpp`
-21. `samples/jozz_vehicle_debug_preview.h`
-22. `samples/jozz_vehicle_debug_preview.cpp`
-23. `samples/jozz_vehicle_primitive_corner_lab.h`
-24. `samples/jozz_vehicle_primitive_corner_lab.cpp`
-25. `samples/jozz_vehicle_visual_mesh.h`
-26. `samples/jozz_vehicle_visual_mesh.cpp`
-27. `samples/jozz_vehicle_image_decode.h`
-28. `samples/jozz_vehicle_image_decode.cpp`
-29. `samples/jozz_vehicle_validation.cpp`
-30. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
+3. `docs/M4_FOUNDATION_SUSPENSION_RIG_PLAN_PL.md`
+4. `docs/ASSET_CONTRACT_RUNTIME_V1_PL.md`
+5. `docs/SUSPENSION_RIG_SPACE_CONVENTIONS_PL.md`
+6. `docs/M4_MANUAL_SMOKE_2026_07_05_PL.md`
+7. `docs/CODEX_HANDOFF_M4_FOUNDATION_MAIN_READY_PL.md`
+8. `docs/CODEX_START_PROMPT_M4_FOUNDATION_PL.md`
+9. `docs/PROJECT_STABILIZATION_AUDIT_2026_07_03_PL.md`
+10. `docs/CODEX_HANDOFF_M3_STABILIZATION_IMPORT_PREP_PL.md`
+11. `docs/CODEX_START_PROMPT_M3_STABILIZATION_PL.md`
+12. `docs/M3B_2_RUNTIME_METADATA_VALIDATION_PL.md`
+13. `docs/M3B_2_PREP_RUNTIME_METADATA_REPORT_PL.md`
+14. `docs/M3B_SEMANTIC_PREVIEW_ANCHORING_FIX_PL.md`
+15. `docs/M3B_SEMANTIC_DEBUG_PREVIEW_IMPLEMENTATION_REPORT_PL.md`
+16. `docs/M3A_IMPLEMENTATION_REPORT_PL.md`
+17. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
+18. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
+19. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
+20. `assets/README.md`
+21. `assets/reports/asset_audit_latest.md`
+22. `samples/sample_jozz_vehicle_lab.cpp`
+23. `samples/jozz_vehicle_asset_contract.h`
+24. `samples/jozz_vehicle_asset_contract.cpp`
+25. `samples/jozz_vehicle_corner_rig.h`
+26. `samples/jozz_vehicle_corner_rig.cpp`
+27. `samples/jozz_vehicle_visual_asset.h`
+28. `samples/jozz_vehicle_visual_asset.cpp`
+29. `samples/jozz_vehicle_asset_metadata.h`
+30. `samples/jozz_vehicle_asset_metadata.cpp`
+31. `samples/jozz_vehicle_asset_dimensions.h`
+32. `samples/jozz_vehicle_asset_dimensions.cpp`
+33. `samples/jozz_vehicle_debug_preview.h`
+34. `samples/jozz_vehicle_debug_preview.cpp`
+35. `samples/jozz_vehicle_primitive_corner_lab.h`
+36. `samples/jozz_vehicle_primitive_corner_lab.cpp`
+37. `samples/jozz_vehicle_visual_mesh.h`
+38. `samples/jozz_vehicle_visual_mesh.cpp`
+39. `samples/jozz_vehicle_image_decode.h`
+40. `samples/jozz_vehicle_image_decode.cpp`
+41. `samples/jozz_vehicle_validation.cpp`
+42. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
 
 Useful background:
 
@@ -181,6 +227,7 @@ M3B.1 — semantic preview overlay + ownership fix
 M3B.2-prep — runtime audit metadata without mesh rendering
 M3B.2 — static visual-only wheel mesh proof at fixed debug origin
 M3B.2.1 — baseColor texture proof on the same static wheel mesh
+M3B.3 — visual-only wheel mesh attached to the primitive wheel body
 ```
 
 ## 7. Current assets
@@ -260,7 +307,7 @@ Manual sample check:
 
 ```text
 Open:  Jozz Vehicle / Lab M2 Primitive Corner
-Panel: Jozz Vehicle Lab M2.5 + M3A/M3B.2.1 debug
+Panel: Jozz Vehicle Lab M2.5 + M3A/M3B.3 + M4 foundation debug
 ```
 
 Regression check:
@@ -278,7 +325,15 @@ M3B semantic preview draws
 semantic preview does not change physics
 M3B.2.1 static textured wheel proof toggles
 static wheel mesh is visible but not attached to physics
+M3B.3 attached textured wheel visual toggles
+attached wheel mesh follows primitive wheel body transform
+primitive wheel debug shape toggle hides only the orange collision debug visual
+hidden primitive wheel debug shape leaves no thin collision mesh/edge overlay
 UI texture status shows loaded baseColor or solid fallback reason
+M4 contract runtime reports sidecar + glTF status
+M4A suspension mount visual toggles independently
+M4A contract points show wheel center/chassis mount/travel axis
+M4B moving endpoint preview follows wheel travel only on wheel-side points
 ```
 
 ## 10. Current implementation status
@@ -328,6 +383,20 @@ keeps solid-color fallback if texture decode/upload fails
 no physics attachment
 ```
 
+M3B.3 does:
+
+```text
+attached Offroad_Big_Wheels glTF mesh proof
+visual-only draw path through JozzVehicleVisualMesh::DrawAtTransform(...)
+uses primitive wheel body transform as the base
+uses a render-only correction to center/orient the current authored wheel
+centers primitive wheel cylinder on body origin / frame B
+allows hiding the primitive wheel debug shape while physics stays active
+keeps the M3B.2.1 fixed static proof as comparison/debug
+no mesh collision
+no full rig/importer
+```
+
 Foundation Grounding V2 does:
 
 ```text
@@ -337,16 +406,29 @@ adds jozz_vehicle_validation CLI metadata/defaults check
 hardens MeshVertex layout offsets with offsetof
 ```
 
+M4 Foundation does:
+
+```text
+loads one_sided_wheel_mount.asset.json as a runtime sidecar contract
+resolves contract bindings against One_Sided_wheel_mount.gltf node transforms
+validates required suspension roles in jozz_vehicle_validation.exe
+draws One_Sided_wheel_mount.gltf as visual-only M4A suspension mount proof
+draws contract point diagnostics for wheel center, chassis mount, and travel axis
+draws M4B narrow moving endpoint preview for damper/cardan roles
+keeps audit reports as diagnostics, not M4 runtime contract source
+does not change b3WheelJoint, restDrop, primitive collision, or physics authority
+```
+
 Still not implemented:
 
 ```text
 mesh collision
 steering
 four-corner vehicle
-visual rig
+final visual rig
 skinning/animation
 full glTF renderer/material importer
-visual mesh attachment to wheel body
+procedural damper/cardan/chassis visual parts
 ```
 
 ## 11. Next pass
@@ -354,17 +436,19 @@ visual mesh attachment to wheel body
 The next small feature gate is:
 
 ```text
-M3B.3 visual-only wheel mesh attached to primitive wheel body
+M4C procedural damper/cardan visual proof using validated contract endpoints
 ```
 
 Strict scope:
 
 ```text
-one wheel mesh
-attached visually to the primitive wheel body transform
-not animated
-not skinned
-not collision
+use existing sidecar contract endpoint data
+keep audit reports as diagnostics
+do not regenerate reports automatically
+not full importer
+not mesh collision
+not steering
+not multi-body suspension
 not full vehicle
 ```
 

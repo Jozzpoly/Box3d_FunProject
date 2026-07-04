@@ -34,6 +34,8 @@ int GetDebugShapeCount( void );
 // Tag a Box3D shape so the renderer draws it with the procedural ground grid.
 void SetGroundShape( b3ShapeId shapeId );
 void SetShapeMaterial( b3ShapeId shapeId, Vec4 color, float metallic, float roughness );
+void ClearShapeMaterial( b3ShapeId shapeId );
+void SetShapeHidden( b3ShapeId shapeId, bool hidden );
 void SetTransparentDynamic( bool enabled );
 bool GetTransparentDynamic( void );
 

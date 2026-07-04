@@ -15,7 +15,7 @@ Jozz Vehicle / Lab M2 Primitive Corner
 The panel/HUD identifies the current state as:
 
 ```text
-Jozz Vehicle Lab M2.5 + M3A/M3B.2 debug
+Jozz Vehicle Lab M2.5 + M3A/M3B.2.1 debug
 ```
 
 Validated by Jozz:
@@ -26,6 +26,7 @@ M3A asset-derived primitive defaults work
 M3B.1 semantic preview ownership fix works
 M3B.2-prep runtime audit metadata path works
 M3B.2 static visual-only wheel mesh proof is implemented
+M3B.2.1 static textured visual-only wheel mesh proof is implemented
 ```
 
 The latest Jozz screenshot shows:
@@ -217,7 +218,7 @@ next feature gate documented and small
 
 ## 8. Next feature gate after M3B.2
 
-Only after validating the static proof:
+After validating the static proof, the next visual-only gate was:
 
 ```text
 M3B.3 — visual-only wheel mesh attached to primitive wheel body
@@ -235,3 +236,10 @@ not full vehicle
 ```
 
 The goal is only to prove that a Jozz wheel mesh can follow the primitive wheel body visually. It must not become mesh collision, full suspension rigging, or vehicle assembly.
+
+Post-audit update:
+
+```text
+M3B.3 is implemented as an attached visual-only wheel mesh proof.
+The next small gate is M3C runtime asset contract readiness, not full rig/import.
+```

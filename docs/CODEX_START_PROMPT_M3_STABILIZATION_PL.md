@@ -5,7 +5,9 @@ Use this prompt to start the next Codex pass.
 ```text
 You are Codex taking over Jozz Vehicle Box3D Native on branch `jozz-vehicle-sandbox-m0`.
 
-Your role is post-M3B.2.1 stabilization and M3B.3 visual-attach prep, not a feature sprint.
+This is a historical M3 stabilization prompt. For current work prefer `docs/CODEX_START_PROMPT_M4_FOUNDATION_PL.md`.
+
+Your role is post-M3B.3 stabilization and M4 Foundation continuation, not a feature sprint.
 
 Read first, in order:
 1. README_FOR_AGENTS.md
@@ -43,9 +45,11 @@ Current validated state:
 - M3B.2-prep runtime metadata path is validated by Jozz screenshot showing `M3B metadata: runtime audit`.
 - M3B.2 static visual-only wheel mesh proof exists at a fixed debug origin.
 - M3B.2.1 static wheel mesh can load TEXCOORD_0 + baseColor PNG data URI texture.
+- M3B.3 visual-only wheel mesh attach follows the primitive wheel body.
+- M3B.3 hardening centers the primitive cylinder on body origin and can hide the orange primitive wheel debug shape without changing physics.
 
 Your task:
-Stabilize, verify, and prepare the current project for the next small gate: `M3B.3 visual-only wheel mesh attached to primitive wheel body`.
+Stabilize, verify, and continue from the implemented M4 Foundation. The next small gate is `M4C procedural damper/cardan visual proof using validated contract endpoints`.
 
 Do not start full rendering/rigging. Do not add steering. Do not add full vehicle assembly. Do not use mesh collision. Do not change the wheel-joint rest-anchor physics model.
 
@@ -71,6 +75,10 @@ Open `Jozz Vehicle / Lab M2 Primitive Corner` and confirm:
 - HUD shows `M3B metadata: runtime audit` or `built-in fallback`;
 - M3B.2.1 static textured wheel proof toggles;
 - static wheel mesh is visible with texture status and is not attached to physics.
+- M3B.3 attached textured wheel visual toggles;
+- attached wheel mesh follows the primitive wheel body.
+- primitive wheel debug shape toggle hides only the orange collision debug visual.
+- hidden primitive wheel debug shape leaves no thin collision mesh/edge overlay.
 
 Definition of done:
 - build green;
@@ -79,5 +87,5 @@ Definition of done:
 - metadata boundary clear;
 - sample file is thin registration glue and the primitive corner lab lives in `jozz_vehicle_primitive_corner_lab.*`;
 - `jozz_vehicle_validation.exe` validates metadata/defaults from CLI;
-- next feature gate documented as `M3B.3 visual-only wheel mesh attached to primitive wheel body`, not full rig/import.
+- next feature gate documented as `M4C procedural damper/cardan visual proof`, not full rig/import.
 ```

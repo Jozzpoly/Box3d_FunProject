@@ -118,8 +118,12 @@ set(SAMPLE_FILES
     jsmn.h
     tiny_obj_loader.h
     earcut.h
+    jozz_vehicle_asset_contract.cpp
+    jozz_vehicle_asset_contract.h
     jozz_vehicle_asset_dimensions.cpp
     jozz_vehicle_asset_dimensions.h
+    jozz_vehicle_corner_rig.cpp
+    jozz_vehicle_corner_rig.h
     jozz_vehicle_asset_metadata.cpp
     jozz_vehicle_asset_metadata.h
     jozz_vehicle_debug_preview.cpp
@@ -128,6 +132,8 @@ set(SAMPLE_FILES
     jozz_vehicle_image_decode.h
     jozz_vehicle_primitive_corner_lab.cpp
     jozz_vehicle_primitive_corner_lab.h
+    jozz_vehicle_visual_asset.cpp
+    jozz_vehicle_visual_asset.h
     jozz_vehicle_visual_mesh.cpp
     jozz_vehicle_visual_mesh.h
     sample_benchmark.cpp
@@ -157,6 +163,8 @@ add_executable(samples ${SAMPLE_FILES})
 
 add_executable(jozz_vehicle_validation
     jozz_vehicle_validation.cpp
+    jozz_vehicle_asset_contract.cpp
+    jozz_vehicle_asset_contract.h
     jozz_vehicle_asset_dimensions.cpp
     jozz_vehicle_asset_dimensions.h
     jozz_vehicle_asset_metadata.cpp

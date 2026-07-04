@@ -23,6 +23,7 @@
 #define BOX3D_USER_SHAPE_CAPACITY 65536
 #define BOX3D_FREELIST_END ( -1 )
 #define BOX3D_MATERIAL_OVERRIDE_CAPACITY 256
+#define BOX3D_HIDDEN_SHAPE_CAPACITY 256
 
 typedef enum
 {
@@ -107,6 +108,9 @@ typedef struct
 	MaterialOverride materialOverrides[BOX3D_MATERIAL_OVERRIDE_CAPACITY];
 	int materialOverrideCount;
 
+	b3ShapeId hiddenShapes[BOX3D_HIDDEN_SHAPE_CAPACITY];
+	int hiddenShapeCount;
+
 	b3BodyId selectedBodyId;
 	b3ShapeId selectedShapeId;
 
@@ -141,6 +145,7 @@ void InitAdapter( void )
 	s_adapter.allocCount = 0;
 	s_adapter.groundShapeId = b3_nullShapeId;
 	s_adapter.materialOverrideCount = 0;
+	s_adapter.hiddenShapeCount = 0;
 	s_adapter.selectedBodyId = b3_nullBodyId;
 	s_adapter.selectedShapeId = b3_nullShapeId;
 	s_adapter.transparentDynamic = false;
@@ -169,6 +174,7 @@ void ResetAdapterPool( void )
 
 	s_adapter.groundShapeId = b3_nullShapeId;
 	s_adapter.materialOverrideCount = 0;
+	s_adapter.hiddenShapeCount = 0;
 	s_adapter.selectedBodyId = b3_nullBodyId;
 	s_adapter.selectedShapeId = b3_nullShapeId;
 	s_adapter.transparentDynamic = false;
@@ -238,6 +244,61 @@ void SetShapeMaterial( b3ShapeId shapeId, Vec4 color, float metallic, float roug
 	s_adapter.materialOverrides[index].color = color;
 	s_adapter.materialOverrides[index].metallic = metallic;
 	s_adapter.materialOverrides[index].roughness = roughness;
+}
+
+void ClearShapeMaterial( b3ShapeId shapeId )
+{
+	int i = 0;
+	while ( i < s_adapter.materialOverrideCount )
+	{
+		if ( B3_ID_EQUALS( s_adapter.materialOverrides[i].shapeId, shapeId ) )
+		{
+			s_adapter.materialOverrides[i] = s_adapter.materialOverrides[s_adapter.materialOverrideCount - 1];
+			s_adapter.materialOverrideCount -= 1;
+			continue;
+		}
+
+		i += 1;
+	}
+}
+
+static bool IsShapeHidden( b3ShapeId shapeId )
+{
+	for ( int i = 0; i < s_adapter.hiddenShapeCount; ++i )
+	{
+		if ( B3_ID_EQUALS( s_adapter.hiddenShapes[i], shapeId ) )
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void SetShapeHidden( b3ShapeId shapeId, bool hidden )
+{
+	if ( B3_IS_NULL( shapeId ) )
+	{
+		return;
+	}
+
+	for ( int i = 0; i < s_adapter.hiddenShapeCount; ++i )
+	{
+		if ( B3_ID_EQUALS( s_adapter.hiddenShapes[i], shapeId ) )
+		{
+			if ( hidden == false )
+			{
+				s_adapter.hiddenShapes[i] = s_adapter.hiddenShapes[s_adapter.hiddenShapeCount - 1];
+				s_adapter.hiddenShapeCount -= 1;
+			}
+			return;
+		}
+	}
+
+	if ( hidden && s_adapter.hiddenShapeCount < BOX3D_HIDDEN_SHAPE_CAPACITY )
+	{
+		s_adapter.hiddenShapes[s_adapter.hiddenShapeCount++] = shapeId;
+	}
 }
 
 int GetDebugShapeCount( void )
@@ -715,6 +776,10 @@ static bool DrawShape( void* userShape, b3WorldTransform shapeTransform, b3HexCo
 	b3Transform shapeRelative = b3ToRelativeTransform( shapeTransform, GetDrawOrigin() );
 
 	DebugShape* us = (DebugShape*)userShape;
+	if ( IsShapeHidden( us->shapeId ) )
+	{
+		return true;
+	}
 
 	RefreshMaterialFromOverride( us );
 

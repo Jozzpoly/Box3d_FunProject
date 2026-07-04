@@ -3,7 +3,7 @@
 Date: 2026-07-04
 Branch: `jozz-vehicle-sandbox-m0`  
 Audience: Codex / stronger implementation agent  
-Goal: continue after M3B.2.1 static textured visual proof toward visual-only wheel attachment
+Goal: historical M3 stabilization handoff; current continuation is M4 Foundation after contract runtime readiness
 
 ## 1. Mission
 
@@ -14,7 +14,7 @@ Your task is **not** to add a big feature or full importer.
 Your task is:
 
 ```text
-stabilize the current M2.5/M3A/M3B.2.1 lab, keep the build/test workflow green, and prepare the next small visual-only attachment gate.
+stabilize the current M2.5/M3A/M3B.3 lab, keep the build/test workflow green, and prepare the next small runtime asset contract readiness gate.
 ```
 
 The project must remain playable and understandable after every commit.
@@ -64,6 +64,8 @@ M3B semantic preview anchoring fix works
 M3B.2-prep runtime metadata path works
 M3B.2 static visual-only wheel mesh proof exists
 M3B.2.1 baseColor texture proof exists for that same static mesh
+M3B.3 visual-only wheel mesh attach follows the primitive wheel body
+M3B.3 hardening centers the primitive cylinder on body origin and can hide the orange primitive wheel debug shape without changing physics
 ```
 
 Latest observed runtime metadata state:
@@ -74,7 +76,7 @@ metadata: loaded runtime asset audit report
 source: ../../assets/reports/asset_audit_latest.json
 ```
 
-One textured `Offroad_Big_Wheels.gltf` mesh primitive is rendered at a fixed debug origin. It is visual-only, not attached to physics, and not a full material/skin/animation/collision importer.
+One textured `Offroad_Big_Wheels.gltf` mesh primitive is rendered at a fixed debug origin for comparison. The same visual-only mesh is also attached to the primitive wheel body through `DrawAtTransform(...)` with a render-only correction transform. The primitive collision cylinder is centered on body origin so Frame B is the wheel center. The orange primitive wheel debug shape can be hidden from the panel through the debug adapter hidden-shape path; this is render/debug only and does not disable the physics body, primitive collision, or wheel joint. It is still not physics authority and is not a full material/skin/animation/collision importer.
 
 ## 4. Non-negotiable physics model
 
@@ -102,7 +104,7 @@ live root stress -> realtime chassis/root motion
 semantic preview -> debug drawing only
 runtime metadata -> data source only
 physics -> primitive wheel joint and primitive collision
-visual mesh -> M3B.2.1 static textured proof only, no physics authority
+visual mesh -> M3B.2.1 static textured proof plus M3B.3 attached visual proof, no physics authority
 ```
 
 ## 6. Your first task: stabilization audit in code
@@ -152,7 +154,7 @@ Acceptable extraction target:
 
 ```text
 sample_jozz_vehicle_lab.cpp becomes thinner
-jozz_vehicle_primitive_corner_lab.* owns the current M2.5/M3A/M3B.2.1 corner lab
+jozz_vehicle_primitive_corner_lab.* owns the current M2.5/M3A/M3B.3 corner lab
 jozz_vehicle_asset_metadata.* remains metadata-only
 jozz_vehicle_validation.exe validates metadata/defaults from CLI
 ```
@@ -209,6 +211,10 @@ HUD shows M3B metadata runtime audit or fallback
 Reload metadata + reset defaults is safe
 M3B.2.1 static textured wheel proof toggles
 static wheel mesh is visible with texture status but not attached to physics
+M3B.3 attached textured wheel visual toggles
+attached wheel mesh follows the primitive wheel body
+primitive wheel debug shape toggle hides only the orange collision debug visual
+hidden primitive wheel debug shape leaves no thin collision mesh/edge overlay
 ```
 
 ## 10. What “done” means for this Codex pass
@@ -224,26 +230,28 @@ stale docs/status are corrected
 next gate is clearly described
 ```
 
-## 11. Next feature after this pass
+## 11. Current continuation after this pass
 
-Only after validating M3B.2.1, prepare:
+M3C runtime asset contract readiness has been implemented as part of M4 Foundation. Continue from:
 
 ```text
-M3B.3 visual-only wheel mesh attached to primitive wheel body
+M4C procedural damper/cardan visual proof using validated contract endpoints
 ```
 
 Strict scope for that future feature:
 
 ```text
-render one wheel mesh
-follow the primitive wheel body transform visually
-not animated
-not skinned
-not collision
+keep audit reports as diagnostics
+use the existing sidecar contract runtime
+do not auto-regenerate reports
+not full importer
+not mesh collision
+not steering
+not multi-body suspension
 not full vehicle
 ```
 
-The purpose is to prove the visual import/render path, not to finish vehicle assembly.
+The purpose is to use the new M4 endpoint foundation for the next visual-only proof, not to finish vehicle assembly.
 
 ## 12. Final warning
 
