@@ -9,6 +9,7 @@
 #include "imgui.h"
 #include "jozz_vehicle_asset_dimensions.h"
 #include "jozz_vehicle_asset_contract.h"
+#include "jozz_vehicle_asset_paths.h"
 #include "jozz_vehicle_corner_rig.h"
 #include "jozz_vehicle_asset_metadata.h"
 #include "jozz_vehicle_debug_preview.h"
@@ -102,22 +103,13 @@ public:
 	void LoadStaticWheelVisualProof()
 	{
 		m_staticWheelVisual.Destroy();
-		const char* candidates[] = {
-			"assets/source/Offroad_Big_Wheels.gltf",
-			"../assets/source/Offroad_Big_Wheels.gltf",
-			"../../assets/source/Offroad_Big_Wheels.gltf",
-			"../../../assets/source/Offroad_Big_Wheels.gltf",
-			"../../../../assets/source/Offroad_Big_Wheels.gltf",
-		};
-
 		m_staticWheelVisualSource.clear();
-		for ( const char* path : candidates )
+
+		std::string resolvedPath;
+		if ( FindJozzVehicleAssetFile( "assets/source/Offroad_Big_Wheels.gltf", &resolvedPath ) &&
+			 m_staticWheelVisual.LoadStaticGltf( resolvedPath.c_str(), m_assetMetersPerBlockbenchUnit ) )
 		{
-			if ( m_staticWheelVisual.LoadStaticGltf( path, m_assetMetersPerBlockbenchUnit ) )
-			{
-				m_staticWheelVisualSource = path;
-				return;
-			}
+			m_staticWheelVisualSource = resolvedPath;
 		}
 	}
 
@@ -185,10 +177,9 @@ public:
 			};
 		}
 
-		b3Vec3 wheelMountBU =
-			JozzVehicleFindPointOrFallback( m_assetMetadata, "Offroad_Big_Wheels.gltf", "Socket_WheelMount", { 0.25f, 0.5f, 0.0f } );
-		b3Vec3 radiusOuterBU = JozzVehicleFindPointOrFallback( m_assetMetadata, "Offroad_Big_Wheels.gltf",
-															   "Marker_TireRadiusOuter", { -0.125f, 1.96875f, 0.0f } );
+		b3Vec3 wheelMountBU = JozzVehicleFindPointOrBuiltIn( m_assetMetadata, "Offroad_Big_Wheels.gltf", "Socket_WheelMount" );
+		b3Vec3 radiusOuterBU =
+			JozzVehicleFindPointOrBuiltIn( m_assetMetadata, "Offroad_Big_Wheels.gltf", "Marker_TireRadiusOuter" );
 		b3Vec3 wheelCenterBU = { radiusOuterBU.x, wheelMountBU.y, wheelMountBU.z };
 		return b3MulSV( m_assetMetersPerBlockbenchUnit, wheelCenterBU );
 	}

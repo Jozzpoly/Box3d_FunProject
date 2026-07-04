@@ -122,12 +122,16 @@ set(SAMPLE_FILES
     jozz_vehicle_asset_contract.h
     jozz_vehicle_asset_dimensions.cpp
     jozz_vehicle_asset_dimensions.h
+    jozz_vehicle_asset_paths.cpp
+    jozz_vehicle_asset_paths.h
     jozz_vehicle_corner_rig.cpp
     jozz_vehicle_corner_rig.h
     jozz_vehicle_asset_metadata.cpp
     jozz_vehicle_asset_metadata.h
     jozz_vehicle_debug_preview.cpp
     jozz_vehicle_debug_preview.h
+    jozz_vehicle_json.cpp
+    jozz_vehicle_json.h
     jozz_vehicle_image_decode.cpp
     jozz_vehicle_image_decode.h
     jozz_vehicle_primitive_corner_lab.cpp
@@ -169,6 +173,10 @@ add_executable(jozz_vehicle_validation
     jozz_vehicle_asset_dimensions.h
     jozz_vehicle_asset_metadata.cpp
     jozz_vehicle_asset_metadata.h
+    jozz_vehicle_asset_paths.cpp
+    jozz_vehicle_asset_paths.h
+    jozz_vehicle_json.cpp
+    jozz_vehicle_json.h
     jsmn.h
 )
 

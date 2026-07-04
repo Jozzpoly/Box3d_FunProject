@@ -19,7 +19,4 @@ struct JozzVehiclePrimitiveDefaults
 	float restDrop;
 };
 
-b3Vec3 JozzVehicleFindPointOrFallback( const JozzVehicleAuditMetadata& metadata, const char* assetFile,
-									   const char* semanticName, b3Vec3 fallback );
-
 JozzVehiclePrimitiveDefaults GetJozzVehicleM3ADefaults( const JozzVehicleAuditMetadata& metadata );

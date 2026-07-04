@@ -5,7 +5,7 @@
 
 #include "gfx/draw.h"
 #include "gfx/utility.h"
-#include "jozz_vehicle_asset_dimensions.h"
+#include "jozz_vehicle_asset_metadata.h"
 
 namespace
 {
@@ -43,18 +43,12 @@ void DrawJozzVehicleSemanticPreview( const JozzVehicleSemanticPreviewConfig& con
 
 	const JozzVehicleAuditMetadata& metadata = *config.metadata;
 
-	b3Vec3 wheelMountBU =
-		JozzVehicleFindPointOrFallback( metadata, "Offroad_Big_Wheels.gltf", "Socket_WheelMount", { 0.25f, 0.5f, 0.0f } );
-	b3Vec3 radiusOuterBU = JozzVehicleFindPointOrFallback( metadata, "Offroad_Big_Wheels.gltf", "Marker_TireRadiusOuter",
-														   { -0.125f, 1.96875f, 0.0f } );
-	b3Vec3 widthLeftBU = JozzVehicleFindPointOrFallback( metadata, "Offroad_Big_Wheels.gltf", "Marker_TireWidthLeft",
-														 { -0.75f, 0.5f, 0.0f } );
-	b3Vec3 widthRightBU = JozzVehicleFindPointOrFallback( metadata, "Offroad_Big_Wheels.gltf", "Marker_TireWidthRight",
-														  { 0.5f, 0.5f, 0.0f } );
-	b3Vec3 spinABU =
-		JozzVehicleFindPointOrFallback( metadata, "Offroad_Big_Wheels.gltf", "Axis_WheelSpin_A", { 0.4375f, 0.5f, 0.0f } );
-	b3Vec3 spinBBU =
-		JozzVehicleFindPointOrFallback( metadata, "Offroad_Big_Wheels.gltf", "Axis_WheelSpin_B", { -1.0625f, 0.5f, 0.0f } );
+	b3Vec3 wheelMountBU = JozzVehicleFindPointOrBuiltIn( metadata, "Offroad_Big_Wheels.gltf", "Socket_WheelMount" );
+	b3Vec3 radiusOuterBU = JozzVehicleFindPointOrBuiltIn( metadata, "Offroad_Big_Wheels.gltf", "Marker_TireRadiusOuter" );
+	b3Vec3 widthLeftBU = JozzVehicleFindPointOrBuiltIn( metadata, "Offroad_Big_Wheels.gltf", "Marker_TireWidthLeft" );
+	b3Vec3 widthRightBU = JozzVehicleFindPointOrBuiltIn( metadata, "Offroad_Big_Wheels.gltf", "Marker_TireWidthRight" );
+	b3Vec3 spinABU = JozzVehicleFindPointOrBuiltIn( metadata, "Offroad_Big_Wheels.gltf", "Axis_WheelSpin_A" );
+	b3Vec3 spinBBU = JozzVehicleFindPointOrBuiltIn( metadata, "Offroad_Big_Wheels.gltf", "Axis_WheelSpin_B" );
 	b3Vec3 wheelCenterBU = { radiusOuterBU.x, wheelMountBU.y, wheelMountBU.z };
 
 	b3Pos wheelCenter = WheelAuditPointBU( config, wheelCenterBU, wheelCenterBU );
@@ -76,12 +70,9 @@ void DrawJozzVehicleSemanticPreview( const JozzVehicleSemanticPreviewConfig& con
 	DrawLine( widthLeft, widthRight, MakeVec4( 0.2f, 0.4f, 1.0f, 1.0f ) );
 	DrawLine( spinA, spinB, MakeVec4( 0.2f, 1.0f, 0.2f, 1.0f ) );
 
-	b3Vec3 suspensionWheelCenterBU = JozzVehicleFindPointOrFallback( metadata, "One_Sided_wheel_mount.gltf", "Socket_WheelCenter",
-																	 { -1.1875f, 0.5f, -0.0625f } );
-	b3Vec3 travelTopBU = JozzVehicleFindPointOrFallback( metadata, "One_Sided_wheel_mount.gltf",
-														 "Axis_SuspensionTravel_Top", { -1.1875f, 1.5f, 0.0f } );
-	b3Vec3 travelBottomBU = JozzVehicleFindPointOrFallback( metadata, "One_Sided_wheel_mount.gltf",
-															"Axis_SuspensionTravel_Bottom", { -1.1875f, -0.5f, 0.0f } );
+	b3Vec3 suspensionWheelCenterBU = JozzVehicleFindPointOrBuiltIn( metadata, "One_Sided_wheel_mount.gltf", "Socket_WheelCenter" );
+	b3Vec3 travelTopBU = JozzVehicleFindPointOrBuiltIn( metadata, "One_Sided_wheel_mount.gltf", "Axis_SuspensionTravel_Top" );
+	b3Vec3 travelBottomBU = JozzVehicleFindPointOrBuiltIn( metadata, "One_Sided_wheel_mount.gltf", "Axis_SuspensionTravel_Bottom" );
 
 	b3Pos suspensionWheelCenter = SuspensionAuditPointBU( config, suspensionWheelCenterBU, travelTopBU );
 	b3Pos travelTop = SuspensionAuditPointBU( config, travelTopBU, travelTopBU );

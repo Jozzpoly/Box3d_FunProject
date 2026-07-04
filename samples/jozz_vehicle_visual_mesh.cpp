@@ -6,9 +6,7 @@
 #include "box3d/base.h"
 #include "gfx/draw.h"
 #include "jozz_vehicle_image_decode.h"
-
-#define JSMN_STATIC
-#include "jsmn.h"
+#include "jozz_vehicle_json.h"
 
 #include <algorithm>
 #include <cerrno>
@@ -21,6 +19,8 @@
 #include <limits>
 #include <string_view>
 #include <vector>
+
+using namespace jozz;
 
 namespace
 {
@@ -93,164 +93,6 @@ struct Matrix4
 	float m[4][4];
 };
 
-bool TokenEquals( std::string_view json, const jsmntok_t& token, const char* text )
-{
-	if ( token.type != JSMN_STRING || token.start < 0 || token.end < token.start )
-	{
-		return false;
-	}
-
-	return json.substr( (size_t)token.start, (size_t)( token.end - token.start ) ) == text;
-}
-
-std::string TokenString( std::string_view json, const jsmntok_t& token )
-{
-	if ( token.start < 0 || token.end < token.start )
-	{
-		return {};
-	}
-
-	return std::string( json.substr( (size_t)token.start, (size_t)( token.end - token.start ) ) );
-}
-
-bool TokenFloat( std::string_view json, const jsmntok_t& token, float* out )
-{
-	if ( token.start < 0 || token.end < token.start )
-	{
-		return false;
-	}
-
-	std::string text = TokenString( json, token );
-	char* end = nullptr;
-	errno = 0;
-	float value = std::strtof( text.c_str(), &end );
-	if ( errno != 0 || end == text.c_str() || *end != '\0' )
-	{
-		return false;
-	}
-
-	*out = value;
-	return true;
-}
-
-bool TokenInt( std::string_view json, const jsmntok_t& token, int* out )
-{
-	float value = 0.0f;
-	if ( TokenFloat( json, token, &value ) == false )
-	{
-		return false;
-	}
-
-	*out = (int)value;
-	return std::fabs( value - (float)*out ) < 0.001f;
-}
-
-int SkipToken( const std::vector<jsmntok_t>& tokens, int index )
-{
-	if ( index < 0 || index >= (int)tokens.size() )
-	{
-		return index + 1;
-	}
-
-	const jsmntok_t& token = tokens[index];
-	int next = index + 1;
-
-	if ( token.type == JSMN_OBJECT )
-	{
-		for ( int i = 0; i < token.size; ++i )
-		{
-			next = SkipToken( tokens, next );
-			next = SkipToken( tokens, next );
-		}
-	}
-	else if ( token.type == JSMN_ARRAY )
-	{
-		for ( int i = 0; i < token.size; ++i )
-		{
-			next = SkipToken( tokens, next );
-		}
-	}
-
-	return next;
-}
-
-int FindObjectValue( std::string_view json, const std::vector<jsmntok_t>& tokens, int objectIndex, const char* key )
-{
-	if ( objectIndex < 0 || objectIndex >= (int)tokens.size() || tokens[objectIndex].type != JSMN_OBJECT )
-	{
-		return -1;
-	}
-
-	int current = objectIndex + 1;
-	for ( int i = 0; i < tokens[objectIndex].size; ++i )
-	{
-		int keyIndex = current;
-		int valueIndex = SkipToken( tokens, keyIndex );
-		if ( keyIndex < (int)tokens.size() && TokenEquals( json, tokens[keyIndex], key ) )
-		{
-			return valueIndex;
-		}
-
-		current = SkipToken( tokens, valueIndex );
-	}
-
-	return -1;
-}
-
-int GetArrayElement( const std::vector<jsmntok_t>& tokens, int arrayIndex, int element )
-{
-	if ( arrayIndex < 0 || arrayIndex >= (int)tokens.size() || tokens[arrayIndex].type != JSMN_ARRAY || element < 0 ||
-		 element >= tokens[arrayIndex].size )
-	{
-		return -1;
-	}
-
-	int current = arrayIndex + 1;
-	for ( int i = 0; i < element; ++i )
-	{
-		current = SkipToken( tokens, current );
-	}
-	return current;
-}
-
-bool ParseJson( const std::string& json, std::vector<jsmntok_t>* tokens )
-{
-	jsmn_parser parser;
-	jsmn_init( &parser );
-	int tokenCount = jsmn_parse( &parser, json.data(), json.size(), nullptr, 0 );
-	if ( tokenCount <= 0 )
-	{
-		return false;
-	}
-
-	tokens->resize( (size_t)tokenCount );
-	jsmn_init( &parser );
-	int parsedCount = jsmn_parse( &parser, json.data(), json.size(), tokens->data(), (unsigned int)tokens->size() );
-	return parsedCount > 0 && tokens->empty() == false && ( *tokens )[0].type == JSMN_OBJECT;
-}
-
-bool ReadTextFile( const char* path, std::string* out )
-{
-	std::ifstream input( path, std::ios::binary );
-	if ( input.is_open() == false )
-	{
-		return false;
-	}
-
-	input.seekg( 0, std::ios::end );
-	std::streampos fileSize = input.tellg();
-	if ( fileSize <= 0 )
-	{
-		return false;
-	}
-
-	std::streamsize size = static_cast<std::streamsize>( fileSize );
-	out->resize( (size_t)size );
-	input.seekg( 0, std::ios::beg );
-	input.read( out->data(), size );
-	return input.good();
-}
-
 int Base64Value( char c )
 {
 	if ( c >= 'A' && c <= 'Z' )
@@ -315,25 +157,6 @@ bool DecodeDataUri( const std::string& uri, std::vector<uint8_t>* bytes )
 	}
 
 	return bytes->empty() == false;
-}
-
-bool ParseFloatArray( std::string_view json, const std::vector<jsmntok_t>& tokens, int arrayIndex, float* values, int count )
-{
-	if ( arrayIndex < 0 || arrayIndex >= (int)tokens.size() || tokens[arrayIndex].type != JSMN_ARRAY ||
-		 tokens[arrayIndex].size < count )
-	{
-		return false;
-	}
-
-	for ( int i = 0; i < count; ++i )
-	{
-		if ( TokenFloat( json, tokens[arrayIndex + 1 + i], &values[i] ) == false )
-		{
-			return false;
-		}
-	}
-
-	return true;
 }
 
 Matrix4 IdentityMatrix()
@@ -1105,7 +928,7 @@ bool JozzVehicleVisualMesh::LoadStaticGltf( const char* path, float metersPerBlo
 	}
 
 	std::vector<jsmntok_t> tokens;
-	if ( ParseJson( json, &tokens ) == false )
+	if ( ParseJson( json, &tokens ) == false || tokens[0].type != JSMN_OBJECT )
 	{
 		status = "visual mesh: glTF JSON parse failed";
 		return false;
