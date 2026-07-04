@@ -6,7 +6,7 @@
 // builders in src/box3d/box3d_geometry.c emit duplicated-vertex meshes so
 // per-face normals are baked into per-vertex data (flat shading).
 //
-// Per-vertex data: position (vec3), normal (vec3). Per-instance data lives
+// Per-vertex data: position (vec3), normal (vec3), uv (vec2). Per-instance data lives
 // in a readonly storage buffer indexed by `inst_base.x + gl_InstanceIndex`.
 // `inst_base` is a ub_draw uniform set per draw so a single shared
 // instance buffer can hold contiguous slices owned by many geometries.
@@ -52,8 +52,8 @@ struct instance
 	vec4 base_color; // .rgb = linear baseColor, .a = alpha
 	vec4 scale;		 // .xyz = per-instance scale, .w = unused
 	vec4 material;	 // .x = metallic, .y = roughness,
-					 // .z = materialMode (0=solid, 1=ground grid),
-					 // .w = gridCellSize (world units)
+					 // .z = materialMode (0=solid, 1=ground grid, 2=textured),
+					 // .w = gridCellSize (ground) or alphaCutoff (textured)
 };
 
 layout( binding = 0 ) readonly buffer instances
@@ -63,10 +63,12 @@ layout( binding = 0 ) readonly buffer instances
 
 in vec3 in_pos;
 in vec3 in_normal;
+in vec2 in_uv;
 
 out vec3 v_view_pos;	 // view-space position, for debug_view_mode=1
 						 // (forwarded as world_pos, see comment in main)
 out vec3 v_world_normal; // world-space normal, normalized in FS
+out vec2 v_uv;
 flat out vec4 v_base_color;
 flat out vec4 v_material;
 
@@ -87,6 +89,7 @@ void main()
 							  dot( inst.xform_row2.xyz, inv_scaled_n ) );
 
 	v_world_normal = world_normal;
+	v_uv = in_uv;
 	v_base_color = inst.base_color;
 	v_material = inst.material;
 
@@ -137,6 +140,13 @@ layout( binding = 2 ) uniform sampler smp_brdf_lut;
 layout( binding = 4 ) uniform texture2D tex_ao;
 #pragma sokol @sampler_type smp_ao filtering
 layout( binding = 3 ) uniform sampler smp_ao;
+
+// Optional glTF baseColor texture for mesh entries. Non-textured meshes bind a
+// 1x1 white fallback, so this can stay in the common geom shader.
+#pragma sokol @image_sample_type tex_base_color float
+layout( binding = 5 ) uniform texture2D tex_base_color;
+#pragma sokol @sampler_type smp_base_color filtering
+layout( binding = 4 ) uniform sampler smp_base_color;
 
 // 3x3 PCF over a 1-texel radius. Manually unrolled, see cube.glsl for
 // the X3570 rationale.
@@ -220,6 +230,7 @@ float sampleShadowCascaded( vec3 world_pos, vec3 world_normal, float view_z )
 
 in vec3 v_view_pos; // actually world_pos forwarded from VS
 in vec3 v_world_normal;
+in vec2 v_uv;
 flat in vec4 v_base_color;
 flat in vec4 v_material;
 
@@ -305,7 +316,19 @@ void main()
 	// pow(n.y, 8) gives a soft falloff while leaving the top face fully
 	// patterned and the strictly vertical sides flat.
 	vec3 baseColor = v_base_color.rgb;
-	if ( v_material.z > 0.5 )
+	float outAlpha = v_base_color.a;
+	if ( v_material.z > 1.5 )
+	{
+		vec4 texel = texture( sampler2D( tex_base_color, smp_base_color ), v_uv );
+		float alphaCutoff = max( v_material.w, 0.0 );
+		if ( texel.a < alphaCutoff )
+		{
+			discard;
+		}
+		baseColor *= texel.rgb;
+		outAlpha *= texel.a;
+	}
+	else if ( v_material.z > 0.5 )
 	{
 		// world_pos is in the camera relative frame. The grid lines use the
 		// origin wrapped to one grid period: the pattern repeats over it, so
@@ -328,7 +351,7 @@ void main()
 	vec3 ambient = pbrEvaluateAmbient( ibl_params.y > 0.5, n_world, V, baseColor, v_material.x, v_material.y, sun_color.a, sh,
 									   tex_ibl_spec, smp_ibl_spec, tex_brdf_lut, smp_brdf_lut, ibl_params.x );
 	// premultiplied output, see cube.glsl.
-	out_color = vec4( ( direct + ambient * ao ) * v_base_color.a, v_base_color.a );
+	out_color = vec4( ( direct + ambient * ao ) * outAlpha, outAlpha );
 }
 #pragma sokol @end
 

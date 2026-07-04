@@ -30,6 +30,10 @@ class Issue:
 class BindingCheck:
     path: str
     name: str
+    node_index_hint: int | None
+    node_path_hint: str
+    role: str
+    role_category: str
     matches: list[int]
 
 
@@ -65,16 +69,38 @@ def get_path(data: Any, dotted: str) -> Any:
     return current
 
 
-def iter_name_bindings(value: Any, prefix: str) -> Iterable[tuple[str, str]]:
+@dataclass
+class SemanticBinding:
+    path: str
+    name: str
+    node_index_hint: int | None = None
+    node_path_hint: str = ""
+    role: str = ""
+    role_category: str = ""
+
+
+def iter_semantic_bindings(value: Any, prefix: str) -> Iterable[SemanticBinding]:
     if isinstance(value, str):
-        yield prefix, value
+        yield SemanticBinding(prefix, value)
     elif isinstance(value, list):
         for index, item in enumerate(value):
-            yield from iter_name_bindings(item, f"{prefix}[{index}]")
+            yield from iter_semantic_bindings(item, f"{prefix}[{index}]")
     elif isinstance(value, dict):
+        if "nameHint" in value:
+            node_index = value.get("nodeIndexHint")
+            yield SemanticBinding(
+                path=prefix,
+                name=str(value.get("nameHint", "")),
+                node_index_hint=node_index if isinstance(node_index, int) else None,
+                node_path_hint=str(value.get("nodePathHint", "")),
+                role=str(value.get("role", "")),
+                role_category=str(value.get("roleCategory", "")),
+            )
+            return
+
         for key, item in value.items():
             next_prefix = f"{prefix}.{key}" if prefix else key
-            yield from iter_name_bindings(item, next_prefix)
+            yield from iter_semantic_bindings(item, next_prefix)
 
 
 REQUIRED_SEMANTIC_PATHS: dict[str, list[str]] = {
@@ -168,16 +194,39 @@ def audit_contract(contract_path: Path) -> ContractReport:
             report.issues.append(Issue("ERROR", f"Missing required semantic path: {required_path}"))
 
     semantics = contract.get("semantics", {})
-    for binding_path, name in iter_name_bindings(semantics, "semantics"):
+    for binding in iter_semantic_bindings(semantics, "semantics"):
+        binding_path = binding.path
+        name = binding.name
         matches = [index for index, node_name in enumerate(node_names) if node_name == name]
-        report.bindings.append(BindingCheck(binding_path, name, matches))
+        report.bindings.append(
+            BindingCheck(binding_path, name, binding.node_index_hint, binding.node_path_hint, binding.role, binding.role_category, matches)
+        )
 
-        if len(matches) == 0:
+        if not name:
+            report.issues.append(Issue("ERROR", f"Binding {binding_path} is missing nameHint."))
+        elif len(matches) == 0:
             report.issues.append(Issue("ERROR", f"Binding {binding_path} -> {name!r} does not resolve to any node."))
         elif len(matches) > 1:
             report.issues.append(Issue("WARN", f"Binding {binding_path} -> {name!r} resolves to multiple nodes {matches}."))
-        else:
-            report.issues.append(Issue("WARN", f"Binding {binding_path} -> {name!r} is currently name-only. Add stable index/path before runtime import."))
+
+        if binding.node_index_hint is None:
+            report.issues.append(Issue("ERROR", f"Binding {binding_path} -> {name!r} is missing nodeIndexHint."))
+        elif binding.node_index_hint < 0 or binding.node_index_hint >= len(node_names):
+            report.issues.append(Issue("ERROR", f"Binding {binding_path} nodeIndexHint {binding.node_index_hint} is out of range."))
+        elif node_names[binding.node_index_hint] != name:
+            report.issues.append(
+                Issue(
+                    "ERROR",
+                    f"Binding {binding_path} nodeIndexHint {binding.node_index_hint} points to {node_names[binding.node_index_hint]!r}, expected {name!r}.",
+                )
+            )
+
+        if not binding.node_path_hint:
+            report.issues.append(Issue("WARN", f"Binding {binding_path} -> {name!r} is missing nodePathHint."))
+        if not binding.role:
+            report.issues.append(Issue("WARN", f"Binding {binding_path} -> {name!r} is missing role."))
+        if not binding.role_category:
+            report.issues.append(Issue("WARN", f"Binding {binding_path} -> {name!r} is missing roleCategory."))
 
     return report
 
@@ -213,10 +262,13 @@ def write_markdown(reports: list[ContractReport], path: Path) -> None:
         if not report.bindings:
             lines.append("No semantic name bindings found.")
         else:
-            lines += ["| Path | Name | Matching node indices |", "|---|---|---|"]
+            lines += ["| Path | Role | Category | Name | Node index hint | Matching node indices |", "|---|---|---|---|---:|---|"]
             for binding in report.bindings:
                 matches = ", ".join(str(index) for index in binding.matches) or "none"
-                lines.append(f"| `{binding.path}` | `{binding.name}` | `{matches}` |")
+                node_index_hint = "" if binding.node_index_hint is None else str(binding.node_index_hint)
+                lines.append(
+                    f"| `{binding.path}` | `{binding.role}` | `{binding.role_category}` | `{binding.name}` | {node_index_hint} | `{matches}` |"
+                )
 
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -231,7 +283,15 @@ def report_to_json(report: ContractReport) -> dict[str, Any]:
         "duplicateNodeNames": report.duplicate_node_names,
         "issues": [{"severity": issue.severity, "message": issue.message} for issue in report.issues],
         "bindings": [
-            {"path": binding.path, "name": binding.name, "matches": binding.matches}
+            {
+                "path": binding.path,
+                "role": binding.role,
+                "roleCategory": binding.role_category,
+                "nameHint": binding.name,
+                "nodeIndexHint": binding.node_index_hint,
+                "nodePathHint": binding.node_path_hint,
+                "matches": binding.matches,
+            }
             for binding in report.bindings
         ],
     }

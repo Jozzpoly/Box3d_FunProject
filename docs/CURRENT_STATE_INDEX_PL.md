@@ -1,16 +1,16 @@
 # Current State Index — Jozz Vehicle Box3D Native
 
-Date: 2026-07-03  
+Date: 2026-07-04
 Branch: `jozz-vehicle-sandbox-m0`  
-Status: M2.5/M3A/M3B baseline validated; M3B.2-prep runtime metadata validated; ready for Codex stabilization handoff
+Status: M2.5/M3A/M3B baseline validated; M3B.2.1 static textured wheel proof implemented; M3B.3 visual attach not started
 
 ## 1. Current active sample
 
 ```text
 Category: Jozz Vehicle
 Sample:   Lab M2 Primitive Corner
-Source:   samples/sample_jozz_vehicle_lab.cpp
-Panel:    Jozz Vehicle Lab M2.5 + M3A/M3B debug
+Source:   samples/sample_jozz_vehicle_lab.cpp + samples/jozz_vehicle_primitive_corner_lab.cpp
+Panel:    Jozz Vehicle Lab M2.5 + M3A/M3B.2.1 debug
 ```
 
 The sample picker name remains `Lab M2 Primitive Corner` because the scene is still the same one-corner primitive lab.
@@ -30,6 +30,8 @@ M2.5 primitive one-corner wheel-joint lab works
 M3A asset-derived primitive defaults work
 M3B semantic preview anchoring fix works
 M3B.2-prep runtime audit metadata path works
+M3B.2 static visual-only wheel mesh proof exists
+M3B.2.1 baseColor texture proof exists for the same static wheel mesh
 ```
 
 Latest observed runtime metadata state:
@@ -40,7 +42,7 @@ metadata: loaded runtime asset audit report
 source: ../../assets/reports/asset_audit_latest.json
 ```
 
-No glTF mesh rendering exists yet.
+M3B.2 renders one static `Offroad_Big_Wheels.gltf` mesh primitive at a fixed debug origin. M3B.2.1 adds the narrow baseColor texture path for that same proof. It is not attached to physics and is not a full glTF/material/skin/animation/collision importer.
 
 ## 3. Authoritative physics baseline
 
@@ -92,8 +94,25 @@ Semantic preview
 Runtime metadata
   - reads assets/reports/asset_audit_latest.json when reachable
   - falls back safely when not reachable
-  - no mesh/material/skin/animation loading
+
+Static visual proof
+  - loads a narrow subset of Offroad_Big_Wheels.gltf
+  - reads TEXCOORD_0 and one pbr baseColorTexture PNG data URI
+  - decodes PNG to RGBA8 through isolated Windows/WIC helper
+  - draws one mesh at a fixed debug origin
+  - no multi-material/normal-map/metallic-roughness/skin/animation/collision/full importer
+  - no physics attachment yet
 ```
+
+Known visual debt after M3B.2.1:
+
+```text
+alpha-masked tire tread affects the lit pass but not the shadow caster yet
+wheel shadow therefore does not show tread/cutout structure
+inner rim/felga shows visible banded/striped shading in close-up screenshots
+```
+
+These are not blockers for M3B.3 visual-only attach. Revisit them during a focused render/material polish pass. For the rim banding, first isolate whether the source is shadow acne/self-shadowing, imported vertex normals, material roughness/specular mismatch, or low-resolution nearest-filter texture detail.
 
 ## 5. Read order for next agent
 
@@ -117,7 +136,18 @@ Read first:
 16. `samples/sample_jozz_vehicle_lab.cpp`
 17. `samples/jozz_vehicle_asset_metadata.h`
 18. `samples/jozz_vehicle_asset_metadata.cpp`
-19. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
+19. `samples/jozz_vehicle_asset_dimensions.h`
+20. `samples/jozz_vehicle_asset_dimensions.cpp`
+21. `samples/jozz_vehicle_debug_preview.h`
+22. `samples/jozz_vehicle_debug_preview.cpp`
+23. `samples/jozz_vehicle_primitive_corner_lab.h`
+24. `samples/jozz_vehicle_primitive_corner_lab.cpp`
+25. `samples/jozz_vehicle_visual_mesh.h`
+26. `samples/jozz_vehicle_visual_mesh.cpp`
+27. `samples/jozz_vehicle_image_decode.h`
+28. `samples/jozz_vehicle_image_decode.cpp`
+29. `samples/jozz_vehicle_validation.cpp`
+30. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
 
 Useful background:
 
@@ -149,6 +179,8 @@ M2.5 — live root + pending/committed separation
 M3A — asset-derived primitive defaults
 M3B.1 — semantic preview overlay + ownership fix
 M3B.2-prep — runtime audit metadata without mesh rendering
+M3B.2 — static visual-only wheel mesh proof at fixed debug origin
+M3B.2.1 — baseColor texture proof on the same static wheel mesh
 ```
 
 ## 7. Current assets
@@ -184,6 +216,18 @@ samples/jozz_vehicle_asset_metadata.h
 samples/jozz_vehicle_asset_metadata.cpp
 ```
 
+Visual proof code:
+
+```text
+samples/jozz_vehicle_primitive_corner_lab.h
+samples/jozz_vehicle_primitive_corner_lab.cpp
+samples/jozz_vehicle_visual_mesh.h
+samples/jozz_vehicle_visual_mesh.cpp
+samples/jozz_vehicle_image_decode.h
+samples/jozz_vehicle_image_decode.cpp
+samples/jozz_vehicle_validation.cpp
+```
+
 ## 8. Current hotkeys
 
 ```text
@@ -203,18 +247,20 @@ M3A/M3B added no new hotkeys.
 From repo root:
 
 ```powershell
-git pull --ff-only origin jozz-vehicle-sandbox-m0
-py tools\asset_audit.py
-py tools\asset_contract_audit.py
-cmake --preset windows
-cmake --build --preset windows-debug --target samples
+cmd /c "set PATH=& cmake --build --preset windows-debug --target test"
+cmd /c "set PATH=& cmake --build --preset windows-debug --target samples"
+cmd /c "set PATH=& cmake --build --preset windows-debug --target jozz_vehicle_validation"
+cmd /c "set PATH=& build\bin\Debug\test.exe"
+cmd /c "set PATH=& build\bin\Debug\jozz_vehicle_validation.exe"
 ```
+
+Run `py tools\asset_audit.py` and `py tools\asset_contract_audit.py` only when intentionally regenerating repo reports.
 
 Manual sample check:
 
 ```text
 Open:  Jozz Vehicle / Lab M2 Primitive Corner
-Panel: Jozz Vehicle Lab M2.5 + M3A/M3B debug
+Panel: Jozz Vehicle Lab M2.5 + M3A/M3B.2.1 debug
 ```
 
 Regression check:
@@ -230,7 +276,9 @@ Q/E live root works
 Apply rig rebuild works
 M3B semantic preview draws
 semantic preview does not change physics
-no glTF mesh is rendered yet
+M3B.2.1 static textured wheel proof toggles
+static wheel mesh is visible but not attached to physics
+UI texture status shows loaded baseColor or solid fallback reason
 ```
 
 ## 10. Current implementation status
@@ -260,39 +308,60 @@ metadata status shown in UI/HUD
 M3A defaults and M3B preview read through metadata source
 ```
 
+M3B.2 does:
+
+```text
+static Offroad_Big_Wheels glTF mesh proof
+fixed debug origin
+visual-only draw path through the sample renderer geometry registry
+no physics attachment
+```
+
+M3B.2.1 does:
+
+```text
+extends MeshVertex with UV
+adds optional baseColor texture binding to geom shader path
+loads TEXCOORD_0 and one pbr baseColorTexture PNG data URI
+decodes PNG to RGBA8 through Windows/WIC helper
+keeps solid-color fallback if texture decode/upload fails
+no physics attachment
+```
+
+Foundation Grounding V2 does:
+
+```text
+extracts the primitive corner lab from the sample registration file
+adds DrawAtTransform for future visual-only wheel attach
+adds jozz_vehicle_validation CLI metadata/defaults check
+hardens MeshVertex layout offsets with offsetof
+```
+
 Still not implemented:
 
 ```text
-glTF mesh rendering
 mesh collision
 steering
 four-corner vehicle
 visual rig
 skinning/animation
+full glTF renderer/material importer
+visual mesh attachment to wheel body
 ```
 
 ## 11. Next pass
 
-The next pass should be Codex stabilization:
+The next small feature gate is:
 
 ```text
-stabilize -> clean -> organize -> verify -> prepare small visual import gate
+M3B.3 visual-only wheel mesh attached to primitive wheel body
 ```
 
-Do not start full rig/import yet.
-
-After stabilization, the next small feature gate may be:
-
-```text
-M3B.2 static wheel visual mesh at origin
-```
-
-Strict scope for that future gate:
+Strict scope:
 
 ```text
 one wheel mesh
-fixed debug origin
-not attached to physics
+attached visually to the primitive wheel body transform
 not animated
 not skinned
 not collision

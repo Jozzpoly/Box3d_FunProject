@@ -2,7 +2,7 @@
 
 Date: 2026-07-03  
 Branch: `jozz-vehicle-sandbox-m0`  
-Purpose: prepare the project for Codex stabilization before serious visual asset import
+Purpose: record stabilization risks and the implemented M3B.2 visual-only import proof before broader vehicle work
 
 ## 1. Current verified state
 
@@ -15,7 +15,7 @@ Jozz Vehicle / Lab M2 Primitive Corner
 The panel/HUD identifies the current state as:
 
 ```text
-Jozz Vehicle Lab M2.5 + M3A/M3B debug
+Jozz Vehicle Lab M2.5 + M3A/M3B.2 debug
 ```
 
 Validated by Jozz:
@@ -25,6 +25,7 @@ M2.5 one-corner wheel-joint lab works
 M3A asset-derived primitive defaults work
 M3B.1 semantic preview ownership fix works
 M3B.2-prep runtime audit metadata path works
+M3B.2 static visual-only wheel mesh proof is implemented
 ```
 
 The latest Jozz screenshot shows:
@@ -60,7 +61,8 @@ Keep the separation:
 structural setup -> pending values + Apply rig rebuild
 live root stress test -> realtime root/chassis movement
 semantic preview -> debug only, no physics authority
-runtime metadata -> data source only, no mesh renderer yet
+runtime metadata -> data source only
+static visual proof -> one wheel mesh at fixed debug origin, no physics authority
 ```
 
 ### Runtime metadata direction
@@ -69,9 +71,9 @@ The metadata loader is a useful bridge. It reads the existing audit report first
 
 ## 3. Main problems now
 
-### Problem A — sample file is becoming too dense
+### Problem A — sample file was becoming too dense
 
-`samples/sample_jozz_vehicle_lab.cpp` now owns too much:
+`samples/sample_jozz_vehicle_lab.cpp` was owning too much:
 
 ```text
 sample registration
@@ -83,17 +85,18 @@ runtime metadata usage
 HUD/panel text
 ```
 
-This is still workable, but it is no longer a good place to keep adding rendering/import complexity.
+This is partially addressed. Asset-derived primitive dimensions, semantic debug preview, and the narrow static visual mesh proof now live in helper modules. The corner lab class still owns physics setup/UI and should not become the place for full vehicle assembly.
 
-Codex should split by responsibility before adding visual mesh work.
-
-Recommended direction:
+Current direction:
 
 ```text
 jozz_vehicle_asset_metadata.*     already exists
-jozz_vehicle_primitive_corner.*   future extracted M2.5/M3A corner lab logic
-jozz_vehicle_debug_draw.*         future semantic preview helpers
-sample_jozz_vehicle_lab.cpp       should become thin sample registration/glue
+jozz_vehicle_asset_dimensions.*   asset-derived primitive defaults
+jozz_vehicle_debug_preview.*      semantic preview helpers
+jozz_vehicle_visual_mesh.*        narrow static visual-only glTF proof
+jozz_vehicle_primitive_corner_lab.* owns M2.5/M3A/M3B.2.1 corner lab logic
+sample_jozz_vehicle_lab.cpp       thin sample registration/M1 smoke glue
+jozz_vehicle_validation.cpp       CLI metadata/defaults guard
 ```
 
 Do not do a giant rewrite. Extract in small safe steps.
@@ -118,11 +121,11 @@ This keeps the lab robust today, but creates future drift risk.
 
 Codex should not remove fallback immediately. It should document and later replace it with a generated/staged asset metadata file or reliable runtime path staging.
 
-### Problem D — no automated test for metadata parser
+### Problem D — metadata parser guard is intentionally small
 
-`jozz_vehicle_asset_metadata.cpp` has no unit/smoke test. If the audit report shape changes, the loader could silently fall back.
+`jozz_vehicle_validation.exe` now provides a narrow CLI guard for the runtime/fallback metadata path.
 
-A future lightweight test or validation sample should check at least:
+It checks at least:
 
 ```text
 runtime report can parse known semantic nodes
@@ -131,9 +134,9 @@ wheel width derives to about 0.44 m
 travel hint derives to about 0.70 m
 ```
 
-### Problem E — no visual asset renderer boundary yet
+### Problem E — visual asset renderer boundary is only a thin proof
 
-There is not yet a clean interface for:
+There is now a minimal interface for:
 
 ```text
 load mesh
@@ -142,7 +145,7 @@ draw visual asset at debug transform
 attach visual to primitive wheel body later
 ```
 
-Codex should prepare this boundary before rendering real models.
+It is intentionally narrow: first mesh primitive, embedded buffer path, fixed debug transform, no materials, no animation, no skinning, no collision and no full importer contract yet. M3B.3 should attach this visual-only wheel mesh to the primitive wheel body before any full rig/import work.
 
 ## 4. What should not be changed during stabilization
 
@@ -174,6 +177,10 @@ Completed before this handoff:
 M3B.2-prep runtime metadata path validated by Jozz screenshot
 metadata loader fallback whitespace cleaned
 separate M3B.2 runtime metadata validation doc created
+asset-derived dimensions moved out of the sample file
+semantic debug preview moved out of the sample file
+M3B.2 static visual-only wheel mesh proof added
+asset contracts hardened with nodeIndexHint/nodePathHint/role metadata
 ```
 
 ## 6. Cleanup still worth doing
@@ -181,20 +188,20 @@ separate M3B.2 runtime metadata validation doc created
 Codex should do these in small commits:
 
 1. Re-run/verify build from clean checkout.
-2. Make `README_FOR_AGENTS.md` and `CURRENT_STATE_INDEX_PL.md` fully agree with the latest M3B.2 validation state.
-3. Split the giant sample file only if the build can be kept green after each extraction.
+2. Manually inspect the M3B.2 static visual proof in the sample host.
+3. Split the remaining corner lab physics/UI only if the build can be kept green after each extraction.
 4. Add a tiny metadata parser validation path if practical.
-5. Ensure docs do not contain stale “pending” claims for M3A/M3B validation.
+5. Ensure docs do not contain stale pending claims for M3A/M3B/M3B.2 validation.
 6. Keep historical docs but do not treat old M2/M2.1/M2.2/M2.3 as active architecture.
 
 ## 7. Recommended Codex mission
 
-Codex should **stabilize and organize**, not add a big feature immediately.
+Codex should continue in small gates, not add a big feature immediately.
 
 Primary mission:
 
 ```text
-Turn the current one-file lab into a clean foundation ready for a first visual wheel mesh import gate.
+Turn the current one-corner lab into a clean foundation ready for visual-only wheel attachment.
 ```
 
 Success means:
@@ -204,22 +211,22 @@ build green
 manual lab still works
 runtime metadata still loads
 fallback still safe
-sample file less overloaded or clearly prepared for extraction
+sample file less overloaded or clearly prepared for the next extraction
 next feature gate documented and small
 ```
 
-## 8. Next feature gate after stabilization
+## 8. Next feature gate after M3B.2
 
-Only after stabilization:
+Only after validating the static proof:
 
 ```text
-M3B.2 — render one static visual wheel mesh at origin
+M3B.3 — visual-only wheel mesh attached to primitive wheel body
 ```
 
 Rules for that gate:
 
 ```text
-not attached to physics yet
+attached visually to the primitive wheel body transform
 not skinned
 not animated
 not collision
@@ -227,4 +234,4 @@ not full rig
 not full vehicle
 ```
 
-The first visual mesh goal is simply to prove that the rendering/import path can display Jozz's wheel asset safely in the sample host.
+The goal is only to prove that a Jozz wheel mesh can follow the primitive wheel body visually. It must not become mesh collision, full suspension rigging, or vehicle assembly.

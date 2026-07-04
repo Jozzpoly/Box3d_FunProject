@@ -1,0 +1,338 @@
+[
+  {
+    "file": "asset_dumper.asset.json",
+    "assetId": "jozz.asset_dumper.v0",
+    "assetType": "damper_visual",
+    "source": "../source/Asset_Dumper.gltf",
+    "status": "WARN",
+    "duplicateNodeNames": {
+      "Dumper_rig_root": 2
+    },
+    "issues": [
+      {
+        "severity": "WARN",
+        "message": "Duplicate node names exist in source glTF: Dumper_rig_root x2. Name-only binding is unsafe."
+      }
+    ],
+    "bindings": [
+      {
+        "path": "semantics.visualParts.upper",
+        "role": "damper.visual.upper",
+        "roleCategory": "visual_part",
+        "nameHint": "Part_Upper",
+        "nodeIndexHint": 0,
+        "nodePathHint": "0:Part_Upper",
+        "matches": [
+          0
+        ]
+      },
+      {
+        "path": "semantics.visualParts.stretch",
+        "role": "damper.visual.stretch",
+        "roleCategory": "visual_part",
+        "nameHint": "Part_Stretch",
+        "nodeIndexHint": 1,
+        "nodePathHint": "1:Part_Stretch",
+        "matches": [
+          1
+        ]
+      },
+      {
+        "path": "semantics.visualParts.lower",
+        "role": "damper.visual.lower",
+        "roleCategory": "visual_part",
+        "nameHint": "Part_Lower",
+        "nodeIndexHint": 2,
+        "nodePathHint": "2:Part_Lower",
+        "matches": [
+          2
+        ]
+      }
+    ]
+  },
+  {
+    "file": "cardan_shaft.asset.json",
+    "assetId": "jozz.cardan_shaft.v0",
+    "assetType": "cardan_shaft_visual",
+    "source": "../source/Cardan_shaft.gltf",
+    "status": "WARN",
+    "duplicateNodeNames": {
+      "Cardan_shaft": 2
+    },
+    "issues": [
+      {
+        "severity": "WARN",
+        "message": "Duplicate node names exist in source glTF: Cardan_shaft x2. Name-only binding is unsafe."
+      }
+    ],
+    "bindings": [
+      {
+        "path": "semantics.visualParts.firstPart",
+        "role": "cardan.visual.first_part",
+        "roleCategory": "visual_part",
+        "nameHint": "First_Part",
+        "nodeIndexHint": 0,
+        "nodePathHint": "0:First_Part",
+        "matches": [
+          0
+        ]
+      },
+      {
+        "path": "semantics.visualParts.midPart",
+        "role": "cardan.visual.mid_part",
+        "roleCategory": "visual_part",
+        "nameHint": "Mid_Part",
+        "nodeIndexHint": 2,
+        "nodePathHint": "2:Mid_Part",
+        "matches": [
+          2
+        ]
+      },
+      {
+        "path": "semantics.visualParts.lastPart",
+        "role": "cardan.visual.last_part",
+        "roleCategory": "visual_part",
+        "nameHint": "Last_Part",
+        "nodeIndexHint": 1,
+        "nodePathHint": "1:Last_Part",
+        "matches": [
+          1
+        ]
+      }
+    ]
+  },
+  {
+    "file": "offroad_big_wheel.asset.json",
+    "assetId": "jozz.offroad_big_wheel.v0",
+    "assetType": "wheel",
+    "source": "../source/Offroad_Big_Wheels.gltf",
+    "status": "WARN",
+    "duplicateNodeNames": {
+      "Big_Wheel": 2
+    },
+    "issues": [
+      {
+        "severity": "WARN",
+        "message": "Duplicate node names exist in source glTF: Big_Wheel x2. Name-only binding is unsafe."
+      }
+    ],
+    "bindings": [
+      {
+        "path": "semantics.sockets.wheelMount",
+        "role": "wheel.visual.wheel_mount",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_WheelMount",
+        "nodeIndexHint": 5,
+        "nodePathHint": "12:Big_Wheel/11:Big_Wheel/5:Socket_WheelMount",
+        "matches": [
+          5
+        ]
+      },
+      {
+        "path": "semantics.axes.wheelSpin[0]",
+        "role": "wheel.spin_axis.a",
+        "roleCategory": "physics_hint",
+        "nameHint": "Axis_WheelSpin_A",
+        "nodeIndexHint": 6,
+        "nodePathHint": "12:Big_Wheel/11:Big_Wheel/6:Axis_WheelSpin_A",
+        "matches": [
+          6
+        ]
+      },
+      {
+        "path": "semantics.axes.wheelSpin[1]",
+        "role": "wheel.spin_axis.b",
+        "roleCategory": "physics_hint",
+        "nameHint": "Axis_WheelSpin_B",
+        "nodeIndexHint": 7,
+        "nodePathHint": "12:Big_Wheel/11:Big_Wheel/7:Axis_WheelSpin_B",
+        "matches": [
+          7
+        ]
+      },
+      {
+        "path": "semantics.markers.tireRadiusOuter",
+        "role": "wheel.tire_radius_outer",
+        "roleCategory": "physics_hint",
+        "nameHint": "Marker_TireRadiusOuter",
+        "nodeIndexHint": 8,
+        "nodePathHint": "12:Big_Wheel/11:Big_Wheel/8:Marker_TireRadiusOuter",
+        "matches": [
+          8
+        ]
+      },
+      {
+        "path": "semantics.markers.tireWidthLeft",
+        "role": "wheel.tire_width_left",
+        "roleCategory": "physics_hint",
+        "nameHint": "Marker_TireWidthLeft",
+        "nodeIndexHint": 9,
+        "nodePathHint": "12:Big_Wheel/11:Big_Wheel/9:Marker_TireWidthLeft",
+        "matches": [
+          9
+        ]
+      },
+      {
+        "path": "semantics.markers.tireWidthRight",
+        "role": "wheel.tire_width_right",
+        "roleCategory": "physics_hint",
+        "nameHint": "Marker_TireWidthRight",
+        "nodeIndexHint": 10,
+        "nodePathHint": "12:Big_Wheel/11:Big_Wheel/10:Marker_TireWidthRight",
+        "matches": [
+          10
+        ]
+      }
+    ]
+  },
+  {
+    "file": "one_sided_wheel_mount.asset.json",
+    "assetId": "jozz.one_sided_wheel_mount.v0",
+    "assetType": "suspension_corner_visual",
+    "source": "../source/One_Sided_wheel_mount.gltf",
+    "status": "WARN",
+    "duplicateNodeNames": {
+      "OneSidedSuspension_Rig": 2
+    },
+    "issues": [
+      {
+        "severity": "WARN",
+        "message": "Duplicate node names exist in source glTF: OneSidedSuspension_Rig x2. Name-only binding is unsafe."
+      }
+    ],
+    "bindings": [
+      {
+        "path": "semantics.sockets.chassisMount",
+        "role": "suspension.visual.chassis_mount",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_ChassisMount",
+        "nodeIndexHint": 0,
+        "nodePathHint": "0:Socket_ChassisMount",
+        "matches": [
+          0
+        ]
+      },
+      {
+        "path": "semantics.sockets.wheelCenter",
+        "role": "suspension.visual.wheel_center",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_WheelCenter",
+        "nodeIndexHint": 1,
+        "nodePathHint": "1:Socket_WheelCenter",
+        "matches": [
+          1
+        ]
+      },
+      {
+        "path": "semantics.sockets.damperUpperR",
+        "role": "suspension.visual.damper_upper_r",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_DamperUpper_R",
+        "nodeIndexHint": 4,
+        "nodePathHint": "4:Socket_DamperUpper_R",
+        "matches": [
+          4
+        ]
+      },
+      {
+        "path": "semantics.sockets.damperUpperL",
+        "role": "suspension.visual.damper_upper_l",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_DamperUpper_L",
+        "nodeIndexHint": 5,
+        "nodePathHint": "5:Socket_DamperUpper_L",
+        "matches": [
+          5
+        ]
+      },
+      {
+        "path": "semantics.sockets.damperLowerR",
+        "role": "suspension.visual.damper_lower_r",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_DamperLower_R",
+        "nodeIndexHint": 6,
+        "nodePathHint": "6:Socket_DamperLower_R",
+        "matches": [
+          6
+        ]
+      },
+      {
+        "path": "semantics.sockets.damperLowerL",
+        "role": "suspension.visual.damper_lower_l",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_DamperLower_L",
+        "nodeIndexHint": 7,
+        "nodePathHint": "7:Socket_DamperLower_L",
+        "matches": [
+          7
+        ]
+      },
+      {
+        "path": "semantics.sockets.cardanDrive",
+        "role": "suspension.visual.cardan_drive",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_CardanDrive",
+        "nodeIndexHint": 8,
+        "nodePathHint": "8:Socket_CardanDrive",
+        "matches": [
+          8
+        ]
+      },
+      {
+        "path": "semantics.sockets.cardanHub",
+        "role": "suspension.visual.cardan_hub",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_CardanHub",
+        "nodeIndexHint": 9,
+        "nodePathHint": "9:Socket_CardanHub",
+        "matches": [
+          9
+        ]
+      },
+      {
+        "path": "semantics.axes.suspensionTravel[0]",
+        "role": "suspension.travel_axis.top",
+        "roleCategory": "physics_hint",
+        "nameHint": "Axis_SuspensionTravel_Top",
+        "nodeIndexHint": 10,
+        "nodePathHint": "10:Axis_SuspensionTravel_Top",
+        "matches": [
+          10
+        ]
+      },
+      {
+        "path": "semantics.axes.suspensionTravel[1]",
+        "role": "suspension.travel_axis.bottom",
+        "roleCategory": "physics_hint",
+        "nameHint": "Axis_SuspensionTravel_Bottom",
+        "nodeIndexHint": 11,
+        "nodePathHint": "11:Axis_SuspensionTravel_Bottom",
+        "matches": [
+          11
+        ]
+      },
+      {
+        "path": "semantics.visualParts.chassisTop",
+        "role": "suspension.visual.chassis_top",
+        "roleCategory": "visual_part",
+        "nameHint": "Chassis_Top",
+        "nodeIndexHint": 2,
+        "nodePathHint": "2:Chassis_Top",
+        "matches": [
+          2
+        ]
+      },
+      {
+        "path": "semantics.visualParts.chassisBottom",
+        "role": "suspension.visual.chassis_bottom",
+        "roleCategory": "visual_part",
+        "nameHint": "Chassis_Bottom",
+        "nodeIndexHint": 3,
+        "nodePathHint": "3:Chassis_Bottom",
+        "matches": [
+          3
+        ]
+      }
+    ]
+  }
+]

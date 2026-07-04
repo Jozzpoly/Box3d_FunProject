@@ -23,18 +23,72 @@
   },
   "semantics": {
     "sockets": {
-      "wheelMount": "Socket_WheelMount"
+      "wheelMount": {
+        "role": "wheel.visual.wheel_mount",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_WheelMount",
+        "nodeIndexHint": 5,
+        "nodePathHint": "12:Big_Wheel/11:Big_Wheel/5:Socket_WheelMount",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false
+      }
     },
     "axes": {
       "wheelSpin": [
-        "Axis_WheelSpin_A",
-        "Axis_WheelSpin_B"
+        {
+          "role": "wheel.spin_axis.a",
+          "roleCategory": "physics_hint",
+          "nameHint": "Axis_WheelSpin_A",
+          "nodeIndexHint": 6,
+          "nodePathHint": "12:Big_Wheel/11:Big_Wheel/6:Axis_WheelSpin_A",
+          "space": "authoring_world_after_composed_transforms",
+          "required": true,
+          "physicsAuthority": false
+        },
+        {
+          "role": "wheel.spin_axis.b",
+          "roleCategory": "physics_hint",
+          "nameHint": "Axis_WheelSpin_B",
+          "nodeIndexHint": 7,
+          "nodePathHint": "12:Big_Wheel/11:Big_Wheel/7:Axis_WheelSpin_B",
+          "space": "authoring_world_after_composed_transforms",
+          "required": true,
+          "physicsAuthority": false
+        }
       ]
     },
     "markers": {
-      "tireRadiusOuter": "Marker_TireRadiusOuter",
-      "tireWidthLeft": "Marker_TireWidthLeft",
-      "tireWidthRight": "Marker_TireWidthRight"
+      "tireRadiusOuter": {
+        "role": "wheel.tire_radius_outer",
+        "roleCategory": "physics_hint",
+        "nameHint": "Marker_TireRadiusOuter",
+        "nodeIndexHint": 8,
+        "nodePathHint": "12:Big_Wheel/11:Big_Wheel/8:Marker_TireRadiusOuter",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false
+      },
+      "tireWidthLeft": {
+        "role": "wheel.tire_width_left",
+        "roleCategory": "physics_hint",
+        "nameHint": "Marker_TireWidthLeft",
+        "nodeIndexHint": 9,
+        "nodePathHint": "12:Big_Wheel/11:Big_Wheel/9:Marker_TireWidthLeft",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false
+      },
+      "tireWidthRight": {
+        "role": "wheel.tire_width_right",
+        "roleCategory": "physics_hint",
+        "nameHint": "Marker_TireWidthRight",
+        "nodeIndexHint": 10,
+        "nodePathHint": "12:Big_Wheel/11:Big_Wheel/10:Marker_TireWidthRight",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false
+      }
     }
   },
   "physics": {

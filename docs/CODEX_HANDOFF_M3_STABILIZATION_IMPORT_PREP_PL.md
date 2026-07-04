@@ -1,20 +1,20 @@
 # Codex Handoff — M3 Stabilization and Import Prep
 
-Date: 2026-07-03  
+Date: 2026-07-04
 Branch: `jozz-vehicle-sandbox-m0`  
 Audience: Codex / stronger implementation agent  
-Goal: stabilize, clean, and organize before serious Jozz model import
+Goal: continue after M3B.2.1 static textured visual proof toward visual-only wheel attachment
 
 ## 1. Mission
 
 You are taking over a fragile but promising vehicle prototype inside Box3D samples.
 
-Your task is **not** to add a big feature first.
+Your task is **not** to add a big feature or full importer.
 
 Your task is:
 
 ```text
-stabilize the current M2.5/M3A/M3B lab, clean the project boundaries, verify build/test workflow, and prepare the next small visual import gate.
+stabilize the current M2.5/M3A/M3B.2.1 lab, keep the build/test workflow green, and prepare the next small visual-only attachment gate.
 ```
 
 The project must remain playable and understandable after every commit.
@@ -39,6 +39,17 @@ Read first:
 14. `samples/sample_jozz_vehicle_lab.cpp`
 15. `samples/jozz_vehicle_asset_metadata.h`
 16. `samples/jozz_vehicle_asset_metadata.cpp`
+17. `samples/jozz_vehicle_asset_dimensions.h`
+18. `samples/jozz_vehicle_asset_dimensions.cpp`
+19. `samples/jozz_vehicle_debug_preview.h`
+20. `samples/jozz_vehicle_debug_preview.cpp`
+21. `samples/jozz_vehicle_primitive_corner_lab.h`
+22. `samples/jozz_vehicle_primitive_corner_lab.cpp`
+23. `samples/jozz_vehicle_visual_mesh.h`
+24. `samples/jozz_vehicle_visual_mesh.cpp`
+25. `samples/jozz_vehicle_image_decode.h`
+26. `samples/jozz_vehicle_image_decode.cpp`
+27. `samples/jozz_vehicle_validation.cpp`
 
 Treat older M2/M2.1/M2.2/M2.3 docs as historical only.
 
@@ -51,6 +62,8 @@ M2.5 primitive one-corner wheel-joint lab works
 M3A asset-derived primitive defaults work
 M3B semantic preview anchoring fix works
 M3B.2-prep runtime metadata path works
+M3B.2 static visual-only wheel mesh proof exists
+M3B.2.1 baseColor texture proof exists for that same static mesh
 ```
 
 Latest observed runtime metadata state:
@@ -61,7 +74,7 @@ metadata: loaded runtime asset audit report
 source: ../../assets/reports/asset_audit_latest.json
 ```
 
-No glTF mesh is rendered yet.
+One textured `Offroad_Big_Wheels.gltf` mesh primitive is rendered at a fixed debug origin. It is visual-only, not attached to physics, and not a full material/skin/animation/collision importer.
 
 ## 4. Non-negotiable physics model
 
@@ -89,7 +102,7 @@ live root stress -> realtime chassis/root motion
 semantic preview -> debug drawing only
 runtime metadata -> data source only
 physics -> primitive wheel joint and primitive collision
-visual mesh -> not implemented yet
+visual mesh -> M3B.2.1 static textured proof only, no physics authority
 ```
 
 ## 6. Your first task: stabilization audit in code
@@ -98,9 +111,15 @@ Before changing code, inspect:
 
 ```text
 samples/sample_jozz_vehicle_lab.cpp
+samples/jozz_vehicle_primitive_corner_lab.h
+samples/jozz_vehicle_primitive_corner_lab.cpp
 samples/jozz_vehicle_asset_metadata.h
 samples/jozz_vehicle_asset_metadata.cpp
 samples/CMakeLists.txt
+samples/jozz_vehicle_visual_mesh.h
+samples/jozz_vehicle_visual_mesh.cpp
+samples/jozz_vehicle_image_decode.h
+samples/jozz_vehicle_image_decode.cpp
 ```
 
 Check for:
@@ -133,8 +152,9 @@ Acceptable extraction target:
 
 ```text
 sample_jozz_vehicle_lab.cpp becomes thinner
+jozz_vehicle_primitive_corner_lab.* owns the current M2.5/M3A/M3B.2.1 corner lab
 jozz_vehicle_asset_metadata.* remains metadata-only
-new debug-preview helper file only if it reduces risk
+jozz_vehicle_validation.exe validates metadata/defaults from CLI
 ```
 
 Keep commits small.
@@ -161,12 +181,14 @@ Do not delete historical docs unless Jozz explicitly asks.
 From repo root:
 
 ```powershell
-git pull --ff-only origin jozz-vehicle-sandbox-m0
-py tools\asset_audit.py
-py tools\asset_contract_audit.py
-cmake --preset windows
-cmake --build --preset windows-debug --target samples
+cmd /c "set PATH=& cmake --build --preset windows-debug --target test"
+cmd /c "set PATH=& cmake --build --preset windows-debug --target samples"
+cmd /c "set PATH=& cmake --build --preset windows-debug --target jozz_vehicle_validation"
+cmd /c "set PATH=& build\bin\Debug\test.exe"
+cmd /c "set PATH=& build\bin\Debug\jozz_vehicle_validation.exe"
 ```
+
+Run `py tools\asset_audit.py` and `py tools\asset_contract_audit.py` only when intentionally regenerating repo reports.
 
 Open:
 
@@ -185,7 +207,8 @@ Apply rig rebuild still works
 M3B semantic preview toggle works
 HUD shows M3B metadata runtime audit or fallback
 Reload metadata + reset defaults is safe
-no glTF mesh appears yet
+M3B.2.1 static textured wheel proof toggles
+static wheel mesh is visible with texture status but not attached to physics
 ```
 
 ## 10. What “done” means for this Codex pass
@@ -203,18 +226,17 @@ next gate is clearly described
 
 ## 11. Next feature after this pass
 
-Only after stabilization, prepare:
+Only after validating M3B.2.1, prepare:
 
 ```text
-M3B.2 static wheel visual mesh at origin
+M3B.3 visual-only wheel mesh attached to primitive wheel body
 ```
 
 Strict scope for that future feature:
 
 ```text
 render one wheel mesh
-at fixed debug origin
-not attached to physics
+follow the primitive wheel body transform visually
 not animated
 not skinned
 not collision

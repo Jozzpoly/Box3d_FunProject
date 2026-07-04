@@ -162,7 +162,9 @@ void HighlightMaskInit( void )
 	// the stride matching the lit geom vbo so this pipeline can share it.
 	// in_normal is declared by the lit shader at offset 12 but unused here.
 	// The shader doesn't declare it so the binding is skipped to match.
-	hullPdesc.layout.buffers[0].stride = sizeof( float ) * 6;
+	// Registered mesh buffers use MeshVertex (position, normal, uv). The
+	// mask shader reads only position, but the stride must still match.
+	hullPdesc.layout.buffers[0].stride = sizeof( MeshVertex );
 	hullPdesc.layout.attrs[ATTR_mask_hull_prog_in_pos].format = SG_VERTEXFORMAT_FLOAT3;
 	hullPdesc.layout.attrs[ATTR_mask_hull_prog_in_pos].buffer_index = 0;
 	hullPdesc.layout.attrs[ATTR_mask_hull_prog_in_pos].offset = 0;

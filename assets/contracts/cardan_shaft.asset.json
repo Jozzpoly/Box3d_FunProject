@@ -23,9 +23,36 @@
   },
   "semantics": {
     "visualParts": {
-      "firstPart": "First_Part",
-      "midPart": "Mid_Part",
-      "lastPart": "Last_Part"
+      "firstPart": {
+        "role": "cardan.visual.first_part",
+        "roleCategory": "visual_part",
+        "nameHint": "First_Part",
+        "nodeIndexHint": 0,
+        "nodePathHint": "0:First_Part",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false
+      },
+      "midPart": {
+        "role": "cardan.visual.mid_part",
+        "roleCategory": "visual_part",
+        "nameHint": "Mid_Part",
+        "nodeIndexHint": 2,
+        "nodePathHint": "2:Mid_Part",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false
+      },
+      "lastPart": {
+        "role": "cardan.visual.last_part",
+        "roleCategory": "visual_part",
+        "nameHint": "Last_Part",
+        "nodeIndexHint": 1,
+        "nodePathHint": "1:Last_Part",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false
+      }
     },
     "sockets": {}
   },

@@ -71,7 +71,16 @@ typedef struct MeshVertex
 {
 	float position[3];
 	float normal[3];
+	float texcoord[2];
 } MeshVertex;
+
+typedef struct MeshTextureData
+{
+	int width;
+	int height;
+	const uint8_t* rgba8;
+	int byteCount;
+} MeshTextureData;
 
 // Per-edge-endpoint data for the edge overlay. Two consecutive entries
 // per edge (the two endpoints). `flag` carries the Box3D edge classification
@@ -92,6 +101,8 @@ typedef struct MeshDrawSpan
 {
 	sg_buffer vbo;
 	sg_buffer ibo;
+	sg_view baseColorTextureView;
+	sg_sampler baseColorSampler;
 	int indexCount;
 	int firstInstance;
 	int instanceCount;
@@ -133,6 +144,8 @@ typedef struct MeshXpInstance
 {
 	sg_buffer vbo;
 	sg_buffer ibo;
+	sg_view baseColorTextureView;
+	sg_sampler baseColorSampler;
 	int indexCount;
 	int firstInstance;
 	b3Vec3 origin;
@@ -146,6 +159,9 @@ MeshHandle FindMesh( uint32_t hash );
 
 MeshHandle RegisterMesh( uint32_t hash, const MeshVertex* vertices, int vertexCount, const uint32_t* indices,
 								int indexCount, const char* debugLabel );
+
+MeshHandle RegisterTexturedMesh( uint32_t hash, const MeshVertex* vertices, int vertexCount, const uint32_t* indices,
+								 int indexCount, const MeshTextureData* texture, const char* debugLabel );
 
 // Optional: register an edge list for a geometry already registered via
 // RegisterMesh. Must be called at most once per registration (i.e. between
@@ -192,6 +208,7 @@ typedef enum MeshMaterialMode
 {
 	MESH_MATERIAL_MODE_SOLID = 0,
 	MESH_MATERIAL_MODE_GROUND_GRID = 1,
+	MESH_MATERIAL_MODE_TEXTURED = 2,
 } MeshMaterialMode;
 
 void AppendMesh( MeshHandle h, b3Transform transform, b3Vec3 scale, Vec4 baseColor, float metallic, float roughness,

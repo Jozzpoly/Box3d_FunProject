@@ -23,24 +23,132 @@
   },
   "semantics": {
     "sockets": {
-      "chassisMount": "Socket_ChassisMount",
-      "wheelCenter": "Socket_WheelCenter",
-      "damperUpperR": "Socket_DamperUpper_R",
-      "damperUpperL": "Socket_DamperUpper_L",
-      "damperLowerR": "Socket_DamperLower_R",
-      "damperLowerL": "Socket_DamperLower_L",
-      "cardanDrive": "Socket_CardanDrive",
-      "cardanHub": "Socket_CardanHub"
+      "chassisMount": {
+        "role": "suspension.visual.chassis_mount",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_ChassisMount",
+        "nodeIndexHint": 0,
+        "nodePathHint": "0:Socket_ChassisMount",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false
+      },
+      "wheelCenter": {
+        "role": "suspension.visual.wheel_center",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_WheelCenter",
+        "nodeIndexHint": 1,
+        "nodePathHint": "1:Socket_WheelCenter",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false
+      },
+      "damperUpperR": {
+        "role": "suspension.visual.damper_upper_r",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_DamperUpper_R",
+        "nodeIndexHint": 4,
+        "nodePathHint": "4:Socket_DamperUpper_R",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false
+      },
+      "damperUpperL": {
+        "role": "suspension.visual.damper_upper_l",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_DamperUpper_L",
+        "nodeIndexHint": 5,
+        "nodePathHint": "5:Socket_DamperUpper_L",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false
+      },
+      "damperLowerR": {
+        "role": "suspension.visual.damper_lower_r",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_DamperLower_R",
+        "nodeIndexHint": 6,
+        "nodePathHint": "6:Socket_DamperLower_R",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false
+      },
+      "damperLowerL": {
+        "role": "suspension.visual.damper_lower_l",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_DamperLower_L",
+        "nodeIndexHint": 7,
+        "nodePathHint": "7:Socket_DamperLower_L",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false
+      },
+      "cardanDrive": {
+        "role": "suspension.visual.cardan_drive",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_CardanDrive",
+        "nodeIndexHint": 8,
+        "nodePathHint": "8:Socket_CardanDrive",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false
+      },
+      "cardanHub": {
+        "role": "suspension.visual.cardan_hub",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_CardanHub",
+        "nodeIndexHint": 9,
+        "nodePathHint": "9:Socket_CardanHub",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false
+      }
     },
     "axes": {
       "suspensionTravel": [
-        "Axis_SuspensionTravel_Top",
-        "Axis_SuspensionTravel_Bottom"
+        {
+          "role": "suspension.travel_axis.top",
+          "roleCategory": "physics_hint",
+          "nameHint": "Axis_SuspensionTravel_Top",
+          "nodeIndexHint": 10,
+          "nodePathHint": "10:Axis_SuspensionTravel_Top",
+          "space": "authoring_world_after_composed_transforms",
+          "required": true,
+          "physicsAuthority": false
+        },
+        {
+          "role": "suspension.travel_axis.bottom",
+          "roleCategory": "physics_hint",
+          "nameHint": "Axis_SuspensionTravel_Bottom",
+          "nodeIndexHint": 11,
+          "nodePathHint": "11:Axis_SuspensionTravel_Bottom",
+          "space": "authoring_world_after_composed_transforms",
+          "required": true,
+          "physicsAuthority": false
+        }
       ]
     },
     "visualParts": {
-      "chassisTop": "Chassis_Top",
-      "chassisBottom": "Chassis_Bottom"
+      "chassisTop": {
+        "role": "suspension.visual.chassis_top",
+        "roleCategory": "visual_part",
+        "nameHint": "Chassis_Top",
+        "nodeIndexHint": 2,
+        "nodePathHint": "2:Chassis_Top",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false
+      },
+      "chassisBottom": {
+        "role": "suspension.visual.chassis_bottom",
+        "roleCategory": "visual_part",
+        "nameHint": "Chassis_Bottom",
+        "nodeIndexHint": 3,
+        "nodePathHint": "3:Chassis_Bottom",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false
+      }
     }
   },
   "physics": {

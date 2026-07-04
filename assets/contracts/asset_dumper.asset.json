@@ -23,9 +23,36 @@
   },
   "semantics": {
     "visualParts": {
-      "upper": "Part_Upper",
-      "stretch": "Part_Stretch",
-      "lower": "Part_Lower"
+      "upper": {
+        "role": "damper.visual.upper",
+        "roleCategory": "visual_part",
+        "nameHint": "Part_Upper",
+        "nodeIndexHint": 0,
+        "nodePathHint": "0:Part_Upper",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false
+      },
+      "stretch": {
+        "role": "damper.visual.stretch",
+        "roleCategory": "visual_part",
+        "nameHint": "Part_Stretch",
+        "nodeIndexHint": 1,
+        "nodePathHint": "1:Part_Stretch",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false
+      },
+      "lower": {
+        "role": "damper.visual.lower",
+        "roleCategory": "visual_part",
+        "nameHint": "Part_Lower",
+        "nodeIndexHint": 2,
+        "nodePathHint": "2:Part_Lower",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false
+      }
     }
   },
   "visualRig": {

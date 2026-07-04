@@ -4,6 +4,39 @@ Date: 2026-07-03
 Branch: `jozz-vehicle-sandbox-m0`  
 Input state: M2.5 primitive corner lab validated by Jozz
 
+## Current V2 status after M3B.2.1
+
+The original Foundation Grounding plan below is historical context from the M2.5 era. The active V2 grounding pass happens after:
+
+```text
+M3A asset-derived primitive defaults
+M3B semantic preview and runtime metadata
+M3B.2 static wheel visual proof
+M3B.2.1 textured wheel proof
+```
+
+V2 completion criteria:
+
+```text
+sample_jozz_vehicle_lab.cpp is thin registration/M1 smoke glue
+jozz_vehicle_primitive_corner_lab.* owns the current one-corner lab
+JozzVehicleVisualMesh exposes DrawAtTransform for future M3B.3 attach
+jozz_vehicle_validation.exe checks metadata/defaults without opening a window
+MeshVertex layout users use sizeof(MeshVertex) and offsetof where relevant
+M3B.3 remains the next feature gate, not part of this grounding pass
+```
+
+V2 still does not implement:
+
+```text
+visual wheel attachment
+alpha-masked shadow caster
+steering
+four-corner vehicle
+mesh collision
+builder
+```
+
 ## 1. Purpose
 
 The project now has a working primitive one-corner wheel-joint lab. That is a real technical milestone, but it was reached through several iterations that exposed weak points in process, documentation, hotkey ownership and architecture.

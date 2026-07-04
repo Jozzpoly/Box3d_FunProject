@@ -26,7 +26,7 @@ FetchContent_Declare(nfd
 )
 FetchContent_MakeAvailable(nfd)
 
-if(BOX3D_BUILD_SHADERS)
+if(BOX3D_BUILD_SHADERS AND (NOT SOKOL_SHDC_EXECUTABLE OR NOT EXISTS "${SOKOL_SHDC_EXECUTABLE}"))
     FetchContent_Declare(sokol_tools_bin
         GIT_REPOSITORY https://github.com/floooh/sokol-tools-bin.git
         GIT_TAG        1a9a4e54090fec42c5d13169b638f09f25474953
@@ -93,7 +93,9 @@ if(BOX3D_BUILD_SHADERS)
         set(_shdc_subdir linux)
         set(_shdc_exe    sokol-shdc)
     endif()
-    set(SOKOL_SHDC_EXECUTABLE "${sokol_tools_bin_SOURCE_DIR}/bin/${_shdc_subdir}/${_shdc_exe}" CACHE FILEPATH "Path to sokol-shdc binary")
+    if(NOT SOKOL_SHDC_EXECUTABLE OR NOT EXISTS "${SOKOL_SHDC_EXECUTABLE}")
+        set(SOKOL_SHDC_EXECUTABLE "${sokol_tools_bin_SOURCE_DIR}/bin/${_shdc_subdir}/${_shdc_exe}" CACHE FILEPATH "Path to sokol-shdc binary" FORCE)
+    endif()
     unset(_shdc_subdir)
     unset(_shdc_exe)
 endif()
@@ -116,8 +118,18 @@ set(SAMPLE_FILES
     jsmn.h
     tiny_obj_loader.h
     earcut.h
+    jozz_vehicle_asset_dimensions.cpp
+    jozz_vehicle_asset_dimensions.h
     jozz_vehicle_asset_metadata.cpp
     jozz_vehicle_asset_metadata.h
+    jozz_vehicle_debug_preview.cpp
+    jozz_vehicle_debug_preview.h
+    jozz_vehicle_image_decode.cpp
+    jozz_vehicle_image_decode.h
+    jozz_vehicle_primitive_corner_lab.cpp
+    jozz_vehicle_primitive_corner_lab.h
+    jozz_vehicle_visual_mesh.cpp
+    jozz_vehicle_visual_mesh.h
     sample_benchmark.cpp
     sample_bodies.cpp
     sample_character.cpp
@@ -143,6 +155,15 @@ set(SAMPLE_FILES
 
 add_executable(samples ${SAMPLE_FILES})
 
+add_executable(jozz_vehicle_validation
+    jozz_vehicle_validation.cpp
+    jozz_vehicle_asset_dimensions.cpp
+    jozz_vehicle_asset_dimensions.h
+    jozz_vehicle_asset_metadata.cpp
+    jozz_vehicle_asset_metadata.h
+    jsmn.h
+)
+
 if(APPLE)
     set_source_files_properties(host/sokol_app_impl.c PROPERTIES LANGUAGE OBJC)
     set_source_files_properties(host/sokol_app_impl.c PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
@@ -150,6 +171,13 @@ endif()
 
 target_include_directories(samples PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/../data")
 target_link_libraries(samples PRIVATE gfx shared imgui implot sokol nfd)
+
+target_include_directories(jozz_vehicle_validation PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+set_target_properties(jozz_vehicle_validation PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
+
+if (WIN32)
+    target_link_libraries(samples PRIVATE windowscodecs)
+endif()
 
 if (MINGW)
     target_link_libraries(samples PRIVATE winmm)

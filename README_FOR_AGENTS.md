@@ -1,7 +1,7 @@
 # README_FOR_AGENTS — Jozz Vehicle Box3D Native
 
-Status: M3A validated; M3B semantic preview validated; M3B.2-prep runtime metadata validated by Jozz screenshot; ready for Codex stabilization handoff  
-Date: 2026-07-03  
+Status: M3A/M3B validated; M3B.2.1 static textured wheel proof implemented; M3B.3 visual attach not started
+Date: 2026-07-04
 Owner/creative director: Jozz / Przemek  
 Working branch: `jozz-vehicle-sandbox-m0`
 
@@ -20,8 +20,8 @@ Current active sample:
 ```text
 Category: Jozz Vehicle
 Sample:   Lab M2 Primitive Corner
-Source:   samples/sample_jozz_vehicle_lab.cpp
-Panel:    Jozz Vehicle Lab M2.5 + M3A/M3B debug
+Source:   samples/sample_jozz_vehicle_lab.cpp + samples/jozz_vehicle_primitive_corner_lab.cpp
+Panel:    Jozz Vehicle Lab M2.5 + M3A/M3B.2.1 debug
 ```
 
 The sample host gives windowing, camera, debug draw, ImGui, input, registration and build integration. A separate executable may happen later, but it is not the current blocker.
@@ -46,7 +46,18 @@ Read in this order before making changes:
 14. `samples/sample_jozz_vehicle_lab.cpp`
 15. `samples/jozz_vehicle_asset_metadata.h`
 16. `samples/jozz_vehicle_asset_metadata.cpp`
-17. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
+17. `samples/jozz_vehicle_asset_dimensions.h`
+18. `samples/jozz_vehicle_asset_dimensions.cpp`
+19. `samples/jozz_vehicle_debug_preview.h`
+20. `samples/jozz_vehicle_debug_preview.cpp`
+21. `samples/jozz_vehicle_primitive_corner_lab.h`
+22. `samples/jozz_vehicle_primitive_corner_lab.cpp`
+23. `samples/jozz_vehicle_visual_mesh.h`
+24. `samples/jozz_vehicle_visual_mesh.cpp`
+25. `samples/jozz_vehicle_image_decode.h`
+26. `samples/jozz_vehicle_image_decode.cpp`
+27. `samples/jozz_vehicle_validation.cpp`
+28. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
 
 Useful background:
 
@@ -61,7 +72,7 @@ Useful background:
 
 ## Authoritative baseline
 
-M2.5 is still the current wheel-corner physics baseline. M3A adds asset-derived primitive defaults. M3B adds semantic preview and runtime audit metadata loading.
+M2.5 is still the current wheel-corner physics baseline. M3A adds asset-derived primitive defaults. M3B adds semantic preview and runtime audit metadata loading. M3B.2 adds one static visual-only wheel mesh proof at a fixed debug origin. M3B.2.1 adds baseColor texture loading for that same static proof.
 
 Do not override this with older M2/M2.1/M2.2/M2.3 assumptions.
 
@@ -81,7 +92,9 @@ M3 status:
 M3A: wheel radius/width and travel hint derive from asset audit metadata
 M3B.1: semantic preview is debug-only and follows correct ownership
 M3B.2-prep: runtime metadata loads asset_audit_latest.json if reachable, with fallback
-No glTF mesh rendering yet
+M3B.2: one Offroad_Big_Wheels glTF mesh primitive renders at a fixed debug origin
+M3B.2.1: that static wheel mesh can load TEXCOORD_0 + pbr baseColorTexture PNG data URI
+M3B.3: visual-only wheel mesh attach to the primitive wheel body is not started
 ```
 
 Latest Jozz validation showed:
@@ -116,7 +129,13 @@ Semantic debug preview
 Runtime metadata
   - reads audit report when reachable
   - falls back safely when not reachable
-  - no raw glTF mesh loading yet
+
+Static visual proof
+  - loads a narrow subset of Offroad_Big_Wheels.gltf
+  - supports one baseColor PNG data URI through WIC on Windows
+  - draws one mesh at a fixed debug origin
+  - not attached to physics
+  - no material/skin/animation/collision/full importer yet
 ```
 
 ## Current assets
@@ -139,6 +158,17 @@ Runtime metadata code:
 ```text
 samples/jozz_vehicle_asset_metadata.h
 samples/jozz_vehicle_asset_metadata.cpp
+```
+
+Current visual-only proof code:
+
+```text
+samples/jozz_vehicle_primitive_corner_lab.h
+samples/jozz_vehicle_primitive_corner_lab.cpp
+samples/jozz_vehicle_visual_mesh.h
+samples/jozz_vehicle_visual_mesh.cpp
+samples/jozz_vehicle_image_decode.h
+samples/jozz_vehicle_image_decode.cpp
 ```
 
 Asset audit tools:
@@ -168,6 +198,7 @@ Before adding any shortcut, check and update:
 2. `samples/main.cpp`
 3. `samples/gfx/keycodes.h`
 4. `samples/sample_jozz_vehicle_lab.cpp`
+5. `samples/jozz_vehicle_primitive_corner_lab.cpp`
 
 ## Non-negotiables
 
@@ -186,27 +217,17 @@ Before adding any shortcut, check and update:
 
 ## Immediate next engineering target
 
-The next pass should be Codex stabilization, not a big feature sprint.
-
-Use:
+The next small feature gate is:
 
 ```text
-docs/CODEX_HANDOFF_M3_STABILIZATION_IMPORT_PREP_PL.md
-docs/CODEX_START_PROMPT_M3_STABILIZATION_PL.md
+M3B.3 visual-only wheel mesh attached to primitive wheel body
 ```
 
-After stabilization, the next small feature gate may be:
-
-```text
-M3B.2 static wheel visual mesh at origin
-```
-
-Strict scope for that future gate:
+Strict scope for that gate:
 
 ```text
 one wheel mesh
-fixed debug origin
-not attached to physics
+attached visually to the primitive wheel body transform
 not animated
 not skinned
 not collision
@@ -218,11 +239,20 @@ not full vehicle
 From repo root:
 
 ```powershell
-git pull --ff-only origin jozz-vehicle-sandbox-m0
+cmd /c "set PATH=& cmake --build --preset windows-debug --target test"
+cmd /c "set PATH=& cmake --build --preset windows-debug --target samples"
+cmd /c "set PATH=& cmake --build --preset windows-debug --target jozz_vehicle_validation"
+cmd /c "set PATH=& build\bin\Debug\test.exe"
+cmd /c "set PATH=& build\bin\Debug\jozz_vehicle_validation.exe"
+```
+
+In Codex/PowerShell on Windows, use the `cmd /c "set PATH=& ..."` wrapper if MSBuild fails with duplicate `Path/PATH` environment keys. Treat that as an environment issue, not a Box3D code issue.
+
+Run asset report generators only when you intentionally want to rewrite reports:
+
+```powershell
 py tools\asset_audit.py
 py tools\asset_contract_audit.py
-cmake --preset windows
-cmake --build --preset windows-debug --target samples
 ```
 
 Open:
@@ -240,5 +270,7 @@ Apply rig rebuild works
 M3B semantic preview draws
 HUD shows M3B metadata runtime audit or fallback
 Reload metadata + reset defaults is safe
-no glTF mesh appears yet
+M3B.2.1 static textured wheel proof can be toggled
+static wheel mesh is visible but not attached to physics
+texture status reports loaded baseColor or a solid fallback reason
 ```

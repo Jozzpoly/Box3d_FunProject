@@ -20,6 +20,10 @@ typedef struct Entry
 	int refCount; // 0 means free
 	sg_buffer vbo;
 	sg_buffer ibo;
+	sg_image baseColorImage;
+	sg_view baseColorTextureView;
+	sg_sampler baseColorSampler;
+	bool hasBaseColorTexture;
 	int indexCount;
 	MeshKind kind; // shape-kind tag, default UNKNOWN
 
@@ -84,6 +88,10 @@ static struct
 	MeshXpInstance xpDraws[MAX_GEOM_XP_INSTANCES_GLOBAL];
 	int xpDrawCount;
 
+	sg_image fallbackWhiteImage;
+	sg_view fallbackWhiteTextureView;
+	sg_sampler fallbackWhiteSampler;
+
 	// per-entry edge batches, rebuilt by UploadMeshInstances.
 	// Two slots per entry (opaque + xp) so the cap is 2 x MAX_REGISTRY.
 	MeshEdgeBatch edgeBatches[2 * MAX_REGISTRY_ENTRIES];
@@ -116,6 +124,29 @@ void CreateMeshRegistry( void )
 	xpvdesc.label = "geom_instances_xp_view";
 	s_geom.xpInstView = sg_make_view( &xpvdesc );
 
+	static const uint8_t whitePixel[4] = { 255u, 255u, 255u, 255u };
+	sg_image_desc whiteDesc = { 0 };
+	whiteDesc.width = 1;
+	whiteDesc.height = 1;
+	whiteDesc.pixel_format = SG_PIXELFORMAT_RGBA8;
+	whiteDesc.data.mip_levels[0].ptr = whitePixel;
+	whiteDesc.data.mip_levels[0].size = sizeof( whitePixel );
+	whiteDesc.label = "geom_fallback_white_texture";
+	s_geom.fallbackWhiteImage = sg_make_image( &whiteDesc );
+
+	sg_view_desc whiteViewDesc = { 0 };
+	whiteViewDesc.texture.image = s_geom.fallbackWhiteImage;
+	whiteViewDesc.label = "geom_fallback_white_texture_view";
+	s_geom.fallbackWhiteTextureView = sg_make_view( &whiteViewDesc );
+
+	sg_sampler_desc whiteSamplerDesc = { 0 };
+	whiteSamplerDesc.min_filter = SG_FILTER_NEAREST;
+	whiteSamplerDesc.mag_filter = SG_FILTER_NEAREST;
+	whiteSamplerDesc.wrap_u = SG_WRAP_CLAMP_TO_EDGE;
+	whiteSamplerDesc.wrap_v = SG_WRAP_CLAMP_TO_EDGE;
+	whiteSamplerDesc.label = "geom_fallback_white_sampler";
+	s_geom.fallbackWhiteSampler = sg_make_sampler( &whiteSamplerDesc );
+
 	s_geom.uploadScratch = NULL;
 	s_geom.uploadScratchCap = 0;
 	s_geom.xpUploadScratch = NULL;
@@ -136,6 +167,12 @@ void DestroyMeshRegistry( void )
 		{
 			sg_destroy_buffer( e->ibo );
 			sg_destroy_buffer( e->vbo );
+			if ( e->hasBaseColorTexture )
+			{
+				sg_destroy_sampler( e->baseColorSampler );
+				sg_destroy_view( e->baseColorTextureView );
+				sg_destroy_image( e->baseColorImage );
+			}
 			if ( e->edgeCount > 0 )
 			{
 				sg_destroy_view( e->edgeStorageView );
@@ -162,6 +199,9 @@ void DestroyMeshRegistry( void )
 	sg_destroy_buffer( s_geom.xpInstBuf );
 	sg_destroy_view( s_geom.instView );
 	sg_destroy_buffer( s_geom.instBuf );
+	sg_destroy_sampler( s_geom.fallbackWhiteSampler );
+	sg_destroy_view( s_geom.fallbackWhiteTextureView );
+	sg_destroy_image( s_geom.fallbackWhiteImage );
 }
 
 MeshHandle FindMesh( uint32_t hash )
@@ -200,8 +240,8 @@ static int FindFreeSlot( void )
 	return s_geom.entryCount++;
 }
 
-MeshHandle RegisterMesh( uint32_t hash, const MeshVertex* vertices, int vertexCount, const uint32_t* indices,
-								int indexCount, const char* debugLabel )
+static MeshHandle RegisterMeshInternal( uint32_t hash, const MeshVertex* vertices, int vertexCount, const uint32_t* indices,
+										int indexCount, const MeshTextureData* texture, const char* debugLabel )
 {
 	assert( hash != 0u );
 	assert( vertexCount > 0 );
@@ -232,11 +272,69 @@ MeshHandle RegisterMesh( uint32_t hash, const MeshVertex* vertices, int vertexCo
 	ibDesc.label = debugLabel ? debugLabel : "geom_ibo";
 	sg_buffer ibo = sg_make_buffer( &ibDesc );
 
+	sg_image baseColorImage = { 0 };
+	sg_view baseColorTextureView = { 0 };
+	sg_sampler baseColorSampler = { 0 };
+	bool hasBaseColorTexture = false;
+	if ( texture != NULL && texture->width > 0 && texture->height > 0 && texture->rgba8 != NULL &&
+		 texture->byteCount >= texture->width * texture->height * 4 )
+	{
+		sg_image_desc imageDesc = { 0 };
+		imageDesc.width = texture->width;
+		imageDesc.height = texture->height;
+		// glTF baseColor textures are authored in sRGB. Sample them through
+		// an sRGB view so the lighting shader receives linear RGB values.
+		imageDesc.pixel_format = SG_PIXELFORMAT_SRGB8A8;
+		imageDesc.data.mip_levels[0].ptr = texture->rgba8;
+		imageDesc.data.mip_levels[0].size = (size_t)texture->byteCount;
+		imageDesc.label = debugLabel ? debugLabel : "geom_base_color_texture";
+		baseColorImage = sg_make_image( &imageDesc );
+
+		if ( sg_query_image_state( baseColorImage ) == SG_RESOURCESTATE_VALID )
+		{
+			sg_view_desc viewDesc = { 0 };
+			viewDesc.texture.image = baseColorImage;
+			viewDesc.label = debugLabel ? debugLabel : "geom_base_color_texture_view";
+			baseColorTextureView = sg_make_view( &viewDesc );
+		}
+
+		if ( sg_query_view_state( baseColorTextureView ) == SG_RESOURCESTATE_VALID )
+		{
+			sg_sampler_desc samplerDesc = { 0 };
+			samplerDesc.min_filter = SG_FILTER_NEAREST;
+			samplerDesc.mag_filter = SG_FILTER_NEAREST;
+			samplerDesc.wrap_u = SG_WRAP_CLAMP_TO_EDGE;
+			samplerDesc.wrap_v = SG_WRAP_CLAMP_TO_EDGE;
+			samplerDesc.label = debugLabel ? debugLabel : "geom_base_color_sampler";
+			baseColorSampler = sg_make_sampler( &samplerDesc );
+		}
+
+		if ( sg_query_image_state( baseColorImage ) == SG_RESOURCESTATE_VALID &&
+			 sg_query_view_state( baseColorTextureView ) == SG_RESOURCESTATE_VALID &&
+			 sg_query_sampler_state( baseColorSampler ) == SG_RESOURCESTATE_VALID )
+		{
+			hasBaseColorTexture = true;
+		}
+	}
+
 	// A full GPU buffer pool returns an invalid handle. Bail before committing
 	// the slot so a huge recording drops geometry instead of crashing. The
 	// slot stays free (refCount 0) for the next caller.
-	if ( sg_query_buffer_state( vbo ) != SG_RESOURCESTATE_VALID || sg_query_buffer_state( ibo ) != SG_RESOURCESTATE_VALID )
+	if ( sg_query_buffer_state( vbo ) != SG_RESOURCESTATE_VALID || sg_query_buffer_state( ibo ) != SG_RESOURCESTATE_VALID ||
+		 ( texture != NULL && hasBaseColorTexture == false ) )
 	{
+		if ( baseColorSampler.id )
+		{
+			sg_destroy_sampler( baseColorSampler );
+		}
+		if ( baseColorTextureView.id )
+		{
+			sg_destroy_view( baseColorTextureView );
+		}
+		if ( baseColorImage.id )
+		{
+			sg_destroy_image( baseColorImage );
+		}
 		sg_destroy_buffer( ibo );
 		sg_destroy_buffer( vbo );
 		return InvalidMeshHandle();
@@ -244,6 +342,10 @@ MeshHandle RegisterMesh( uint32_t hash, const MeshVertex* vertices, int vertexCo
 
 	e->vbo = vbo;
 	e->ibo = ibo;
+	e->baseColorImage = baseColorImage;
+	e->baseColorTextureView = baseColorTextureView;
+	e->baseColorSampler = baseColorSampler;
+	e->hasBaseColorTexture = hasBaseColorTexture;
 	e->hash = hash;
 	e->refCount = 1;
 	e->indexCount = indexCount;
@@ -259,6 +361,18 @@ MeshHandle RegisterMesh( uint32_t hash, const MeshVertex* vertices, int vertexCo
 
 	MeshHandle h = { slot, hash };
 	return h;
+}
+
+MeshHandle RegisterMesh( uint32_t hash, const MeshVertex* vertices, int vertexCount, const uint32_t* indices,
+								int indexCount, const char* debugLabel )
+{
+	return RegisterMeshInternal( hash, vertices, vertexCount, indices, indexCount, NULL, debugLabel );
+}
+
+MeshHandle RegisterTexturedMesh( uint32_t hash, const MeshVertex* vertices, int vertexCount, const uint32_t* indices,
+								 int indexCount, const MeshTextureData* texture, const char* debugLabel )
+{
+	return RegisterMeshInternal( hash, vertices, vertexCount, indices, indexCount, texture, debugLabel );
 }
 
 void RegisterMeshEdges( MeshHandle h, const EdgeVertex* edges, int edgeCount, const char* debugLabel )
@@ -423,6 +537,12 @@ void ReleaseMeshReference( MeshHandle h )
 	{
 		sg_destroy_buffer( e->ibo );
 		sg_destroy_buffer( e->vbo );
+		if ( e->hasBaseColorTexture )
+		{
+			sg_destroy_sampler( e->baseColorSampler );
+			sg_destroy_view( e->baseColorTextureView );
+			sg_destroy_image( e->baseColorImage );
+		}
 		if ( e->edgeCount > 0 )
 		{
 			sg_destroy_view( e->edgeStorageView );
@@ -430,6 +550,10 @@ void ReleaseMeshReference( MeshHandle h )
 		}
 		e->hash = 0u;
 		e->indexCount = 0;
+		e->baseColorImage.id = 0;
+		e->baseColorTextureView.id = 0;
+		e->baseColorSampler.id = 0;
+		e->hasBaseColorTexture = false;
 		e->edgeBuf.id = SG_INVALID_ID;
 		e->edgeStorageView.id = SG_INVALID_ID;
 		e->edgeCount = 0;
@@ -478,24 +602,30 @@ static void PackMat4ToInstance( const Mat4* transform, b3Vec3 scale, Vec4 baseCo
 	inst->scale.z = scale.z;
 	inst->scale.w = 0.0f;
 
-	// overload material.w with the shadow-cast bit for SOLID shapes.
-	// GROUND_GRID's gridCellSize stays put, the geom FS reads material.w
-	// only inside the GROUND_GRID branch (`v_material.z > 0.5`), so SOLID
-	// shapes can repurpose the slot. Ground shapes are always opaque +
-	// FULL by usage, the dual use is safe by construction. Renderer-side
-	// shadow-cast queries go through MeshXpInstance.shadowCast, not
-	// material.w, so this packing is purely about keeping the GPU
-	// instance-struct stride unchanged.
+	// Overload material.w by mode to keep the GPU instance stride unchanged:
+	// ground grid uses gridCellSize, textured meshes use alphaCutoff, solid
+	// transparent meshes use it as the shadow-cast bit.
 	const bool isGround = ( materialMode == MESH_MATERIAL_MODE_GROUND_GRID );
+	const bool isTextured = ( materialMode == MESH_MATERIAL_MODE_TEXTURED );
 	inst->material.x = metallic;
 	inst->material.y = roughness;
 	inst->material.z = (float)materialMode;
-	inst->material.w = isGround ? gridCellSize : ( ( shadowCast == TRANSPARENT_SHADOW_FULL ) ? 1.0f : 0.0f );
+	inst->material.w = ( isGround || isTextured ) ? gridCellSize : ( ( shadowCast == TRANSPARENT_SHADOW_FULL ) ? 1.0f : 0.0f );
 }
 
 static b3Vec3 GetOriginFromInstance( const geom_instance_t* inst )
 {
 	return (b3Vec3){ inst->xform_row0.w, inst->xform_row1.w, inst->xform_row2.w };
+}
+
+static sg_view GetEntryBaseColorTextureView( const Entry* e )
+{
+	return e->hasBaseColorTexture ? e->baseColorTextureView : s_geom.fallbackWhiteTextureView;
+}
+
+static sg_sampler GetEntryBaseColorSampler( const Entry* e )
+{
+	return e->hasBaseColorTexture ? e->baseColorSampler : s_geom.fallbackWhiteSampler;
 }
 
 void AppendMesh( MeshHandle h, b3Transform transform, b3Vec3 scale, Vec4 baseColor, float metallic, float roughness,
@@ -607,6 +737,8 @@ int UploadMeshInstances( void )
 				MeshDrawSpan span;
 				span.vbo = e->vbo;
 				span.ibo = e->ibo;
+				span.baseColorTextureView = GetEntryBaseColorTextureView( e );
+				span.baseColorSampler = GetEntryBaseColorSampler( e );
 				span.indexCount = e->indexCount;
 				span.firstInstance = opaqueCursor;
 				span.instanceCount = posCount;
@@ -617,6 +749,8 @@ int UploadMeshInstances( void )
 				MeshDrawSpan span;
 				span.vbo = e->vbo;
 				span.ibo = e->ibo;
+				span.baseColorTextureView = GetEntryBaseColorTextureView( e );
+				span.baseColorSampler = GetEntryBaseColorSampler( e );
 				span.indexCount = e->indexCount;
 				span.firstInstance = opaqueCursor + posCount;
 				span.instanceCount = negCount;
@@ -699,13 +833,15 @@ int UploadMeshInstances( void )
 				MeshXpInstance d;
 				d.vbo = e->vbo;
 				d.ibo = e->ibo;
+				d.baseColorTextureView = GetEntryBaseColorTextureView( e );
+				d.baseColorSampler = GetEntryBaseColorSampler( e );
 				d.indexCount = e->indexCount;
 				d.firstInstance = xpCursor + k;
 				d.origin = GetOriginFromInstance( src );
-				// shadowCast is packed into material.w for SOLID shapes,
-				// GROUND_GRID can't be transparent in practice (ground
-				// shapes are submitted opaque), so reading material.w as
-				// the cast bit is safe for everything that lands here.
+				// shadowCast is packed into material.w for SOLID transparent
+				// shapes. Textured transparent geom is out of scope for the
+				// current visual proof, so this path preserves the existing
+				// solid-mesh behavior.
 				d.shadowCast = src->material.w;
 				s_geom.xpDraws[s_geom.xpDrawCount++] = d;
 			}

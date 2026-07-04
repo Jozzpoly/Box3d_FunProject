@@ -1,6 +1,6 @@
 # Asset Contract v2 Draft — Jozz Vehicle
 
-Status: draft, hardened after M2.5 foundation grounding  
+Status: draft, first sidecars hardened with stable binding hints
 Date: 2026-07-03
 
 ## Purpose
@@ -98,12 +98,14 @@ This value is **not final**. It is a prototype constant, but it must be centrali
 The sidecar must eventually distinguish between these concepts:
 
 ```text
-nameHint      human-readable expected node name, not unique identity
-nodeIndex     exact glTF node index from the audited source file
-nodePath      stable parent-chain path when available
-role          semantic gameplay/import role
-space         authoring space / game space / local node space
-required      whether missing binding is error or warning
+nameHint        human-readable expected node name, not unique identity
+nodeIndexHint   audited glTF node index hint, validated against name/path
+nodePathHint    stable parent-chain path when available
+role            semantic gameplay/import role
+roleCategory    visual_endpoint / physics_hint / physics_authority / etc.
+physicsAuthority whether the binding may define physics behavior
+space           authoring space / game space / local node space
+required        whether missing binding is error or warning
 ```
 
 Draft binding object:
@@ -111,8 +113,11 @@ Draft binding object:
 ```json
 {
   "role": "wheel.spinAxis.a",
+  "roleCategory": "visual_endpoint",
   "nameHint": "Axis_WheelSpin_A",
   "nodeIndexHint": 6,
+  "nodePathHint": "12:Big_Wheel/11:Big_Wheel/6:Axis_WheelSpin_A",
+  "physicsAuthority": false,
   "required": true,
   "space": "authoring_world_after_composed_transforms",
   "notes": "Name is not unique identity. Importer must resolve and validate path/index."
@@ -122,6 +127,8 @@ Draft binding object:
 Why this matters:
 
 Current glTF exports have duplicate root/node names. A future importer that does `findNodeByName()` and assumes uniqueness will be broken by design.
+
+Current sidecars already use this object shape for sockets, axes, markers and visual parts. The current audit tool still accepts legacy string bindings, but reports richer metadata when the object shape is present.
 
 ## Role categories
 
@@ -245,20 +252,22 @@ Future `tools/asset_audit.py --validate-contracts` should check:
 
 1. every contract source file exists;
 2. every required semantic name resolves to at least one node;
-3. duplicate names are detected and contract does not rely on ambiguous name-only binding;
-4. required wheel markers exist;
-5. wheel radius and width marker distances are plausible;
-6. suspension travel axis exists and has plausible length;
-7. damper visual parts exist;
-8. cardan missing semantic nodes are reported as expected warning/error based on contract status;
-9. all contracts share the same prototype scale or explicitly explain why not;
-10. generated markdown report includes warnings severe enough that future agents cannot ignore them.
+3. every `nodeIndexHint` is in range and points to the expected node name;
+4. every runtime-bound semantic has `nodePathHint`, `role`, and `roleCategory`;
+5. duplicate names are detected and contract does not rely on ambiguous name-only binding;
+6. required wheel markers exist;
+7. wheel radius and width marker distances are plausible;
+8. suspension travel axis exists and has plausible length;
+9. damper visual parts exist;
+10. cardan missing semantic nodes are reported as expected warning/error based on contract status;
+11. all contracts share the same prototype scale or explicitly explain why not;
+12. generated markdown report includes warnings severe enough that future agents cannot ignore them.
 
 ## M3A contract stance
 
 M3A may use current contracts and audit data as **offline/reference input**.
 
-M3A should not yet require runtime JSON parsing.
+M3A should not require raw glTF mesh import or physics authority from visual markers.
 
 The safest M3A path is:
 
@@ -267,6 +276,8 @@ centralize asset-derived constants in code with comments pointing to audited mar
 ```
 
 A later M3A.1 can load the same constants from JSON once contract validation is stronger.
+
+Current M3B/M3B.2 state still uses the audit metadata bridge for semantic positions and a narrow static visual proof for one wheel mesh. Final runtime import should move toward the sidecar contract rather than depending forever on `asset_audit_latest.json`.
 
 ## Final warning
 

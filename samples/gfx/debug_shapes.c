@@ -245,18 +245,24 @@ static bool EmitFlatTriangle( BuildBuffer* b, b3Vec3 p0, b3Vec3 p1, b3Vec3 p2, b
 	v[0].normal[0] = normal.x;
 	v[0].normal[1] = normal.y;
 	v[0].normal[2] = normal.z;
+	v[0].texcoord[0] = 0.0f;
+	v[0].texcoord[1] = 0.0f;
 	v[1].position[0] = p1.x;
 	v[1].position[1] = p1.y;
 	v[1].position[2] = p1.z;
 	v[1].normal[0] = normal.x;
 	v[1].normal[1] = normal.y;
 	v[1].normal[2] = normal.z;
+	v[1].texcoord[0] = 0.0f;
+	v[1].texcoord[1] = 0.0f;
 	v[2].position[0] = p2.x;
 	v[2].position[1] = p2.y;
 	v[2].position[2] = p2.z;
 	v[2].normal[0] = normal.x;
 	v[2].normal[1] = normal.y;
 	v[2].normal[2] = normal.z;
+	v[2].texcoord[0] = 0.0f;
+	v[2].texcoord[1] = 0.0f;
 
 	const uint32_t base = (uint32_t)b->vertexCount;
 	b->indices[b->indexCount + 0] = base + 0u;

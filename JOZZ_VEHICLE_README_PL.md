@@ -1,8 +1,8 @@
 # Jozz Vehicle Box3D Native — README PL
 
-Date: 2026-07-03  
+Date: 2026-07-04
 Branch: `jozz-vehicle-sandbox-m0`  
-Status: dokument wejściowy dla gałęzi Jozz Vehicle po M2.5 + M3A + M3B semantic preview
+Status: dokument wejściowy dla gałęzi Jozz Vehicle po M2.5 + M3A + M3B.2.1 static textured visual proof
 
 ## Co to jest
 
@@ -16,7 +16,7 @@ Ważne: główny `README.md` nadal opisuje upstream Box3D. To nie jest błąd. T
 
 Aktualnie projekt nie ma jeszcze osobnego executable dla Jozz Vehicle.
 
-Praktyczna rzeczywistość po M2.5/M3A/M3B.1:
+Praktyczna rzeczywistość po M2.5/M3A/M3B.2.1:
 
 ```text
 Jozz Vehicle działa jako lab w istniejącym Box3D samples host.
@@ -27,13 +27,13 @@ Aktywny sample:
 ```text
 Category: Jozz Vehicle
 Sample:   Lab M2 Primitive Corner
-Panel:    Jozz Vehicle Lab M2.5 + M3A/M3B debug
+Panel:    Jozz Vehicle Lab M2.5 + M3A/M3B.2.1 debug
 Source:   samples/sample_jozz_vehicle_lab.cpp
 ```
 
 To jest świadomy wybór na ten etap. Sample host daje już okno, kamerę, ImGui, debug draw, input i integrację z buildem, więc nie tracimy czasu na przepisywanie fundamentu zanim fizyka narożnika jest dobrze ugruntowana.
 
-## Co działa w M2.5/M3A/M3B.1
+## Co działa w M2.5/M3A/M3B.2.1
 
 Ręcznie zwalidowany baseline M2.5:
 
@@ -61,6 +61,21 @@ M3B.1 dodaje:
 - debugowy schemat osi travel zawieszenia;
 - brak mesh renderingu i brak wpływu na fizykę.
 
+M3B.2 dodaje:
+
+- statyczny visual-only proof dla `Offroad_Big_Wheels.gltf`;
+- jeden mesh rysowany przy stałym debug originie;
+- checkbox `M3B.2.1 static textured wheel proof`;
+- brak attachu do fizyki, brak animacji, brak skinningu, brak kolizji mesh i brak pełnego importera glTF.
+
+M3B.2.1 dodaje:
+
+- minimalny textured mesh path w rendererze samples;
+- `TEXCOORD_0` + `pbrMetallicRoughness.baseColorTexture`;
+- PNG data URI decode przez izolowany helper Windows/WIC;
+- status UI typu `texture: loaded baseColor 256x256`;
+- fallback solid-color z czytelnym powodem, jeśli tekstura nie przejdzie.
+
 Najważniejsza lekcja fizyki:
 
 ```text
@@ -76,11 +91,18 @@ Nie wracamy do modelu, w którym Frame A jest wizualnym mountem amortyzatora/cha
 Z katalogu głównego repo:
 
 ```powershell
-git pull --ff-only origin jozz-vehicle-sandbox-m0
+cmd /c "set PATH=& cmake --build --preset windows-debug --target test"
+cmd /c "set PATH=& cmake --build --preset windows-debug --target samples"
+cmd /c "set PATH=& build\bin\Debug\test.exe"
+```
+
+W Codex/PowerShell na Windows zwykły build może potknąć się o zduplikowane klucze środowiska `Path/PATH` w MSBuild. Wtedy używaj wrappera `cmd /c "set PATH=& ..."` i traktuj ten błąd jako problem środowiska, nie kodu.
+
+Audyt assetów uruchamiaj świadomie, bo zapisuje raporty w repo:
+
+```powershell
 py tools\asset_audit.py
 py tools\asset_contract_audit.py
-cmake --preset windows
-cmake --build --preset windows-debug --target samples
 ```
 
 Po buildzie uruchom `samples.exe` z wygenerowanego katalogu build dla konfiguracji debug/release i wybierz sample z listy:
@@ -92,7 +114,7 @@ Jozz Vehicle / Lab M2 Primitive Corner
 Panel po prawej powinien pokazywać:
 
 ```text
-Jozz Vehicle Lab M2.5 + M3A/M3B debug
+Jozz Vehicle Lab M2.5 + M3A/M3B.2.1 debug
 ```
 
 Sprawdź też checkbox:
@@ -135,6 +157,14 @@ Najważniejsze pliki:
 12. `assets/README.md`
 13. `assets/reports/asset_audit_latest.md`
 14. `samples/sample_jozz_vehicle_lab.cpp`
+15. `samples/jozz_vehicle_asset_metadata.h`
+16. `samples/jozz_vehicle_asset_metadata.cpp`
+17. `samples/jozz_vehicle_asset_dimensions.h`
+18. `samples/jozz_vehicle_asset_dimensions.cpp`
+19. `samples/jozz_vehicle_debug_preview.h`
+20. `samples/jozz_vehicle_debug_preview.cpp`
+21. `samples/jozz_vehicle_visual_mesh.h`
+22. `samples/jozz_vehicle_visual_mesh.cpp`
 
 ## Aktualne assety
 
@@ -160,6 +190,8 @@ py tools\asset_contract_audit.py
 
 Aktualne glTF-y są traktowane jako research/startup assets, nie finalne produkcyjne kontrakty. Mają duplikaty nazw node'ów i nie wolno ufać samym nazwom bez indeksu/ścieżki/parent chain i złożonych transformów.
 
+Kontrakty assetów używają teraz bindingów z `nameHint`, `nodeIndexHint`, `nodePathHint`, `role`, `roleCategory` i `physicsAuthority`. Nazwa node'a jest tylko hintem dla człowieka i walidacji, nie unikalnym ID runtime.
+
 ## Czego teraz nie robić
 
 Na aktualnym etapie nie zaczynać:
@@ -176,14 +208,10 @@ Na aktualnym etapie nie zaczynać:
 
 ## Najbliższy zalecany krok
 
-Najpierw zwalidować lokalnie M3B.1.
-
-Po walidacji nie skakać od razu w pełny rig/import. Najbezpieczniejsze następne techniczne gate'y:
+Nie skakać od razu w pełny rig/import ani builder. Najbezpieczniejszy następny techniczny gate:
 
 ```text
-M3B.1 polish — labels/legend for semantic preview
-M3B.2-prep — runtime metadata loading without mesh rendering
-M3B.2 — render one static visual wheel mesh at origin
+M3B.3 — visual-only wheel mesh attached to primitive wheel body
 ```
 
-Czyli najpierw dopracowanie/metadata, dopiero później visual-only wheel mesh attachment.
+Zakres M3B.3: jeden mesh koła, tylko wizualny attach do transformu primitive wheel body, bez animacji, skinningu, mesh collision, pełnego auta i buildera.

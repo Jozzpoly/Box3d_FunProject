@@ -806,13 +806,16 @@ void InitRenderer( const sg_environment* env )
 
 	sg_pipeline_desc geomPdesc = { 0 };
 	geomPdesc.shader = s_gfx.geomShader;
-	geomPdesc.layout.buffers[0].stride = sizeof( float ) * 6;
+	geomPdesc.layout.buffers[0].stride = sizeof( MeshVertex );
 	geomPdesc.layout.attrs[ATTR_geom_triangle_in_pos].format = SG_VERTEXFORMAT_FLOAT3;
 	geomPdesc.layout.attrs[ATTR_geom_triangle_in_pos].buffer_index = 0;
 	geomPdesc.layout.attrs[ATTR_geom_triangle_in_pos].offset = 0;
 	geomPdesc.layout.attrs[ATTR_geom_triangle_in_normal].format = SG_VERTEXFORMAT_FLOAT3;
 	geomPdesc.layout.attrs[ATTR_geom_triangle_in_normal].buffer_index = 0;
-	geomPdesc.layout.attrs[ATTR_geom_triangle_in_normal].offset = sizeof( float ) * 3;
+	geomPdesc.layout.attrs[ATTR_geom_triangle_in_normal].offset = offsetof( MeshVertex, normal );
+	geomPdesc.layout.attrs[ATTR_geom_triangle_in_uv].format = SG_VERTEXFORMAT_FLOAT2;
+	geomPdesc.layout.attrs[ATTR_geom_triangle_in_uv].buffer_index = 0;
+	geomPdesc.layout.attrs[ATTR_geom_triangle_in_uv].offset = offsetof( MeshVertex, texcoord );
 	geomPdesc.index_type = SG_INDEXTYPE_UINT32;
 	geomPdesc.colors[0].pixel_format = SG_PIXELFORMAT_RGBA16F;
 	geomPdesc.color_count = 1;
@@ -879,7 +882,7 @@ void InitRenderer( const sg_environment* env )
 	// Stride matches the lit geom pipeline (position+normal interleaved),
 	// but the caster shader only declares in_pos, the normal slot in
 	// each vertex is skipped, which is fine.
-	shadowGeomPdesc.layout.buffers[0].stride = sizeof( float ) * 6;
+	shadowGeomPdesc.layout.buffers[0].stride = sizeof( MeshVertex );
 	shadowGeomPdesc.layout.attrs[ATTR_shadow_geom_caster_in_pos].format = SG_VERTEXFORMAT_FLOAT3;
 	shadowGeomPdesc.layout.attrs[ATTR_shadow_geom_caster_in_pos].buffer_index = 0;
 	shadowGeomPdesc.layout.attrs[ATTR_shadow_geom_caster_in_pos].offset = 0;
@@ -1056,7 +1059,7 @@ void InitRenderer( const sg_environment* env )
 
 	sg_pipeline_desc dnGeomPdesc = { 0 };
 	dnGeomPdesc.shader = s_gfx.depthOnlyGeomShader;
-	dnGeomPdesc.layout.buffers[0].stride = sizeof( float ) * 6;
+	dnGeomPdesc.layout.buffers[0].stride = sizeof( MeshVertex );
 	dnGeomPdesc.layout.attrs[ATTR_depth_only_geom_prog_in_pos].format = SG_VERTEXFORMAT_FLOAT3;
 	dnGeomPdesc.layout.attrs[ATTR_depth_only_geom_prog_in_pos].buffer_index = 0;
 	dnGeomPdesc.layout.attrs[ATTR_depth_only_geom_prog_in_pos].offset = 0;
@@ -1901,10 +1904,12 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 				bindings.views[VIEW_geom_tex_ibl_spec] = iblSpecView;
 				bindings.views[VIEW_geom_tex_brdf_lut] = iblLutView;
 				bindings.views[VIEW_geom_tex_ao] = aoView;
+				bindings.views[VIEW_geom_tex_base_color] = span.baseColorTextureView;
 				bindings.samplers[SMP_geom_smp_shadow] = shadowSampler;
 				bindings.samplers[SMP_geom_smp_ibl_spec] = iblSpecSampler;
 				bindings.samplers[SMP_geom_smp_brdf_lut] = iblLutSampler;
 				bindings.samplers[SMP_geom_smp_ao] = aoSampler;
+				bindings.samplers[SMP_geom_smp_base_color] = span.baseColorSampler;
 				sg_apply_bindings( &bindings );
 
 				geom_ub_draw_t gud = { 0 };
@@ -2515,10 +2520,12 @@ static void DrawTransparentIntoResolve( int width, int height, const FrameInput*
 					b.views[VIEW_geom_tex_ibl_spec] = iblSpecView;
 					b.views[VIEW_geom_tex_brdf_lut] = iblLutView;
 					b.views[VIEW_geom_tex_ao] = aoView;
+					b.views[VIEW_geom_tex_base_color] = xp.baseColorTextureView;
 					b.samplers[SMP_geom_smp_shadow] = shadowSampler;
 					b.samplers[SMP_geom_smp_ibl_spec] = iblSpecSampler;
 					b.samplers[SMP_geom_smp_brdf_lut] = iblLutSampler;
 					b.samplers[SMP_geom_smp_ao] = aoSampler;
+					b.samplers[SMP_geom_smp_base_color] = xp.baseColorSampler;
 					sg_apply_bindings( &b );
 					currentGeomVbo = xp.vbo;
 					currentGeomIbo = xp.ibo;
