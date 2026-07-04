@@ -16,6 +16,7 @@ FetchContent_Declare(implot
 )
 FetchContent_MakeAvailable(implot)
 
+# nativefiledialog-extended for the Replay open dialog. Native OS file picker, target nfd.
 set(NFD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(NFD_INSTALL OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(nfd
@@ -26,15 +27,22 @@ FetchContent_Declare(nfd
 )
 FetchContent_MakeAvailable(nfd)
 
+# The shader compiler is only needed when recompiling shaders. A fresh clone
+# with BOX3D_BUILD_SHADERS=OFF builds from the committed headers and skips this.
+# Jozz: skip the download when a usable SOKOL_SHDC_EXECUTABLE is already provided.
 if(BOX3D_BUILD_SHADERS AND (NOT SOKOL_SHDC_EXECUTABLE OR NOT EXISTS "${SOKOL_SHDC_EXECUTABLE}"))
     FetchContent_Declare(sokol_tools_bin
         GIT_REPOSITORY https://github.com/floooh/sokol-tools-bin.git
         GIT_TAG        1a9a4e54090fec42c5d13169b638f09f25474953
+        # unfortunately cannot be shallow when using a SHA
+        # GIT_SHALLOW    TRUE
         GIT_PROGRESS   TRUE
     )
     FetchContent_MakeAvailable(sokol_tools_bin)
 endif()
 
+# imgui static lib: the five core sources. sokol_imgui is the backend (no
+# glfw/opengl3 backend sources), so it is not listed here.
 add_library(imgui STATIC
     "${imgui_SOURCE_DIR}/imgui.cpp"
     "${imgui_SOURCE_DIR}/imgui_draw.cpp"
@@ -43,7 +51,12 @@ add_library(imgui STATIC
     "${imgui_SOURCE_DIR}/imgui_demo.cpp"
 )
 target_include_directories(imgui SYSTEM PUBLIC "${imgui_SOURCE_DIR}")
-set_target_properties(imgui PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF POSITION_INDEPENDENT_CODE ON)
+set_target_properties(imgui PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    POSITION_INDEPENDENT_CODE ON
+)
 
 add_library(implot STATIC
     "${implot_SOURCE_DIR}/implot.cpp"
@@ -54,30 +67,48 @@ add_library(implot STATIC
 )
 target_link_libraries(implot PUBLIC imgui)
 target_include_directories(implot SYSTEM PUBLIC "${implot_SOURCE_DIR}")
-set_target_properties(implot PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF POSITION_INDEPENDENT_CODE ON)
+set_target_properties(implot PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    POSITION_INDEPENDENT_CODE ON
+)
 
+# --- sokol: vendored headers INTERFACE target + per-platform backend. --------
 set(sokol_SOURCE_DIR "${CMAKE_SOURCE_DIR}/extern/sokol")
 add_library(sokol INTERFACE)
 target_include_directories(sokol SYSTEM INTERFACE "${sokol_SOURCE_DIR}")
 if(WIN32)
     target_compile_definitions(sokol INTERFACE SOKOL_D3D11)
-    target_link_libraries(sokol INTERFACE d3d11 dxgi dxguid user32 gdi32 shell32 ole32)
+    target_link_libraries(sokol INTERFACE
+        d3d11 dxgi dxguid
+        user32 gdi32 shell32 ole32)
 elseif(APPLE)
     target_compile_definitions(sokol INTERFACE SOKOL_METAL)
-    target_link_libraries(sokol INTERFACE "-framework Foundation" "-framework Cocoa" "-framework QuartzCore" "-framework Metal" "-framework MetalKit")
+    target_link_libraries(sokol INTERFACE
+        "-framework Foundation"
+        "-framework Cocoa"
+        "-framework QuartzCore"
+        "-framework Metal"
+        "-framework MetalKit")
 elseif(UNIX)
     target_compile_definitions(sokol INTERFACE SOKOL_GLCORE)
     find_package(OpenGL REQUIRED)
     find_package(Threads REQUIRED)
     find_package(X11 REQUIRED)
     if(NOT X11_Xi_FOUND OR NOT X11_Xcursor_FOUND)
-        message(FATAL_ERROR "sokol_app needs Xi and Xcursor; install libxi-dev and libxcursor-dev.")
+        message(FATAL_ERROR
+            "sokol_app needs Xi and Xcursor; install libxi-dev and libxcursor-dev.")
     endif()
-    target_link_libraries(sokol INTERFACE OpenGL::GL Threads::Threads ${CMAKE_DL_LIBS} m X11::X11 X11::Xi X11::Xcursor)
+    target_link_libraries(sokol INTERFACE
+        OpenGL::GL Threads::Threads ${CMAKE_DL_LIBS} m
+        X11::X11 X11::Xi X11::Xcursor)
 else()
     message(FATAL_ERROR "Unsupported platform for sokol backend selection.")
 endif()
 
+# sokol-shdc executable path, consumed by shaders/CMakeLists.txt.
+# Jozz: only derive the path when the cache does not already point at a real binary.
 if(BOX3D_BUILD_SHADERS)
     if(WIN32)
         set(_shdc_subdir win32)
@@ -94,23 +125,29 @@ if(BOX3D_BUILD_SHADERS)
         set(_shdc_exe    sokol-shdc)
     endif()
     if(NOT SOKOL_SHDC_EXECUTABLE OR NOT EXISTS "${SOKOL_SHDC_EXECUTABLE}")
-        set(SOKOL_SHDC_EXECUTABLE "${sokol_tools_bin_SOURCE_DIR}/bin/${_shdc_subdir}/${_shdc_exe}" CACHE FILEPATH "Path to sokol-shdc binary" FORCE)
+        set(SOKOL_SHDC_EXECUTABLE
+            "${sokol_tools_bin_SOURCE_DIR}/bin/${_shdc_subdir}/${_shdc_exe}"
+            CACHE FILEPATH "Path to sokol-shdc binary" FORCE)
     endif()
     unset(_shdc_subdir)
     unset(_shdc_exe)
 endif()
 
+# --- Renderer + shaders
 add_subdirectory(shaders)
 add_subdirectory(gfx)
 
 set(SAMPLE_FILES
     main.cpp
+
+    # Host
     host/camera.cpp
     host/camera.h
     host/gui.cpp
     host/gui.h
     host/imgui_impl.cpp
     host/sokol_app_impl.c
+
     sample.cpp
     sample.h
     mesh_loader.cpp
@@ -118,28 +155,32 @@ set(SAMPLE_FILES
     jsmn.h
     tiny_obj_loader.h
     earcut.h
+
+    # Jozz Vehicle layer
     jozz_vehicle_asset_contract.cpp
     jozz_vehicle_asset_contract.h
     jozz_vehicle_asset_dimensions.cpp
     jozz_vehicle_asset_dimensions.h
+    jozz_vehicle_asset_metadata.cpp
+    jozz_vehicle_asset_metadata.h
     jozz_vehicle_asset_paths.cpp
     jozz_vehicle_asset_paths.h
     jozz_vehicle_corner_rig.cpp
     jozz_vehicle_corner_rig.h
-    jozz_vehicle_asset_metadata.cpp
-    jozz_vehicle_asset_metadata.h
     jozz_vehicle_debug_preview.cpp
     jozz_vehicle_debug_preview.h
-    jozz_vehicle_json.cpp
-    jozz_vehicle_json.h
     jozz_vehicle_image_decode.cpp
     jozz_vehicle_image_decode.h
+    jozz_vehicle_json.cpp
+    jozz_vehicle_json.h
     jozz_vehicle_primitive_corner_lab.cpp
     jozz_vehicle_primitive_corner_lab.h
     jozz_vehicle_visual_asset.cpp
     jozz_vehicle_visual_asset.h
     jozz_vehicle_visual_mesh.cpp
     jozz_vehicle_visual_mesh.h
+
+    # Samples
     sample_benchmark.cpp
     sample_bodies.cpp
     sample_character.cpp
@@ -165,6 +206,7 @@ set(SAMPLE_FILES
 
 add_executable(samples ${SAMPLE_FILES})
 
+# Jozz: headless metadata/contract guard, no GUI. Runs in CI-style validation.
 add_executable(jozz_vehicle_validation
     jozz_vehicle_validation.cpp
     jozz_vehicle_asset_contract.cpp
@@ -181,23 +223,46 @@ add_executable(jozz_vehicle_validation
 )
 
 if(APPLE)
+    # sokol_app's Cocoa backend is Objective-C. Compile its impl TU as OBJC with ARC.
     set_source_files_properties(host/sokol_app_impl.c PROPERTIES LANGUAGE OBJC)
     set_source_files_properties(host/sokol_app_impl.c PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
 endif()
 
-target_include_directories(samples PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/../data")
+# Include root is the samples dir so "gfx/..." and "host/..." prefixes resolve.
+# The data dir is on the path too so samples can #include recorded dumps
+# (sample_issues pulls dumps/.../box3d_dump.inl at compile time).
+target_include_directories(samples PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../data")
+
+# gfx: the renderer + Draw*/adapter. shared: human, utils (Random*), the
+# benchmark/determinism helpers the samples lean on.
 target_link_libraries(samples PRIVATE gfx shared imgui implot sokol nfd)
 
-target_include_directories(jozz_vehicle_validation PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/../include")
-set_target_properties(jozz_vehicle_validation PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
+target_include_directories(jozz_vehicle_validation PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+set_target_properties(jozz_vehicle_validation PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
 
+# Jozz: the glTF visual proof decodes PNG data URIs through WIC on Windows.
 if (WIN32)
     target_link_libraries(samples PRIVATE windowscodecs)
 endif()
 
+# MSVC auto-links winmm via a #pragma comment in main.cpp. MinGW ignores that
+# pragma, so link the timeBeginPeriod/timeEndPeriod library explicitly.
 if (MINGW)
     target_link_libraries(samples PRIVATE winmm)
 endif()
 
-set_target_properties(samples PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
+set_target_properties(samples PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SAMPLE_FILES})
