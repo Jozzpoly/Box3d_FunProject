@@ -1,6 +1,6 @@
 # README_FOR_AGENTS — Jozz Vehicle Box3D Native
 
-Status: M2.5 + M3A/M3B.3 + M4 Foundation validated; M5/M5.1 played by Jozz; M5.2 Wheel & Steering Foundations landed: steering convention fixed at the sign level (left = -Z; smoke asserts SIGNED direction now), virtual tie rod + Ackermann linkage, sphere wheels by default after probe data showed cylinder facets caused the at-speed hopping (front contact 31% -> 100%), contact tuning / per-axle suspension / CG drop / telemetry plots in the lab UI. Awaiting Jozz's re-test. See docs/M5_2_WHEEL_STEERING_FOUNDATIONS_PL.md
+Status: M2.5 + M3A/M3B.3 + M4 Foundation validated; M5.2 Wheel & Steering Foundations validated by Jozz's 2026-07-05 re-test: A/D direction correct, at-speed wheel hopping fixed (sphere wheels), tie-rod steering coupling feels good. Soft-tire deformation deliberately deferred (roadmap in docs/M5_2_WHEEL_STEERING_FOUNDATIONS_PL.md). Fundamentals accepted; next milestone is the full multi-body suspension rig.
 Date: 2026-07-05
 Owner/creative director: Jozz / Przemek  
 Working branch: `jozz-vehicle-sandbox-m0`

@@ -180,3 +180,20 @@ samples.exe --sample 96/95 --frames 300/240: 0 sokol errors
 6. Contact tuning: zejdź contact hertz do ~10 - miękkie, "oponiaste" lądowania
 7. Stress testy: CG drop, axle scales, friction - szukaj granic modelu
 ```
+
+## 9. Werdykt Jozza po re-teście (2026-07-05)
+
+```text
+A/D: naprawione.
+Niestabilne koła: naprawione (sfery).
+Sprzężenie skrętu (tie rod): działa dobrze.
+Miękka opona: świadomie odłożona na później, roadmapa w sekcji 5 zostaje aktualna.
+```
+
+Fundamenty pojazdu (kierunki, koła, skręt, kontakt, telemetria) uznane za
+wystarczające na tym etapie. M5.2 zamknięte. Następny krok: pełny rig
+zawieszenia wielowahaczowego (wahacze/damper/cardan jako ciała fizyczne, nie
+tylko visual-only) — to była pierwotna wizja projektu z `PROJECT_DIRECTION_PL.md`,
+teraz odblokowana przez solidny fundament koła/steeringu/napędu. M4C
+(proceduralny damper/cardan visual na jeżdżących narożnikach M5) jest naturalną
+bramką pomostową do tej pracy.

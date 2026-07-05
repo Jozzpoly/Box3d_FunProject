@@ -2,7 +2,7 @@
 
 Date: 2026-07-05
 Branch: `jozz-vehicle-sandbox-m0`  
-Status: M2.5/M3A/M3B.3 + M4 Foundation validated; M5 drivable; M5.1 tuning validated by Jozz except inverted A/D; M5.2 Wheel & Steering Foundations done (steering convention fixed for real with signed smoke assertions, virtual tie rod + Ackermann, sphere wheels after facet-chatter probe data, contact tuning + per-axle suspension + CG drop + telemetry plots) per docs/M5_2_WHEEL_STEERING_FOUNDATIONS_PL.md, awaiting Jozz's re-test
+Status: M2.5/M3A/M3B.3 + M4 Foundation validated; M5.2 Wheel & Steering Foundations validated by Jozz's re-test 2026-07-05: A/D direction correct, speed instability (wheel hopping) gone on sphere wheels, tie-rod steering coupling feels good. Soft-tire deformation explicitly deferred to a later pass (roadmap staged in docs/M5_2_WHEEL_STEERING_FOUNDATIONS_PL.md section 5). Ready to move on to full suspension rig work next.
 
 ## 1. Current active samples
 
@@ -499,14 +499,16 @@ procedural damper/cardan/chassis visual parts
 ## 11. Next pass
 
 ```text
-M5.2 re-test  Jozz re-plays: A/D direction (finally fixed at the sign level),
-              sphere wheels at speed (the hopping should be gone - HUD shows
-              per-wheel contact), blocked-wheel tie-rod behavior, telemetry
-              plots, contact tuning experiments
-then          per Jozz's direction: continue polishing car/wheel/suspension
-              systems until fundamentals feel right, THEN the full suspension
-              rig (M4C procedural damper/cardan on the drivable corners is the
-              bridge gate); soft-tire roadmap staged in the M5.2 doc
+2026-07-05 Jozz re-test verdict: A/D correct, wheel hopping fixed (sphere
+  wheels), tie-rod steering coupling feels good, soft tire deferred on
+  purpose. M5.2 fundamentals accepted as good enough for now.
+Next: full suspension rig (multi-body wahacze/damper/cardan), the actual
+  next milestone per Jozz's direction. M4C (procedural damper/cardan visual
+  on the drivable corners) is the natural bridge gate into that work.
+Soft-tire roadmap stays staged for later (docs/M5_2_WHEEL_STEERING_FOUNDATIONS_PL.md
+  section 5): contact tuning today, visual tire squish from load telemetry
+  next, multi-sphere envelope after that, engine-level deformation only if
+  ever truly needed.
 ```
 
 Strict scope for M4C stays as documented:
