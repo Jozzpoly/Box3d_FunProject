@@ -5,6 +5,7 @@
 
 #include "box3d/base.h"
 #include "gfx/draw.h"
+#include "jozz_vehicle_asset_metadata.h"
 #include "jozz_vehicle_image_decode.h"
 #include "jozz_vehicle_json.h"
 
@@ -1225,4 +1226,34 @@ void JozzVehicleVisualMesh::DrawAtTransform( b3WorldTransform worldTransform, Ve
 	AppendMesh( handle, relativeTransform, b3Vec3_one, color, 0.0f, 0.58f,
 				textureLoaded ? MESH_MATERIAL_MODE_TEXTURED : MESH_MATERIAL_MODE_SOLID, textureAlphaCutoff,
 				TRANSPARENT_SHADOW_FULL );
+}
+
+b3Transform ComputeJozzVehicleWheelVisualCorrection( const JozzVehicleVisualMesh& mesh,
+													 const JozzVehicleAuditMetadata& metadata,
+													 float metersPerBlockbenchUnit )
+{
+	b3Vec3 visualCenter;
+	if ( mesh.IsLoaded() )
+	{
+		visualCenter = {
+			0.5f * ( mesh.boundsMin.x + mesh.boundsMax.x ),
+			0.5f * ( mesh.boundsMin.y + mesh.boundsMax.y ),
+			0.5f * ( mesh.boundsMin.z + mesh.boundsMax.z ),
+		};
+	}
+	else
+	{
+		b3Vec3 wheelMountBU = JozzVehicleFindPointOrBuiltIn( metadata, "Offroad_Big_Wheels.gltf", "Socket_WheelMount" );
+		b3Vec3 radiusOuterBU = JozzVehicleFindPointOrBuiltIn( metadata, "Offroad_Big_Wheels.gltf", "Marker_TireRadiusOuter" );
+		b3Vec3 wheelCenterBU = { radiusOuterBU.x, wheelMountBU.y, wheelMountBU.z };
+		visualCenter = b3MulSV( metersPerBlockbenchUnit, wheelCenterBU );
+	}
+
+	// The authored wheel spin/width axis is +X, while the primitive wheel body
+	// uses local +Y as its axle. Map authored +X to body +Y and center the
+	// authored wheel center on the primitive body origin.
+	b3Quat visualXToBodyY = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 0.5f * B3_PI );
+	b3Quat visualUpToBodyRadial = b3MakeQuatFromAxisAngle( b3Vec3_axisY, -0.5f * B3_PI );
+	b3Quat correctionRotation = b3MulQuat( visualUpToBodyRadial, visualXToBodyY );
+	return { b3Neg( b3RotateVector( correctionRotation, visualCenter ) ), correctionRotation };
 }

@@ -173,6 +173,8 @@ set(SAMPLE_FILES
     jozz_vehicle_image_decode.h
     jozz_vehicle_json.cpp
     jozz_vehicle_json.h
+    jozz_vehicle_m5_drivable_lab.cpp
+    jozz_vehicle_m5_drivable_lab.h
     jozz_vehicle_m5_vehicle.cpp
     jozz_vehicle_m5_vehicle.h
     jozz_vehicle_primitive_corner_lab.cpp

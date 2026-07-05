@@ -166,35 +166,9 @@ public:
 		return { 1.35f, GetLiveChassisMountY(), 1.45f };
 	}
 
-	b3Vec3 GetWheelVisualCenterMeters() const
-	{
-		if ( m_staticWheelVisual.IsLoaded() )
-		{
-			return {
-				0.5f * ( m_staticWheelVisual.boundsMin.x + m_staticWheelVisual.boundsMax.x ),
-				0.5f * ( m_staticWheelVisual.boundsMin.y + m_staticWheelVisual.boundsMax.y ),
-				0.5f * ( m_staticWheelVisual.boundsMin.z + m_staticWheelVisual.boundsMax.z ),
-			};
-		}
-
-		b3Vec3 wheelMountBU = JozzVehicleFindPointOrBuiltIn( m_assetMetadata, "Offroad_Big_Wheels.gltf", "Socket_WheelMount" );
-		b3Vec3 radiusOuterBU =
-			JozzVehicleFindPointOrBuiltIn( m_assetMetadata, "Offroad_Big_Wheels.gltf", "Marker_TireRadiusOuter" );
-		b3Vec3 wheelCenterBU = { radiusOuterBU.x, wheelMountBU.y, wheelMountBU.z };
-		return b3MulSV( m_assetMetersPerBlockbenchUnit, wheelCenterBU );
-	}
-
 	b3Transform GetAttachedWheelVisualCorrection() const
 	{
-		// Visual-only correction for the current Offroad_Big_Wheels.gltf proof.
-		// The authored wheel spin/width axis is +X, while the primitive wheel
-		// body uses local +Y as its axle. This maps authored +X to body +Y and
-		// centers the audited wheel center on the primitive body origin.
-		b3Quat visualXToBodyY = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 0.5f * B3_PI );
-		b3Quat visualUpToBodyRadial = b3MakeQuatFromAxisAngle( b3Vec3_axisY, -0.5f * B3_PI );
-		b3Quat correctionRotation = b3MulQuat( visualUpToBodyRadial, visualXToBodyY );
-		b3Vec3 visualCenter = GetWheelVisualCenterMeters();
-		return { b3Neg( b3RotateVector( correctionRotation, visualCenter ) ), correctionRotation };
+		return ComputeJozzVehicleWheelVisualCorrection( m_staticWheelVisual, m_assetMetadata, m_assetMetersPerBlockbenchUnit );
 	}
 
 	JozzVehicleCornerRigState GetCornerRigState() const

@@ -29,3 +29,16 @@ struct JozzVehicleVisualMesh
 	void Draw( b3Pos origin, Vec4 color ) const;
 	void DrawAtTransform( b3WorldTransform worldTransform, Vec4 color ) const;
 };
+
+struct JozzVehicleAuditMetadata;
+
+// Render-only correction for the current Offroad_Big_Wheels.gltf proof. The
+// authored wheel spin/width axis is +X while the primitive wheel body uses
+// local +Y as its axle; this maps authored +X onto body +Y and centers the
+// authored wheel center on the body origin. Centers against loaded mesh bounds
+// when available, with audited semantic points as fallback. Shared by the
+// corner lab and the M5 drivable sample; it stays visual-only and must never
+// feed physics frames.
+b3Transform ComputeJozzVehicleWheelVisualCorrection( const JozzVehicleVisualMesh& mesh,
+													 const JozzVehicleAuditMetadata& metadata,
+													 float metersPerBlockbenchUnit );
