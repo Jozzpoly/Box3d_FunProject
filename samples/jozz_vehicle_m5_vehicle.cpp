@@ -27,7 +27,11 @@ JozzVehicleM5Config JozzVehicleM5DefaultConfig( float wheelRadius, float wheelWi
 {
 	JozzVehicleM5Config config = {};
 
-	config.chassisHalfExtents = { 1.55f, 0.35f, 0.80f };
+	// A 2026-07-05 playtest found the chassis box visually too wide: at the old
+	// half-width 0.80, the tire's inner sidewall (trackHalfWidth 1.05 minus half
+	// the wheel width ~0.22 = ~0.83) cleared the box by only ~3cm, so the body
+	// looked like it clipped into the tires with no visible fender gap.
+	config.chassisHalfExtents = { 1.55f, 0.35f, 0.55f };
 	config.chassisDensity = 200.0f;
 
 	config.axleHalfSpacing = 1.25f;
@@ -60,10 +64,19 @@ JozzVehicleM5Config JozzVehicleM5DefaultConfig( float wheelRadius, float wheelWi
 	config.coastTorque = 8.0f;
 	config.allWheelDrive = true;
 
+	// A stationary tire resists steering with the friction of its whole contact
+	// patch twisting in place (why real cars need power steering); a rolling
+	// tire only needs to change its slip angle, which costs far less torque.
+	// The scrub radius here is actually zero (the steering pivot passes through
+	// the wheel center at rest, same line the wheel travels along), so this
+	// static "parking torque" - not scrub geometry - was the missing factor.
+	// A 2026-07-05 playtest found low-speed steering nearly frozen; the
+	// headless drive smoke's stationary-steer check reproduced it exactly
+	// (0 deg of a 32 deg target at the old 80 N*m default) before this fix.
 	config.maxSteeringAngleDegrees = 32.0f;
-	config.steeringHertz = 8.0f;
+	config.steeringHertz = 14.0f;
 	config.steeringDampingRatio = 1.0f;
-	config.maxSteeringTorque = 80.0f;
+	config.maxSteeringTorque = 700.0f;
 
 	config.uprightAssist = true;
 	config.uprightHertz = 0.4f;

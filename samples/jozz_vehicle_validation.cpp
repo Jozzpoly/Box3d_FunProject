@@ -172,6 +172,43 @@ bool RunM5DriveSmoke( const JozzVehiclePrimitiveDefaults& defaults )
 	ok &= CheckTrue( "m5 suspension supports the chassis", settleSag > -0.05f && settleSag < 0.8f * config.compressionTravel );
 	ok &= CheckTrue( "m5 settled upright", ChassisUpDotWorldUp( vehicle ) > 0.95f );
 
+	// Steer while stationary (zero drive input). This is the scenario a 2026-07-05
+	// manual playtest found broken: steering that only "works" once already
+	// rolling, is very heavy at rest, and sometimes only one front wheel reaches
+	// the target angle. The full-throttle steering check further below happens
+	// only after 6 seconds of driving, so it could never have caught this - a
+	// rolling tire needs much less torque to change its slip angle than a
+	// stationary contact patch needs to twist in place against friction.
+	{
+		JozzVehicleM5DriveInput stationaryInput = {};
+		stationaryInput.steer = 1.0f;
+		for ( int i = 0; i < 90; ++i )
+		{
+			UpdateJozzVehicleM5Drive( vehicle, stationaryInput );
+			b3World_Step( worldId, timeStep, subStepCount );
+		}
+
+		float maxAngle = config.maxSteeringAngleDegrees * B3_PI / 180.0f;
+		float angleLeft = b3WheelJoint_GetSteeringAngle( vehicle.wheelJointIds[JOZZ_M5_FRONT_LEFT] );
+		float angleRight = b3WheelJoint_GetSteeringAngle( vehicle.wheelJointIds[JOZZ_M5_FRONT_RIGHT] );
+		std::printf( "m5 stationary steer: left %.1f deg, right %.1f deg, target %.1f deg\n", 180.0f / B3_PI * angleLeft,
+					 180.0f / B3_PI * angleRight, 180.0f / B3_PI * maxAngle );
+
+		ok &= CheckTrue( "m5 stationary steer state is finite", IsVehicleStateValid( vehicle ) );
+		ok &= CheckTrue( "m5 left wheel steers while stationary", std::fabs( angleLeft ) > 0.5f * maxAngle );
+		ok &= CheckTrue( "m5 right wheel steers while stationary", std::fabs( angleRight ) > 0.5f * maxAngle );
+		ok &= CheckTrue( "m5 front wheels steer symmetrically", std::fabs( angleLeft - angleRight ) < 0.15f * maxAngle );
+
+		// Return the steering to center before the driving checks below, so
+		// they start from the same clean state as before this sub-test existed.
+		stationaryInput.steer = 0.0f;
+		for ( int i = 0; i < 60; ++i )
+		{
+			UpdateJozzVehicleM5Drive( vehicle, stationaryInput );
+			b3World_Step( worldId, timeStep, subStepCount );
+		}
+	}
+
 	// Full throttle straight ahead.
 	input.drive = 1.0f;
 	for ( int i = 0; i < 360; ++i )
