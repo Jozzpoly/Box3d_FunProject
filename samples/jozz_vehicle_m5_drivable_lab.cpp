@@ -7,6 +7,7 @@
 #include "gfx/draw.h"
 #include "gfx/keycodes.h"
 #include "imgui.h"
+#include "implot.h"
 #include "jozz_vehicle_asset_dimensions.h"
 #include "jozz_vehicle_asset_metadata.h"
 #include "jozz_vehicle_asset_paths.h"
@@ -26,16 +27,13 @@ public:
 	explicit JozzVehicleM5FirstDrivable( SampleContext* context )
 		: Sample( context )
 	{
-		// Rear three-quarter chase view: eye behind and above the spawn point,
-		// looking toward +X (the chassis' forward axis). A 2026-07-05 playtest
-		// reported A/D steering as inverted; the steering math itself checks out
-		// against this codebase's own right = up x forward convention (see
-		// jozz_vehicle_m5_vehicle.cpp), so the likely cause was the previous
-		// default camera watching the car mostly from the front, which mirrors
-		// screen-left/right relative to the driver's own left/right. This view
-		// puts the car driving away from the camera instead, matching normal
-		// chase-cam expectations. m_invertSteering below is a one-click escape
-		// hatch in case this still is not enough.
+		// Rear three-quarter chase view: the car drives away from the camera.
+		// History note: the reported inverted A/D was blamed on the previous
+		// front-facing camera at first, but the actual bug was a sign error in
+		// the steering convention ("left is +Z" - wrong, left is -Z), fixed in
+		// jozz_vehicle_m5_vehicle.cpp in M5.2 and asserted with a signed check
+		// in the validation smoke. The chase view stays because it is the
+		// better default regardless; m_invertSteering remains as a preference.
 		m_camera->m_thirdPerson = false;
 		if ( context->restart == false )
 		{
@@ -59,6 +57,15 @@ public:
 		m_showAxisDiagnostics = false;
 		m_invertSteering = false;
 
+		// Engine defaults from b3DefaultWorldDef; the sliders tune the live world.
+		m_contactHertz = 30.0f;
+		m_contactDampingRatio = 10.0f;
+		m_contactSpeed = 3.0f;
+
+		m_telemetryHead = 0;
+		m_telemetryCount = 0;
+		m_telemetryClock = 0.0f;
+
 		m_vehicle = {};
 		CreateVehicle();
 		LoadWheelVisual();
@@ -76,10 +83,14 @@ public:
 	{
 		m_editChassisHalfExtents = m_config.chassisHalfExtents;
 		m_editChassisDensity = m_config.chassisDensity;
+		m_editCgVerticalOffset = m_config.cgVerticalOffset;
 		m_editAxleHalfSpacing = m_config.axleHalfSpacing;
 		m_editTrackHalfWidth = m_config.trackHalfWidth;
 		m_editRestDrop = m_config.restDrop;
 		m_editWheelDensity = m_config.wheelDensity;
+		m_editWheelShape = m_config.wheelShape;
+		m_editWheelCylinderSides = m_config.wheelCylinderSides;
+		m_editWheelRollingResistance = m_config.wheelRollingResistance;
 		m_structuralSetupDirty = false;
 	}
 
@@ -87,12 +98,29 @@ public:
 	{
 		m_config.chassisHalfExtents = m_editChassisHalfExtents;
 		m_config.chassisDensity = m_editChassisDensity;
+		m_config.cgVerticalOffset = m_editCgVerticalOffset;
 		m_config.axleHalfSpacing = m_editAxleHalfSpacing;
 		m_config.trackHalfWidth = m_editTrackHalfWidth;
 		m_config.restDrop = m_editRestDrop;
 		m_config.wheelDensity = m_editWheelDensity;
+		m_config.wheelShape = m_editWheelShape;
+		m_config.wheelCylinderSides = m_editWheelCylinderSides;
+		m_config.wheelRollingResistance = m_editWheelRollingResistance;
 		CreateVehicle();
 		m_structuralSetupDirty = false;
+	}
+
+	void ApplyWheelFriction()
+	{
+		for ( int corner = 0; corner < JOZZ_M5_CORNER_COUNT; ++corner )
+		{
+			b3Shape_SetFriction( m_vehicle.wheelShapeIds[corner], m_config.wheelFriction );
+		}
+	}
+
+	void ApplyContactTuning()
+	{
+		b3World_SetContactTuning( m_worldId, m_contactHertz, m_contactDampingRatio, m_contactSpeed );
 	}
 
 	void LoadWheelVisual()
@@ -154,8 +182,10 @@ public:
 	{
 		for ( int corner = 0; corner < JOZZ_M5_CORNER_COUNT; ++corner )
 		{
-			b3WheelJoint_SetSuspensionHertz( m_vehicle.wheelJointIds[corner], m_config.suspensionHertz );
-			b3WheelJoint_SetSuspensionDampingRatio( m_vehicle.wheelJointIds[corner], m_config.suspensionDampingRatio );
+			bool isFront = corner == JOZZ_M5_FRONT_LEFT || corner == JOZZ_M5_FRONT_RIGHT;
+			float scale = isFront ? m_config.frontSuspensionScale : m_config.rearSuspensionScale;
+			b3WheelJoint_SetSuspensionHertz( m_vehicle.wheelJointIds[corner], m_config.suspensionHertz * scale );
+			b3WheelJoint_SetSuspensionDampingRatio( m_vehicle.wheelJointIds[corner], m_config.suspensionDampingRatio * scale );
 			b3Joint_WakeBodies( m_vehicle.wheelJointIds[corner] );
 		}
 	}
@@ -193,9 +223,10 @@ public:
 		ImGui::TextUnformatted( "Input: W/S drive, A/D steer, Space brake, T third-person camera, R restart." );
 		ImGui::Text( "speed %.1f m/s (%.0f km/h)", GetJozzVehicleM5ForwardSpeed( m_vehicle ),
 					 3.6f * GetJozzVehicleM5ForwardSpeed( m_vehicle ) );
-		ImGui::TextWrapped( "M5.1 note: instability at speed may be physics or a render-interpolation artifact of "
-							"reading the body transform at draw time. Use the Solver panel below (Sub-steps) to help "
-							"tell them apart: if raising sub-steps removes it, it was a solver convergence issue." );
+		ImGui::TextWrapped( "M5.2: the at-speed wheel hopping was the faceted cylinder itself (engine caps hull "
+							"cylinders at 32 sides; probe data: front ground contact 31%% on cylinder-32 vs 100%% on "
+							"sphere). Default wheel is now the smooth sphere; switch back under Wheels to feel the "
+							"facet washboard." );
 		ImGui::Separator();
 
 		ImGui::TextUnformatted( "Drive (wide ranges: this lab is for stress-testing until it breaks)" );
@@ -214,10 +245,33 @@ public:
 		{
 			ApplySuspensionTuning();
 		}
+		if ( ImGui::SliderFloat( "Front axle scale", &m_config.frontSuspensionScale, 0.3f, 3.0f, "%.2f" ) )
+		{
+			ApplySuspensionTuning();
+		}
+		if ( ImGui::SliderFloat( "Rear axle scale", &m_config.rearSuspensionScale, 0.3f, 3.0f, "%.2f" ) )
+		{
+			ApplySuspensionTuning();
+		}
+		ImGui::TextWrapped( "Axle scales multiply hertz+damping per axle: raise the front to fight the "
+							"acceleration-lightened front end, or unbalance them on purpose to feel the difference." );
 		ImGui::Separator();
 
 		ImGui::TextUnformatted( "Steering" );
-		ImGui::Checkbox( "Invert steering (if A/D feels backwards)", &m_invertSteering );
+		ImGui::Checkbox( "Invert steering (preference)", &m_invertSteering );
+		{
+			const char* modes[] = { "Independent servos", "Linked (virtual tie rod)" };
+			ImGui::Combo( "Linkage", &m_config.steeringMode, modes, 2 );
+		}
+		ImGui::Checkbox( "Ackermann geometry (inner wheel steers tighter)", &m_config.ackermannGeometry );
+		ImGui::SliderFloat( "Tie rod tolerance", &m_config.tieRodToleranceDegrees, 0.5f, 15.0f, "%.1f deg" );
+		ImGui::Checkbox( "Speed-sensitive steering (assist)", &m_config.speedSensitiveSteering );
+		if ( m_config.speedSensitiveSteering )
+		{
+			ImGui::SliderFloat( "Taper start", &m_config.steeringTaperStartSpeed, 0.0f, 30.0f, "%.1f m/s" );
+			ImGui::SliderFloat( "Taper end", &m_config.steeringTaperEndSpeed, 1.0f, 60.0f, "%.1f m/s" );
+			ImGui::SliderFloat( "Min angle scale", &m_config.steeringTaperMinScale, 0.05f, 1.0f, "%.2f" );
+		}
 		if ( ImGui::SliderFloat( "Max angle", &m_config.maxSteeringAngleDegrees, 1.0f, 60.0f, "%.0f deg" ) )
 		{
 			ApplySteeringTuning();
@@ -236,7 +290,47 @@ public:
 		}
 		ImGui::TextWrapped( "A stationary tire resists steering with its whole contact patch twisting against "
 							"friction (why real cars need power steering); a rolling tire needs far less torque. "
-							"If steering feels frozen at low speed again, raise Steering torque first." );
+							"If steering feels frozen at low speed again, raise Steering torque first. In Linked "
+							"mode a blocked wheel holds its partner back like a real tie rod." );
+		ImGui::Separator();
+
+		ImGui::TextUnformatted( "Wheels" );
+		if ( ImGui::SliderFloat( "Tire friction", &m_config.wheelFriction, 0.1f, 4.0f, "%.2f" ) )
+		{
+			ApplyWheelFriction();
+		}
+		{
+			const char* shapes[] = { "Cylinder (faceted, max 32 sides)", "Sphere (smooth)" };
+			bool wheelEdited = ImGui::Combo( "Wheel shape (Apply)", &m_editWheelShape, shapes, 2 );
+			wheelEdited |= ImGui::SliderInt( "Cylinder sides (Apply)", &m_editWheelCylinderSides, 3, 32 );
+			wheelEdited |= ImGui::SliderFloat( "Rolling resistance (Apply)", &m_editWheelRollingResistance, 0.0f, 0.5f, "%.3f" );
+			if ( wheelEdited )
+			{
+				m_structuralSetupDirty = true;
+			}
+		}
+		ImGui::TextWrapped( "Cylinder facets are a built-in washboard: 12 sides = violent hopping, 32 = the "
+							"instability from the 2026-07-05 playtest, sphere = smooth reference. The engine hard-caps "
+							"hull cylinders at 32 sides." );
+		ImGui::Separator();
+
+		ImGui::TextUnformatted( "Contact solver tuning (world level, live)" );
+		bool contactEdited = false;
+		contactEdited |= ImGui::SliderFloat( "Contact hertz", &m_contactHertz, 5.0f, 240.0f, "%.0f" );
+		contactEdited |= ImGui::SliderFloat( "Contact damping ratio", &m_contactDampingRatio, 0.5f, 40.0f, "%.1f" );
+		contactEdited |= ImGui::SliderFloat( "Contact push speed", &m_contactSpeed, 0.5f, 20.0f, "%.1f m/s" );
+		if ( contactEdited )
+		{
+			ApplyContactTuning();
+		}
+		ImGui::SameLine();
+		if ( ImGui::Button( "Engine defaults##contact" ) )
+		{
+			m_contactHertz = 30.0f;
+			m_contactDampingRatio = 10.0f;
+			m_contactSpeed = 3.0f;
+			ApplyContactTuning();
+		}
 		ImGui::Separator();
 
 		if ( ImGui::Checkbox( "Upright assist", &m_config.uprightAssist ) )
@@ -269,6 +363,7 @@ public:
 		structuralEdited |= ImGui::SliderFloat( "Chassis half height", &m_editChassisHalfExtents.y, 0.1f, 1.5f, "%.2f" );
 		structuralEdited |= ImGui::SliderFloat( "Chassis half width", &m_editChassisHalfExtents.z, 0.2f, 2.0f, "%.2f" );
 		structuralEdited |= ImGui::SliderFloat( "Chassis density", &m_editChassisDensity, 20.0f, 2000.0f, "%.0f" );
+		structuralEdited |= ImGui::SliderFloat( "CG drop (lower = stabler)", &m_editCgVerticalOffset, -0.3f, 0.8f, "%.2f m" );
 		structuralEdited |= ImGui::SliderFloat( "Axle half spacing (wheelbase/2)", &m_editAxleHalfSpacing, 0.4f, 4.0f, "%.2f" );
 		structuralEdited |= ImGui::SliderFloat( "Track half width", &m_editTrackHalfWidth, 0.4f, 3.0f, "%.2f" );
 		structuralEdited |= ImGui::SliderFloat( "Rest drop", &m_editRestDrop, 0.05f, 2.0f, "%.2f" );
@@ -298,7 +393,109 @@ public:
 		ImGui::TextWrapped( "%s", m_wheelVisual.textureStatus.c_str() );
 		ImGui::TextWrapped( "metadata: %s", m_assetMetadata.status.c_str() );
 
+		ImGui::Separator();
+		DrawTelemetryPanel();
+
 		return true;
+	}
+
+	void DrawTelemetryPanel()
+	{
+		ImGui::TextUnformatted( "Telemetry (last 10 s)" );
+
+		const char* cornerNames[JOZZ_M5_CORNER_COUNT] = { "FL", "FR", "RL", "RR" };
+		JozzVehicleM5WheelTelemetry current[JOZZ_M5_CORNER_COUNT];
+		for ( int corner = 0; corner < JOZZ_M5_CORNER_COUNT; ++corner )
+		{
+			current[corner] = GetJozzVehicleM5WheelTelemetry( m_vehicle, corner );
+		}
+
+		ImGui::Text( "ground contact: FL %s  FR %s  RL %s  RR %s", current[0].groundContact ? "YES" : "air",
+					 current[1].groundContact ? "YES" : "air", current[2].groundContact ? "YES" : "air",
+					 current[3].groundContact ? "YES" : "air" );
+		ImGui::Text( "load N: FL %.0f  FR %.0f  RL %.0f  RR %.0f", current[0].suspensionLoad, current[1].suspensionLoad,
+					 current[2].suspensionLoad, current[3].suspensionLoad );
+
+		if ( m_telemetryCount < 2 )
+		{
+			return;
+		}
+
+		// The ring buffer stores monotonically increasing time, so the plot can
+		// window on the newest 10 seconds without reordering.
+		float latestTime = m_telemetryTime[( m_telemetryHead + TELEMETRY_CAPACITY - 1 ) % TELEMETRY_CAPACITY];
+		int count = m_telemetryCount;
+		int start = ( m_telemetryHead + TELEMETRY_CAPACITY - count ) % TELEMETRY_CAPACITY;
+
+		// Copy into linear scratch for ImPlot (capacity is small; simple wins).
+		static float times[TELEMETRY_CAPACITY];
+		static float series[JOZZ_M5_CORNER_COUNT][TELEMETRY_CAPACITY];
+		for ( int i = 0; i < count; ++i )
+		{
+			int index = ( start + i ) % TELEMETRY_CAPACITY;
+			times[i] = m_telemetryTime[index];
+			for ( int corner = 0; corner < JOZZ_M5_CORNER_COUNT; ++corner )
+			{
+				series[corner][i] = m_telemetryTravel[corner][index];
+			}
+		}
+
+		ImVec2 plotSize( ImGui::GetContentRegionAvail().x, 140.0f );
+		if ( ImPlot::BeginPlot( "Suspension travel", plotSize, ImPlotFlags_NoTitle ) )
+		{
+			ImPlot::SetupAxes( "t", "travel m" );
+			ImPlot::SetupAxisLimits( ImAxis_X1, latestTime - 10.0, latestTime, ImPlotCond_Always );
+			ImPlot::SetupAxisLimits( ImAxis_Y1, -m_config.reboundTravel * 1.2, m_config.compressionTravel * 1.2 );
+			for ( int corner = 0; corner < JOZZ_M5_CORNER_COUNT; ++corner )
+			{
+				ImPlot::PlotLine( cornerNames[corner], times, series[corner], count );
+			}
+			ImPlot::EndPlot();
+		}
+
+		for ( int i = 0; i < count; ++i )
+		{
+			int index = ( start + i ) % TELEMETRY_CAPACITY;
+			for ( int corner = 0; corner < JOZZ_M5_CORNER_COUNT; ++corner )
+			{
+				series[corner][i] = m_telemetryLoad[corner][index];
+			}
+		}
+
+		if ( ImPlot::BeginPlot( "Suspension load", plotSize, ImPlotFlags_NoTitle ) )
+		{
+			ImPlot::SetupAxes( "t", "load N" );
+			ImPlot::SetupAxisLimits( ImAxis_X1, latestTime - 10.0, latestTime, ImPlotCond_Always );
+			for ( int corner = 0; corner < JOZZ_M5_CORNER_COUNT; ++corner )
+			{
+				ImPlot::PlotLine( cornerNames[corner], times, series[corner], count );
+			}
+			ImPlot::EndPlot();
+		}
+
+		ImGui::TextWrapped( "Travel: + is compression, - is rebound; flat lines at the limits mean the suspension is "
+							"maxed out. Load: per-corner force through the wheel joint - watch the front unload while "
+							"accelerating." );
+	}
+
+	void SampleTelemetry()
+	{
+		float dt = m_context->hertz > 0.0f ? 1.0f / m_context->hertz : 1.0f / 60.0f;
+		m_telemetryClock += dt;
+
+		m_telemetryTime[m_telemetryHead] = m_telemetryClock;
+		for ( int corner = 0; corner < JOZZ_M5_CORNER_COUNT; ++corner )
+		{
+			JozzVehicleM5WheelTelemetry telemetry = GetJozzVehicleM5WheelTelemetry( m_vehicle, corner );
+			m_telemetryTravel[corner][m_telemetryHead] = telemetry.suspensionTravel;
+			m_telemetryLoad[corner][m_telemetryHead] = telemetry.suspensionLoad;
+		}
+
+		m_telemetryHead = ( m_telemetryHead + 1 ) % TELEMETRY_CAPACITY;
+		if ( m_telemetryCount < TELEMETRY_CAPACITY )
+		{
+			m_telemetryCount += 1;
+		}
 	}
 
 	void Step() override
@@ -337,6 +534,11 @@ public:
 		}
 
 		Sample::Step();
+
+		if ( m_vehicle.valid )
+		{
+			SampleTelemetry();
+		}
 	}
 
 	void Render() override
@@ -380,6 +582,12 @@ public:
 					  3.6f * GetJozzVehicleM5ForwardSpeed( m_vehicle ) );
 		DrawTextLine( "steering %.1f/%.1f deg, %s, %s", 180.0f / B3_PI * steeringLeft, 180.0f / B3_PI * steeringRight,
 					  m_config.allWheelDrive ? "AWD" : "RWD", m_config.uprightAssist ? "upright assist on" : "raw" );
+		DrawTextLine( "wheels: %s, contact FL:%s FR:%s RL:%s RR:%s",
+					  m_config.wheelShape == JOZZ_M5_WHEEL_SPHERE ? "sphere (smooth)" : "cylinder (faceted)",
+					  GetJozzVehicleM5WheelTelemetry( m_vehicle, JOZZ_M5_FRONT_LEFT ).groundContact ? "Y" : "-",
+					  GetJozzVehicleM5WheelTelemetry( m_vehicle, JOZZ_M5_FRONT_RIGHT ).groundContact ? "Y" : "-",
+					  GetJozzVehicleM5WheelTelemetry( m_vehicle, JOZZ_M5_REAR_LEFT ).groundContact ? "Y" : "-",
+					  GetJozzVehicleM5WheelTelemetry( m_vehicle, JOZZ_M5_REAR_RIGHT ).groundContact ? "Y" : "-" );
 		DrawTextLine( "wheel visuals: %s", ( m_showWheelVisuals && m_wheelVisual.IsLoaded() ) ? "glTF attached (visual-only)"
 																							  : "off or not loaded" );
 	}
@@ -403,14 +611,32 @@ public:
 	bool m_showAxisDiagnostics;
 	bool m_invertSteering;
 
-	// Pending structural rig edits (geometry/mass); require "Apply rig rebuild".
+	// World-level contact solver tuning (live sliders).
+	float m_contactHertz;
+	float m_contactDampingRatio;
+	float m_contactSpeed;
+
+	// Pending structural rig edits (geometry/mass/wheel shape); require "Apply rig rebuild".
 	b3Vec3 m_editChassisHalfExtents;
 	float m_editChassisDensity;
+	float m_editCgVerticalOffset;
 	float m_editAxleHalfSpacing;
 	float m_editTrackHalfWidth;
 	float m_editRestDrop;
 	float m_editWheelDensity;
+	int m_editWheelShape;
+	int m_editWheelCylinderSides;
+	float m_editWheelRollingResistance;
 	bool m_structuralSetupDirty;
+
+	// Rolling telemetry ring buffers (10 s at 60 Hz).
+	static constexpr int TELEMETRY_CAPACITY = 600;
+	float m_telemetryTime[TELEMETRY_CAPACITY];
+	float m_telemetryTravel[JOZZ_M5_CORNER_COUNT][TELEMETRY_CAPACITY];
+	float m_telemetryLoad[JOZZ_M5_CORNER_COUNT][TELEMETRY_CAPACITY];
+	int m_telemetryHead;
+	int m_telemetryCount;
+	float m_telemetryClock;
 };
 
 Sample* CreateJozzVehicleM5FirstDrivable( SampleContext* context )
