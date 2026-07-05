@@ -1,6 +1,6 @@
 # README_FOR_AGENTS — Jozz Vehicle Box3D Native
 
-Status: M2.5 + M3A/M3B.3 validated; M4 Foundation contract runtime and suspension visual proof implemented; 2026-07-05 Jozz screenshot smoke confirmed
+Status: M2.5 + M3A/M3B.3 + M4 Foundation validated; M5 First Drivable implemented (dynamic 4-corner vehicle + headless drive smoke), awaiting Jozz manual feel check; Jozz-layer JSON/path/fallback deduplication done
 Date: 2026-07-05
 Owner/creative director: Jozz / Przemek  
 Working branch: `jozz-vehicle-sandbox-m0`
@@ -15,11 +15,14 @@ The long-term goal is to use Box3D as a proven physics/render-host foundation, t
 
 Jozz Vehicle currently lives inside the existing Box3D `samples` host.
 
-Current active sample:
+Current active samples:
 
 ```text
 Category: Jozz Vehicle
-Sample:   Lab M2 Primitive Corner
+Sample:   M5 First Drivable        <- drivable 4-corner vehicle (new 2026-07-05)
+Source:   samples/jozz_vehicle_m5_drivable_lab.cpp + samples/jozz_vehicle_m5_vehicle.cpp
+
+Sample:   Lab M2 Primitive Corner  <- isolated corner lab, still active
 Source:   samples/sample_jozz_vehicle_lab.cpp + samples/jozz_vehicle_primitive_corner_lab.cpp
 Panel:    Jozz Vehicle Lab M2.5 + M3A/M3B.3 + M4 foundation debug
 ```
@@ -30,6 +33,7 @@ The sample host gives windowing, camera, debug draw, ImGui, input, registration 
 
 Read in this order before making changes:
 
+0. `docs/M5_FIRST_DRIVABLE_PL.md` + `docs/adr/0005-m5-first-drivable-before-m4c.md`
 1. `docs/CURRENT_STATE_INDEX_PL.md`
 2. `docs/M4_FOUNDATION_SUSPENSION_RIG_PLAN_PL.md`
 3. `docs/ASSET_CONTRACT_RUNTIME_V1_PL.md`
@@ -84,7 +88,7 @@ Useful background:
 
 ## Authoritative baseline
 
-M2.5 is still the current wheel-corner physics baseline. M3A adds asset-derived primitive defaults. M3B adds semantic preview and runtime audit metadata loading. M3B.2 adds one static visual-only wheel mesh proof at a fixed debug origin. M3B.2.1 adds baseColor texture loading for that same static proof. M3B.3 attaches that same visual-only wheel mesh to the primitive wheel body with an explicit render-only correction transform. M3B.3 hardening centers the primitive cylinder on the wheel body origin and adds a toggle for the orange primitive wheel debug shape; hiding it does not disable the physics wheel body or collision. M4 Foundation adds sidecar asset contract runtime, one-sided suspension visual proof, contract point overlay, and moving endpoint debug preview without changing physics authority.
+M2.5 is still the current wheel-corner physics baseline. M3A adds asset-derived primitive defaults. M3B adds semantic preview and runtime audit metadata loading. M3B.2 adds one static visual-only wheel mesh proof at a fixed debug origin. M3B.2.1 adds baseColor texture loading for that same static proof. M3B.3 attaches that same visual-only wheel mesh to the primitive wheel body with an explicit render-only correction transform. M3B.3 hardening centers the primitive cylinder on the wheel body origin and adds a toggle for the orange primitive wheel debug shape; hiding it does not disable the physics wheel body or collision. M4 Foundation adds sidecar asset contract runtime, one-sided suspension visual proof, contract point overlay, and moving endpoint debug preview without changing physics authority. M5 First Drivable (2026-07-05) scales the same rest-anchor corner model to a dynamic four-corner vehicle with engine-native front steering in a render-free physics module shared with the validation CLI; the corner lab remains the isolated tuning environment. The same day, the Jozz layer deduplicated its jsmn helpers into `jozz_vehicle_json`, centralized asset path resolution in `jozz_vehicle_asset_paths`, and made the metadata module's built-in table the only fallback constants source.
 
 Do not override this with older M2/M2.1/M2.2/M2.3 assumptions.
 
@@ -225,6 +229,22 @@ samples/jozz_vehicle_visual_asset.h
 samples/jozz_vehicle_visual_asset.cpp
 ```
 
+Current M5 drivable code:
+
+```text
+samples/jozz_vehicle_m5_vehicle.h        <- physics prefab module, no gfx deps
+samples/jozz_vehicle_m5_vehicle.cpp
+samples/jozz_vehicle_m5_drivable_lab.h
+samples/jozz_vehicle_m5_drivable_lab.cpp
+```
+
+Shared Jozz infrastructure (2026-07-05 dedup):
+
+```text
+samples/jozz_vehicle_json.h / .cpp        <- shared jsmn token helpers
+samples/jozz_vehicle_asset_paths.h / .cpp <- shared asset path resolver
+```
+
 Asset audit tools:
 
 ```powershell
@@ -234,7 +254,7 @@ py tools\asset_contract_audit.py
 
 ## Current hotkeys
 
-Current Jozz Vehicle shortcuts:
+Lab M2 Primitive Corner:
 
 ```text
 W      wheel motor forward
@@ -242,6 +262,15 @@ S      wheel motor reverse
 Space  brake
 Q      live root down
 E      live root up
+```
+
+M5 First Drivable:
+
+```text
+W/S    drive forward/reverse
+A/D    steer left/right
+Space  brake
+T      third-person camera toggle
 ```
 
 Do not use `[` or `]`; they are global sample switching keys.
@@ -253,6 +282,7 @@ Before adding any shortcut, check and update:
 3. `samples/gfx/keycodes.h`
 4. `samples/sample_jozz_vehicle_lab.cpp`
 5. `samples/jozz_vehicle_primitive_corner_lab.cpp`
+6. `samples/jozz_vehicle_m5_drivable_lab.cpp`
 
 ## Non-negotiables
 
@@ -271,35 +301,50 @@ Before adding any shortcut, check and update:
 
 ## Immediate next engineering target
 
-The next small feature gate is:
+Per ADR-0005, the order is:
 
 ```text
-M4C procedural damper/cardan visual proof using validated contract endpoints
+M5.1  feel tuning pass driven by Jozz's manual driving feedback
+M4C   procedural damper/cardan visual proof on the drivable M5 corners
 ```
 
-Strict scope for that gate:
+Strict scope for M4C:
 
 ```text
 use existing contract endpoint data
 keep audit reports as diagnostics
 do not regenerate reports unless explicitly intended
 do not build a full glTF importer
-do not add mesh collision, steering, multi-body suspension, or full vehicle assembly
+do not add mesh collision or multi-body suspension
 ```
+
+(steering and the four-corner vehicle now exist through the engine wheel
+joint in the M5 module; do not re-implement them elsewhere)
 
 ## Validation commands
 
 From repo root:
 
 ```powershell
-cmd /c "set PATH=& cmake --build --preset windows-debug --target test"
-cmd /c "set PATH=& cmake --build --preset windows-debug --target samples"
-cmd /c "set PATH=& cmake --build --preset windows-debug --target jozz_vehicle_validation"
-cmd /c "set PATH=& build\bin\Debug\test.exe"
-cmd /c "set PATH=& build\bin\Debug\jozz_vehicle_validation.exe"
+cmake --build --preset windows-debug --target test
+cmake --build --preset windows-debug --target samples
+cmake --build --preset windows-debug --target jozz_vehicle_validation
+build\bin\Debug\test.exe
+build\bin\Debug\jozz_vehicle_validation.exe
+build\bin\Debug\samples.exe --sample 96 --frames 300
 ```
 
-In Codex/PowerShell on Windows, use the `cmd /c "set PATH=& ..."` wrapper if MSBuild fails with duplicate `Path/PATH` environment keys. Treat that as an environment issue, not a Box3D code issue.
+Environment warning (2026-07-05): the historical `cmd /c "set PATH=& ..."`
+wrapper SILENTLY DOES NOTHING when invoked from Git Bash — cmd starts
+interactively, executes nothing, and exits 0, so builds appear green while
+binaries stay stale. Call cmake directly and verify binary timestamps or
+program output. Use the wrapper only in environments where MSBuild actually
+fails on duplicate `Path/PATH` environment keys (the original Codex issue),
+and treat that failure as an environment issue, not a Box3D code issue.
+
+`jozz_vehicle_validation.exe` now includes the M5 headless drive smoke
+(settle/drive/steer/brake assertions) and must end with
+`m5 drive smoke: ok` and `jozz_vehicle_validation: OK`.
 
 Run asset report generators only when you intentionally want to rewrite reports:
 

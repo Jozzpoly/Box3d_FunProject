@@ -2,18 +2,23 @@
 
 Date: 2026-07-05
 Branch: `jozz-vehicle-sandbox-m0`  
-Status: M2.5/M3A/M3B.3 baseline validated; M4 Foundation contract runtime and suspension visual proof implemented; 2026-07-05 Jozz screenshot smoke confirmed
+Status: M2.5/M3A/M3B.3 baseline validated; M4 Foundation validated by Jozz screenshots; M5 First Drivable implemented with headless drive smoke, awaiting Jozz manual feel check
 
-## 1. Current active sample
+## 1. Current active samples
 
 ```text
 Category: Jozz Vehicle
-Sample:   Lab M2 Primitive Corner
+Sample:   M5 First Drivable          <- pierwszy jeżdżący pojazd (nowe)
+Source:   samples/jozz_vehicle_m5_drivable_lab.cpp + samples/jozz_vehicle_m5_vehicle.cpp
+
+Sample:   Lab M2 Primitive Corner    <- izolowany narożnik, nadal aktywny
 Source:   samples/sample_jozz_vehicle_lab.cpp + samples/jozz_vehicle_primitive_corner_lab.cpp
 Panel:    Jozz Vehicle Lab M2.5 + M3A/M3B.3 + M4 foundation debug
 ```
 
-The sample picker name remains `Lab M2 Primitive Corner` because the scene is still the same one-corner primitive lab.
+The corner lab remains the isolated tuning environment; M5 is the drivable
+four-corner vehicle built on the same rest-anchor model. See
+`docs/M5_FIRST_DRIVABLE_PL.md` and `docs/adr/0005-m5-first-drivable-before-m4c.md`.
 
 The older smoke test still exists:
 
@@ -38,6 +43,21 @@ M4F.1 asset contract runtime resolves sidecar bindings from source glTF
 M4A one-sided suspension mount visual proof exists
 M4B narrow moving endpoint debug preview exists
 2026-07-05 Jozz screenshots confirm suspension model, texture, transparency and helper-line visibility in the active lab
+```
+
+Implemented 2026-07-05, machine-validated, awaiting Jozz manual feel check:
+
+```text
+Cleanup: shared jozz_vehicle_json helpers, shared asset path resolver,
+         single built-in fallback table, upstream CMakeLists layout restored
+M5 vehicle physics module (jozz_vehicle_m5_vehicle.*): dynamic chassis,
+         four b3WheelJoints on the M2.4 rest-anchor model, front steering,
+         AWD/RWD drive, brake, optional upright assist
+M5 headless drive smoke in jozz_vehicle_validation.exe: settle/drive/steer/
+         brake with assertions (caught collapsed suspension and inverted
+         steering sign during development)
+M5 sample "Jozz Vehicle / M5 First Drivable": W/S/A/D/Space/T input, ramp +
+         washboard course, live tuning, glTF wheel visuals on all corners
 ```
 
 Latest observed runtime metadata state:
@@ -277,6 +297,8 @@ samples/jozz_vehicle_validation.cpp
 
 ## 8. Current hotkeys
 
+Lab M2 Primitive Corner:
+
 ```text
 W      wheel motor forward
 S      wheel motor reverse
@@ -285,21 +307,36 @@ Q      live root down
 E      live root up
 ```
 
-Do not use `[` or `]`; they are global sample-switching keys.
+M5 First Drivable:
 
-M3A/M3B added no new hotkeys.
+```text
+W/S    drive forward/reverse
+A/D    steer left/right
+Space  brake
+T      third-person camera toggle
+```
+
+Do not use `[` or `]`; they are global sample-switching keys. Details in
+`docs/HOTKEY_AUDIT_PL.md` (updated 2026-07-05 for A/D/T).
 
 ## 9. Validation commands
 
 From repo root:
 
 ```powershell
-cmd /c "set PATH=& cmake --build --preset windows-debug --target test"
-cmd /c "set PATH=& cmake --build --preset windows-debug --target samples"
-cmd /c "set PATH=& cmake --build --preset windows-debug --target jozz_vehicle_validation"
-cmd /c "set PATH=& build\bin\Debug\test.exe"
-cmd /c "set PATH=& build\bin\Debug\jozz_vehicle_validation.exe"
+cmake --build --preset windows-debug --target test
+cmake --build --preset windows-debug --target samples
+cmake --build --preset windows-debug --target jozz_vehicle_validation
+build\bin\Debug\test.exe
+build\bin\Debug\jozz_vehicle_validation.exe
+build\bin\Debug\samples.exe --sample 96 --frames 300
 ```
+
+Environment note (2026-07-05): the historical `cmd /c "set PATH=& ..."`
+wrapper silently does nothing when invoked from Git Bash (cmd starts
+interactively and exits 0 without running the command). Call cmake directly;
+use the wrapper only in environments where MSBuild actually fails on
+duplicate `Path/PATH` keys, and verify output/binary timestamps either way.
 
 Run `py tools\asset_audit.py` and `py tools\asset_contract_audit.py` only when intentionally regenerating repo reports.
 
@@ -433,13 +470,16 @@ procedural damper/cardan/chassis visual parts
 
 ## 11. Next pass
 
-The next small feature gate is:
+The next passes, in order (see ADR-0005):
 
 ```text
-M4C procedural damper/cardan visual proof using validated contract endpoints
+M5.1  feel tuning pass driven by Jozz's manual driving feedback
+      (masses, torques, suspension hertz/damping, steering response)
+M4C   procedural damper/cardan visual proof using validated contract
+      endpoints - now targeting the drivable M5 vehicle corners
 ```
 
-Strict scope:
+Strict scope for M4C stays as documented:
 
 ```text
 use existing sidecar contract endpoint data
@@ -447,10 +487,11 @@ keep audit reports as diagnostics
 do not regenerate reports automatically
 not full importer
 not mesh collision
-not steering
 not multi-body suspension
-not full vehicle
 ```
+
+(the former "not steering / not full vehicle" items are satisfied by M5
+through the engine wheel joint and are no longer prohibitions)
 
 ## 12. No-go list for Codex
 

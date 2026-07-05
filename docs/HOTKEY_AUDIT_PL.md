@@ -1,9 +1,9 @@
 # Hotkey Audit — Jozz Vehicle Box3D Native
 
-Date: 2026-07-03  
+Date: 2026-07-05  
 Branch: `jozz-vehicle-sandbox-m0`  
 Status: active reference for sample-host and Jozz Vehicle lab hotkeys  
-Last checked against: `samples/main.cpp`, `samples/gfx/keycodes.h`, `samples/sample_jozz_vehicle_lab.cpp`
+Last checked against: `samples/main.cpp`, `samples/gfx/keycodes.h`, `samples/sample_jozz_vehicle_lab.cpp`, `samples/jozz_vehicle_primitive_corner_lab.cpp`, `samples/jozz_vehicle_m5_drivable_lab.cpp`
 
 ## Why this exists
 
@@ -61,6 +61,29 @@ Notes:
 - Live root can also be controlled by the `Live root offset` ImGui slider, so keyboard control is not mandatory.
 - `R` is still global restart and should not be described as a Jozz-specific action even if it is useful during testing.
 
+## Current Jozz Vehicle M5 First Drivable hotkeys
+
+Added 2026-07-05 with the M5 sample, taken from the pre-approved candidate
+list below after re-checking `samples/main.cpp` and `samples/gfx/keycodes.h`:
+
+```text
+W      drive forward
+S      drive reverse
+A      steer left
+D      steer right
+Space  brake
+T      toggle third-person camera (same convention as the stock Driving sample)
+```
+
+Notes:
+
+- `A/D/T` were on the candidate list and are not consumed by the sample host.
+- The stock third-person `CharacterMover` also reads `W/A/S/D`, but only in
+  character samples; it does not run in the Jozz samples.
+- In third-person mode the camera follows the chassis pivot; mouse owns yaw.
+- All tuning (torque, suspension, steering limits) stays in ImGui sliders per
+  the control policy below.
+
 ## Current code ownership summary
 
 `Q/E` live root control is implemented inside `JozzVehiclePrimitiveCornerM2::Step()`.
@@ -112,9 +135,10 @@ Also avoid overloading `W/S/Space` unless it is clearly vehicle driving/braking 
 Possible future keys after checking conflicts:
 
 ```text
-A/D      steering left/right, if not reserved by camera/sample mode
+A/D      steering left/right — TAKEN by M5 First Drivable (2026-07-05)
 Q/E      vertical debug/root controls, currently used by M2.5
-T/Y      debug toggles only if documented
+T        third-person toggle — TAKEN by M5 First Drivable (2026-07-05)
+Y        debug toggles only if documented
 V/B/N    visual/debug toggles only if documented
 ```
 
