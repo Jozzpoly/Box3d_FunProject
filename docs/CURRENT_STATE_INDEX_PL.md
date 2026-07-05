@@ -2,7 +2,7 @@
 
 Date: 2026-07-05
 Branch: `jozz-vehicle-sandbox-m0`  
-Status: M2.5/M3A/M3B.3 baseline validated; M4 Foundation validated by Jozz screenshots; M5 First Drivable implemented with headless drive smoke, awaiting Jozz manual feel check
+Status: M2.5/M3A/M3B.3 baseline validated; M4 Foundation validated by Jozz screenshots; M5 First Drivable implemented and played by Jozz (~20 min); M5.1 feel-tuning pass done (stationary steering torque fix, chassis width, chase camera, wider test playground) per docs/M5_1_FEEL_TUNING_IMPLEMENTATION_REPORT_PL.md, awaiting Jozz's re-test
 
 ## 1. Current active samples
 
@@ -58,6 +58,34 @@ M5 headless drive smoke in jozz_vehicle_validation.exe: settle/drive/steer/
          steering sign during development)
 M5 sample "Jozz Vehicle / M5 First Drivable": W/S/A/D/Space/T input, ramp +
          washboard course, live tuning, glTF wheel visuals on all corners
+```
+
+M5.1 feel tuning (2026-07-05, after Jozz's ~20 min playtest), see
+`docs/M5_1_FEEL_TUNING_HANDOFF_2026_07_05_PL.md` (analysis/plan) and
+`docs/M5_1_FEEL_TUNING_IMPLEMENTATION_REPORT_PL.md` (what shipped):
+
+```text
+Reproduced the reported broken stationary steering in the headless smoke
+  FIRST (0.0 deg of 32 deg target at the old 80 N*m default) before fixing,
+  per the project's evidence-before-fix discipline
+Fixed: maxSteeringTorque 80->700, steeringHertz 8->14 (stationary tire
+  parking-torque was undertorqued by an order of magnitude; scrub radius in
+  this rig is actually zero, so that was not the mechanism)
+Narrowed chassis half-width 0.80->0.55 (was clipping into the tire sidewalls)
+Replaced the default camera with a proper rear chase view and reset
+  m_thirdPerson explicitly; added an "Invert steering" checkbox as a
+  safety net since screen orientation could not be verified visually
+  this session; the steering sign math itself was NOT changed (verified
+  correct against this codebase's own right = up x forward convention)
+Chassis/track/wheelbase/mass geometry moved to a pending/Apply pattern
+  (mirrors the corner lab), and all previously-live sliders widened
+  substantially for stress testing per Jozz's request
+Extracted jozz_vehicle_m5_test_course.h/.cpp: 2x ground, 4 ramps, 2
+  washboard lanes, a rough-terrain heightfield zone, 14 scattered props
+  with a "Reset props" button
+NOT touched: the speed-dependent wheel "teleporting" instability - needs
+  Jozz's eyes on the corrected build; first diagnostic is the existing
+  Solver panel's Sub-steps slider (already on by default, no code needed)
 ```
 
 Latest observed runtime metadata state:
@@ -470,13 +498,12 @@ procedural damper/cardan/chassis visual parts
 
 ## 11. Next pass
 
-The next passes, in order (see ADR-0005):
-
 ```text
-M5.1  feel tuning pass driven by Jozz's manual driving feedback
-      (masses, torques, suspension hertz/damping, steering response)
-M4C   procedural damper/cardan visual proof using validated contract
-      endpoints - now targeting the drivable M5 vehicle corners
+M5.1 re-test  Jozz re-plays the corrected build: A/D direction, stationary
+              steering, chassis proportions, and the Sub-steps diagnostic
+              for the still-open speed instability
+M4C           procedural damper/cardan visual proof using validated contract
+              endpoints - now targeting the drivable M5 vehicle corners
 ```
 
 Strict scope for M4C stays as documented:

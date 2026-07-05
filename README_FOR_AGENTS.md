@@ -1,6 +1,6 @@
 # README_FOR_AGENTS — Jozz Vehicle Box3D Native
 
-Status: M2.5 + M3A/M3B.3 + M4 Foundation validated; M5 First Drivable implemented (dynamic 4-corner vehicle + headless drive smoke), awaiting Jozz manual feel check; Jozz-layer JSON/path/fallback deduplication done
+Status: M2.5 + M3A/M3B.3 + M4 Foundation validated; M5 First Drivable played by Jozz (~20 min); M5.1 feel-tuning pass landed (stationary steering torque fix reproduced-then-fixed in headless smoke, chassis width, rear chase camera + invert-steering safety net, pending/Apply rig geometry, wider test playground), awaiting Jozz's re-test; speed-dependent wheel instability still open (see docs/M5_1_FEEL_TUNING_IMPLEMENTATION_REPORT_PL.md)
 Date: 2026-07-05
 Owner/creative director: Jozz / Przemek  
 Working branch: `jozz-vehicle-sandbox-m0`
@@ -33,7 +33,7 @@ The sample host gives windowing, camera, debug draw, ImGui, input, registration 
 
 Read in this order before making changes:
 
-0. `docs/M5_FIRST_DRIVABLE_PL.md` + `docs/adr/0005-m5-first-drivable-before-m4c.md`
+0. `docs/M5_1_FEEL_TUNING_IMPLEMENTATION_REPORT_PL.md` (what shipped after Jozz's playtest) + `docs/M5_1_FEEL_TUNING_HANDOFF_2026_07_05_PL.md` (root-cause analysis) + `docs/M5_FIRST_DRIVABLE_PL.md` + `docs/adr/0005-m5-first-drivable-before-m4c.md`
 1. `docs/CURRENT_STATE_INDEX_PL.md`
 2. `docs/M4_FOUNDATION_SUSPENSION_RIG_PLAN_PL.md`
 3. `docs/ASSET_CONTRACT_RUNTIME_V1_PL.md`
@@ -236,6 +236,8 @@ samples/jozz_vehicle_m5_vehicle.h        <- physics prefab module, no gfx deps
 samples/jozz_vehicle_m5_vehicle.cpp
 samples/jozz_vehicle_m5_drivable_lab.h
 samples/jozz_vehicle_m5_drivable_lab.cpp
+samples/jozz_vehicle_m5_test_course.h    <- ramps/washboard/rough terrain/props, gfx-free content
+samples/jozz_vehicle_m5_test_course.cpp
 ```
 
 Shared Jozz infrastructure (2026-07-05 dedup):
