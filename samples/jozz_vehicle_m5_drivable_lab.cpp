@@ -10,6 +10,7 @@
 #include "jozz_vehicle_asset_dimensions.h"
 #include "jozz_vehicle_asset_metadata.h"
 #include "jozz_vehicle_asset_paths.h"
+#include "jozz_vehicle_m5_test_course.h"
 #include "jozz_vehicle_m5_vehicle.h"
 #include "jozz_vehicle_visual_mesh.h"
 
@@ -25,13 +26,28 @@ public:
 	explicit JozzVehicleM5FirstDrivable( SampleContext* context )
 		: Sample( context )
 	{
+		// Rear three-quarter chase view: eye behind and above the spawn point,
+		// looking toward +X (the chassis' forward axis). A 2026-07-05 playtest
+		// reported A/D steering as inverted; the steering math itself checks out
+		// against this codebase's own right = up x forward convention (see
+		// jozz_vehicle_m5_vehicle.cpp), so the likely cause was the previous
+		// default camera watching the car mostly from the front, which mirrors
+		// screen-left/right relative to the driver's own left/right. This view
+		// puts the car driving away from the camera instead, matching normal
+		// chase-cam expectations. m_invertSteering below is a one-click escape
+		// hatch in case this still is not enough.
+		m_camera->m_thirdPerson = false;
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 38.0f, 16.0f, 15.0f, { 0.0f, 1.2f, 0.0f } );
+			m_camera->SetView( -135.0f, 14.0f, 13.0f, { 0.0f, 1.2f, 0.0f } );
 		}
 
-		m_groundId = AddGroundBox( 60.0f );
-		CreateCourse();
+		// 2x the prior half-extent (60 -> 120) per playtest feedback wanting more
+		// room to build speed.
+		m_groundId = AddGroundBox( 120.0f );
+		// AddGroundBox always places the box at y=-1 with half-height 1, so the
+		// top surface is at y=0 regardless of the extent argument.
+		m_testCourse = CreateJozzVehicleM5TestCourse( m_worldId, 0.0f );
 
 		m_assetMetadata = LoadJozzVehicleAuditMetadata();
 		JozzVehiclePrimitiveDefaults defaults = GetJozzVehicleM3ADefaults( m_assetMetadata );
@@ -41,54 +57,42 @@ public:
 		m_showWheelVisuals = true;
 		m_showPrimitiveWheelShapes = false;
 		m_showAxisDiagnostics = false;
+		m_invertSteering = false;
 
 		m_vehicle = {};
 		CreateVehicle();
 		LoadWheelVisual();
+		SyncEditFromConfig();
 	}
 
 	~JozzVehicleM5FirstDrivable() override
 	{
 		DestroyVehicle();
 		m_wheelVisual.Destroy();
+		DestroyJozzVehicleM5TestCourse( &m_testCourse );
 	}
 
-	void CreateCourse()
+	void SyncEditFromConfig()
 	{
-		// A couple of static ramps and a washboard lane. Enough to feel the
-		// suspension and steering without turning this into level design.
-		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		shapeDef.baseMaterial.friction = 0.9f;
+		m_editChassisHalfExtents = m_config.chassisHalfExtents;
+		m_editChassisDensity = m_config.chassisDensity;
+		m_editAxleHalfSpacing = m_config.axleHalfSpacing;
+		m_editTrackHalfWidth = m_config.trackHalfWidth;
+		m_editRestDrop = m_config.restDrop;
+		m_editWheelDensity = m_config.wheelDensity;
+		m_structuralSetupDirty = false;
+	}
 
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.position = { 20.0f, 0.30f, 0.0f };
-			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 8.0f * B3_PI / 180.0f );
-			bodyDef.name = "m5_ramp_east";
-			b3BodyId rampId = b3CreateBody( m_worldId, &bodyDef );
-			b3BoxHull ramp = b3MakeBoxHull( 4.0f, 0.25f, 5.0f );
-			b3CreateHullShape( rampId, &shapeDef, &ramp.base );
-		}
-
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.position = { -22.0f, 0.45f, -8.0f };
-			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, -12.0f * B3_PI / 180.0f );
-			bodyDef.name = "m5_ramp_west";
-			b3BodyId rampId = b3CreateBody( m_worldId, &bodyDef );
-			b3BoxHull ramp = b3MakeBoxHull( 4.0f, 0.25f, 4.0f );
-			b3CreateHullShape( rampId, &shapeDef, &ramp.base );
-		}
-
-		for ( int i = 0; i < 5; ++i )
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.position = { -6.0f - 3.0f * (float)i, 0.0f, 8.0f };
-			bodyDef.name = "m5_washboard";
-			b3BodyId bumpId = b3CreateBody( m_worldId, &bodyDef );
-			b3BoxHull bump = b3MakeBoxHull( 0.45f, 0.10f, 2.6f );
-			b3CreateHullShape( bumpId, &shapeDef, &bump.base );
-		}
+	void ApplyPendingStructuralSetup()
+	{
+		m_config.chassisHalfExtents = m_editChassisHalfExtents;
+		m_config.chassisDensity = m_editChassisDensity;
+		m_config.axleHalfSpacing = m_editAxleHalfSpacing;
+		m_config.trackHalfWidth = m_editTrackHalfWidth;
+		m_config.restDrop = m_editRestDrop;
+		m_config.wheelDensity = m_editWheelDensity;
+		CreateVehicle();
+		m_structuralSetupDirty = false;
 	}
 
 	void LoadWheelVisual()
@@ -189,35 +193,50 @@ public:
 		ImGui::TextUnformatted( "Input: W/S drive, A/D steer, Space brake, T third-person camera, R restart." );
 		ImGui::Text( "speed %.1f m/s (%.0f km/h)", GetJozzVehicleM5ForwardSpeed( m_vehicle ),
 					 3.6f * GetJozzVehicleM5ForwardSpeed( m_vehicle ) );
+		ImGui::TextWrapped( "M5.1 note: instability at speed may be physics or a render-interpolation artifact of "
+							"reading the body transform at draw time. Use the Solver panel below (Sub-steps) to help "
+							"tell them apart: if raising sub-steps removes it, it was a solver convergence issue." );
 		ImGui::Separator();
 
-		ImGui::TextUnformatted( "Drive" );
-		ImGui::SliderFloat( "Drive torque", &m_config.maxDriveTorque, 0.0f, 1500.0f, "%.0f" );
-		ImGui::SliderFloat( "Drive speed", &m_config.maxDriveSpeed, 0.0f, 60.0f, "%.0f rad/s" );
-		ImGui::SliderFloat( "Brake torque", &m_config.brakeTorque, 0.0f, 2000.0f, "%.0f" );
+		ImGui::TextUnformatted( "Drive (wide ranges: this lab is for stress-testing until it breaks)" );
+		ImGui::SliderFloat( "Drive torque", &m_config.maxDriveTorque, 0.0f, 6000.0f, "%.0f" );
+		ImGui::SliderFloat( "Drive speed", &m_config.maxDriveSpeed, 0.0f, 150.0f, "%.0f rad/s" );
+		ImGui::SliderFloat( "Brake torque", &m_config.brakeTorque, 0.0f, 6000.0f, "%.0f" );
 		ImGui::Checkbox( "All wheel drive", &m_config.allWheelDrive );
 		ImGui::Separator();
 
 		ImGui::TextUnformatted( "Suspension" );
-		if ( ImGui::SliderFloat( "Spring hertz", &m_config.suspensionHertz, 0.5f, 12.0f, "%.2f" ) )
+		if ( ImGui::SliderFloat( "Spring hertz", &m_config.suspensionHertz, 0.2f, 30.0f, "%.2f" ) )
 		{
 			ApplySuspensionTuning();
 		}
-		if ( ImGui::SliderFloat( "Damping ratio", &m_config.suspensionDampingRatio, 0.0f, 3.0f, "%.2f" ) )
+		if ( ImGui::SliderFloat( "Damping ratio", &m_config.suspensionDampingRatio, 0.0f, 6.0f, "%.2f" ) )
 		{
 			ApplySuspensionTuning();
 		}
 		ImGui::Separator();
 
 		ImGui::TextUnformatted( "Steering" );
-		if ( ImGui::SliderFloat( "Max angle", &m_config.maxSteeringAngleDegrees, 5.0f, 45.0f, "%.0f deg" ) )
+		ImGui::Checkbox( "Invert steering (if A/D feels backwards)", &m_invertSteering );
+		if ( ImGui::SliderFloat( "Max angle", &m_config.maxSteeringAngleDegrees, 1.0f, 60.0f, "%.0f deg" ) )
 		{
 			ApplySteeringTuning();
 		}
-		if ( ImGui::SliderFloat( "Steering torque", &m_config.maxSteeringTorque, 0.0f, 300.0f, "%.0f" ) )
+		if ( ImGui::SliderFloat( "Steering torque", &m_config.maxSteeringTorque, 0.0f, 3000.0f, "%.0f" ) )
 		{
 			ApplySteeringTuning();
 		}
+		if ( ImGui::SliderFloat( "Steering hertz", &m_config.steeringHertz, 0.5f, 40.0f, "%.2f" ) )
+		{
+			ApplySteeringTuning();
+		}
+		if ( ImGui::SliderFloat( "Steering damping ratio", &m_config.steeringDampingRatio, 0.0f, 6.0f, "%.2f" ) )
+		{
+			ApplySteeringTuning();
+		}
+		ImGui::TextWrapped( "A stationary tire resists steering with its whole contact patch twisting against "
+							"friction (why real cars need power steering); a rolling tire needs far less torque. "
+							"If steering feels frozen at low speed again, raise Steering torque first." );
 		ImGui::Separator();
 
 		if ( ImGui::Checkbox( "Upright assist", &m_config.uprightAssist ) )
@@ -236,6 +255,43 @@ public:
 		if ( ImGui::Button( "Reset vehicle" ) )
 		{
 			CreateVehicle();
+		}
+		ImGui::SameLine();
+		if ( ImGui::Button( "Reset props" ) )
+		{
+			ResetJozzVehicleM5TestCourseProps( m_testCourse );
+		}
+
+		ImGui::Separator();
+		ImGui::TextUnformatted( "Structural rig setup (geometry/mass - requires Apply, rebuilds the vehicle)" );
+		bool structuralEdited = false;
+		structuralEdited |= ImGui::SliderFloat( "Chassis half length", &m_editChassisHalfExtents.x, 0.3f, 4.0f, "%.2f" );
+		structuralEdited |= ImGui::SliderFloat( "Chassis half height", &m_editChassisHalfExtents.y, 0.1f, 1.5f, "%.2f" );
+		structuralEdited |= ImGui::SliderFloat( "Chassis half width", &m_editChassisHalfExtents.z, 0.2f, 2.0f, "%.2f" );
+		structuralEdited |= ImGui::SliderFloat( "Chassis density", &m_editChassisDensity, 20.0f, 2000.0f, "%.0f" );
+		structuralEdited |= ImGui::SliderFloat( "Axle half spacing (wheelbase/2)", &m_editAxleHalfSpacing, 0.4f, 4.0f, "%.2f" );
+		structuralEdited |= ImGui::SliderFloat( "Track half width", &m_editTrackHalfWidth, 0.4f, 3.0f, "%.2f" );
+		structuralEdited |= ImGui::SliderFloat( "Rest drop", &m_editRestDrop, 0.05f, 2.0f, "%.2f" );
+		structuralEdited |= ImGui::SliderFloat( "Wheel density", &m_editWheelDensity, 5.0f, 1000.0f, "%.0f" );
+		if ( structuralEdited )
+		{
+			m_structuralSetupDirty = true;
+		}
+		if ( m_structuralSetupDirty )
+		{
+			ImGui::TextWrapped( "Pending structural change. Press Apply to rebuild the vehicle." );
+		}
+		if ( ImGui::Button( "Apply rig rebuild" ) )
+		{
+			ApplyPendingStructuralSetup();
+		}
+		ImGui::SameLine();
+		if ( ImGui::Button( "Reset rig to asset defaults" ) )
+		{
+			JozzVehiclePrimitiveDefaults defaults = GetJozzVehicleM3ADefaults( m_assetMetadata );
+			m_config = JozzVehicleM5DefaultConfig( defaults.wheelRadius, defaults.wheelWidth, defaults.assetSuspensionTravelHint );
+			CreateVehicle();
+			SyncEditFromConfig();
 		}
 
 		ImGui::TextWrapped( "%s", m_wheelVisual.status.c_str() );
@@ -265,6 +321,11 @@ public:
 			input.steer -= 1.0f;
 		}
 		input.brake = IsKeyDown( KEY_SPACE );
+
+		if ( m_invertSteering )
+		{
+			input.steer = -input.steer;
+		}
 
 		UpdateJozzVehicleM5Drive( m_vehicle, input );
 
@@ -329,6 +390,7 @@ public:
 	}
 
 	b3BodyId m_groundId;
+	JozzVehicleM5TestCourse m_testCourse;
 	JozzVehicleM5 m_vehicle;
 	JozzVehicleM5Config m_config;
 	JozzVehicleAuditMetadata m_assetMetadata;
@@ -339,6 +401,16 @@ public:
 	bool m_showWheelVisuals;
 	bool m_showPrimitiveWheelShapes;
 	bool m_showAxisDiagnostics;
+	bool m_invertSteering;
+
+	// Pending structural rig edits (geometry/mass); require "Apply rig rebuild".
+	b3Vec3 m_editChassisHalfExtents;
+	float m_editChassisDensity;
+	float m_editAxleHalfSpacing;
+	float m_editTrackHalfWidth;
+	float m_editRestDrop;
+	float m_editWheelDensity;
+	bool m_structuralSetupDirty;
 };
 
 Sample* CreateJozzVehicleM5FirstDrivable( SampleContext* context )
