@@ -121,6 +121,130 @@ float ChassisHeading( const JozzVehicleM5& vehicle )
 	return std::atan2( forward.z, forward.x );
 }
 
+// High-speed wheel smoothness probe. A 2026-07-05 playtest reported wheels
+// "hopping"/losing ground contact at speed, worst on the unloaded front axle,
+// and raising solver sub-steps did NOT help - which points away from solver
+// convergence and toward the wheel geometry itself: a 32-side hull cylinder
+// (the engine's hard cap) has ~2.5mm of radial ripple at this wheel radius, a
+// washboard built into the wheel. This probe measures that hypothesis: same
+// vehicle, same run, different wheel shapes, comparing front-wheel ground
+// contact and vertical-velocity agitation at speed.
+struct M5WheelProbeResult
+{
+	float topSpeed;
+	float frontContactFraction; // fraction of sampled steps with both front wheels touching
+	float frontVerticalRms;		// RMS of front wheel vertical velocity during the sampling window
+};
+
+M5WheelProbeResult RunM5WheelSmoothnessProbe( const JozzVehiclePrimitiveDefaults& defaults, int wheelShape, int cylinderSides )
+{
+	M5WheelProbeResult result = {};
+
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyId groundId;
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.position = { 0.0f, -1.0f, 0.0f };
+		bodyDef.name = "m5_probe_ground";
+		groundId = b3CreateBody( worldId, &bodyDef );
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.baseMaterial.friction = 0.8f;
+		b3BoxHull ground = b3MakeBoxHull( 400.0f, 1.0f, 50.0f );
+		b3CreateHullShape( groundId, &shapeDef, &ground.base );
+	}
+
+	JozzVehicleM5Config config =
+		JozzVehicleM5DefaultConfig( defaults.wheelRadius, defaults.wheelWidth, defaults.assetSuspensionTravelHint );
+	config.wheelShape = wheelShape;
+	config.wheelCylinderSides = cylinderSides;
+	float spawnHeight = config.restDrop + config.wheelRadius + 0.05f;
+	JozzVehicleM5 vehicle = CreateJozzVehicleM5( worldId, groundId, config, { 0.0f, spawnHeight, 0.0f } );
+
+	const float timeStep = 1.0f / 60.0f;
+	const int subStepCount = 4;
+
+	// Settle, then accelerate to cruise.
+	JozzVehicleM5DriveInput input = {};
+	for ( int i = 0; i < 90; ++i )
+	{
+		UpdateJozzVehicleM5Drive( vehicle, input );
+		b3World_Step( worldId, timeStep, subStepCount );
+	}
+
+	input.drive = 1.0f;
+	for ( int i = 0; i < 360; ++i )
+	{
+		UpdateJozzVehicleM5Drive( vehicle, input );
+		b3World_Step( worldId, timeStep, subStepCount );
+	}
+
+	// Sampling window at speed: 3 seconds of steady full throttle.
+	int sampleSteps = 180;
+	int frontContactSamples = 0;
+	double verticalSquaredSum = 0.0;
+	for ( int i = 0; i < sampleSteps; ++i )
+	{
+		UpdateJozzVehicleM5Drive( vehicle, input );
+		b3World_Step( worldId, timeStep, subStepCount );
+
+		JozzVehicleM5WheelTelemetry frontLeft = GetJozzVehicleM5WheelTelemetry( vehicle, JOZZ_M5_FRONT_LEFT );
+		JozzVehicleM5WheelTelemetry frontRight = GetJozzVehicleM5WheelTelemetry( vehicle, JOZZ_M5_FRONT_RIGHT );
+		if ( frontLeft.groundContact && frontRight.groundContact )
+		{
+			frontContactSamples += 1;
+		}
+
+		float vyLeft = b3Body_GetLinearVelocity( vehicle.wheelIds[JOZZ_M5_FRONT_LEFT] ).y;
+		float vyRight = b3Body_GetLinearVelocity( vehicle.wheelIds[JOZZ_M5_FRONT_RIGHT] ).y;
+		verticalSquaredSum += 0.5 * ( (double)vyLeft * vyLeft + (double)vyRight * vyRight );
+
+		float speed = GetJozzVehicleM5ForwardSpeed( vehicle );
+		if ( speed > result.topSpeed )
+		{
+			result.topSpeed = speed;
+		}
+	}
+
+	result.frontContactFraction = (float)frontContactSamples / (float)sampleSteps;
+	result.frontVerticalRms = (float)std::sqrt( verticalSquaredSum / (double)sampleSteps );
+
+	DestroyJozzVehicleM5( &vehicle );
+	b3DestroyWorld( worldId );
+	return result;
+}
+
+bool RunM5WheelShapeExperiment( const JozzVehiclePrimitiveDefaults& defaults )
+{
+	std::printf( "m5 wheel smoothness probe (front axle, full throttle cruise):\n" );
+
+	struct
+	{
+		const char* label;
+		int shape;
+		int sides;
+	} cases[] = {
+		{ "cylinder 12 sides", JOZZ_M5_WHEEL_CYLINDER, 12 },
+		{ "cylinder 32 sides", JOZZ_M5_WHEEL_CYLINDER, 32 },
+		{ "sphere (smooth)  ", JOZZ_M5_WHEEL_SPHERE, 32 },
+	};
+
+	bool ok = true;
+	for ( auto& probe : cases )
+	{
+		M5WheelProbeResult result = RunM5WheelSmoothnessProbe( defaults, probe.shape, probe.sides );
+		std::printf( "m5 probe %s: contact %.0f%%, front vy rms %.3f m/s, top speed %.1f m/s\n", probe.label,
+					 100.0f * result.frontContactFraction, result.frontVerticalRms, result.topSpeed );
+		ok &= CheckTrue( "m5 probe reaches cruise speed", result.topSpeed > 8.0f );
+		ok &= CheckTrue( "m5 probe metrics are finite",
+						 b3IsValidFloat( result.frontVerticalRms ) && b3IsValidFloat( result.frontContactFraction ) );
+	}
+
+	return ok;
+}
+
 // Headless M5 drive smoke: settle, drive straight, then steer. This guards the
 // vehicle prefab against regressions in frames, motor conventions, and tuning
 // without opening the samples GUI.
@@ -191,13 +315,37 @@ bool RunM5DriveSmoke( const JozzVehiclePrimitiveDefaults& defaults )
 		float maxAngle = config.maxSteeringAngleDegrees * B3_PI / 180.0f;
 		float angleLeft = b3WheelJoint_GetSteeringAngle( vehicle.wheelJointIds[JOZZ_M5_FRONT_LEFT] );
 		float angleRight = b3WheelJoint_GetSteeringAngle( vehicle.wheelJointIds[JOZZ_M5_FRONT_RIGHT] );
-		std::printf( "m5 stationary steer: left %.1f deg, right %.1f deg, target %.1f deg\n", 180.0f / B3_PI * angleLeft,
+		std::printf( "m5 stationary steer: left %.1f deg, right %.1f deg, rack target %.1f deg\n", 180.0f / B3_PI * angleLeft,
 					 180.0f / B3_PI * angleRight, 180.0f / B3_PI * maxAngle );
 
 		ok &= CheckTrue( "m5 stationary steer state is finite", IsVehicleStateValid( vehicle ) );
-		ok &= CheckTrue( "m5 left wheel steers while stationary", std::fabs( angleLeft ) > 0.5f * maxAngle );
-		ok &= CheckTrue( "m5 right wheel steers while stationary", std::fabs( angleRight ) > 0.5f * maxAngle );
-		ok &= CheckTrue( "m5 front wheels steer symmetrically", std::fabs( angleLeft - angleRight ) < 0.15f * maxAngle );
+
+		// steer=+1 must be a LEFT turn: positive steering angles on both wheels
+		// (left = -Z, positive rotation about +Y swings +X toward -Z). The sign
+		// itself is asserted here because the first two attempts at this
+		// convention got it wrong and only a manual playtest caught it.
+		ok &= CheckTrue( "m5 left wheel steers left (+) while stationary", angleLeft > 0.5f * maxAngle );
+		ok &= CheckTrue( "m5 right wheel steers left (+) while stationary", angleRight > 0.4f * maxAngle );
+
+		// With Ackermann geometry, steering left makes the LEFT wheel the inner
+		// wheel, so it must be steered tighter than the right. The expected
+		// split comes from the exact function the drive path uses.
+		float expectedLeft = 0.0f;
+		float expectedRight = 0.0f;
+		GetJozzVehicleM5SteeringTargets( config, maxAngle, &expectedLeft, &expectedRight );
+		std::printf( "m5 ackermann targets: left %.1f deg, right %.1f deg\n", 180.0f / B3_PI * expectedLeft,
+					 180.0f / B3_PI * expectedRight );
+		if ( config.ackermannGeometry )
+		{
+			ok &= CheckTrue( "m5 ackermann inner (left) target exceeds outer", expectedLeft > expectedRight + 0.01f );
+			ok &= CheckTrue( "m5 inner wheel actually steers tighter", angleLeft > angleRight + 0.005f );
+		}
+
+		// Linked tie rod: the actual angles must stay near the commanded
+		// Ackermann split; a big divergence means the wheels steer independently.
+		float divergence = std::fabs( ( angleLeft - angleRight ) - ( expectedLeft - expectedRight ) );
+		float tieRodTolerance = config.tieRodToleranceDegrees * B3_PI / 180.0f;
+		ok &= CheckTrue( "m5 tie rod keeps wheels coupled", divergence < tieRodTolerance + 0.03f );
 
 		// Return the steering to center before the driving checks below, so
 		// they start from the same clean state as before this sub-test existed.
@@ -250,7 +398,10 @@ bool RunM5DriveSmoke( const JozzVehiclePrimitiveDefaults& defaults )
 	std::printf( "m5 steering heading delta %.3f rad\n", headingDelta );
 
 	ok &= CheckTrue( "m5 steering state is finite", IsVehicleStateValid( vehicle ) );
-	ok &= CheckTrue( "m5 steering changes heading", std::fabs( headingDelta ) > 0.15f );
+	// Signed: steer=+1 = left turn = forward swinging from +X toward -Z, which
+	// DECREASES heading = atan2(f.z, f.x). Asserting the sign, not just the
+	// magnitude, is what would have caught the inverted A/D much earlier.
+	ok &= CheckTrue( "m5 steering left turns left (heading decreases)", headingDelta < -0.15f );
 	ok &= CheckTrue( "m5 stays upright while steering", ChassisUpDotWorldUp( vehicle ) > 0.80f );
 
 	// Brake to a stop.
@@ -332,6 +483,7 @@ int main()
 	ok &= CheckContractRole( suspensionContract, "suspension.visual.chassis_bottom", "visual_part" );
 
 	ok &= RunM5DriveSmoke( defaults );
+	ok &= RunM5WheelShapeExperiment( defaults );
 
 	if ( ok == false )
 	{
