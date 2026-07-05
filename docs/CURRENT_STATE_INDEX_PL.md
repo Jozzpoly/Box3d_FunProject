@@ -2,7 +2,7 @@
 
 Date: 2026-07-05
 Branch: `jozz-vehicle-sandbox-m0`  
-Status: M2.5/M3A/M3B.3 baseline validated; M4 Foundation validated by Jozz screenshots; M5 First Drivable implemented and played by Jozz (~20 min); M5.1 feel-tuning pass done (stationary steering torque fix, chassis width, chase camera, wider test playground) per docs/M5_1_FEEL_TUNING_IMPLEMENTATION_REPORT_PL.md, awaiting Jozz's re-test
+Status: M2.5/M3A/M3B.3 + M4 Foundation validated; M5 drivable; M5.1 tuning validated by Jozz except inverted A/D; M5.2 Wheel & Steering Foundations done (steering convention fixed for real with signed smoke assertions, virtual tie rod + Ackermann, sphere wheels after facet-chatter probe data, contact tuning + per-axle suspension + CG drop + telemetry plots) per docs/M5_2_WHEEL_STEERING_FOUNDATIONS_PL.md, awaiting Jozz's re-test
 
 ## 1. Current active samples
 
@@ -499,11 +499,14 @@ procedural damper/cardan/chassis visual parts
 ## 11. Next pass
 
 ```text
-M5.1 re-test  Jozz re-plays the corrected build: A/D direction, stationary
-              steering, chassis proportions, and the Sub-steps diagnostic
-              for the still-open speed instability
-M4C           procedural damper/cardan visual proof using validated contract
-              endpoints - now targeting the drivable M5 vehicle corners
+M5.2 re-test  Jozz re-plays: A/D direction (finally fixed at the sign level),
+              sphere wheels at speed (the hopping should be gone - HUD shows
+              per-wheel contact), blocked-wheel tie-rod behavior, telemetry
+              plots, contact tuning experiments
+then          per Jozz's direction: continue polishing car/wheel/suspension
+              systems until fundamentals feel right, THEN the full suspension
+              rig (M4C procedural damper/cardan on the drivable corners is the
+              bridge gate); soft-tire roadmap staged in the M5.2 doc
 ```
 
 Strict scope for M4C stays as documented:

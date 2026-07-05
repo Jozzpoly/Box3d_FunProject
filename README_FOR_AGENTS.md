@@ -1,6 +1,6 @@
 # README_FOR_AGENTS — Jozz Vehicle Box3D Native
 
-Status: M2.5 + M3A/M3B.3 + M4 Foundation validated; M5 First Drivable played by Jozz (~20 min); M5.1 feel-tuning pass landed (stationary steering torque fix reproduced-then-fixed in headless smoke, chassis width, rear chase camera + invert-steering safety net, pending/Apply rig geometry, wider test playground), awaiting Jozz's re-test; speed-dependent wheel instability still open (see docs/M5_1_FEEL_TUNING_IMPLEMENTATION_REPORT_PL.md)
+Status: M2.5 + M3A/M3B.3 + M4 Foundation validated; M5/M5.1 played by Jozz; M5.2 Wheel & Steering Foundations landed: steering convention fixed at the sign level (left = -Z; smoke asserts SIGNED direction now), virtual tie rod + Ackermann linkage, sphere wheels by default after probe data showed cylinder facets caused the at-speed hopping (front contact 31% -> 100%), contact tuning / per-axle suspension / CG drop / telemetry plots in the lab UI. Awaiting Jozz's re-test. See docs/M5_2_WHEEL_STEERING_FOUNDATIONS_PL.md
 Date: 2026-07-05
 Owner/creative director: Jozz / Przemek  
 Working branch: `jozz-vehicle-sandbox-m0`
@@ -33,7 +33,7 @@ The sample host gives windowing, camera, debug draw, ImGui, input, registration 
 
 Read in this order before making changes:
 
-0. `docs/M5_1_FEEL_TUNING_IMPLEMENTATION_REPORT_PL.md` (what shipped after Jozz's playtest) + `docs/M5_1_FEEL_TUNING_HANDOFF_2026_07_05_PL.md` (root-cause analysis) + `docs/M5_FIRST_DRIVABLE_PL.md` + `docs/adr/0005-m5-first-drivable-before-m4c.md`
+0. `docs/M5_2_WHEEL_STEERING_FOUNDATIONS_PL.md` (current vehicle physics state: steering convention, wheel shapes, probe data, soft-tire roadmap) then `docs/M5_1_FEEL_TUNING_IMPLEMENTATION_REPORT_PL.md` + `docs/M5_1_FEEL_TUNING_HANDOFF_2026_07_05_PL.md` + `docs/M5_FIRST_DRIVABLE_PL.md` + `docs/adr/0005-m5-first-drivable-before-m4c.md`
 1. `docs/CURRENT_STATE_INDEX_PL.md`
 2. `docs/M4_FOUNDATION_SUSPENSION_RIG_PLAN_PL.md`
 3. `docs/ASSET_CONTRACT_RUNTIME_V1_PL.md`
@@ -100,6 +100,14 @@ Frame A = rest wheel-center anchor on chassis/root
 Frame B = wheel center / wheel body origin
 Rest drop = explicit chassis-to-rest-wheel-center offset
 Visual sockets are not automatically physics frames
+```
+
+M5 vehicle direction convention (settled in M5.2 after two wrong guesses;
+do NOT re-derive it casually, the validation smoke asserts it signed):
+
+```text
+forward = +X, up = +Y, right = forward x up = +Z, LEFT = -Z
+positive steering angle = left turn (rotates +X toward -Z about +Y)
 ```
 
 M3 status:
