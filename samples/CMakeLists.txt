@@ -173,6 +173,8 @@ set(SAMPLE_FILES
     jozz_vehicle_image_decode.h
     jozz_vehicle_json.cpp
     jozz_vehicle_json.h
+    jozz_vehicle_m5_vehicle.cpp
+    jozz_vehicle_m5_vehicle.h
     jozz_vehicle_primitive_corner_lab.cpp
     jozz_vehicle_primitive_corner_lab.h
     jozz_vehicle_visual_asset.cpp
@@ -206,7 +208,7 @@ set(SAMPLE_FILES
 
 add_executable(samples ${SAMPLE_FILES})
 
-# Jozz: headless metadata/contract guard, no GUI. Runs in CI-style validation.
+# Jozz: headless metadata/contract/vehicle guard, no GUI. Runs in CI-style validation.
 add_executable(jozz_vehicle_validation
     jozz_vehicle_validation.cpp
     jozz_vehicle_asset_contract.cpp
@@ -219,6 +221,8 @@ add_executable(jozz_vehicle_validation
     jozz_vehicle_asset_paths.h
     jozz_vehicle_json.cpp
     jozz_vehicle_json.h
+    jozz_vehicle_m5_vehicle.cpp
+    jozz_vehicle_m5_vehicle.h
     jsmn.h
 )
 
@@ -242,6 +246,8 @@ target_link_libraries(samples PRIVATE gfx shared imgui implot sokol nfd)
 target_include_directories(jozz_vehicle_validation PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+# The M5 drive smoke steps a real Box3D world headlessly.
+target_link_libraries(jozz_vehicle_validation PRIVATE box3d)
 set_target_properties(jozz_vehicle_validation PROPERTIES
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON
