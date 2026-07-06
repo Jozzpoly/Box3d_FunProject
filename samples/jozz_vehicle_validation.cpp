@@ -5,6 +5,7 @@
 #include "jozz_vehicle_asset_contract.h"
 #include "jozz_vehicle_asset_metadata.h"
 #include "jozz_vehicle_m5_vehicle.h"
+#include "jozz_vehicle_m6_suspension_rig.h"
 
 #include "box3d/box3d.h"
 
@@ -424,10 +425,641 @@ bool RunM5DriveSmoke( const JozzVehiclePrimitiveDefaults& defaults )
 	return ok;
 }
 
+bool IsM6VehicleStateValid( const JozzVehicleM6& vehicle )
+{
+	if ( b3IsValidVec3( b3ToVec3( b3Body_GetPosition( vehicle.chassisId ) ) ) == false ||
+		 b3IsValidVec3( b3Body_GetLinearVelocity( vehicle.chassisId ) ) == false )
+	{
+		return false;
+	}
+
+	for ( int corner = 0; corner < JOZZ_M6_CORNER_COUNT; ++corner )
+	{
+		if ( b3IsValidVec3( b3ToVec3( b3Body_GetPosition( vehicle.corners[corner].wheelId ) ) ) == false )
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+float M6ChassisUpDotWorldUp( const JozzVehicleM6& vehicle )
+{
+	return b3RotateVector( b3Body_GetRotation( vehicle.chassisId ), b3Vec3_axisY ).y;
+}
+
+float M6ChassisHeading( const JozzVehicleM6& vehicle )
+{
+	b3Vec3 forward = b3RotateVector( b3Body_GetRotation( vehicle.chassisId ), b3Vec3_axisX );
+	return std::atan2( forward.z, forward.x );
+}
+
+b3BodyId CreateM6SmokeGround( b3WorldId worldId, float friction )
+{
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.position = { 0.0f, -1.0f, 0.0f };
+	bodyDef.name = "m6_smoke_ground";
+	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	shapeDef.baseMaterial.friction = friction;
+	// Drivable surface: carries the terrain category the M6 split wheel
+	// envelope keys on (rolling sphere = terrain only, sidewall = the rest).
+	shapeDef.filter.categoryBits = JOZZ_M6_TERRAIN_CATEGORY;
+	b3BoxHull ground = b3MakeBoxHull( 200.0f, 1.0f, 200.0f );
+	b3CreateHullShape( groundId, &shapeDef, &ground.base );
+	return groundId;
+}
+
+// Headless M6 rig smoke: the multi-body double-wishbone vehicle must settle
+// on its coilovers, drive straight, steer with the SIGNED M5.2 convention
+// through the physical rack/tie-rod trapezoid, and brake. This is the same
+// gate RunM5DriveSmoke provides for the strut vehicle.
+bool RunM6SuspensionRigSmoke( const JozzVehiclePrimitiveDefaults& defaults )
+{
+	std::printf( "m6 rig smoke: begin\n" );
+
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+	b3BodyId groundId = CreateM6SmokeGround( worldId, 0.8f );
+
+	JozzVehicleM6Config config =
+		JozzVehicleM6DefaultConfig( defaults.wheelRadius, defaults.wheelWidth, defaults.assetSuspensionTravelHint );
+	// The smoke asserts the raw command path; the assist is probed separately.
+	config.selfAlignAssist = false;
+	float spawnHeight = config.restDrop + config.wheelEnvelope.radius + 0.05f;
+	JozzVehicleM6 vehicle = CreateJozzVehicleM6( worldId, groundId, config, { 0.0f, spawnHeight, 0.0f } );
+
+	const float timeStep = 1.0f / 60.0f;
+	const int subStepCount = 4;
+
+	bool ok = CheckTrue( "m6 vehicle created", vehicle.valid );
+
+	JozzVehicleM6DriveInput input = {};
+	for ( int i = 0; i < 150; ++i )
+	{
+		UpdateJozzVehicleM6Drive( vehicle, input );
+		b3World_Step( worldId, timeStep, subStepCount );
+	}
+
+	b3Pos settled = b3Body_GetPosition( vehicle.chassisId );
+	float settleSag = spawnHeight - (float)settled.y;
+	std::printf( "m6 settle sag %.3f m of %.3f m compression travel\n", settleSag, config.compressionTravel );
+	ok &= CheckTrue( "m6 settle state is finite", IsM6VehicleStateValid( vehicle ) );
+	ok &= CheckTrue( "m6 coilovers support the chassis", settleSag > -0.05f && settleSag < 0.8f * config.compressionTravel );
+	ok &= CheckTrue( "m6 settled upright", M6ChassisUpDotWorldUp( vehicle ) > 0.95f );
+
+	// The knuckles must sit where the link geometry says, not sag away from
+	// the chassis: compare each wheel center against its rest point.
+	{
+		float worstDrop = 0.0f;
+		for ( int corner = 0; corner < JOZZ_M6_CORNER_COUNT; ++corner )
+		{
+			JozzVehicleM6WheelTelemetry telemetry = GetJozzVehicleM6WheelTelemetry( vehicle, corner );
+			float drop = -telemetry.suspensionTravel; // positive = wheel hanging below rest
+			if ( drop > worstDrop )
+			{
+				worstDrop = drop;
+			}
+		}
+		std::printf( "m6 worst wheel drop below rest %.3f m (rebound limit %.3f m)\n", worstDrop, config.reboundTravel );
+		ok &= CheckTrue( "m6 links hold the knuckles near rest", worstDrop < config.reboundTravel + 0.05f );
+	}
+
+	// Stationary steer, signed: steer=+1 must yaw both front knuckles LEFT
+	// (positive steering angle) through the physical rack + tie rods.
+	{
+		JozzVehicleM6DriveInput steerInput = {};
+		steerInput.steer = 1.0f;
+		for ( int i = 0; i < 120; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, steerInput );
+			b3World_Step( worldId, timeStep, subStepCount );
+		}
+
+		float maxAngle = config.maxSteeringAngleDegrees * B3_PI / 180.0f;
+		JozzVehicleM6WheelTelemetry left = GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_LEFT );
+		JozzVehicleM6WheelTelemetry right = GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_RIGHT );
+		std::printf( "m6 stationary steer: left %.1f deg, right %.1f deg (rack limit %.1f deg)\n",
+					 180.0f / B3_PI * left.steeringAngle, 180.0f / B3_PI * right.steeringAngle, 180.0f / B3_PI * maxAngle );
+		std::printf( "m6 rack calibration: translation %.4f m of %.4f m travel\n",
+					 b3PrismaticJoint_GetTranslation( vehicle.rackJointId ), config.rackTravel );
+
+		ok &= CheckTrue( "m6 stationary steer state is finite", IsM6VehicleStateValid( vehicle ) );
+		ok &= CheckTrue( "m6 left knuckle steers left (+)", left.steeringAngle > 0.25f * maxAngle );
+		ok &= CheckTrue( "m6 right knuckle steers left (+)", right.steeringAngle > 0.20f * maxAngle );
+		// Ackermann from the physical trapezoid: turning left makes the LEFT
+		// wheel the inner wheel, so it must steer tighter than the right.
+		ok &= CheckTrue( "m6 trapezoid steers the inner wheel tighter",
+						 left.steeringAngle > right.steeringAngle + 0.005f );
+
+		steerInput.steer = 0.0f;
+		for ( int i = 0; i < 90; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, steerInput );
+			b3World_Step( worldId, timeStep, subStepCount );
+		}
+	}
+
+	// Full throttle straight.
+	b3Pos beforeDrive = b3Body_GetPosition( vehicle.chassisId );
+	input.drive = 1.0f;
+	for ( int i = 0; i < 360; ++i )
+	{
+		UpdateJozzVehicleM6Drive( vehicle, input );
+		b3World_Step( worldId, timeStep, subStepCount );
+	}
+
+	b3Pos afterDrive = b3Body_GetPosition( vehicle.chassisId );
+	float driveDx = (float)( afterDrive.x - beforeDrive.x );
+	float driveDz = (float)( afterDrive.z - beforeDrive.z );
+	float forwardSpeed = GetJozzVehicleM6ForwardSpeed( vehicle );
+	std::printf( "m6 drive displacement dx %.2f m, dz %.2f m, forward speed %.2f m/s\n", driveDx, driveDz, forwardSpeed );
+
+	ok &= CheckTrue( "m6 drive state is finite", IsM6VehicleStateValid( vehicle ) );
+	ok &= CheckTrue( "m6 drives forward (+x)", driveDx > 4.0f );
+	ok &= CheckTrue( "m6 tracks straight", std::fabs( driveDz ) < 0.5f * std::fabs( driveDx ) );
+	ok &= CheckTrue( "m6 stays upright while driving", M6ChassisUpDotWorldUp( vehicle ) > 0.85f );
+
+	// Steer while driving: signed heading check, identical convention to M5.
+	float headingBefore = M6ChassisHeading( vehicle );
+	input.steer = 1.0f;
+	for ( int i = 0; i < 240; ++i )
+	{
+		UpdateJozzVehicleM6Drive( vehicle, input );
+		b3World_Step( worldId, timeStep, subStepCount );
+	}
+
+	float headingDelta = M6ChassisHeading( vehicle ) - headingBefore;
+	while ( headingDelta > B3_PI )
+	{
+		headingDelta -= 2.0f * B3_PI;
+	}
+	while ( headingDelta < -B3_PI )
+	{
+		headingDelta += 2.0f * B3_PI;
+	}
+	std::printf( "m6 steering heading delta %.3f rad\n", headingDelta );
+	ok &= CheckTrue( "m6 steering state is finite", IsM6VehicleStateValid( vehicle ) );
+	ok &= CheckTrue( "m6 steering left turns left (heading decreases)", headingDelta < -0.10f );
+	ok &= CheckTrue( "m6 stays upright while steering", M6ChassisUpDotWorldUp( vehicle ) > 0.80f );
+
+	// Brake to a stop.
+	input.drive = 0.0f;
+	input.steer = 0.0f;
+	input.brake = true;
+	for ( int i = 0; i < 240; ++i )
+	{
+		UpdateJozzVehicleM6Drive( vehicle, input );
+		b3World_Step( worldId, timeStep, subStepCount );
+	}
+	ok &= CheckTrue( "m6 brake stops the vehicle", b3Length( b3Body_GetLinearVelocity( vehicle.chassisId ) ) < 0.8f );
+
+	// Mixed-rig sanity: strut front + wishbone rear must also build and settle
+	// (this is the per-axle flexibility the foundation promises).
+	{
+		JozzVehicleM6Config mixed = config;
+		mixed.frontRigType = JOZZ_M6_RIG_INTEGRATED_STRUT;
+		mixed.rearRigType = JOZZ_M6_RIG_DOUBLE_WISHBONE;
+		JozzVehicleM6 mixedVehicle = CreateJozzVehicleM6( worldId, groundId, mixed, { 20.0f, spawnHeight, 20.0f } );
+		JozzVehicleM6DriveInput idle = {};
+		for ( int i = 0; i < 120; ++i )
+		{
+			UpdateJozzVehicleM6Drive( mixedVehicle, idle );
+			b3World_Step( worldId, timeStep, subStepCount );
+		}
+		ok &= CheckTrue( "m6 mixed strut/wishbone vehicle settles finite", IsM6VehicleStateValid( mixedVehicle ) );
+		ok &= CheckTrue( "m6 mixed vehicle stays upright", M6ChassisUpDotWorldUp( mixedVehicle ) > 0.95f );
+		DestroyJozzVehicleM6( &mixedVehicle );
+	}
+
+	DestroyJozzVehicleM6( &vehicle );
+	b3DestroyWorld( worldId );
+
+	std::printf( "m6 rig smoke: %s\n", ok ? "ok" : "FAILED" );
+	return ok;
+}
+
+// Drift self-alignment probe: launch the vehicle into a slide on a slick
+// surface, release the steering, and compare the front wheels' behavior with
+// the assist ON vs OFF. The assist must steer the released wheels toward the
+// actual travel direction (signed check); without it the wheels may still
+// self-center a little through the physical caster, so the gate is a
+// comparison, not an absolute: ON must track the alignment target clearly
+// better than OFF.
+bool RunM6DriftSelfAlignProbe( const JozzVehiclePrimitiveDefaults& defaults )
+{
+	std::printf( "m6 drift self-align probe:\n" );
+
+	bool ok = true;
+	float meanAlign[2] = {};
+	float meanSteer[2] = {};
+
+	for ( int pass = 0; pass < 2; ++pass )
+	{
+		bool assistOn = pass == 0;
+
+		b3WorldDef worldDef = b3DefaultWorldDef();
+		b3WorldId worldId = b3CreateWorld( &worldDef );
+		// Slick ground makes the slide easy to hold and repeat.
+		b3BodyId groundId = CreateM6SmokeGround( worldId, 0.5f );
+
+		JozzVehicleM6Config config =
+			JozzVehicleM6DefaultConfig( defaults.wheelRadius, defaults.wheelWidth, defaults.assetSuspensionTravelHint );
+		config.selfAlignAssist = assistOn;
+		float spawnHeight = config.restDrop + config.wheelEnvelope.radius + 0.05f;
+		JozzVehicleM6 vehicle = CreateJozzVehicleM6( worldId, groundId, config, { 0.0f, spawnHeight, 0.0f } );
+
+		const float timeStep = 1.0f / 60.0f;
+		const int subStepCount = 4;
+
+		JozzVehicleM6DriveInput input = {};
+		for ( int i = 0; i < 120; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, input );
+			b3World_Step( worldId, timeStep, subStepCount );
+		}
+
+		// Build straight-line speed first.
+		input.drive = 1.0f;
+		for ( int i = 0; i < 330; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, input );
+			b3World_Step( worldId, timeStep, subStepCount );
+		}
+
+		// Force a deterministic slide: rotate every body's velocity 25 degrees
+		// toward +Z (travel right of the nose) while the chassis keeps
+		// pointing forward. A scripted steering flick cannot HOLD a slide -
+		// grip realigns the car within a fraction of a second and the
+		// measurement window sees nothing - while this is the exact
+		// "car moving one way, nose another" state the assist exists for.
+		{
+			float slideAngle = 25.0f * B3_PI / 180.0f;
+			b3Quat slideRotation = b3MakeQuatFromAxisAngle( b3Vec3_axisY, -slideAngle );
+			b3BodyId slideBodies[10] = { vehicle.chassisId,
+										 vehicle.rackId,
+										 vehicle.corners[0].wheelId,
+										 vehicle.corners[1].wheelId,
+										 vehicle.corners[2].wheelId,
+										 vehicle.corners[3].wheelId,
+										 vehicle.corners[0].knuckleId,
+										 vehicle.corners[1].knuckleId,
+										 vehicle.corners[2].knuckleId,
+										 vehicle.corners[3].knuckleId };
+			for ( b3BodyId bodyId : slideBodies )
+			{
+				if ( B3_IS_NON_NULL( bodyId ) )
+				{
+					b3Body_SetLinearVelocity( bodyId, b3RotateVector( slideRotation, b3Body_GetLinearVelocity( bodyId ) ) );
+				}
+			}
+		}
+
+		// Hands fully off, coast, and watch the wheels during the slide.
+		input.drive = 0.0f;
+		input.steer = 0.0f;
+		float alignAccum = 0.0f;
+		float steerAccum = 0.0f;
+		int samples = 0;
+		for ( int i = 0; i < 45; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, input );
+			b3World_Step( worldId, timeStep, subStepCount );
+
+			float align = GetJozzVehicleM6AlignmentAngle( vehicle );
+			JozzVehicleM6WheelTelemetry left = GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_LEFT );
+			JozzVehicleM6WheelTelemetry right = GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_RIGHT );
+			alignAccum += align;
+			steerAccum += 0.5f * ( left.steeringAngle + right.steeringAngle );
+			samples += 1;
+		}
+
+		meanAlign[pass] = alignAccum / (float)samples;
+		meanSteer[pass] = steerAccum / (float)samples;
+		std::printf( "m6 drift probe assist %s: mean align target %.1f deg, mean front steer %.1f deg\n",
+					 assistOn ? "ON " : "OFF", 180.0f / B3_PI * meanAlign[pass], 180.0f / B3_PI * meanSteer[pass] );
+
+		ok &= CheckTrue( "m6 drift probe state is finite", IsM6VehicleStateValid( vehicle ) );
+
+		DestroyJozzVehicleM6( &vehicle );
+		b3DestroyWorld( worldId );
+	}
+
+	// The flick was LEFT, so during the slide the car noses left of its travel
+	// direction and the aligning angle points RIGHT (negative) - signed, like
+	// every steering assertion since the M5.2 A/D lesson.
+	ok &= CheckTrue( "m6 drift creates a rightward align target (car noses left)", meanAlign[0] < -0.03f );
+	ok &= CheckTrue( "m6 assist steers the released wheels toward the slide (same sign)",
+					 meanSteer[0] * meanAlign[0] > 0.0f && std::fabs( meanSteer[0] ) > 0.25f * std::fabs( meanAlign[0] ) );
+
+	// Comparative gate: with the assist the wheels must sit clearly closer to
+	// the alignment target than without it (the physical caster alone is
+	// allowed to help, but the assist must add on top of it).
+	float errorOn = std::fabs( meanSteer[0] - meanAlign[0] );
+	float errorOff = std::fabs( meanSteer[1] - meanAlign[1] );
+	std::printf( "m6 drift tracking error: assist ON %.1f deg vs OFF %.1f deg\n", 180.0f / B3_PI * errorOn,
+				 180.0f / B3_PI * errorOff );
+	ok &= CheckTrue( "m6 assist tracks the slide better than no assist", errorOn < 0.8f * errorOff );
+
+	return ok;
+}
+
+// Wheel envelope probe. Three claims to verify:
+// 1) Width: hull-based envelopes (cylinder, union, split sidewall) must not
+//    stick out past the visual tire, unlike the single sphere (which bulges
+//    by radius - width/2, the "invisible wall" next to props).
+// 2) Invisible wall: a prop parked just past the tire's side face must NOT
+//    touch a split-envelope wheel, and MUST touch a plain sphere wheel.
+// 3) Smoothness: the split envelope must keep the sphere's perfect terrain
+//    contact, and the phased-union results stay recorded as the measured
+//    negative result (it rolls WORSE than one cylinder: the contact hops
+//    between layered hulls and loses the solver warm start).
+bool RunM6WheelEnvelopeProbe( const JozzVehiclePrimitiveDefaults& defaults )
+{
+	std::printf( "m6 wheel envelope probe:\n" );
+
+	bool ok = true;
+	float halfWidth = 0.5f * defaults.wheelWidth;
+
+	// Width check on a throwaway body: measure the hulls' LOCAL aabb along
+	// the wheel's local Y spin axis (tight bound, no broadphase margin).
+	{
+		b3WorldDef worldDef = b3DefaultWorldDef();
+		b3WorldId worldId = b3CreateWorld( &worldDef );
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.rotation = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisY, b3Vec3_axisZ );
+		b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+
+		struct
+		{
+			const char* label;
+			int mode;
+		} cases[] = {
+			{ "sphere       ", JOZZ_M6_ENVELOPE_SPHERE },
+			{ "cylinder     ", JOZZ_M6_ENVELOPE_CYLINDER },
+			{ "phased union ", JOZZ_M6_ENVELOPE_PHASED_UNION },
+			{ "split        ", JOZZ_M6_ENVELOPE_SPLIT_SPHERE_SIDEWALL },
+		};
+
+		for ( auto& testCase : cases )
+		{
+			JozzVehicleM6WheelEnvelopeDesc desc = {};
+			desc.mode = testCase.mode;
+			desc.cylinderSides = 32;
+			desc.unionLayerCount = 4;
+			desc.radius = defaults.wheelRadius;
+			desc.width = defaults.wheelWidth;
+			desc.terrainCategoryBits = JOZZ_M6_TERRAIN_CATEGORY;
+
+			b3ShapeId shapeIds[JOZZ_M6_MAX_WHEEL_SHAPES];
+			int shapeCount = CreateJozzVehicleM6WheelEnvelope( bodyId, &shapeDef, &desc, shapeIds );
+
+			// Hull shapes carry a tight local aabb; spheres are just the radius.
+			float hullHalfWidth = 0.0f;
+			float sphereHalfWidth = 0.0f;
+			for ( int i = 0; i < shapeCount; ++i )
+			{
+				const b3HullData* hull = b3Shape_GetType( shapeIds[i] ) == b3_hullShape ? b3Shape_GetHull( shapeIds[i] ) : nullptr;
+				if ( hull != nullptr )
+				{
+					float extent = b3MaxFloat( std::fabs( (float)hull->aabb.lowerBound.y ),
+											   std::fabs( (float)hull->aabb.upperBound.y ) );
+					hullHalfWidth = b3MaxFloat( hullHalfWidth, extent );
+				}
+				else
+				{
+					sphereHalfWidth = desc.radius;
+				}
+			}
+
+			std::printf( "m6 envelope %s: %d shape(s), hull half width %.3f m, sphere half width %.3f m (tire %.3f m)\n",
+						 testCase.label, shapeCount, hullHalfWidth, sphereHalfWidth, halfWidth );
+
+			if ( hullHalfWidth > 0.0f )
+			{
+				ok &= CheckTrue( "m6 hull envelope stays inside the tire width", hullHalfWidth < halfWidth + 0.005f );
+			}
+			if ( testCase.mode == JOZZ_M6_ENVELOPE_SPHERE )
+			{
+				ok &= CheckTrue( "m6 sphere bulges past the tire (the documented trade-off)",
+								 sphereHalfWidth > halfWidth + 0.05f );
+			}
+
+			for ( int i = 0; i < shapeCount; ++i )
+			{
+				b3DestroyShape( shapeIds[i], false );
+			}
+		}
+
+		b3DestroyWorld( worldId );
+	}
+
+	// Invisible-wall check: a static prop face sits 5 cm past the tire's side
+	// face - closer than the sphere bulge (~29 cm), farther than the tire.
+	// The split wheel must ignore it; the sphere wheel must hit it.
+	for ( int pass = 0; pass < 2; ++pass )
+	{
+		bool split = pass == 0;
+
+		b3WorldDef worldDef = b3DefaultWorldDef();
+		b3WorldId worldId = b3CreateWorld( &worldDef );
+		CreateM6SmokeGround( worldId, 0.8f );
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.position = { 0.0f, defaults.wheelRadius + 0.01f, 0.0f };
+		bodyDef.rotation = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisY, b3Vec3_axisZ );
+		b3BodyId wheelId = b3CreateBody( worldId, &bodyDef );
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.density = 80.0f;
+		JozzVehicleM6WheelEnvelopeDesc desc = {};
+		desc.mode = split ? JOZZ_M6_ENVELOPE_SPLIT_SPHERE_SIDEWALL : JOZZ_M6_ENVELOPE_SPHERE;
+		desc.cylinderSides = 32;
+		desc.unionLayerCount = 4;
+		desc.radius = defaults.wheelRadius;
+		desc.width = defaults.wheelWidth;
+		desc.terrainCategoryBits = JOZZ_M6_TERRAIN_CATEGORY;
+		b3ShapeId shapeIds[JOZZ_M6_MAX_WHEEL_SHAPES];
+		CreateJozzVehicleM6WheelEnvelope( wheelId, &shapeDef, &desc, shapeIds );
+
+		// Prop wall: near face at tire half width + 5 cm from the wheel center.
+		float wallHalf = 0.5f;
+		b3BodyDef wallDef = b3DefaultBodyDef();
+		wallDef.position = { 0.0f, defaults.wheelRadius, halfWidth + 0.05f + wallHalf };
+		wallDef.name = "m6_prop_wall";
+		b3BodyId wallId = b3CreateBody( worldId, &wallDef );
+		b3ShapeDef wallShapeDef = b3DefaultShapeDef();
+		// Obstacle, not terrain: the engine default category is ALL bits and
+		// would match the rolling sphere's terrain-only mask.
+		wallShapeDef.filter.categoryBits = JOZZ_M6_OBJECT_CATEGORY;
+		b3BoxHull wallBox = b3MakeBoxHull( wallHalf, wallHalf, wallHalf );
+		b3ShapeId wallShapeId = b3CreateHullShape( wallId, &wallShapeDef, &wallBox.base );
+
+		for ( int i = 0; i < 60; ++i )
+		{
+			b3World_Step( worldId, 1.0f / 60.0f, 4 );
+		}
+
+		// Touching means an actual (or grazing) contact, not a speculative
+		// manifold point parked at positive separation by the broadphase.
+		bool touching = false;
+		b3ContactData contacts[8];
+		int contactCount = b3Shape_GetContactData( wallShapeId, contacts, 8 );
+		for ( int i = 0; i < contactCount; ++i )
+		{
+			for ( int m = 0; m < contacts[i].manifoldCount; ++m )
+			{
+				for ( int p = 0; p < contacts[i].manifolds[m].pointCount; ++p )
+				{
+					if ( contacts[i].manifolds[m].points[p].separation < 0.001f )
+					{
+						touching = true;
+					}
+				}
+			}
+		}
+		std::printf( "m6 invisible-wall check (%s): prop contact %s\n", split ? "split envelope" : "single sphere",
+					 touching ? "YES" : "no" );
+		if ( split )
+		{
+			ok &= CheckTrue( "m6 split envelope does not touch the prop past the tire face", touching == false );
+		}
+		else
+		{
+			ok &= CheckTrue( "m6 single sphere hits the prop past the tire face (the reported bug)", touching );
+		}
+
+		b3DestroyWorld( worldId );
+	}
+
+	// Rolling smoothness, M5.2 methodology, on the M6 strut vehicle so the
+	// only variable is the wheel envelope itself.
+	struct
+	{
+		const char* label;
+		int mode;
+		int layers;
+	} rollCases[] = {
+		{ "cylinder 32   ", JOZZ_M6_ENVELOPE_CYLINDER, 1 },
+		{ "phased union 4", JOZZ_M6_ENVELOPE_PHASED_UNION, 4 },
+		{ "split         ", JOZZ_M6_ENVELOPE_SPLIT_SPHERE_SIDEWALL, 1 },
+		{ "sphere        ", JOZZ_M6_ENVELOPE_SPHERE, 1 },
+	};
+
+	float unionContact4 = 0.0f;
+	float cylinderContact = 0.0f;
+	float sphereContact = 0.0f;
+	float splitContact = 0.0f;
+
+	for ( auto& rollCase : rollCases )
+	{
+		b3WorldDef worldDef = b3DefaultWorldDef();
+		b3WorldId worldId = b3CreateWorld( &worldDef );
+		b3BodyId groundId = CreateM6SmokeGround( worldId, 0.8f );
+
+		JozzVehicleM6Config config =
+			JozzVehicleM6DefaultConfig( defaults.wheelRadius, defaults.wheelWidth, defaults.assetSuspensionTravelHint );
+		// Strut on both axles isolates the envelope from the new rig.
+		config.frontRigType = JOZZ_M6_RIG_INTEGRATED_STRUT;
+		config.rearRigType = JOZZ_M6_RIG_INTEGRATED_STRUT;
+		config.selfAlignAssist = false;
+		config.wheelEnvelope.mode = rollCase.mode;
+		config.wheelEnvelope.unionLayerCount = rollCase.layers;
+
+		float spawnHeight = config.restDrop + config.wheelEnvelope.radius + 0.05f;
+		JozzVehicleM6 vehicle = CreateJozzVehicleM6( worldId, groundId, config, { 0.0f, spawnHeight, 0.0f } );
+
+		const float timeStep = 1.0f / 60.0f;
+		const int subStepCount = 4;
+
+		JozzVehicleM6DriveInput input = {};
+		for ( int i = 0; i < 90; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, input );
+			b3World_Step( worldId, timeStep, subStepCount );
+		}
+		input.drive = 1.0f;
+		for ( int i = 0; i < 360; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, input );
+			b3World_Step( worldId, timeStep, subStepCount );
+		}
+
+		int sampleSteps = 180;
+		int contactSamples = 0;
+		double verticalSquaredSum = 0.0;
+		float topSpeed = 0.0f;
+		for ( int i = 0; i < sampleSteps; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, input );
+			b3World_Step( worldId, timeStep, subStepCount );
+
+			JozzVehicleM6WheelTelemetry frontLeft = GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_LEFT );
+			JozzVehicleM6WheelTelemetry frontRight = GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_RIGHT );
+			if ( frontLeft.groundContact && frontRight.groundContact )
+			{
+				contactSamples += 1;
+			}
+
+			float vyLeft = b3Body_GetLinearVelocity( vehicle.corners[JOZZ_M6_FRONT_LEFT].wheelId ).y;
+			float vyRight = b3Body_GetLinearVelocity( vehicle.corners[JOZZ_M6_FRONT_RIGHT].wheelId ).y;
+			verticalSquaredSum += 0.5 * ( (double)vyLeft * vyLeft + (double)vyRight * vyRight );
+
+			float speed = GetJozzVehicleM6ForwardSpeed( vehicle );
+			topSpeed = b3MaxFloat( topSpeed, speed );
+		}
+
+		float contactFraction = (float)contactSamples / (float)sampleSteps;
+		float verticalRms = (float)std::sqrt( verticalSquaredSum / (double)sampleSteps );
+		std::printf( "m6 roll %s: contact %.0f%%, front vy rms %.3f m/s, top speed %.1f m/s\n", rollCase.label,
+					 100.0f * contactFraction, verticalRms, topSpeed );
+
+		ok &= CheckTrue( "m6 roll probe reaches cruise speed", topSpeed > 8.0f );
+		ok &= CheckTrue( "m6 roll metrics are finite", b3IsValidFloat( verticalRms ) && b3IsValidFloat( contactFraction ) );
+
+		if ( rollCase.mode == JOZZ_M6_ENVELOPE_CYLINDER )
+		{
+			cylinderContact = contactFraction;
+		}
+		else if ( rollCase.mode == JOZZ_M6_ENVELOPE_SPHERE )
+		{
+			sphereContact = contactFraction;
+		}
+		else if ( rollCase.mode == JOZZ_M6_ENVELOPE_SPLIT_SPHERE_SIDEWALL )
+		{
+			splitContact = contactFraction;
+		}
+		else
+		{
+			unionContact4 = contactFraction;
+		}
+
+		DestroyJozzVehicleM6( &vehicle );
+		b3DestroyWorld( worldId );
+	}
+
+	// The claim the M6 default rides on: the split envelope rolls terrain on
+	// its sphere only, so it must keep the sphere's (near-)perfect contact.
+	ok &= CheckTrue( "m6 split envelope keeps sphere-class ground contact", splitContact > 0.95f );
+	std::printf( "m6 envelope summary: cylinder %.0f%%, union-4 %.0f%%, split %.0f%%, sphere %.0f%% front contact\n",
+				 100.0f * cylinderContact, 100.0f * unionContact4, 100.0f * splitContact, 100.0f * sphereContact );
+
+	return ok;
+}
+
 } // namespace
 
 int main()
 {
+	// Unbuffered stdout: if a physics assert aborts the process mid-run, the
+	// log must show the last line actually reached, not a 4 KiB block cut.
+	std::setvbuf( stdout, nullptr, _IONBF, 0 );
+
 	JozzVehicleAuditMetadata metadata = LoadJozzVehicleAuditMetadata();
 	std::printf( "metadata: %s\n", metadata.status.c_str() );
 	if ( metadata.loadedFromRuntimeReport )
@@ -484,6 +1116,9 @@ int main()
 
 	ok &= RunM5DriveSmoke( defaults );
 	ok &= RunM5WheelShapeExperiment( defaults );
+	ok &= RunM6SuspensionRigSmoke( defaults );
+	ok &= RunM6DriftSelfAlignProbe( defaults );
+	ok &= RunM6WheelEnvelopeProbe( defaults );
 
 	if ( ok == false )
 	{

@@ -6,7 +6,8 @@
 namespace
 {
 
-void AddRamp( b3WorldId worldId, b3Pos position, float zAxisDegrees, float halfLength, float halfHeight, float halfWidth )
+void AddRamp( b3WorldId worldId, b3Pos position, float zAxisDegrees, float halfLength, float halfHeight, float halfWidth,
+			  uint64_t terrainCategoryBits )
 {
 	b3BodyDef bodyDef = b3DefaultBodyDef();
 	bodyDef.position = position;
@@ -16,14 +17,16 @@ void AddRamp( b3WorldId worldId, b3Pos position, float zAxisDegrees, float halfL
 
 	b3ShapeDef shapeDef = b3DefaultShapeDef();
 	shapeDef.baseMaterial.friction = 0.9f;
+	shapeDef.filter.categoryBits = terrainCategoryBits;
 	b3BoxHull ramp = b3MakeBoxHull( halfLength, halfHeight, halfWidth );
 	b3CreateHullShape( rampId, &shapeDef, &ramp.base );
 }
 
-void AddWashboardLane( b3WorldId worldId, b3Pos start, b3Vec3 step, int count )
+void AddWashboardLane( b3WorldId worldId, b3Pos start, b3Vec3 step, int count, uint64_t terrainCategoryBits )
 {
 	b3ShapeDef shapeDef = b3DefaultShapeDef();
 	shapeDef.baseMaterial.friction = 0.9f;
+	shapeDef.filter.categoryBits = terrainCategoryBits;
 
 	for ( int i = 0; i < count; ++i )
 	{
@@ -49,6 +52,12 @@ JozzVehicleM5TestCourseProp AddBoxProp( b3WorldId worldId, b3Pos position, float
 	shapeDef.density = density;
 	shapeDef.baseMaterial.friction = 0.6f;
 	shapeDef.baseMaterial.restitution = 0.05f;
+	// Props are obstacles, not drivable terrain. The engine default category
+	// is ALL bits, which would make a prop match the M6 rolling sphere's
+	// terrain-only mask; a plain non-terrain bit keeps prop hits on the
+	// true-width sidewall. Any all-bits mask collides with 0x1 exactly like
+	// it did with the default, so the M5 lab is unaffected.
+	shapeDef.filter.categoryBits = 0x1;
 	b3BoxHull box = b3MakeBoxHull( halfExtent, halfExtent, halfExtent );
 	b3CreateHullShape( bodyId, &shapeDef, &box.base );
 
@@ -67,6 +76,8 @@ JozzVehicleM5TestCourseProp AddSphereProp( b3WorldId worldId, b3Pos position, fl
 	shapeDef.density = density;
 	shapeDef.baseMaterial.friction = 0.5f;
 	shapeDef.baseMaterial.restitution = 0.35f;
+	// Same non-terrain tag as the box props; see AddBoxProp.
+	shapeDef.filter.categoryBits = 0x1;
 	b3Sphere sphere = { b3Vec3_zero, radius };
 	b3CreateSphereShape( bodyId, &shapeDef, &sphere );
 
@@ -94,19 +105,19 @@ constexpr PropSpec kPropSpecs[] = {
 
 } // namespace
 
-JozzVehicleM5TestCourse CreateJozzVehicleM5TestCourse( b3WorldId worldId, float groundTopY )
+JozzVehicleM5TestCourse CreateJozzVehicleM5TestCourse( b3WorldId worldId, float groundTopY, uint64_t terrainCategoryBits )
 {
 	JozzVehicleM5TestCourse course;
 
 	// Ramps: four, spread across the now-2x-bigger ground for room to build speed.
-	AddRamp( worldId, { 28.0f, groundTopY + 0.30f, 0.0f }, 8.0f, 4.0f, 0.25f, 5.0f );
-	AddRamp( worldId, { -30.0f, groundTopY + 0.45f, -10.0f }, -12.0f, 4.0f, 0.25f, 4.0f );
-	AddRamp( worldId, { 0.0f, groundTopY + 0.35f, 32.0f }, 10.0f, 3.5f, 0.22f, 4.5f );
-	AddRamp( worldId, { 14.0f, groundTopY + 0.5f, -30.0f }, -16.0f, 3.0f, 0.28f, 4.0f );
+	AddRamp( worldId, { 28.0f, groundTopY + 0.30f, 0.0f }, 8.0f, 4.0f, 0.25f, 5.0f, terrainCategoryBits );
+	AddRamp( worldId, { -30.0f, groundTopY + 0.45f, -10.0f }, -12.0f, 4.0f, 0.25f, 4.0f, terrainCategoryBits );
+	AddRamp( worldId, { 0.0f, groundTopY + 0.35f, 32.0f }, 10.0f, 3.5f, 0.22f, 4.5f, terrainCategoryBits );
+	AddRamp( worldId, { 14.0f, groundTopY + 0.5f, -30.0f }, -16.0f, 3.0f, 0.28f, 4.0f, terrainCategoryBits );
 
 	// Washboard: two lanes at different spacing for a lighter/harsher suspension test.
-	AddWashboardLane( worldId, { -6.0f, groundTopY, 8.0f }, { -3.0f, 0.0f, 0.0f }, 6 );
-	AddWashboardLane( worldId, { 6.0f, groundTopY, -18.0f }, { 2.2f, 0.0f, 0.0f }, 6 );
+	AddWashboardLane( worldId, { -6.0f, groundTopY, 8.0f }, { -3.0f, 0.0f, 0.0f }, 6, terrainCategoryBits );
+	AddWashboardLane( worldId, { 6.0f, groundTopY, -18.0f }, { 2.2f, 0.0f, 0.0f }, 6, terrainCategoryBits );
 
 	// Rough-terrain heightfield zone, offset well above the flat ground so the
 	// two surfaces never double-contact the same area (a car driving onto this
@@ -119,6 +130,7 @@ JozzVehicleM5TestCourse CreateJozzVehicleM5TestCourse( b3WorldId worldId, float 
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		shapeDef.baseMaterial.friction = 0.85f;
+		shapeDef.filter.categoryBits = terrainCategoryBits;
 		course.roughTerrainField = b3CreateWave( 28, 28, { 1.6f, 0.30f, 1.6f }, 0.07f, 0.10f, false );
 		b3CreateHeightFieldShape( hfBodyId, &shapeDef, course.roughTerrainField );
 	}

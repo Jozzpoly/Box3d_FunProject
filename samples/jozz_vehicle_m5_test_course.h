@@ -32,7 +32,15 @@ struct JozzVehicleM5TestCourse
 // groundTopY is the world Y of the flat ground's top surface (AddGroundBox
 // puts it at 0 regardless of extent); the rough-terrain zone is offset above
 // it so the two surfaces never double-contact the same footprint.
-JozzVehicleM5TestCourse CreateJozzVehicleM5TestCourse( b3WorldId worldId, float groundTopY );
+//
+// terrainCategoryBits tags the drivable surfaces (ramps, washboard, rough
+// terrain) with a collision category; dynamic props keep the default
+// category. The M6 split wheel envelope keys on this: its smooth rolling
+// sphere collides with terrain-category shapes only, while its true-width
+// sidewall cylinder handles everything else. The default value 1 is the
+// engine default category, i.e. no behavior change for the M5 lab.
+JozzVehicleM5TestCourse CreateJozzVehicleM5TestCourse( b3WorldId worldId, float groundTopY,
+													   uint64_t terrainCategoryBits = 1 );
 
 // Frees the height field data (not owned by b3DestroyWorld; box3d only holds
 // a reference to it, per b3CreateHeightFieldShape's contract). Prop/ramp/

@@ -179,6 +179,10 @@ set(SAMPLE_FILES
     jozz_vehicle_m5_test_course.h
     jozz_vehicle_m5_vehicle.cpp
     jozz_vehicle_m5_vehicle.h
+    jozz_vehicle_m6_rig_lab.cpp
+    jozz_vehicle_m6_rig_lab.h
+    jozz_vehicle_m6_suspension_rig.cpp
+    jozz_vehicle_m6_suspension_rig.h
     jozz_vehicle_primitive_corner_lab.cpp
     jozz_vehicle_primitive_corner_lab.h
     jozz_vehicle_visual_asset.cpp
@@ -227,6 +231,8 @@ add_executable(jozz_vehicle_validation
     jozz_vehicle_json.h
     jozz_vehicle_m5_vehicle.cpp
     jozz_vehicle_m5_vehicle.h
+    jozz_vehicle_m6_suspension_rig.cpp
+    jozz_vehicle_m6_suspension_rig.h
     jsmn.h
 )
 

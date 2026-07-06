@@ -4,6 +4,7 @@
 #include "gfx/draw.h"
 #include "imgui.h"
 #include "jozz_vehicle_m5_drivable_lab.h"
+#include "jozz_vehicle_m6_rig_lab.h"
 #include "jozz_vehicle_primitive_corner_lab.h"
 #include "sample.h"
 
@@ -73,3 +74,6 @@ static int sampleJozzVehiclePrimitiveCornerM2 =
 
 static int sampleJozzVehicleM5FirstDrivable =
 	RegisterSample( "Jozz Vehicle", "M5 First Drivable", CreateJozzVehicleM5FirstDrivable );
+
+static int sampleJozzVehicleM6RigLab =
+	RegisterSample( "Jozz Vehicle", "M6 Suspension Rig Lab", CreateJozzVehicleM6RigLab );
