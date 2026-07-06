@@ -1,14 +1,23 @@
 # Current State Index — Jozz Vehicle Box3D Native
 
-Date: 2026-07-05
+Date: 2026-07-06
 Branch: `jozz-vehicle-sandbox-m0`  
-Status: M2.5/M3A/M3B.3 + M4 Foundation validated; M5.2 Wheel & Steering Foundations validated by Jozz's re-test 2026-07-05: A/D direction correct, speed instability (wheel hopping) gone on sphere wheels, tie-rod steering coupling feels good. Soft-tire deformation explicitly deferred to a later pass (roadmap staged in docs/M5_2_WHEEL_STEERING_FOUNDATIONS_PL.md section 5). Ready to move on to full suspension rig work next.
+Status: M2.5/M3A/M3B.3 + M4 Foundation + M5.2 validated. **M6 Suspension Rig
+Foundation zaimplementowane 2026-07-06** (multi-body double wishbone per oś,
+fizyczny rack+tie-rody, self-align w driftach, split wheel envelope z poprawną
+szerokością opony); walidacja headless + boot smoke zielone, czeka na ręczny
+test Jozza. Raport: `docs/M6_SUSPENSION_RIG_FOUNDATION_PL.md`. Soft-tire
+deformation nadal świadomie odłożona (roadmapa w docs/M5_2_WHEEL_STEERING_FOUNDATIONS_PL.md
+sekcja 5).
 
 ## 1. Current active samples
 
 ```text
 Category: Jozz Vehicle
-Sample:   M5 First Drivable          <- pierwszy jeżdżący pojazd (nowe)
+Sample:   M6 Suspension Rig Lab      <- multi-body zawieszenie (nowe 2026-07-06)
+Source:   samples/jozz_vehicle_m6_rig_lab.cpp + samples/jozz_vehicle_m6_suspension_rig.cpp
+
+Sample:   M5 First Drivable          <- pierwszy jeżdżący pojazd, baseline strut
 Source:   samples/jozz_vehicle_m5_drivable_lab.cpp + samples/jozz_vehicle_m5_vehicle.cpp
 
 Sample:   Lab M2 Primitive Corner    <- izolowany narożnik, nadal aktywny
@@ -499,31 +508,34 @@ procedural damper/cardan/chassis visual parts
 ## 11. Next pass
 
 ```text
-2026-07-05 Jozz re-test verdict: A/D correct, wheel hopping fixed (sphere
-  wheels), tie-rod steering coupling feels good, soft tire deferred on
-  purpose. M5.2 fundamentals accepted as good enough for now.
-Next: full suspension rig (multi-body wahacze/damper/cardan), the actual
-  next milestone per Jozz's direction. M4C (procedural damper/cardan visual
-  on the drivable corners) is the natural bridge gate into that work.
+2026-07-06: M6 Suspension Rig Foundation implemented (multi-body double
+  wishbone + knuckle + physical rack/tie-rods per axle, drift self-align,
+  split wheel envelope). Machine-validated; awaiting Jozz's manual drive
+  (checklist: docs/M6_SUSPENSION_RIG_FOUNDATION_PL.md section 9).
+Next gates on this foundation (details in the M6 report section 10):
+  M6.1  visual suspension-model mounting on the LIVE rig hardpoints
+        (the M4C idea, now with real physics endpoints)
+  M6.2  trailing arm (One_Sided_wheel_mount!) + solid axle rig types
+  M6.3  hardpoints from asset markers through the sidecar contract
+  M6.4  anti-roll bar, per-axle geometry, street/drift/offroad presets
 Soft-tire roadmap stays staged for later (docs/M5_2_WHEEL_STEERING_FOUNDATIONS_PL.md
-  section 5): contact tuning today, visual tire squish from load telemetry
-  next, multi-sphere envelope after that, engine-level deformation only if
-  ever truly needed.
+  section 5); the M6 telemetry (per-wheel load/slip/camber) is the input
+  Stage 1 (visual tire squish) needs.
 ```
 
-Strict scope for M4C stays as documented:
+Ważne lekcje inżynierskie z M6 (pełny opis w raporcie M6, sekcje 2/4/5):
 
 ```text
-use existing sidecar contract endpoint data
-keep audit reports as diagnostics
-do not regenerate reports automatically
-not full importer
-not mesh collision
-not multi-body suspension
+- b3DefaultShapeDef() ma categoryBits = WSZYSTKIE bity (nie 0x1 jak Box2D);
+  wąskie maski wymagają tagowania OBU stron pary (teren 0x2 / obiekty 0x1)
+- małe ciała strukturalne (rack, zwrotnica) BEZ shape'ów + b3Body_SetMassData,
+  inaczej solver flaguje je jako "fast" i CCD vs grunt potrafi ubić TOI assert
+- pełny Ackermann wpycha trapez w martwy punkt (over-center) przy pełnym
+  skoku racka -> ackermannFraction (default 0.6)
+- phased-union kół (nakładane obrócone cylindry) OBALONE pomiarem: skoki
+  kontaktu między hullami gubią warm-start, toczy się gorzej niż cylinder
+- rack potrzebuje motor-servo z limitem siły (parking torque, lekcja M5.1)
 ```
-
-(the former "not steering / not full vehicle" items are satisfied by M5
-through the engine wheel joint and are no longer prohibitions)
 
 ## 12. No-go list for Codex
 

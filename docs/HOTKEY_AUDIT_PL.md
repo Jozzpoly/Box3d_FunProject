@@ -84,6 +84,21 @@ Notes:
 - All tuning (torque, suspension, steering limits) stays in ImGui sliders per
   the control policy below.
 
+## Current Jozz Vehicle M6 Suspension Rig Lab hotkeys (2026-07-06)
+
+Identical to M5 First Drivable on purpose — no new keys were added:
+
+```text
+W/S    drive forward/reverse
+A/D    steer left/right
+Space  brake
+T      toggle third-person camera
+```
+
+Everything M6-specific (rig type per axle, wishbone geometry, self-align
+assist, wheel envelope, rack servo force) is ImGui-only, per the control
+policy below.
+
 ## Current code ownership summary
 
 `Q/E` live root control is implemented inside `JozzVehiclePrimitiveCornerM2::Step()`.

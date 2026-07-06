@@ -1,7 +1,15 @@
 # README_FOR_AGENTS — Jozz Vehicle Box3D Native
 
-Status: M2.5 + M3A/M3B.3 + M4 Foundation validated; M5.2 Wheel & Steering Foundations validated by Jozz's 2026-07-05 re-test: A/D direction correct, at-speed wheel hopping fixed (sphere wheels), tie-rod steering coupling feels good. Soft-tire deformation deliberately deferred (roadmap in docs/M5_2_WHEEL_STEERING_FOUNDATIONS_PL.md). Fundamentals accepted; next milestone is the full multi-body suspension rig.
-Date: 2026-07-05
+Status: M2.5 + M3A/M3B.3 + M4 Foundation + M5.2 validated. M6 Suspension Rig
+Foundation implemented 2026-07-06 (multi-body double-wishbone corners with a
+knuckle body, rigid link-rod wishbones, coilover, physical steering rack with
+tie rods and mechanical Ackermann, per-axle rig type selection, drift
+self-align assist + physical caster, split wheel collision envelope at the
+true tire width). Machine-validated (headless smoke + probes green, boot
+smoke clean); awaiting Jozz's manual test — checklist in
+docs/M6_SUSPENSION_RIG_FOUNDATION_PL.md section 9. Soft-tire deformation
+stays deferred (roadmap in docs/M5_2_WHEEL_STEERING_FOUNDATIONS_PL.md).
+Date: 2026-07-06
 Owner/creative director: Jozz / Przemek  
 Working branch: `jozz-vehicle-sandbox-m0`
 
@@ -19,7 +27,10 @@ Current active samples:
 
 ```text
 Category: Jozz Vehicle
-Sample:   M5 First Drivable        <- drivable 4-corner vehicle (new 2026-07-05)
+Sample:   M6 Suspension Rig Lab    <- multi-body suspension vehicle (new 2026-07-06)
+Source:   samples/jozz_vehicle_m6_rig_lab.cpp + samples/jozz_vehicle_m6_suspension_rig.cpp
+
+Sample:   M5 First Drivable        <- drivable 4-corner strut vehicle (baseline)
 Source:   samples/jozz_vehicle_m5_drivable_lab.cpp + samples/jozz_vehicle_m5_vehicle.cpp
 
 Sample:   Lab M2 Primitive Corner  <- isolated corner lab, still active
@@ -33,7 +44,7 @@ The sample host gives windowing, camera, debug draw, ImGui, input, registration 
 
 Read in this order before making changes:
 
-0. `docs/M5_2_WHEEL_STEERING_FOUNDATIONS_PL.md` (current vehicle physics state: steering convention, wheel shapes, probe data, soft-tire roadmap) then `docs/M5_1_FEEL_TUNING_IMPLEMENTATION_REPORT_PL.md` + `docs/M5_1_FEEL_TUNING_HANDOFF_2026_07_05_PL.md` + `docs/M5_FIRST_DRIVABLE_PL.md` + `docs/adr/0005-m5-first-drivable-before-m4c.md`
+0. `docs/M6_SUSPENSION_RIG_FOUNDATION_PL.md` (multi-body suspension architecture, hardpoint contract, steering rack/servo, drift self-align, split wheel envelope + terrain category contract, CCD/shapeless-body lesson) then `docs/M5_2_WHEEL_STEERING_FOUNDATIONS_PL.md` (steering convention, wheel shapes, probe data, soft-tire roadmap) then `docs/M5_1_FEEL_TUNING_IMPLEMENTATION_REPORT_PL.md` + `docs/M5_1_FEEL_TUNING_HANDOFF_2026_07_05_PL.md` + `docs/M5_FIRST_DRIVABLE_PL.md` + `docs/adr/0005-m5-first-drivable-before-m4c.md`
 1. `docs/CURRENT_STATE_INDEX_PL.md`
 2. `docs/M4_FOUNDATION_SUSPENSION_RIG_PLAN_PL.md`
 3. `docs/ASSET_CONTRACT_RUNTIME_V1_PL.md`
@@ -245,7 +256,28 @@ samples/jozz_vehicle_m5_vehicle.cpp
 samples/jozz_vehicle_m5_drivable_lab.h
 samples/jozz_vehicle_m5_drivable_lab.cpp
 samples/jozz_vehicle_m5_test_course.h    <- ramps/washboard/rough terrain/props, gfx-free content
-samples/jozz_vehicle_m5_test_course.cpp
+samples/jozz_vehicle_m5_test_course.cpp     (terrainCategoryBits param feeds the M6 split envelope)
+```
+
+Current M6 suspension rig code (2026-07-06):
+
+```text
+samples/jozz_vehicle_m6_suspension_rig.h <- multi-body rig module, no gfx deps
+samples/jozz_vehicle_m6_suspension_rig.cpp  (hardpoints, wishbone generator,
+                                             rack stroke closed form, wheel
+                                             envelope builder, drive/telemetry)
+samples/jozz_vehicle_m6_rig_lab.h
+samples/jozz_vehicle_m6_rig_lab.cpp      <- drivable lab + rig debug draw
+```
+
+M6 collision-category contract (b3DefaultShapeDef has ALL categoryBits!):
+
+```text
+drivable surfaces  categoryBits = JOZZ_M6_TERRAIN_CATEGORY (0x2 only)
+props/obstacles    categoryBits = JOZZ_M6_OBJECT_CATEGORY (0x1)
+rolling sphere collides with terrain only; sidewall cylinder with the rest
+structural bodies (knuckle/rack) are SHAPELESS with explicit mass data
+(small shapes at driving speed trigger continuous collision = TOI asserts)
 ```
 
 Shared Jozz infrastructure (2026-07-05 dedup):
@@ -274,7 +306,7 @@ Q      live root down
 E      live root up
 ```
 
-M5 First Drivable:
+M5 First Drivable and M6 Suspension Rig Lab (identical):
 
 ```text
 W/S    drive forward/reverse
@@ -311,25 +343,28 @@ Before adding any shortcut, check and update:
 
 ## Immediate next engineering target
 
-Per ADR-0005, the order is:
+M6 Suspension Rig Foundation is implemented and machine-validated; the next
+gates build on it (details in docs/M6_SUSPENSION_RIG_FOUNDATION_PL.md
+section 10):
 
 ```text
-M5.1  feel tuning pass driven by Jozz's manual driving feedback
-M4C   procedural damper/cardan visual proof on the drivable M5 corners
+M6.1  visual suspension-model mounting on the LIVE rig hardpoints
+      (the M4C idea upgraded: endpoints are now real physics bodies)
+M6.2  trailing arm (One_Sided_wheel_mount) + solid axle rig types
+M6.3  hardpoints filled from asset markers via the sidecar contract
+M6.4  anti-roll bar, per-axle geometry variants, tuning presets
 ```
 
-Strict scope for M4C:
+Strict scope guards that still hold:
 
 ```text
-use existing contract endpoint data
+use existing sidecar contract endpoint data for visual bindings
 keep audit reports as diagnostics
 do not regenerate reports unless explicitly intended
 do not build a full glTF importer
-do not add mesh collision or multi-body suspension
+do not add mesh collision for wheels/suspension
+do not re-implement steering/drive outside the M5/M6 modules
 ```
-
-(steering and the four-corner vehicle now exist through the engine wheel
-joint in the M5 module; do not re-implement them elsewhere)
 
 ## Validation commands
 
@@ -342,7 +377,12 @@ cmake --build --preset windows-debug --target jozz_vehicle_validation
 build\bin\Debug\test.exe
 build\bin\Debug\jozz_vehicle_validation.exe
 build\bin\Debug\samples.exe --sample 96 --frames 300
+build\bin\Debug\samples.exe --sample 97 --frames 300
 ```
+
+(indices follow registration order: 95 = Lab M2 Primitive Corner, 96 = M5
+First Drivable, 97 = M6 Suspension Rig Lab; they can shift when samples are
+added)
 
 Environment warning (2026-07-05): the historical `cmd /c "set PATH=& ..."`
 wrapper SILENTLY DOES NOTHING when invoked from Git Bash — cmd starts
