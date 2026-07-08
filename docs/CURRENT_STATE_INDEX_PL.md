@@ -44,7 +44,7 @@ Panel:    Jozz Vehicle Lab M2.5 + M3A/M3B.3 + M4 foundation debug
 
 The corner lab remains the isolated tuning environment; M5 is the drivable
 four-corner vehicle built on the same rest-anchor model. See
-`docs/M5_FIRST_DRIVABLE_PL.md` and `docs/adr/0005-m5-first-drivable-before-m4c.md`.
+`docs/archive/M5_FIRST_DRIVABLE_PL.md` and `docs/adr/0005-m5-first-drivable-before-m4c.md`.
 
 The older smoke test still exists:
 
@@ -87,8 +87,8 @@ M5 sample "Jozz Vehicle / M5 First Drivable": W/S/A/D/Space/T input, ramp +
 ```
 
 M5.1 feel tuning (2026-07-05, after Jozz's ~20 min playtest), see
-`docs/M5_1_FEEL_TUNING_HANDOFF_2026_07_05_PL.md` (analysis/plan) and
-`docs/M5_1_FEEL_TUNING_IMPLEMENTATION_REPORT_PL.md` (what shipped):
+`docs/archive/M5_1_FEEL_TUNING_HANDOFF_2026_07_05_PL.md` (analysis/plan) and
+`docs/archive/M5_1_FEEL_TUNING_IMPLEMENTATION_REPORT_PL.md` (what shipped):
 
 ```text
 Reproduced the reported broken stationary steering in the headless smoke
@@ -236,10 +236,10 @@ historia (patrz sekcja 6 i README §8).
 These are history, not active architecture:
 
 ```text
-docs/M2_PRIMITIVE_CORNER_LAB_PL.md
-docs/M2_1_PRIMITIVE_CORNER_AXIS_FIX_PL.md
-docs/M2_2_CENTERED_WHEEL_PIVOT_AND_RIG_CONTROLS_PL.md
-docs/M2_3_SUSPENSION_MOUNT_MODEL_PL.md
+docs/archive/M2_PRIMITIVE_CORNER_LAB_PL.md
+docs/archive/M2_1_PRIMITIVE_CORNER_AXIS_FIX_PL.md
+docs/archive/M2_2_CENTERED_WHEEL_PIVOT_AND_RIG_CONTROLS_PL.md
+docs/archive/M2_3_SUSPENSION_MOUNT_MODEL_PL.md
 ```
 
 Current authority superseding them:

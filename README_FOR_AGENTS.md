@@ -305,15 +305,21 @@ useful as history, **not** as current architecture. Trust this order:
   rig / dampers / mounts.** Records that the visual dampers are decorative and
   decoupled from the physics spring, what's solid vs temporary, and a staged
   polish plan.
+- `docs/SUBSYSTEM_UI_PRESETS_PL.md` — the tuning UI/session/preset system: the
+  three separate save files and why, tab order, the `###stable-suffix` tab-ID
+  pattern (copy it for any future dynamic tab title).
 - `docs/M7_REAL_FORCES_FOUNDATION_PL.md` — the current physics model.
 - `docs/M8_SUSPENSION_RIG_REPAIR_PLAN_PL.md` — rig/pose/droop work (physics side,
   history through 2026-07-07; damper/mount current state now in the subsystem doc).
 - `docs/SUSPENSION_RIG_SPACE_CONVENTIONS_PL.md`, `docs/adr/000{1,2,3}` — conventions.
 
-**History only (do not treat as current):** everything `M0_`…`M6_`, all
-`M3B_*`, `M4_*`, `M5_*`, `CODEX_HANDOFF_*`, `CODEX_START_*`, the `PROJECT_AUDIT_*`
-and `PROJECT_STABILIZATION_*` files. They describe superseded states (e.g. the
-primitive-corner-lab-as-main-thing era, the removed self-align assist).
+**History only, moved to `docs/archive/`** (2026-07-08, `git mv` — history
+preserved): all `M0_`…`M5_*`, `CODEX_HANDOFF_*`, `CODEX_START_*`,
+`PROJECT_AUDIT_*`, `PROJECT_STABILIZATION_*`, `FOUNDATION_GROUNDING_*`,
+`IMPLEMENTATION_START_*`, `PRE_RIG_IMPORT_*` files. They describe superseded
+states (e.g. the primitive-corner-lab-as-main-thing era). `docs/
+M6_SUSPENSION_RIG_FOUNDATION_PL.md` is also history (superseded by M7/M8) but
+stays in `docs/` root for now — it is still occasionally cross-referenced.
 
 Also at repo root: `README.md` (upstream box3d), `CONTRIBUTING.md` (upstream),
 `JOZZ_VEHICLE_README_PL.md` (older Polish overview — verify before trusting).
