@@ -336,6 +336,9 @@ public:
 		m_editEnvelopeMode = m_config.wheelEnvelope.mode;
 		m_editEnvelopeLayers = m_config.wheelEnvelope.unionLayerCount;
 		m_editStrutCasterDeg = m_config.strutCasterDeg;
+		m_editMaxSteeringAngleDegrees = m_config.maxSteeringAngleDegrees;
+		m_editFrontToeDeg = m_config.frontToeDeg;
+		m_editRearToeDeg = m_config.rearToeDeg;
 		m_editChassisHalfExtents = m_config.chassisHalfExtents;
 		m_editChassisDensity = m_config.chassisDensity;
 		m_editCgVerticalOffset = m_config.cgVerticalOffset;
@@ -357,6 +360,9 @@ public:
 		m_config.wheelEnvelope.mode = m_editEnvelopeMode;
 		m_config.wheelEnvelope.unionLayerCount = m_editEnvelopeLayers;
 		m_config.strutCasterDeg = m_editStrutCasterDeg;
+		m_config.maxSteeringAngleDegrees = m_editMaxSteeringAngleDegrees;
+		m_config.frontToeDeg = m_editFrontToeDeg;
+		m_config.rearToeDeg = m_editRearToeDeg;
 		m_config.chassisHalfExtents = m_editChassisHalfExtents;
 		m_config.chassisDensity = m_editChassisDensity;
 		m_config.cgVerticalOffset = m_editCgVerticalOffset;
@@ -364,6 +370,33 @@ public:
 		m_config.trackHalfWidth = m_editTrackHalfWidth;
 		m_config.restDrop = m_editRestDrop;
 		m_config.wheelDensity = m_editWheelDensity;
+
+		// P5 safety clamp: the P1 twist-fence (maxSteer + 10 deg margin) must
+		// stay clear of the tie-rod's own over-center dead point, which shifts
+		// with THIS SAME wishbone geometry (ackermannFraction alone moves it
+		// from ~75 deg at 0 to ~50 deg at 1.0 - measured 2026-07-08). A static
+		// slider range can't be safe for every combination, so clamp live
+		// instead, the same way the arm-droop slider clamps to 16 deg.
+		{
+			float wheelbase = 2.0f * m_config.axleHalfSpacing;
+			float deadPointDeg = ComputeJozzVehicleM6SteeringDeadPointDeg( m_config.wishbone, wheelbase,
+																		   m_config.trackHalfWidth, m_config.rackHalfWidth );
+			float safeMaxSteer = deadPointDeg - 13.0f; // fence margin (10) + P1's own 3 deg clearance
+			if ( m_config.maxSteeringAngleDegrees > safeMaxSteer )
+			{
+				m_steeringClampStatus =
+					"Maksymalny skręt zacieśniony z " + std::to_string( (int)m_config.maxSteeringAngleDegrees ) +
+					" do " + std::to_string( (int)safeMaxSteer ) +
+					" st. - przy tej geometrii wahaczy/Ackermanna wyższa wartość wchodzi w martwy punkt drążka.";
+				m_config.maxSteeringAngleDegrees = b3MaxFloat( 15.0f, safeMaxSteer );
+				m_editMaxSteeringAngleDegrees = m_config.maxSteeringAngleDegrees;
+			}
+			else
+			{
+				m_steeringClampStatus.clear();
+			}
+		}
+
 		// Steering geometry (wishbone, axle spacing, track, max steer) can all
 		// change above, and rackTravel is derived from them - without this the
 		// rack limit stays stale from whatever geometry built the previous
@@ -789,14 +822,22 @@ public:
 		HelpMarker( "To, czy koło się trzyma czy traci przyczepność (pali gumę), zależy od momentu względem "
 					"przyczepności w kontakcie z podłożem - nie ma tu osobnego 'przełącznika poślizgu'." );
 		ImGui::SliderFloat( "Moment napędowy", &m_config.maxDriveTorque, 0.0f, 2000.0f, "%.0f N*m" );
+		HelpMarker( "Maksymalny moment silnika na koło. Więcej = mocniejsze przyspieszenie, ale też łatwiej "
+					"przekręcić koła (wheelspin) na śliskiej nawierzchni." );
 		ImGui::SliderFloat( "Limit obrotów", &m_config.maxDriveSpeed, 5.0f, 100.0f, "%.0f rad/s" );
+		HelpMarker( "Prędkość obrotowa koła (rad/s), przy której silnik przestaje ciągnąć - decyduje razem z "
+					"promieniem koła o prędkości maksymalnej auta." );
 		ImGui::SliderFloat( "Próg spadku momentu", &m_config.driveTaperStart, 0.2f, 0.95f, "%.2f x obr." );
 		HelpMarker( "Od jakiej części limitu obrotów moment zaczyna maleć w stronę zera - symuluje silnik "
 					"dochodzący do czerwonego pola." );
 		ImGui::SliderFloat( "Moment hamowania", &m_config.brakeTorque, 0.0f, 2500.0f, "%.0f N*m" );
+		HelpMarker( "Moment hamulców na koło przy trzymaniu spacji. Więcej = krótsza droga hamowania, ale łatwiej "
+					"zablokować koła (utrata sterowności)." );
 		ImGui::SliderFloat( "Moment na biegu jałowym", &m_config.coastTorque, 0.0f, 40.0f, "%.0f N*m" );
 		HelpMarker( "Lekki opór silnika, gdy nie dotykasz gazu ani hamulca - jak puszczenie sprzęgła bez gazu." );
 		ImGui::Checkbox( "Napęd na wszystkie koła", &m_config.allWheelDrive );
+		HelpMarker( "Wyłączone = napęd tylko na tylną oś. Włączone = moment idzie na wszystkie 4 koła - więcej "
+					"przyczepności przy starcie, mniej driftu na gazie." );
 		ImGui::Separator();
 		ImGui::SliderFloat( "Opór aerodynamiczny", &m_config.aeroDragArea, 0.2f, 2.0f, "%.2f m^2" );
 		HelpMarker( "Opór powietrza rosnący z kwadratem prędkości. To ON ogranicza prędkość maksymalną, nie sztywny "
@@ -811,6 +852,21 @@ public:
 					"zębatki, więc geometria zwrotnicy i siły z kontaktu z podłożem same kierują kołami - kontra w "
 					"poślizgu i prostowanie na wyjściu z zakrętu wynikają z sił, nie ze skryptu." );
 		ImGui::Checkbox( "Odwróć kierowanie (preferencja)", &m_invertSteering );
+		ImGui::Separator();
+		if ( ImGui::SliderFloat( "Maksymalny skręt kół (wymaga Zastosuj)", &m_editMaxSteeringAngleDegrees, 20.0f, 45.0f,
+								  "%.0f st." ) )
+		{
+			m_structuralSetupDirty = true;
+		}
+		HelpMarker( "Kąt skrętu koła przy pełnym locku kierownicy. Strukturalne - przebudowuje zębatkę i płot "
+					"bezpieczeństwa (P1), stąd wymaga Zastosuj. UWAGA: zbyt wysoka wartość razem z wysokim 'Udział "
+					"Ackermanna' (zakładka Zawieszenie, zaawansowane) może wepchnąć drążek w jego martwy punkt - w "
+					"takim wypadku Zastosuj SAMO zaciśnie tę wartość i pokaże komunikat, nie trzeba zgadywać "
+					"bezpiecznej liczby ręcznie." );
+		if ( m_steeringClampStatus.empty() == false )
+		{
+			ImGui::TextColored( ImVec4( 1.0f, 0.75f, 0.25f, 1.0f ), "%s", m_steeringClampStatus.c_str() );
+		}
 		ImGui::Separator();
 		if ( ImGui::SliderFloat( "Sztywność kierownicy", &m_config.steeringHertz, 2.0f, 25.0f, "%.1f Hz" ) )
 		{
@@ -936,28 +992,72 @@ public:
 			ImGui::Indent();
 			ImGui::TextWrapped( "Punkty mocowania zawieszenia. Zmieniają charakter jazdy w subtelny sposób - "
 								 "większość osób nigdy nie musi tu wchodzić." );
+			ImGui::TextColored( ImVec4( 0.6f, 0.6f, 0.6f, 1.0f ),
+								 "Zmiany działają na fizykę i linie debug - model 3D auta NIE przeskalowuje się "
+								 "(rysowany z socketów oryginalnego modelu)." );
 			edited |= ImGui::SliderFloat( "Caster (wyprzedzenie)", &m_editWishbone.casterDeg, -2.0f, 12.0f, "%.1f st." );
 			HelpMarker( "Większy caster = silniejsze samo-centrowanie kierownicy i mocniejsza kontra w poślizgu. "
 						"Ustawienia driftowe: 7-10 st." );
 			edited |= ImGui::SliderFloat( "Pochylenie sworznia", &m_editWishbone.kingpinInclinationDeg, 0.0f, 15.0f,
 										   "%.1f st." );
+			HelpMarker( "Przechyla oś sworznia (kingpin) do środka auta u góry. Wyżej = mniejszy scrub radius (mniej "
+						"'szarpania' kierownicą przy hamowaniu asymetrycznym), ale też mniej mechanicznego "
+						"samo-centrowania. Subtelny efekt - większość aut ma 6-10 st." );
 			edited |= ImGui::SliderFloat( "Offset sworznia", &m_editWishbone.kingpinOffset, 0.05f, 0.25f, "%.2f m" );
+			HelpMarker( "Jak daleko do środka auta leżą przeguby kulowe względem środka koła. Wpływa na scrub radius "
+						"i na to, jak mocno hamowanie/napęd 'ciągnie' za kierownicę. Subtelne - dotykaj po innych "
+						"suwakach." );
 			edited |= ImGui::SliderFloat( "Wysokość zwrotnicy", &m_editWishbone.uprightHalfHeight, 0.10f, 0.30f, "%.2f m" );
+			HelpMarker( "Rozstaw górnego/dolnego przegubu kulowego od środka koła - de facto 'wysokość' zwrotnicy. "
+						"Wyższa = sztywniejsza geometria kątowa, subtelnie mniejszy przyrost campera przy skoku." );
 			edited |= ImGui::SliderFloat( "Długość górnego wahacza", &m_editWishbone.upperArmLength, 0.20f, 0.55f, "%.2f m" );
+			HelpMarker( "Krótszy górny wahacz względem dolnego = szybszy przyrost camberu przy skoku (typowe dla "
+						"aut torowych/driftowych); zbliżone długości = camber prawie się nie zmienia (offroad, "
+						"komfort)." );
 			edited |= ImGui::SliderFloat( "Długość dolnego wahacza", &m_editWishbone.lowerArmLength, 0.25f, 0.70f, "%.2f m" );
 			HelpMarker( "Dłuższe dolne wahacze = łagodniejszy przyrost kąta pochylenia koła (camber) przy skoku." );
 			edited |= ImGui::SliderFloat( "Rozstaw mocowań wahacza", &m_editWishbone.armHalfSpread, 0.12f, 0.40f, "%.2f m" );
+			HelpMarker( "Jak szeroko (wzdłuż auta) rozstawione są dwa punkty mocowania każdego wahacza na nadwoziu - "
+						"decyduje o sztywności skrętnej wahacza wobec sił wzdłużnych (hamowanie/napęd). Kosmetyczny "
+						"dla samej jazdy, ważny dla wyglądu linii debug." );
 			edited |= ImGui::SliderFloat( "Cofnięcie ramienia kierown.", &m_editWishbone.steeringArmBack, 0.10f, 0.25f, "%.2f m" );
+			HelpMarker( "Jak daleko za środkiem koła siedzi ramię, do którego mocuje się drążek kierowniczy. Dłuższe "
+						"ramię = mniejsza siła w drążku na ten sam moment na kole (lżejsza kierownica), ale też "
+						"mniejszy zakres skrętu przy tej samej długości maglownicy. Zmienia też, gdzie leży martwy "
+						"punkt drążka (zakładka Kierownica, suwak maks. skrętu się do tego dostosuje)." );
 			edited |= ImGui::Checkbox( "Trapez Ackermanna (mechaniczny)", &m_editWishbone.ackermannTrapezoid );
+			HelpMarker( "Kątuje ramiona kierownicze do środka, żeby koło wewnętrzne w zakręcie skręcało mocniej niż "
+						"zewnętrzne - czysto geometrycznie, bez elektroniki. Wyłączone = oba koła skręcają identycznie "
+						"(prościej, ale mniej naturalnie w ostrych zakrętach)." );
 			if ( m_editWishbone.ackermannTrapezoid )
 			{
 				edited |= ImGui::SliderFloat( "Udział Ackermanna", &m_editWishbone.ackermannFraction, 0.0f, 1.0f, "%.2f" );
+				HelpMarker( "0 = brak Ackermanna (jak wyłączony trapez), 1 = pełna geometria. WAŻNE: wyższa wartość "
+							"przybliża drążek do jego martwego punktu (przy 1.0 to ok. 50 st., przy domyślnym 0.6 to "
+							"ok. 60 st.) - suwak 'Maksymalny skręt kół' (zakładka Kierownica) SAM się zacieśni po "
+							"Zastosuj, jeśli ta kombinacja stałaby się niebezpieczna, więc nie trzeba tego liczyć "
+							"ręcznie. Domyślne 0.6 to kompromis producentów - pełne 1.0 bywa zbyt agresywne." );
 			}
 			edited |= ImGui::SliderFloat( "Wysokość mocowania amortyzatora", &m_editWishbone.coiloverTopHeight, 0.25f,
 										   0.60f, "%.2f m" );
+			HelpMarker( "Jak wysoko nad środkiem koła amortyzator mocuje się do nadwozia. Wyżej = amortyzator bardziej "
+						"pionowy = mniejsze przełożenie ruchu koła na ruch sprężyny (motion ratio bliżej 1)." );
 			edited |= ImGui::SliderFloat( "Masa zwrotnicy", &m_editKnuckleMass, 10.0f, 50.0f, "%.0f kg" );
+			HelpMarker( "Masa nieresorowana zwrotnicy/piasty. Więcej = zawieszenie wolniej reaguje na nierówności, "
+						"ale i mniej 'nerwowe' przy uderzeniach." );
 			edited |= ImGui::SliderFloat( "Masa wahacza", &m_editArmMass, 2.0f, 15.0f, "%.1f kg" );
+			HelpMarker( "Masa samego ramienia wahacza. Głównie wpływa na to, jak łatwo solver fizyki radzi sobie z "
+						"tym ciałem - rzadko trzeba ruszać." );
 			edited |= ImGui::SliderFloat( "Caster kolumny (osie kolumnowe)", &m_editStrutCasterDeg, -2.0f, 12.0f, "%.1f st." );
+			HelpMarker( "To samo co Caster wyżej, ale dla osi ustawionej na Kolumnę (McPherson) zamiast Podwójny "
+						"wahacz - osobne pole, bo to inny typ zawieszenia z inną geometrią." );
+			edited |= ImGui::SliderFloat( "Zbieżność (toe) przód", &m_editFrontToeDeg, -3.0f, 3.0f, "%.1f st." );
+			HelpMarker( "Statyczny kąt kół w spoczynku, przód. Dodatni = zbieżność (toe-in, przody kół do środka) - "
+						"stabilniej na wprost, kosztem odrobiny zwrotności. Ujemny = rozbieżność (toe-out) - żywszy "
+						"skręt, mniej stabilnie. Działa tylko na osiach z podwójnym wahaczem." );
+			edited |= ImGui::SliderFloat( "Zbieżność (toe) tył", &m_editRearToeDeg, -3.0f, 3.0f, "%.1f st." );
+			HelpMarker( "To samo, tył. Zbieżność z tyłu = więcej stabilności/podsterowności w zakręcie; rozbieżność "
+						"z tyłu = auto chętniej rotuje (bliżej nadsterowności), ale bywa nerwowe na wprost." );
 			ImGui::Unindent();
 		}
 
@@ -973,8 +1073,15 @@ public:
 				m_structuralSetupDirty = true;
 			}
 			edited |= ImGui::SliderFloat( "Oś obrotu przed kołem", &m_editTrailingArm.pivotOffset.x, 0.30f, 0.90f, "%.2f m" );
+			HelpMarker( "Jak daleko PRZED środkiem koła leży oś, wokół której obraca się cały wahacz wleczony. "
+						"Dłuższe ramię = łagodniejszy łuk ruchu koła przy skoku (mniejsza zmiana kąta na metr skoku)." );
 			edited |= ImGui::SliderFloat( "Oś obrotu nad kołem", &m_editTrailingArm.pivotOffset.y, -0.05f, 0.35f, "%.2f m" );
+			HelpMarker( "Jak wysoko nad środkiem koła leży ta sama oś obrotu. Wpływa na to, jak koło porusza się w "
+						"bok (nie tylko w górę/dół) podczas skoku." );
 			edited |= ImGui::SliderFloat( "Masa wahacza wleczonego", &m_editTrailingArm.armMass, 6.0f, 25.0f, "%.0f kg" );
+			HelpMarker( "Masa samego ramienia (bez koła). Wpływa na kompensację efektywnej masy amortyzatora "
+						"(patrz TECH_DEBT/komentarz w kodzie) - zmiana tutaj automatycznie przelicza sztywność "
+						"tak, żeby twardość 'na kole' została ta sama." );
 			ImGui::Unindent();
 		}
 
@@ -985,6 +1092,9 @@ public:
 										"Walec (prawdziwa szerokość, graniasty)", "Suma fazowa (eksperymentalne)",
 										"Mieszana: sfera + prawdziwa szerokość (domyślne)" };
 			edited |= ImGui::Combo( "Kształt", &m_editEnvelopeMode, envelopes, 4 );
+			HelpMarker( "Kształt fizycznej bryły koła (nie wizualny model 3D - ten rysuje się zawsze tak samo). "
+						"Domyślna mieszana daje idealny kontakt z terenem (sfera) BEZ 'niewidzialnej ściany' obok "
+						"przeszkód (prawdziwa szerokość walca). Zmieniaj tylko przy problemach z fizyką koła." );
 			if ( m_editEnvelopeMode == JOZZ_M6_ENVELOPE_PHASED_UNION )
 			{
 				edited |= ImGui::SliderInt( "Warstwy sumy", &m_editEnvelopeLayers, 2, 4 );
@@ -1777,6 +1887,7 @@ public:
 	int m_selectedPresetIndex = -1;
 	char m_presetNameBuffer[64] = "";
 	std::string m_presetStatus;
+	std::string m_steeringClampStatus;
 	bool m_testOpenResetModal = false; // JOZZ_M6_TEST_RESET_MODAL: render-verify the confirm popup headless
 	b3Vec3 m_mountWheelCenterAuthored = { -0.416f, 0.175f, 0.0f };
 	b3Vec3 m_damperUpperLAuthored = { 0.0164f, 0.6453f, 0.2844f };
@@ -1810,6 +1921,9 @@ public:
 	int m_editEnvelopeMode;
 	int m_editEnvelopeLayers;
 	float m_editStrutCasterDeg;
+	float m_editMaxSteeringAngleDegrees;
+	float m_editFrontToeDeg;
+	float m_editRearToeDeg;
 	b3Vec3 m_editChassisHalfExtents;
 	float m_editChassisDensity;
 	float m_editCgVerticalOffset;

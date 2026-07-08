@@ -170,6 +170,8 @@ bool SaveJozzVehicleM6Config( const JozzVehicleM6Config& c, const std::string& p
 	WriteBool( out, "  ", "allWheelDrive", c.allWheelDrive );
 
 	WriteFloat( out, "  ", "maxSteeringAngleDegrees", c.maxSteeringAngleDegrees );
+	WriteFloat( out, "  ", "frontToeDeg", c.frontToeDeg );
+	WriteFloat( out, "  ", "rearToeDeg", c.rearToeDeg );
 	WriteFloat( out, "  ", "steeringHertz", c.steeringHertz );
 	WriteFloat( out, "  ", "steeringDampingRatio", c.steeringDampingRatio );
 	WriteFloat( out, "  ", "maxSteeringTorque", c.maxSteeringTorque );
@@ -303,6 +305,8 @@ bool LoadJozzVehicleM6Config( const std::string& path, JozzVehicleM6Config* outC
 	ReadBool( json, tokens, root, "allWheelDrive", &c.allWheelDrive );
 
 	ReadFloat( json, tokens, root, "maxSteeringAngleDegrees", &c.maxSteeringAngleDegrees );
+	ReadFloat( json, tokens, root, "frontToeDeg", &c.frontToeDeg );
+	ReadFloat( json, tokens, root, "rearToeDeg", &c.rearToeDeg );
 	ReadFloat( json, tokens, root, "steeringHertz", &c.steeringHertz );
 	ReadFloat( json, tokens, root, "steeringDampingRatio", &c.steeringDampingRatio );
 	ReadFloat( json, tokens, root, "maxSteeringTorque", &c.maxSteeringTorque );

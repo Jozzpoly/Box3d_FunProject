@@ -258,6 +258,24 @@ float ComputeJozzVehicleM6RackStroke( const JozzVehicleM6WishboneGeometry& geome
 	return rackEndZ - ( -rackHalfWidth );
 }
 
+float ComputeJozzVehicleM6SteeringDeadPointDeg( const JozzVehicleM6WishboneGeometry& geometry, float wheelbase,
+												 float track, float rackHalfWidth )
+{
+	float deadPointDeg = 90.0f;
+	float prevStroke = ComputeJozzVehicleM6RackStroke( geometry, wheelbase, track, rackHalfWidth, 1.0f * DEGREES_TO_RADIANS );
+	for ( float deg = 1.5f; deg < 89.0f; deg += 0.5f )
+	{
+		float stroke = ComputeJozzVehicleM6RackStroke( geometry, wheelbase, track, rackHalfWidth, deg * DEGREES_TO_RADIANS );
+		if ( stroke <= prevStroke )
+		{
+			deadPointDeg = deg;
+			break;
+		}
+		prevStroke = stroke;
+	}
+	return deadPointDeg;
+}
+
 JozzVehicleM6Config JozzVehicleM6DefaultConfig( float wheelRadius, float wheelWidth, float suspensionTravelHint )
 {
 	JozzVehicleM6Config config = {};
@@ -363,6 +381,8 @@ JozzVehicleM6Config JozzVehicleM6DefaultConfig( float wheelRadius, float wheelWi
 	config.allWheelDrive = true;
 
 	config.maxSteeringAngleDegrees = 32.0f;
+	config.frontToeDeg = 0.0f;
+	config.rearToeDeg = 0.0f;
 	config.steeringHertz = 14.0f;
 	config.steeringDampingRatio = 1.0f;
 	config.maxSteeringTorque = 700.0f;
@@ -633,6 +653,38 @@ b3BodyId CreateControlArm( b3WorldId worldId, JozzVehicleM6* vehicle, b3Vec3 fro
 	return armId;
 }
 
+// Static toe (P5): a virtual turnbuckle. Shortening/lengthening the tie-rod
+// (front) or toe-link (rear) by this delta - WITHOUT moving any hardpoint -
+// forces the knuckle to rotate until its (unchanged) steeringArm attachment
+// again satisfies the (changed) link length, exactly like screwing a real
+// turnbuckle. Moving hp.steeringArm itself instead was tried and rejected:
+// both ends of the rear toe-link are defined relative to hp.steeringArm, so a
+// hardpoint shift cancels out and induces NO rotation at all (verified by
+// derivation, not just assumed - the front tie-rod's chassis end is
+// independent of hp.steeringArm so it would have worked there, but using two
+// different mechanisms for front/rear invited exactly the kind of asymmetry
+// bug this project has been bitten by before).
+//
+// Magnitude: arc length of a small kingpin rotation at the arm's own radius
+// (steeringArmBack). Sign: verified empirically against the validator's toe
+// probe (steeringAngle telemetry), NOT just derived on paper - an initial
+// per-side `IsLeftCorner`-flipped version measured as producing a coordinated
+// STEER (both wheels' steeringAngle shifting the same sign, like turning the
+// whole rack) instead of TOE (opposite signs, converging/diverging) - the
+// mirroring this needs is already baked into the hardpoint geometry and the
+// steeringAngle telemetry formula (both already flip per side), so adding
+// another `IsLeftCorner` flip here canceled it out. The same, UNFLIPPED delta
+// on both sides (lengthening both links for positive toeDeg) is what actually
+// converges the two noses - confirmed by measurement (A/B toe=+-2 deg test:
+// clean +-2.1 to 2.2 deg response, opposite-signed L/R). Positive toeDeg =
+// toe-in (both wheels' noses point toward the chassis centerline).
+float SteeringToeLengthDelta( const JozzVehicleM6Config& config, int corner )
+{
+	float toeDeg = IsFrontCorner( corner ) ? config.frontToeDeg : config.rearToeDeg;
+	float toeRad = toeDeg * DEGREES_TO_RADIANS;
+	return config.wishbone.steeringArmBack * toeRad;
+}
+
 void CreateWishboneCorner( b3WorldId worldId, JozzVehicleM6* vehicle, int corner, b3Vec3 restWheelCenterLocal,
 						   b3Pos restWheelCenterWorld, b3Pos chassisSpawnPosition )
 {
@@ -726,7 +778,7 @@ void CreateWishboneCorner( b3WorldId worldId, JozzVehicleM6* vehicle, int corner
 		def.base.localFrameA.p = rackEndLocal;
 		def.base.localFrameB.p = steeringArmKnuckle;
 		def.base.collideConnected = false;
-		def.length = DistanceBetween( rackEndChassisLocal, hp.steeringArm );
+		def.length = DistanceBetween( rackEndChassisLocal, hp.steeringArm ) + SteeringToeLengthDelta( config, corner );
 		def.enableSpring = false;
 		runtime.steerLinkJointId = b3CreateDistanceJoint( worldId, &def );
 	}
@@ -744,7 +796,7 @@ void CreateWishboneCorner( b3WorldId worldId, JozzVehicleM6* vehicle, int corner
 		def.base.localFrameA.p = toeChassis;
 		def.base.localFrameB.p = steeringArmKnuckle;
 		def.base.collideConnected = false;
-		def.length = DistanceBetween( toeChassis, hp.steeringArm );
+		def.length = DistanceBetween( toeChassis, hp.steeringArm ) + SteeringToeLengthDelta( config, corner );
 		def.enableSpring = false;
 		runtime.steerLinkJointId = b3CreateDistanceJoint( worldId, &def );
 	}

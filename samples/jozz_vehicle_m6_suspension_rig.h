@@ -240,6 +240,17 @@ JozzVehicleM6TrailingArmGeometry JozzVehicleM6DefaultTrailingArmGeometry();
 float ComputeJozzVehicleM6RackStroke( const JozzVehicleM6WishboneGeometry& geometry, float wheelbase, float track,
 									  float rackHalfWidth, float steerAngle );
 
+// The tie-rod/rack-and-arm linkage has an over-center "dead point" - a steer
+// angle past which the rack stroke stops increasing with angle (P1, see
+// AUDIT_PHYSICS_STEERING_2026_07_08_PL.md K1). Returns that angle in degrees
+// for the given geometry, found by walking the stroke curve until it stops
+// climbing. Shared by the P1 ball-joint twist fence, the validator, and the
+// live UI clamp on "Maksymalny skręt kół" (P5) - all three must agree on
+// where this line is, since ackermannFraction alone can move it from ~75 deg
+// (fraction 0) down to ~50 deg (fraction 1.0).
+float ComputeJozzVehicleM6SteeringDeadPointDeg( const JozzVehicleM6WishboneGeometry& geometry, float wheelbase,
+												 float track, float rackHalfWidth );
+
 struct JozzVehicleM6Config
 {
 	// Chassis (same conventions as M5).
@@ -342,6 +353,17 @@ struct JozzVehicleM6Config
 	// the command toward the travel direction is gone (documented negative
 	// result: it read as scripted drift).
 	float maxSteeringAngleDegrees;
+	// Static toe (P5), wishbone corners only (strut/trailing not wired up -
+	// out of scope for this pass). Positive = toe-IN (both noses point toward
+	// the chassis centerline - the alignment-sheet convention). Implemented by
+	// lengthening/shortening the tie-rod (front) / toe-link (rear) rest length
+	// - a virtual turnbuckle - rather than moving any hardpoint, so it can't
+	// perturb the P1 dead-point/P2 rackTravel calibration (those only look at
+	// hp.steeringArm, which stays exactly as authored). See
+	// CreateWishboneCorner's SteeringToeLengthDelta for the derivation and the
+	// sign, verified against the validator's toe probe.
+	float frontToeDeg;
+	float rearToeDeg;
 	float steeringHertz;
 	float steeringDampingRatio;
 	float maxSteeringTorque;	  // strut axle only; the rack spring is limited by hertz

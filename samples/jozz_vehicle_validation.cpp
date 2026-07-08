@@ -1318,25 +1318,11 @@ bool RunP1SteeringFenceProbe( const JozzVehiclePrimitiveDefaults& defaults )
 	JozzVehicleM6Config config =
 		JozzVehicleM6DefaultConfig( defaults.wheelRadius, defaults.wheelWidth, defaults.assetSuspensionTravelHint );
 
-	// (a) Dead point: first angle (0.5 deg steps) where the rack stroke stops
-	// increasing.
+	// (a) Dead point for the default geometry (shared helper - see P5, where
+	// the same computation also drives a LIVE clamp on the max-steer slider).
 	float wheelbase = 2.0f * config.axleHalfSpacing;
-	float deadPointDeg = 90.0f;
-	{
-		float prevStroke = ComputeJozzVehicleM6RackStroke( config.wishbone, wheelbase, config.trackHalfWidth,
-														   config.rackHalfWidth, 1.0f * B3_PI / 180.0f );
-		for ( float deg = 1.5f; deg < 89.0f; deg += 0.5f )
-		{
-			float stroke = ComputeJozzVehicleM6RackStroke( config.wishbone, wheelbase, config.trackHalfWidth,
-														   config.rackHalfWidth, deg * B3_PI / 180.0f );
-			if ( stroke <= prevStroke )
-			{
-				deadPointDeg = deg;
-				break;
-			}
-			prevStroke = stroke;
-		}
-	}
+	float deadPointDeg =
+		ComputeJozzVehicleM6SteeringDeadPointDeg( config.wishbone, wheelbase, config.trackHalfWidth, config.rackHalfWidth );
 	std::printf( "p1 tie-rod dead point (default geometry): %.1f deg\n", deadPointDeg );
 
 	float frontFenceDeg = config.maxSteeringAngleDegrees + 10.0f;
@@ -1444,6 +1430,143 @@ bool RunP1SteeringFenceProbe( const JozzVehiclePrimitiveDefaults& defaults )
 	}
 
 	std::printf( "p1 steering fence probe: %s\n", ok ? "ok" : "FAILED" );
+	return ok;
+}
+
+// P5: max-steer slider (structural, live-clamped against the dead point) and
+// static toe (turnbuckle-style link length shift, front + rear).
+bool RunP5SteeringSetupProbe( const JozzVehiclePrimitiveDefaults& defaults )
+{
+	std::printf( "p5 steering setup probe:\n" );
+	bool ok = true;
+
+	// (a) Max steer 40 deg at the default ackermannFraction (0.6, dead point
+	// 59.5 deg per P1) is comfortably safe (fence 50 <= 56.5) - full lock
+	// should reach ~40 deg and the P1 fence math (asserted in
+	// RunP1SteeringFenceProbe) must still track it.
+	{
+		JozzVehicleM6Config config =
+			JozzVehicleM6DefaultConfig( defaults.wheelRadius, defaults.wheelWidth, defaults.assetSuspensionTravelHint );
+		config.maxSteeringAngleDegrees = 40.0f;
+		float wheelbase = 2.0f * config.axleHalfSpacing;
+		config.rackTravel = ComputeJozzVehicleM6RackStroke( config.wishbone, wheelbase, config.trackHalfWidth,
+															config.rackHalfWidth, 40.0f * B3_PI / 180.0f );
+
+		b3WorldDef worldDef = b3DefaultWorldDef();
+		b3WorldId worldId = b3CreateWorld( &worldDef );
+		b3BodyId groundId = CreateM6SmokeGround( worldId, 0.8f );
+		float spawnHeight = config.restDrop + config.wheelEnvelope.radius + 0.05f;
+		JozzVehicleM6 vehicle = CreateJozzVehicleM6( worldId, groundId, config, { 0.0f, spawnHeight, 0.0f } );
+		const float timeStep = 1.0f / 60.0f;
+		const int subStepCount = 4;
+		JozzVehicleM6DriveInput input = {};
+		input.steer = 1.0f;
+		for ( int i = 0; i < 120; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, input );
+			b3World_Step( worldId, timeStep, subStepCount );
+		}
+		float flDeg = 180.0f / B3_PI * GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_LEFT ).steeringAngle;
+		std::printf( "  maxSteer=40: full lock FL %.1f deg\n", flDeg );
+		ok &= CheckTrue( "p5 maxSteer=40 full lock reaches close to 40 deg", flDeg >= 36.0f );
+		ok &= CheckTrue( "p5 maxSteer=40 state is finite", IsM6VehicleStateValid( vehicle ) );
+		DestroyJozzVehicleM6( &vehicle );
+		b3DestroyWorld( worldId );
+	}
+
+	// (b) The live-clamp math (rig_lab's ApplyPendingStructuralSetup) uses this
+	// exact shared helper - confirm the dangerous combination the audit flagged
+	// (max steer 45 + full Ackermann) really is unsafe before the clamp, and
+	// that the clamp's own formula (deadPoint - 13) brings it back in bounds.
+	{
+		JozzVehicleM6Config config =
+			JozzVehicleM6DefaultConfig( defaults.wheelRadius, defaults.wheelWidth, defaults.assetSuspensionTravelHint );
+		config.wishbone.ackermannFraction = 1.0f;
+		float wheelbase = 2.0f * config.axleHalfSpacing;
+		float deadPointDeg =
+			ComputeJozzVehicleM6SteeringDeadPointDeg( config.wishbone, wheelbase, config.trackHalfWidth, config.rackHalfWidth );
+		float safeMaxSteer = deadPointDeg - 13.0f;
+		std::printf( "  ackermannFraction=1.0: deadPoint=%.1f deg, clamp would cap max-steer at %.1f deg\n",
+					 deadPointDeg, safeMaxSteer );
+		ok &= CheckTrue( "p5 uncapped 45 deg would violate the fence at full Ackermann",
+						 ( 45.0f + 10.0f ) > deadPointDeg - 3.0f );
+		ok &= CheckTrue( "p5 the clamp formula itself stays inside the fence margin",
+						 ( safeMaxSteer + 10.0f ) <= deadPointDeg - 3.0f );
+		ok &= CheckTrue( "p5 clamp still leaves a usable steering angle", safeMaxSteer > 15.0f );
+	}
+
+	// (c) Static toe: build front toe=+1 deg (rear 0), rear toe=+1 deg (front
+	// 0), read steeringAngle at rest. Toe-in convention (positive) must give
+	// opposite-signed L/R angles - sign verified here, not assumed (per the
+	// plan's own warning that this is the likeliest bug). Note toeDeg=0 is
+	// NOT exactly 0/0 at rest - the Ackermann trapezoid itself gives a small
+	// permanent resting asymmetry (measured ~-0.39/+0.39 deg L/R with the
+	// default geometry) that toe then adds on top of; the assertions below
+	// check the TOE contribution (opposite signs, right magnitude), not an
+	// absolute zero baseline.
+	//
+	// Measured HANDS-OFF first (2026-07-08): results were inconsistent
+	// (0.04/0.78 deg instead of a clean +-1) - the toe-induced tie-rod
+	// asymmetry is worth only a few mm of rack shift, easily swallowed by the
+	// 250 N static friction hold (P4), so the rack "sticks" wherever settling
+	// left it rather than reaching the true equilibrium. HANDS-ON with a
+	// near-zero commanded angle instead pins the rack to translation=0 with
+	// the full servo, giving a clean, friction-independent reading - which is
+	// also more representative of how toe actually shows up in play (a static
+	// alignment spec, not a parking-brake artifact). Rear corners have no
+	// rack/servo at all (fixed toe-link to chassis), so they're unaffected by
+	// this choice either way - only the front pass's input matters here.
+	for ( int pass = 0; pass < 2; ++pass )
+	{
+		bool frontPass = pass == 0;
+		JozzVehicleM6Config config =
+			JozzVehicleM6DefaultConfig( defaults.wheelRadius, defaults.wheelWidth, defaults.assetSuspensionTravelHint );
+		if ( frontPass )
+		{
+			config.frontToeDeg = 1.0f;
+		}
+		else
+		{
+			config.rearToeDeg = 1.0f;
+		}
+		config.steerInputDeadzone = 0.0f;
+
+		b3WorldDef worldDef = b3DefaultWorldDef();
+		b3WorldId worldId = b3CreateWorld( &worldDef );
+		b3BodyId groundId = CreateM6SmokeGround( worldId, 0.8f );
+		float spawnHeight = config.restDrop + config.wheelEnvelope.radius + 0.05f;
+		JozzVehicleM6 vehicle = CreateJozzVehicleM6( worldId, groundId, config, { 0.0f, spawnHeight, 0.0f } );
+		const float timeStep = 1.0f / 60.0f;
+		const int subStepCount = 4;
+		JozzVehicleM6DriveInput input = {};
+		input.steer = 0.0001f; // hair above the (now zero) deadzone, commands ~0 deg
+		for ( int i = 0; i < 180; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, input );
+			b3World_Step( worldId, timeStep, subStepCount );
+		}
+
+		int leftCorner = frontPass ? JOZZ_M6_FRONT_LEFT : JOZZ_M6_REAR_LEFT;
+		int rightCorner = frontPass ? JOZZ_M6_FRONT_RIGHT : JOZZ_M6_REAR_RIGHT;
+		float leftDeg = 180.0f / B3_PI * GetJozzVehicleM6WheelTelemetry( vehicle, leftCorner ).steeringAngle;
+		float rightDeg = 180.0f / B3_PI * GetJozzVehicleM6WheelTelemetry( vehicle, rightCorner ).steeringAngle;
+		std::printf( "  %s toe=+1 deg: left %.2f deg, right %.2f deg\n", frontPass ? "front" : "rear", leftDeg,
+					 rightDeg );
+
+		char label[80];
+		std::snprintf( label, sizeof( label ), "p5 %s toe=+1 gives opposite-signed L/R angles (toe-in)",
+						frontPass ? "front" : "rear" );
+		ok &= CheckTrue( label, leftDeg * rightDeg < 0.0f );
+		std::snprintf( label, sizeof( label ), "p5 %s toe=+1 magnitude is in the right ballpark (0.3-3 deg)",
+						frontPass ? "front" : "rear" );
+		ok &= CheckTrue( label, std::fabs( leftDeg ) > 0.3f && std::fabs( leftDeg ) < 3.0f );
+		ok &= CheckTrue( "p5 toe probe state is finite", IsM6VehicleStateValid( vehicle ) );
+
+		DestroyJozzVehicleM6( &vehicle );
+		b3DestroyWorld( worldId );
+	}
+
+	std::printf( "p5 steering setup probe: %s\n", ok ? "ok" : "FAILED" );
 	return ok;
 }
 
@@ -2031,6 +2154,7 @@ int main()
 	ok &= RunM7TrailingArmSmoke( defaults );
 	ok &= RunP2RackTravelRegressionProbe( defaults );
 	ok &= RunP1SteeringFenceProbe( defaults );
+	ok &= RunP5SteeringSetupProbe( defaults );
 	ok &= RunP3SuspensionPreloadProbe( defaults );
 	ok &= RunP4SteeringReturnProbe( defaults );
 	ok &= RunP4CenteringAssistProbe( defaults );

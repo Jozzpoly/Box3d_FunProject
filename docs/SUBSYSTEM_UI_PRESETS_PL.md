@@ -37,6 +37,23 @@ licznik itp.) MUSI mieć `###StabilnySufiks`.
   configu → stary preset go po prostu nie ma, brak ostrzeżenia); brak UI do
   usuwania presetu (tylko save/load).
 
+## 3a. Nowe klucze configu (P3/P4/P5, 2026-07-08)
+
+Wszystkie mają kompatybilność wsteczną w `config_io` (stary klucz, jeśli
+obecny w JSON, wypełnia oba/domyślne pola nowego formatu) - stare sesje i
+presety wczytują się bez błędu.
+
+| Etap | Stary klucz (usunięty) | Nowe klucze | Uwaga migracji |
+|---|---|---|---|
+| P3 | `suspensionPreload` | `suspensionPreloadFront/Rear` | stary → oba pola (ta sama wartość) |
+| P4 | `rackFrictionForce` | `rackStaticFrictionForce/rackKineticFrictionForce` | stary → static=wartość, kinetic=0.5×wartość |
+| P4 | — (nowe) | `rackCenteringHertz` | domyślnie 0 (brak w starych plikach = 0 = wyłączone, bezpieczne) |
+| P5 | — (nowe) | `frontToeDeg`, `rearToeDeg` | domyślnie 0 w starych plikach = brak toe, bezpieczne |
+| P5 | — (już było) | `maxSteeringAngleDegrees` dostał suwak UI | pole istniało w configu od M7, teraz edytowalne (pending-edit, Apply przelicza i w razie potrzeby zaciska - patrz P5 w `CHECKPOINTS_PL.md`) |
+
+3 committed presety (`uliczny`/`drift`/`offroad`) zmigrowane na nowe klucze
+P3/P4 bezpośrednio (nie polegają na fallbacku) - patrz `assets/vehicle_presets/*.json`.
+
 ## 4. Gdzie szukać w kodzie
 
 `jozz_vehicle_m6_config_io.h/.cpp` (save/load/list), `jozz_vehicle_m6_rig_lab.cpp`
