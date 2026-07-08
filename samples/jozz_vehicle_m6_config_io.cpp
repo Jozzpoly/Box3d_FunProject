@@ -173,7 +173,8 @@ bool SaveJozzVehicleM6Config( const JozzVehicleM6Config& c, const std::string& p
 	WriteFloat( out, "  ", "steeringHertz", c.steeringHertz );
 	WriteFloat( out, "  ", "steeringDampingRatio", c.steeringDampingRatio );
 	WriteFloat( out, "  ", "maxSteeringTorque", c.maxSteeringTorque );
-	WriteFloat( out, "  ", "rackFrictionForce", c.rackFrictionForce );
+	WriteFloat( out, "  ", "rackStaticFrictionForce", c.rackStaticFrictionForce );
+	WriteFloat( out, "  ", "rackKineticFrictionForce", c.rackKineticFrictionForce );
 	WriteFloat( out, "  ", "steeringFrictionTorque", c.steeringFrictionTorque );
 	WriteFloat( out, "  ", "steerInputDeadzone", c.steerInputDeadzone );
 	WriteBool( out, "  ", "ackermannGeometry", c.ackermannGeometry );
@@ -304,7 +305,24 @@ bool LoadJozzVehicleM6Config( const std::string& path, JozzVehicleM6Config* outC
 	ReadFloat( json, tokens, root, "steeringHertz", &c.steeringHertz );
 	ReadFloat( json, tokens, root, "steeringDampingRatio", &c.steeringDampingRatio );
 	ReadFloat( json, tokens, root, "maxSteeringTorque", &c.maxSteeringTorque );
-	ReadFloat( json, tokens, root, "rackFrictionForce", &c.rackFrictionForce );
+	ReadFloat( json, tokens, root, "rackStaticFrictionForce", &c.rackStaticFrictionForce );
+	ReadFloat( json, tokens, root, "rackKineticFrictionForce", &c.rackKineticFrictionForce );
+	{
+		// Backward compat: pre-P4 files only have a single "rackFrictionForce"
+		// key. Migrate it to the split model rather than treating both as
+		// equal (P3's pattern) - the whole point of P4 is that static and
+		// kinetic should NOT be equal, so an old file's single value becomes
+		// the static (holding) force and half of it becomes kinetic, matching
+		// the plan's migration rule.
+		int legacyIndex = FindObjectValue( json, tokens, root, "rackFrictionForce" );
+		if ( legacyIndex >= 0 )
+		{
+			float legacyFriction = c.rackStaticFrictionForce;
+			TokenFloat( json, tokens[legacyIndex], &legacyFriction );
+			c.rackStaticFrictionForce = legacyFriction;
+			c.rackKineticFrictionForce = 0.5f * legacyFriction;
+		}
+	}
 	ReadFloat( json, tokens, root, "steeringFrictionTorque", &c.steeringFrictionTorque );
 	ReadFloat( json, tokens, root, "steerInputDeadzone", &c.steerInputDeadzone );
 	ReadBool( json, tokens, root, "ackermannGeometry", &c.ackermannGeometry );

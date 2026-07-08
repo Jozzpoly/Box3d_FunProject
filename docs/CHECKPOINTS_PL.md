@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-08 · P4: tarcie statyczne/kinetyczne zębatki + odkrycie bezpiecznego progu · (do commitu)
+- CO:     `rackFrictionForce` → `rackStaticFrictionForce`/`rackKineticFrictionForce` (Coulomb, próg prędkości 0.01 m/s), config_io z kompatybilnością (stary klucz → static=wartość, kinetic=0.5×), UI dwa suwaki, 3 presety zmigrowane, nowa sonda walidatora `RunP4SteeringReturnProbe`.
+- CZEMU:  audyt S1 — płaskie 250N zatrzymywało kierownicę martwo w centrum bez zależności od prędkości; cel: naturalny powrót + lekki przestrzał po mocnym odbiciu.
+- EFEKT:  **sugerowany przez audyt zakres (~80-120N) okazał się NIEBEZPIECZNY** — sweep walidatora ujawnił OSTRY próg 130→140N (camber lądowania 3.5m: 11-12°→0.6-0.8°, ten sam mechanizm co TECH_DEBT #9) ORAZ osobny, wyższy próg ~150→200N dla stabilności yaw nadwozia podczas samego odbicia (heading przed jazdą: -40°@150N vs -13°@250N stare; dz/dx ratio 0.85@150N *fail* vs 0.43@200N *pass*, próg 0.6). Przestrzał (kąt<0° po puszczeniu z pełnego zablokowanego skrętu) NIE występuje NIGDZIE w całym testowanym zakresie 40-250N — ani przy statycznym zwolnieniu, ani przy łagodnym "kopnięciu" 1-3 m/s w trakcie jazdy (za słabe kopnięcie = wraca bez przestrzału, za mocne = trafia w TECH_DEBT #9). Finalne bezpieczne wartości: static=250N (bez zmian), kinetic=200N (obniżone ze starych 250N, z zapasem nad obydwoma progami). Zamiast forsować nieosiągalne "przestrzał istnieje", asercja zamieniona na diagnostykę (patrz komentarz w kodzie sondy). Walidator OK (wszystkie sondy P1-P4 + M7 bez regresji, w tym hands-off align rack rms 0.17 - bez zmian), test.exe PASS, boot-smoke 0 błędów, zrzut UI potwierdza suwaki 250N/200N.
+- DALEJ:  P5 (brakujące suwaki + opisy) — **przy każdej przyszłej zmianie tarcia zębatki najpierw sonda lądowania 3.5m**, nie tylko udarowa (TECH_DEBT #9 aktualizacja).
+
 ## 2026-07-08 · P3: prześwit przód/tył rozprzęgnięty od twardości · (do commitu)
 - CO:     `suspensionPreload` → `suspensionPreloadFront/Rear` (config, config_io z kompatybilnością wsteczną, 3 presety, UI - dwa suwaki), usunięte mnożenie `* scale` przy wszystkich 3 miejscach tworzenia/aktualizacji coilovera (wahacz, wahacz wleczony, `ApplySuspensionTuning` na żywo).
 - CZEMU:  audyt K3 — `restLength = design + preload*scale` sprzęgało prześwit z twardością W ZŁĄ STRONĘ (kod sam przyznawał w komentarzu intencję kompensacji, ale kierunek był odwrotny do fizyki ugięcia F/k).

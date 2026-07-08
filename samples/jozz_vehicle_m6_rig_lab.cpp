@@ -825,10 +825,14 @@ public:
 		ImGui::SliderFloat( "Siła wspomagania", &m_config.rackServoForce, 0.0f, 20000.0f, "%.0f N" );
 		HelpMarker( "Ile siły ma wspomaganie, gdy trzymasz kierownicę - musi pokonać moment parkingowy obciążonej "
 					"opony (~700 N*m na koło), inaczej auto 'nie posłucha' przy postoju." );
-		ImGui::SliderFloat( "Tarcie zębatki (ręce puszczone)", &m_config.rackFrictionForce, 0.0f, 1000.0f, "%.0f N" );
-		HelpMarker( "Opór, jaki musi pokonać sam ślad koła (caster), żeby wykręcić kierownicę za Ciebie w poślizgu. "
-					"Mniej = żywszy, szybszy powrót do środka. Więcej = spokojniej, aż w końcu kierownica przestaje "
-					"się ruszać sama." );
+		ImGui::SliderFloat( "Tarcie statyczne (trzymanie)", &m_config.rackStaticFrictionForce, 0.0f, 400.0f, "%.0f N" );
+		HelpMarker( "Ile oporu trzeba pokonać, żeby zębatka w ogóle ruszyła z miejsca - to ono trzyma zaparkowane "
+					"koła i tłumi drobne szarpnięcia. Nie wpływa na ruch, gdy koło już wraca do środka." );
+		ImGui::SliderFloat( "Tarcie kinetyczne (ruch)", &m_config.rackKineticFrictionForce, 0.0f, 300.0f, "%.0f N" );
+		HelpMarker( "Opór, jaki musi pokonać ślad koła (caster), gdy zębatka JUŻ się rusza - to ono decyduje o "
+					"szybkości powrotu po poślizgu. Mniej = szybszy powrót do środka. UWAGA: poniżej ok. 200 N "
+					"zmierzono realną utratę stabilności przy twardym lądowaniu/uderzeniu (koło może utknąć w złej "
+					"geometrii - patrz TECH_DEBT #9) - nie schodź poniżej bez sprawdzenia skoku z rampy." );
 		ImGui::SliderFloat( "Tarcie skrętu kolumny", &m_config.steeringFrictionTorque, 0.0f, 200.0f, "%.0f N*m" );
 		HelpMarker( "To samo co tarcie zębatki, ale dla osi na kolumnie McPhersona zamiast wahaczy." );
 	}

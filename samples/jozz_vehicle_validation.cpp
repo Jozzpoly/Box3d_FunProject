@@ -725,7 +725,8 @@ bool RunM7HandsOffAlignProbe( const JozzVehiclePrimitiveDefaults& defaults )
 		if ( rackFree == false )
 		{
 			// Frozen rack: hands-off friction so large the linkage cannot move.
-			config.rackFrictionForce = 1.0e6f;
+			config.rackStaticFrictionForce = 1.0e6f;
+			config.rackKineticFrictionForce = 1.0e6f;
 		}
 		float spawnHeight = config.restDrop + config.wheelEnvelope.radius + 0.05f;
 		JozzVehicleM6 vehicle = CreateJozzVehicleM6( worldId, groundId, config, { 0.0f, spawnHeight, 0.0f } );
@@ -1446,6 +1447,138 @@ bool RunP3SuspensionPreloadProbe( const JozzVehiclePrimitiveDefaults& defaults )
 	return ok;
 }
 
+// P4: hands-off rack resistance is now a Coulomb static/kinetic pair instead
+// of one flat force (S1 in the audit - a flat cap made the rack stop dead
+// exactly where the speed-independent caster force first dropped below it).
+//
+// The audit expected lowering kinetic friction (~80-120 N) to let inertia
+// carry a released wheel past center ("przestrzal"). Measured finding
+// (2026-07-08, validator sweep across kinetic 40-250 N, both from a static
+// full-lock-release and from a moderate hands-off kick while driving): true
+// overshoot (crossing to a NEGATIVE angle) never occurs anywhere in that
+// range - a weak perturbation just settles back near zero without crossing,
+// and a strong enough one instead snaps the linkage onto the SAME wrong
+// branch documented in TECH_DEBT_PL.md #9 (the P1 finding), which does not
+// recover at all. There is no friction value that produces a clean
+// "swings past center, then settles" - only "settles smoothly" or "jams".
+// Worse, kinetic friction below ~140 N (sharp cliff, not gradual) reactivates
+// that same branch-snap under a plain 3.5 m landing shock: worst camber goes
+// from ~0.6-0.8 deg to 11-12 deg and the post-landing drive goes backward/
+// sideways instead of forward (see RunM7LandingIntegrityProbe). So the
+// audit's suggested range is actively unsafe, not just insufficiently lively.
+//
+// Chosen defaults (static 200 N / kinetic 150 N) sit safely above that cliff.
+// This still delivers what P4 actually needs for feel: settling MUCH closer
+// to dead center after a hard lock (release-to-final error dropped from
+// ~0.7-0.9 deg pre-fix to ~0.2-0.5 deg here) with no sustained oscillation,
+// plus a genuinely separate, tunable static (parking-hold) dial - just not
+// literal overshoot. The overshoot measurement stays below as a printed,
+// NON-gating diagnostic; don't chase it further by lowering kinetic without
+// re-checking the landing probe first.
+bool RunP4SteeringReturnProbe( const JozzVehiclePrimitiveDefaults& defaults )
+{
+	std::printf( "p4 steering return probe:\n" );
+	bool ok = true;
+
+	JozzVehicleM6Config config =
+		JozzVehicleM6DefaultConfig( defaults.wheelRadius, defaults.wheelWidth, defaults.assetSuspensionTravelHint );
+
+	// (a) Hard lock at speed, release, watch the return.
+	{
+		b3WorldDef worldDef = b3DefaultWorldDef();
+		b3WorldId worldId = b3CreateWorld( &worldDef );
+		b3BodyId groundId = CreateM6SmokeGround( worldId, 0.8f );
+		float spawnHeight = config.restDrop + config.wheelEnvelope.radius + 0.05f;
+		JozzVehicleM6 vehicle = CreateJozzVehicleM6( worldId, groundId, config, { 0.0f, spawnHeight, 0.0f } );
+
+		const float timeStep = 1.0f / 60.0f;
+		const int subStepCount = 4;
+
+		JozzVehicleM6DriveInput input = {};
+		input.drive = 1.0f;
+		for ( int i = 0; i < 260; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, input );
+			b3World_Step( worldId, timeStep, subStepCount );
+		}
+		float speed = GetJozzVehicleM6ForwardSpeed( vehicle );
+
+		input.steer = 1.0f;
+		for ( int i = 0; i < 60; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, input );
+			b3World_Step( worldId, timeStep, subStepCount );
+		}
+		float releaseAngleDeg =
+			180.0f / B3_PI * GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_LEFT ).steeringAngle;
+
+		input.steer = 0.0f;
+		float minAngleDeg = releaseAngleDeg;
+		float lastAngleDeg = releaseAngleDeg;
+		float last60Min = 1.0e9f, last60Max = -1.0e9f;
+		for ( int i = 0; i < 240; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, input );
+			b3World_Step( worldId, timeStep, subStepCount );
+			lastAngleDeg = 180.0f / B3_PI * GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_LEFT ).steeringAngle;
+			minAngleDeg = b3MinFloat( minAngleDeg, lastAngleDeg );
+			if ( i >= 180 )
+			{
+				last60Min = b3MinFloat( last60Min, lastAngleDeg );
+				last60Max = b3MaxFloat( last60Max, lastAngleDeg );
+			}
+		}
+		float amplitudeDeg = last60Max - last60Min;
+
+		std::printf( "  speed %.1f m/s, release %.2f deg, overshoot(min) %.2f deg, final %.2f deg, last-60 amp %.2f deg\n",
+					 speed, releaseAngleDeg, minAngleDeg, lastAngleDeg, amplitudeDeg );
+		// NOT gated - see the function comment above (unachievable in this
+		// range without reactivating the TECH_DEBT #9 branch-snap).
+		std::printf( "  overshoot %s (min angle %.2f deg)\n", minAngleDeg < -1.0f ? "YES" : "no", minAngleDeg );
+		ok &= CheckTrue( "p4 settles near straight", std::fabs( lastAngleDeg ) < 3.0f );
+		ok &= CheckTrue( "p4 no sustained oscillation (shimmy) after settling", amplitudeDeg < 1.0f );
+		ok &= CheckTrue( "p4 return probe state is finite", IsM6VehicleStateValid( vehicle ) );
+
+		DestroyJozzVehicleM6( &vehicle );
+		b3DestroyWorld( worldId );
+	}
+
+	// (b) Parking hold: parked, hands-off, static friction must hold the angle.
+	{
+		b3WorldDef worldDef = b3DefaultWorldDef();
+		b3WorldId worldId = b3CreateWorld( &worldDef );
+		b3BodyId groundId = CreateM6SmokeGround( worldId, 0.8f );
+		float spawnHeight = config.restDrop + config.wheelEnvelope.radius + 0.05f;
+		JozzVehicleM6 vehicle = CreateJozzVehicleM6( worldId, groundId, config, { 0.0f, spawnHeight, 0.0f } );
+
+		const float timeStep = 1.0f / 60.0f;
+		const int subStepCount = 4;
+		JozzVehicleM6DriveInput input = {};
+		for ( int i = 0; i < 60; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, input );
+			b3World_Step( worldId, timeStep, subStepCount );
+		}
+		float startAngleDeg = 180.0f / B3_PI * GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_LEFT ).steeringAngle;
+		for ( int i = 0; i < 180; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, input );
+			b3World_Step( worldId, timeStep, subStepCount );
+		}
+		float endAngleDeg = 180.0f / B3_PI * GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_LEFT ).steeringAngle;
+
+		std::printf( "  parking hold: start %.2f deg, after 180 steps %.2f deg (drift %.2f deg)\n", startAngleDeg,
+					 endAngleDeg, endAngleDeg - startAngleDeg );
+		ok &= CheckTrue( "p4 parking hold drift stays under 1 deg", std::fabs( endAngleDeg - startAngleDeg ) < 1.0f );
+
+		DestroyJozzVehicleM6( &vehicle );
+		b3DestroyWorld( worldId );
+	}
+
+	std::printf( "p4 steering return probe: %s\n", ok ? "ok" : "FAILED" );
+	return ok;
+}
+
 // Wheel envelope probe. Three claims to verify:
 // 1) Width: hull-based envelopes (cylinder, union, split sidewall) must not
 //    stick out past the visual tire, unlike the single sphere (which bulges
@@ -1804,6 +1937,7 @@ int main()
 	ok &= RunP2RackTravelRegressionProbe( defaults );
 	ok &= RunP1SteeringFenceProbe( defaults );
 	ok &= RunP3SuspensionPreloadProbe( defaults );
+	ok &= RunP4SteeringReturnProbe( defaults );
 
 	if ( ok == false )
 	{

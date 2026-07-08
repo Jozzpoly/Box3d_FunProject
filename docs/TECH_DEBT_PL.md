@@ -213,6 +213,22 @@ robocza wskazuje `ComputeJozzVehicleM6RackStroke`/rozwiązanie drążka jako
 miejsce startowe (jeden jednoznaczny branch zamiast dwóch pierwiastków
 `sqrt`). Nie jest to obecnie zaplanowane — czeka na realny nawrót objawu.
 
+**AKTUALIZACJA (2026-07-08, przy okazji P4):** ten sam mechanizm okazał się
+JEDNAK czuły na poziom tarcia zębatki hands-off — tyle że nie na statyczny
+impuls boczny (tam 1N vs 250N nie robiło różnicy, jak wyżej), tylko na
+WSTRZĄS LĄDOWANIA. Sonda `RunM7LandingIntegrityProbe` (skok 3.5 m) pokazała
+OSTRY próg między 130N a 140N tarcia kinetycznego: poniżej — camber 11-12°
+(ten sam zły branch), powyżej — 0.6-0.8° (zdrowo). To znaczy, że mechanizm
+NIE jest całkowicie niezależny od tarcia — zależy od TYPU wyzwalacza
+(czysty boczny impuls na nieruchomym kole = niezależny od tarcia w
+przetestowanym zakresie; wstrząs całego zawieszenia przy lądowaniu = zależny,
+z ostrym progiem). Szczegóły i druga, osobna krzywa bezpieczeństwa (próg
+stabilności yaw nadwozia, wyższy niż próg cambera — patrz P4 w
+`CHECKPOINTS_PL.md`) w commicie P4. **Praktyczna konsekwencja:** przy
+przyszłym stosowaniu niskiego tarcia zębatki (P5 suwaki, presety) ZAWSZE
+przetestuj sondę lądowania 3.5 m przed zejściem poniżej ~200N kinetycznego —
+nie tylko syntetyczny impuls boczny.
+
 ---
 
 ## 10. Świadomie odłożone (roadmapa, nie „dług") — żeby nie zaskoczyło

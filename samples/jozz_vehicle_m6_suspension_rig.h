@@ -345,7 +345,17 @@ struct JozzVehicleM6Config
 	float steeringHertz;
 	float steeringDampingRatio;
 	float maxSteeringTorque;	  // strut axle only; the rack spring is limited by hertz
-	float rackFrictionForce;	  // N; hands-off resistance of the rack + column
+	// Hands-off rack resistance, split into a Coulomb static/kinetic pair (P4,
+	// 2026-07-08) instead of one flat force. A single flat cap made the rack
+	// stop dead exactly where the caster centering force first dropped below
+	// it - zero velocity dependence, so it could never overshoot center even
+	// after a hard lock at speed (see AUDIT_PHYSICS_STEERING_2026_07_08_PL.md
+	// S1). Static applies while the rack is (near) stationary - parking hold,
+	// getting it moving at all; kinetic (lower) applies once it's actually
+	// sliding, so the knuckle/wheel inertia can carry it a little past center
+	// before it settles, the way a real column does.
+	float rackStaticFrictionForce;
+	float rackKineticFrictionForce;
 	float steeringFrictionTorque; // N*m; hands-off resistance of a strut corner
 	float steerInputDeadzone;	  // |input| below this = hands off the wheel
 	bool ackermannGeometry;		  // strut: computed targets; wishbone: trapezoid arms

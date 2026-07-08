@@ -17,5 +17,6 @@
   "wheelFriction": 1.25,
   "maxDriveTorque": 320.0,
   "steeringHertz": 14.0,
-  "rackFrictionForce": 250.0
+  "rackStaticFrictionForce": 250.0,
+  "rackKineticFrictionForce": 200.0
 }
