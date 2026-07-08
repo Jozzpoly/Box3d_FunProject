@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-08 · Audyt fizyki/skrętu/stabilności · docs
+- CO:     pełny audyt kodu rigu+labu+toru → `AUDIT_PHYSICS_STEERING_2026_07_08_PL.md` z planem P1-P6. Zero zmian w kodzie.
+- CZEMU:  Jozz zgłosił łamanie skrętu pod przeciążeniem, martwe suwaki geometrii, sztuczny powrót kierownicy.
+- EFEKT:  zidentyfikowany mechanizm „złamanego skrętu" (over-center drążka + płot twist ±70°), bug Apply bez RecomputeRackTravel (rig_lab:345), odwrócone sprzężenie preload·scale, saturacja HingeSwingLimit; suwaki geometrii DZIAŁAJĄ na fizykę, ale wizual ich nie pokazuje.
+- DALEJ:  P1 (twist-fence z konfigu) i P2 (1-liniowy fix Apply) — od nich zależy sens dalszego strojenia.
+
 ## 2026-07-08 · Archiwizacja M0-M5 + subsystem-doc UI/presetów · docs
 - CO:     31 historycznych docs (M0-M5, CODEX_*, PROJECT_AUDIT/STABILIZATION) przeniesione `git mv` → `docs/archive/`; nowy `SUBSYSTEM_UI_PRESETS_PL.md`.
 - CZEMU:  domknięcie 2 drobiazgów z przeglądu technicznego (rozrost docs, TECH_DEBT #3 UI bez raportu).

@@ -308,6 +308,11 @@ useful as history, **not** as current architecture. Trust this order:
 - `docs/SUBSYSTEM_UI_PRESETS_PL.md` — the tuning UI/session/preset system: the
   three separate save files and why, tab order, the `###stable-suffix` tab-ID
   pattern (copy it for any future dynamic tab title).
+- `docs/AUDIT_PHYSICS_STEERING_2026_07_08_PL.md` — **the active work plan.**
+  Physics/steering/stability audit: the broken-steering mechanism (tie-rod
+  over-center vs the ±70° twist fence), the missing RecomputeRackTravel on
+  Apply, the preload/stiffness coupling, the full slider audit, and the staged
+  P1–P6 repair plan. Read before any suspension/steering work.
 - `docs/M7_REAL_FORCES_FOUNDATION_PL.md` — the current physics model.
 - `docs/M8_SUSPENSION_RIG_REPAIR_PLAN_PL.md` — rig/pose/droop work (physics side,
   history through 2026-07-07; damper/mount current state now in the subsystem doc).
