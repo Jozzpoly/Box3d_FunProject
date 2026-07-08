@@ -913,6 +913,166 @@ std::string LoadedTextureStatus( int width, int height, float alphaCutoff )
 	return buffer;
 }
 
+// ---- Rigged (per-bone) loader helpers ----
+
+bool ParseNodeNames( std::string_view json, const std::vector<jsmntok_t>& tokens, int nodesIndex, std::vector<std::string>* out )
+{
+	out->clear();
+	if ( nodesIndex < 0 || nodesIndex >= (int)tokens.size() || tokens[nodesIndex].type != JSMN_ARRAY )
+	{
+		return false;
+	}
+	for ( int i = 0; i < tokens[nodesIndex].size; ++i )
+	{
+		int nodeIndex = GetArrayElement( tokens, nodesIndex, i );
+		int nameIndex = FindObjectValue( json, tokens, nodeIndex, "name" );
+		out->push_back( nameIndex >= 0 ? TokenString( json, tokens[nameIndex] ) : std::string() );
+	}
+	return true;
+}
+
+// Joints of the first skin (glTF skin.joints is the jointIndex -> node map).
+bool ParseFirstSkinJoints( std::string_view json, const std::vector<jsmntok_t>& tokens, int skinsIndex,
+						   std::vector<int>* out )
+{
+	out->clear();
+	if ( skinsIndex < 0 || skinsIndex >= (int)tokens.size() || tokens[skinsIndex].type != JSMN_ARRAY || tokens[skinsIndex].size == 0 )
+	{
+		return false;
+	}
+	int skin0 = GetArrayElement( tokens, skinsIndex, 0 );
+	int jointsIndex = FindObjectValue( json, tokens, skin0, "joints" );
+	if ( jointsIndex < 0 || tokens[jointsIndex].type != JSMN_ARRAY )
+	{
+		return false;
+	}
+	for ( int i = 0; i < tokens[jointsIndex].size; ++i )
+	{
+		int elem = GetArrayElement( tokens, jointsIndex, i );
+		int value = -1;
+		if ( elem >= 0 && TokenInt( json, tokens[elem], &value ) )
+		{
+			out->push_back( value );
+		}
+	}
+	return out->empty() == false;
+}
+
+// Accessor index of a named attribute on mesh[0].primitives[0], or -1.
+int FindPrimitiveAttribute( std::string_view json, const std::vector<jsmntok_t>& tokens, int meshesIndex, const char* attr )
+{
+	if ( meshesIndex < 0 || tokens[meshesIndex].type != JSMN_ARRAY || tokens[meshesIndex].size == 0 )
+	{
+		return -1;
+	}
+	int meshIndex = GetArrayElement( tokens, meshesIndex, 0 );
+	int primitivesIndex = FindObjectValue( json, tokens, meshIndex, "primitives" );
+	int primitiveIndex = GetArrayElement( tokens, primitivesIndex, 0 );
+	int attributesIndex = FindObjectValue( json, tokens, primitiveIndex, "attributes" );
+	int attrIndex = FindObjectValue( json, tokens, attributesIndex, attr );
+	int accessor = -1;
+	if ( attrIndex >= 0 )
+	{
+		TokenInt( json, tokens[attrIndex], &accessor );
+	}
+	return accessor;
+}
+
+// VEC4 unsigned joints (componentType u8/u16), flat 4-per-vertex.
+bool ReadVec4UintAccessor( const std::vector<std::vector<uint8_t>>& buffers, const std::vector<BufferView>& views,
+						   const std::vector<Accessor>& accessors, int accessorIndex, std::vector<uint32_t>* out )
+{
+	if ( accessorIndex < 0 || accessorIndex >= (int)accessors.size() )
+	{
+		return false;
+	}
+	const Accessor& a = accessors[accessorIndex];
+	int componentSize = ComponentSize( a.componentType );
+	if ( a.type != "VEC4" || componentSize == 0 || a.componentType == 5126 || a.bufferView < 0 ||
+		 a.bufferView >= (int)views.size() )
+	{
+		return false;
+	}
+	const BufferView& v = views[a.bufferView];
+	if ( v.buffer < 0 || v.buffer >= (int)buffers.size() )
+	{
+		return false;
+	}
+	const std::vector<uint8_t>& buffer = buffers[v.buffer];
+	int stride = v.byteStride > 0 ? v.byteStride : 4 * componentSize;
+	size_t base = (size_t)v.byteOffset + (size_t)a.byteOffset;
+	if ( base + (size_t)( a.count - 1 ) * (size_t)stride + (size_t)( 4 * componentSize ) > buffer.size() )
+	{
+		return false;
+	}
+	out->clear();
+	out->reserve( (size_t)a.count * 4 );
+	for ( int i = 0; i < a.count; ++i )
+	{
+		size_t off = base + (size_t)i * (size_t)stride;
+		for ( int c = 0; c < 4; ++c )
+		{
+			uint32_t value = 0;
+			if ( a.componentType == 5121 )
+			{
+				value = buffer[off + c];
+			}
+			else if ( a.componentType == 5123 )
+			{
+				uint16_t v16 = 0;
+				std::memcpy( &v16, &buffer[off + (size_t)c * 2], sizeof( uint16_t ) );
+				value = v16;
+			}
+			else if ( a.componentType == 5125 )
+			{
+				std::memcpy( &value, &buffer[off + (size_t)c * 4], sizeof( uint32_t ) );
+			}
+			out->push_back( value );
+		}
+	}
+	return out->empty() == false;
+}
+
+// VEC4 float weights, flat 4-per-vertex.
+bool ReadVec4FloatAccessor( const std::vector<std::vector<uint8_t>>& buffers, const std::vector<BufferView>& views,
+							const std::vector<Accessor>& accessors, int accessorIndex, std::vector<float>* out )
+{
+	if ( accessorIndex < 0 || accessorIndex >= (int)accessors.size() )
+	{
+		return false;
+	}
+	const Accessor& a = accessors[accessorIndex];
+	if ( a.type != "VEC4" || a.componentType != 5126 || a.bufferView < 0 || a.bufferView >= (int)views.size() )
+	{
+		return false;
+	}
+	const BufferView& v = views[a.bufferView];
+	if ( v.buffer < 0 || v.buffer >= (int)buffers.size() )
+	{
+		return false;
+	}
+	const std::vector<uint8_t>& buffer = buffers[v.buffer];
+	int stride = v.byteStride > 0 ? v.byteStride : 4 * (int)sizeof( float );
+	size_t base = (size_t)v.byteOffset + (size_t)a.byteOffset;
+	if ( base + (size_t)( a.count - 1 ) * (size_t)stride + 4 * sizeof( float ) > buffer.size() )
+	{
+		return false;
+	}
+	out->clear();
+	out->reserve( (size_t)a.count * 4 );
+	for ( int i = 0; i < a.count; ++i )
+	{
+		size_t off = base + (size_t)i * (size_t)stride;
+		float vals[4] = {};
+		std::memcpy( vals, &buffer[off], 4 * sizeof( float ) );
+		for ( float f : vals )
+		{
+			out->push_back( f );
+		}
+	}
+	return out->empty() == false;
+}
+
 } // namespace
 
 bool JozzVehicleVisualMesh::LoadStaticGltf( const char* path, float metersPerBlockbenchUnit )
@@ -1226,6 +1386,528 @@ void JozzVehicleVisualMesh::DrawAtTransform( b3WorldTransform worldTransform, Ve
 	AppendMesh( handle, relativeTransform, b3Vec3_one, color, 0.0f, 0.58f,
 				textureLoaded ? MESH_MATERIAL_MODE_TEXTURED : MESH_MATERIAL_MODE_SOLID, textureAlphaCutoff,
 				TRANSPARENT_SHADOW_FULL );
+}
+
+bool JozzVehicleRiggedMesh::LoadSkinnedGltf( const char* path, float metersPerBlockbenchUnit, bool mirrorX )
+{
+	Destroy();
+	status = "rigged mesh: not loaded";
+
+	std::string json;
+	if ( ReadTextFile( path, &json ) == false )
+	{
+		status = "rigged mesh: source glTF not found";
+		return false;
+	}
+
+	std::vector<jsmntok_t> tokens;
+	if ( ParseJson( json, &tokens ) == false || tokens[0].type != JSMN_OBJECT )
+	{
+		status = "rigged mesh: glTF JSON parse failed";
+		return false;
+	}
+
+	int buffersIndex = FindObjectValue( json, tokens, 0, "buffers" );
+	int bufferViewsIndex = FindObjectValue( json, tokens, 0, "bufferViews" );
+	int accessorsIndex = FindObjectValue( json, tokens, 0, "accessors" );
+	int meshesIndex = FindObjectValue( json, tokens, 0, "meshes" );
+	int nodesIndex = FindObjectValue( json, tokens, 0, "nodes" );
+	int materialsIndex = FindObjectValue( json, tokens, 0, "materials" );
+	int texturesIndex = FindObjectValue( json, tokens, 0, "textures" );
+	int imagesIndex = FindObjectValue( json, tokens, 0, "images" );
+	int samplersIndex = FindObjectValue( json, tokens, 0, "samplers" );
+	int skinsIndex = FindObjectValue( json, tokens, 0, "skins" );
+
+	std::vector<std::vector<uint8_t>> buffers;
+	std::vector<BufferView> views;
+	std::vector<Accessor> accessors;
+	std::vector<GltfNode> nodes;
+	std::vector<GltfMaterial> materials;
+	std::vector<GltfTexture> textures;
+	std::vector<GltfImage> images;
+	std::vector<GltfSampler> samplers;
+	std::vector<std::string> nodeNames;
+	std::vector<int> skinJoints;
+	if ( ReadBuffers( json, tokens, buffersIndex, &buffers ) == false ||
+		 ParseBufferViews( json, tokens, bufferViewsIndex, &views ) == false ||
+		 ParseAccessors( json, tokens, accessorsIndex, &accessors ) == false ||
+		 ParseNodes( json, tokens, nodesIndex, &nodes ) == false ||
+		 ParseMaterials( json, tokens, materialsIndex, &materials ) == false ||
+		 ParseTextures( json, tokens, texturesIndex, &textures ) == false ||
+		 ParseImages( json, tokens, imagesIndex, &images ) == false ||
+		 ParseSamplers( json, tokens, samplersIndex, &samplers ) == false ||
+		 ParseNodeNames( json, tokens, nodesIndex, &nodeNames ) == false )
+	{
+		status = "rigged mesh: unsupported glTF layout";
+		return false;
+	}
+	if ( ParseFirstSkinJoints( json, tokens, skinsIndex, &skinJoints ) == false )
+	{
+		status = "rigged mesh: model is not skinned (no skin.joints)";
+		return false;
+	}
+
+	GltfPrimitive primitive;
+	if ( GetFirstPrimitive( json, tokens, meshesIndex, &primitive ) == false )
+	{
+		status = "rigged mesh: no supported first primitive";
+		return false;
+	}
+	int jointsAccessor = FindPrimitiveAttribute( json, tokens, meshesIndex, "JOINTS_0" );
+	int weightsAccessor = FindPrimitiveAttribute( json, tokens, meshesIndex, "WEIGHTS_0" );
+
+	std::vector<b3Vec3> positionsBU;
+	std::vector<b3Vec3> normalsBU;
+	std::vector<b3Vec2> texcoords;
+	std::vector<uint32_t> indices;
+	std::vector<uint32_t> jointIndices;
+	std::vector<float> weights;
+	if ( ReadVec3Accessor( buffers, views, accessors, primitive.positionAccessor, &positionsBU ) == false ||
+		 ReadIndexAccessor( buffers, views, accessors, primitive.indexAccessor, &indices ) == false ||
+		 ReadVec4UintAccessor( buffers, views, accessors, jointsAccessor, &jointIndices ) == false ||
+		 ReadVec4FloatAccessor( buffers, views, accessors, weightsAccessor, &weights ) == false )
+	{
+		status = "rigged mesh: failed to read positions/indices/joints/weights";
+		return false;
+	}
+
+	bool hasNormals = primitive.normalAccessor >= 0 && ReadVec3Accessor( buffers, views, accessors, primitive.normalAccessor, &normalsBU );
+	if ( hasNormals && normalsBU.size() != positionsBU.size() )
+	{
+		normalsBU.clear();
+		hasNormals = false;
+	}
+	bool hasTexcoords = primitive.texcoordAccessor >= 0 && ReadVec2Accessor( buffers, views, accessors, primitive.texcoordAccessor, &texcoords );
+	if ( hasTexcoords && texcoords.size() != positionsBU.size() )
+	{
+		texcoords.clear();
+		hasTexcoords = false;
+	}
+
+	// Texture: identical decode path to LoadStaticGltf; all parts share it.
+	JozzVehicleDecodedImage decodedTexture;
+	bool useTexture = false;
+	float alphaCutoff = 0.0f;
+	if ( primitive.materialIndex >= 0 && primitive.materialIndex < (int)materials.size() )
+	{
+		const GltfMaterial& material = materials[primitive.materialIndex];
+		if ( material.baseColorTexture >= 0 && hasTexcoords && material.baseColorTexture < (int)textures.size() )
+		{
+			const GltfTexture& texture = textures[material.baseColorTexture];
+			const GltfSampler sampler =
+				( texture.sampler >= 0 && texture.sampler < (int)samplers.size() ) ? samplers[texture.sampler] : GltfSampler{};
+			if ( IsNearestClampSampler( sampler ) && texture.source >= 0 && texture.source < (int)images.size() &&
+				 IsPngDataUri( images[texture.source].uri ) )
+			{
+				std::vector<uint8_t> pngBytes;
+				if ( DecodeDataUri( images[texture.source].uri, &pngBytes ) &&
+					 DecodeJozzVehiclePngRgba8( pngBytes.data(), pngBytes.size(), &decodedTexture ) )
+				{
+					useTexture = true;
+					alphaCutoff = material.alphaMask ? material.alphaCutoff : 0.0f;
+				}
+			}
+		}
+	}
+
+	// Bake to authored-world-meters (same space as JozzVehicleVisualMesh).
+	std::vector<bool> isChild( nodes.size(), false );
+	for ( const GltfNode& node : nodes )
+	{
+		for ( int child : node.children )
+		{
+			if ( child >= 0 && child < (int)isChild.size() )
+			{
+				isChild[child] = true;
+			}
+		}
+	}
+	std::vector<Matrix4> world( nodes.size(), IdentityMatrix() );
+	for ( int i = 0; i < (int)nodes.size(); ++i )
+	{
+		if ( isChild[i] == false )
+		{
+			ComputeWorldNodeMatrices( nodes, i, IdentityMatrix(), &world );
+		}
+	}
+	Matrix4 meshTransform = IdentityMatrix();
+	for ( int i = 0; i < (int)nodes.size(); ++i )
+	{
+		if ( nodes[i].mesh == primitive.meshIndex )
+		{
+			meshTransform = world[i];
+			break;
+		}
+	}
+
+	std::vector<MeshVertex> vertices( positionsBU.size() );
+	std::vector<b3Vec3> normals;
+	if ( hasNormals )
+	{
+		normals.reserve( normalsBU.size() );
+		for ( b3Vec3 nBU : normalsBU )
+		{
+			b3Vec3 n = TransformVector( meshTransform, nBU );
+			normals.push_back( b3Length( n ) > 1.0e-6f ? b3Normalize( n ) : b3Vec3_axisY );
+		}
+	}
+	boundsMin = { std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max() };
+	boundsMax = { -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max() };
+	std::vector<b3Vec3> positions( positionsBU.size() );
+	for ( size_t i = 0; i < positionsBU.size(); ++i )
+	{
+		b3Vec3 p = b3MulSV( metersPerBlockbenchUnit, TransformPoint( meshTransform, positionsBU[i] ) );
+		positions[i] = p;
+		boundsMin = b3Min( boundsMin, p );
+		boundsMax = b3Max( boundsMax, p );
+		MeshVertex v = {};
+		v.position[0] = p.x;
+		v.position[1] = p.y;
+		v.position[2] = p.z;
+		if ( hasTexcoords )
+		{
+			v.texcoord[0] = texcoords[i].x;
+			v.texcoord[1] = texcoords[i].y;
+		}
+		vertices[i] = v;
+	}
+	if ( hasNormals == false )
+	{
+		FillMissingNormals( positions, indices, &normals );
+	}
+	for ( size_t i = 0; i < vertices.size(); ++i )
+	{
+		vertices[i].normal[0] = normals[i].x;
+		vertices[i].normal[1] = normals[i].y;
+		vertices[i].normal[2] = normals[i].z;
+	}
+
+	// Opposite-hand copy: reflect across the authored X axis (positions and
+	// normals). Winding is fixed per triangle below so faces stay outward.
+	if ( mirrorX )
+	{
+		float oldMinX = boundsMin.x;
+		float oldMaxX = boundsMax.x;
+		boundsMin.x = -oldMaxX;
+		boundsMax.x = -oldMinX;
+		for ( size_t i = 0; i < vertices.size(); ++i )
+		{
+			positions[i].x = -positions[i].x;
+			vertices[i].position[0] = -vertices[i].position[0];
+			vertices[i].normal[0] = -vertices[i].normal[0];
+		}
+	}
+
+	// Dominant bone (rigid skin: one weight ~= 1). Map jointIdx -> node index.
+	std::vector<int> boneOfVertex( positionsBU.size(), -1 );
+	for ( size_t i = 0; i < positionsBU.size(); ++i )
+	{
+		int bestC = 0;
+		float bestW = -1.0f;
+		for ( int c = 0; c < 4; ++c )
+		{
+			float w = weights[i * 4 + c];
+			if ( w > bestW )
+			{
+				bestW = w;
+				bestC = c;
+			}
+		}
+		uint32_t jointIdx = jointIndices[i * 4 + bestC];
+		boneOfVertex[i] = ( jointIdx < skinJoints.size() ) ? skinJoints[jointIdx] : -1;
+	}
+
+	// Triangle bone = its first vertex's bone (rigid => all three agree).
+	int triangleCount = (int)indices.size() / 3;
+	std::vector<int> triangleBone( triangleCount, -1 );
+	std::vector<bool> bonePresent( nodes.size(), false );
+	for ( int t = 0; t < triangleCount; ++t )
+	{
+		int bn = boneOfVertex[indices[t * 3]];
+		triangleBone[t] = bn;
+		if ( bn >= 0 && bn < (int)bonePresent.size() )
+		{
+			bonePresent[bn] = true;
+		}
+	}
+
+	// One registered mesh per bone group.
+	for ( int bn = 0; bn < (int)bonePresent.size(); ++bn )
+	{
+		if ( bonePresent[bn] == false )
+		{
+			continue;
+		}
+
+		std::vector<int> remap( vertices.size(), -1 );
+		std::vector<MeshVertex> groupVerts;
+		std::vector<uint32_t> groupIndices;
+		b3Vec3 partMin = { std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max() };
+		b3Vec3 partMax = { -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max() };
+		for ( int t = 0; t < triangleCount; ++t )
+		{
+			if ( triangleBone[t] != bn )
+			{
+				continue;
+			}
+			uint32_t local[3];
+			for ( int k = 0; k < 3; ++k )
+			{
+				uint32_t gi = indices[t * 3 + k];
+				if ( remap[gi] < 0 )
+				{
+					remap[gi] = (int)groupVerts.size();
+					groupVerts.push_back( vertices[gi] );
+					partMin = b3Min( partMin, positions[gi] );
+					partMax = b3Max( partMax, positions[gi] );
+				}
+				local[k] = (uint32_t)remap[gi];
+			}
+			// Reflection flips triangle orientation; swap two indices to keep
+			// the winding (and so the outward face) correct.
+			if ( mirrorX )
+			{
+				groupIndices.push_back( local[0] );
+				groupIndices.push_back( local[2] );
+				groupIndices.push_back( local[1] );
+			}
+			else
+			{
+				groupIndices.push_back( local[0] );
+				groupIndices.push_back( local[1] );
+				groupIndices.push_back( local[2] );
+			}
+		}
+		if ( groupVerts.empty() || groupIndices.empty() )
+		{
+			continue;
+		}
+
+		std::string label = std::string( path ) + ( mirrorX ? "#mirror#" : "#" ) +
+							 ( bn < (int)nodeNames.size() ? nodeNames[bn] : std::to_string( bn ) );
+		uint32_t hash = BuildMeshHash( label.c_str(), groupVerts, groupIndices, useTexture ? &decodedTexture : nullptr );
+		MeshHandle handle = FindMesh( hash );
+		if ( IsMeshHandleValid( handle ) )
+		{
+			AddMeshReference( handle );
+		}
+		else if ( useTexture )
+		{
+			MeshTextureData textureData = {};
+			textureData.width = decodedTexture.width;
+			textureData.height = decodedTexture.height;
+			textureData.rgba8 = decodedTexture.rgba8.data();
+			textureData.byteCount = (int)decodedTexture.rgba8.size();
+			handle = RegisterTexturedMesh( hash, groupVerts.data(), (int)groupVerts.size(), groupIndices.data(),
+										   (int)groupIndices.size(), &textureData, "jozz_vehicle_rigged_part" );
+		}
+		if ( IsMeshHandleValid( handle ) == false )
+		{
+			handle = RegisterMesh( hash, groupVerts.data(), (int)groupVerts.size(), groupIndices.data(),
+								   (int)groupIndices.size(), "jozz_vehicle_rigged_part" );
+		}
+		if ( IsMeshHandleValid( handle ) == false )
+		{
+			continue;
+		}
+
+		JozzVehicleRiggedPart part;
+		part.handle = handle;
+		part.boneName = bn < (int)nodeNames.size() ? nodeNames[bn] : std::string();
+		part.boneNodeIndex = bn;
+		part.vertexCount = (int)groupVerts.size();
+		part.triangleCount = (int)groupIndices.size() / 3;
+		part.restCenter = { 0.5f * ( partMin.x + partMax.x ), 0.5f * ( partMin.y + partMax.y ), 0.5f * ( partMin.z + partMax.z ) };
+		part.restMin = partMin;
+		part.restMax = partMax;
+		// Bone rest world position (authored-world-metres), mirrored to match the
+		// geometry. Used to pin a part's bone onto a live mount point.
+		b3Vec3 boneRest =
+			b3MulSV( metersPerBlockbenchUnit, { world[bn].m[0][3], world[bn].m[1][3], world[bn].m[2][3] } );
+		if ( mirrorX )
+		{
+			boneRest.x = -boneRest.x;
+		}
+		part.boneRestWorld = boneRest;
+		parts.push_back( part );
+	}
+
+	textureLoaded = useTexture;
+	textureWidth = useTexture ? decodedTexture.width : 0;
+	textureHeight = useTexture ? decodedTexture.height : 0;
+	textureAlphaCutoff = useTexture ? alphaCutoff : 0.0f;
+
+	if ( parts.empty() )
+	{
+		status = "rigged mesh: no bone parts produced";
+		return false;
+	}
+
+	char buffer[128];
+	std::snprintf( buffer, sizeof( buffer ), "rigged mesh: %d parts%s", (int)parts.size(), useTexture ? ", textured" : "" );
+	status = buffer;
+	return true;
+}
+
+void JozzVehicleRiggedMesh::Destroy()
+{
+	for ( JozzVehicleRiggedPart& part : parts )
+	{
+		if ( IsMeshHandleValid( part.handle ) )
+		{
+			ReleaseMeshReference( part.handle );
+		}
+	}
+	parts.clear();
+	textureLoaded = false;
+	textureWidth = 0;
+	textureHeight = 0;
+	textureAlphaCutoff = 0.0f;
+	boundsMin = b3Vec3_zero;
+	boundsMax = b3Vec3_zero;
+}
+
+bool JozzVehicleRiggedMesh::IsLoaded() const
+{
+	return parts.empty() == false;
+}
+
+int JozzVehicleRiggedMesh::PartCount() const
+{
+	return (int)parts.size();
+}
+
+int JozzVehicleRiggedMesh::FindPart( const char* boneNameSubstring ) const
+{
+	for ( int i = 0; i < (int)parts.size(); ++i )
+	{
+		if ( parts[i].boneName.find( boneNameSubstring ) != std::string::npos )
+		{
+			return i;
+		}
+	}
+	return -1;
+}
+
+void JozzVehicleRiggedMesh::DrawPart( int index, b3WorldTransform worldTransform, Vec4 color ) const
+{
+	if ( index < 0 || index >= (int)parts.size() || IsMeshHandleValid( parts[index].handle ) == false )
+	{
+		return;
+	}
+	b3Transform relativeTransform = b3ToRelativeTransform( worldTransform, GetDrawOrigin() );
+	AppendMesh( parts[index].handle, relativeTransform, b3Vec3_one, color, 0.0f, 0.58f,
+				textureLoaded ? MESH_MATERIAL_MODE_TEXTURED : MESH_MATERIAL_MODE_SOLID, textureAlphaCutoff,
+				TRANSPARENT_SHADOW_FULL );
+}
+
+void JozzVehicleRiggedMesh::DrawPartScaled( int index, b3Quat rotation, b3Vec3 scale, b3Vec3 pivotAuthored,
+										   b3Pos targetWorld, Vec4 color ) const
+{
+	if ( index < 0 || index >= (int)parts.size() || IsMeshHandleValid( parts[index].handle ) == false )
+	{
+		return;
+	}
+	// worldVert = rotation * (scale . vert) + T. Choose T so the authored pivot
+	// lands on targetWorld: T = targetWorld - rotation * (scale . pivot).
+	b3Vec3 scaledPivot = { scale.x * pivotAuthored.x, scale.y * pivotAuthored.y, scale.z * pivotAuthored.z };
+	b3Vec3 rotatedPivot = b3RotateVector( rotation, scaledPivot );
+	b3WorldTransform worldTransform;
+	worldTransform.q = rotation;
+	worldTransform.p = { targetWorld.x - rotatedPivot.x, targetWorld.y - rotatedPivot.y, targetWorld.z - rotatedPivot.z };
+
+	b3Transform relativeTransform = b3ToRelativeTransform( worldTransform, GetDrawOrigin() );
+	AppendMesh( parts[index].handle, relativeTransform, scale, color, 0.0f, 0.58f,
+				textureLoaded ? MESH_MATERIAL_MODE_TEXTURED : MESH_MATERIAL_MODE_SOLID, textureAlphaCutoff,
+				TRANSPARENT_SHADOW_FULL );
+}
+
+void JozzVehicleRiggedMesh::DrawPartBetween( int index, b3Vec3 authoredA, b3Vec3 authoredB, b3Pos liveA, b3Pos liveB,
+											Vec4 color ) const
+{
+	if ( index < 0 || index >= (int)parts.size() || IsMeshHandleValid( parts[index].handle ) == false )
+	{
+		return;
+	}
+	b3Vec3 authoredDir = b3Sub( authoredB, authoredA );
+	float authoredLen = b3Length( authoredDir );
+	if ( authoredLen < 1.0e-5f )
+	{
+		return;
+	}
+	b3Vec3 ua = b3MulSV( 1.0f / authoredLen, authoredDir );
+	b3Vec3 liveDir = b3Sub( liveB, liveA );
+	float liveLen = b3Length( liveDir );
+	b3Vec3 ul = liveLen > 1.0e-5f ? b3MulSV( 1.0f / liveLen, liveDir ) : ua;
+
+	// A minimal rotation (b3ComputeQuatBetweenUnitVectors) leaves the roll about
+	// the arm axis free, and it resolves differently for a left vs a mirrored
+	// right corner - so the two arms twist unequally and the rig looks crooked.
+	// Build the full orientation instead: keep the part's face up and its width
+	// along the car's fore/aft, pinning the roll. Because it is derived the same
+	// way from ua/ul on both sides, mirrored inputs give a mirrored result.
+	const b3Vec3 worldUp = { 0.0f, 1.0f, 0.0f };
+	const b3Vec3 worldFwd = { 1.0f, 0.0f, 0.0f };
+	// Authored frame: ua (long), upA (authored up made perpendicular to ua), wA.
+	b3Vec3 upA = b3Sub( worldUp, b3MulSV( b3Dot( worldUp, ua ), ua ) );
+	upA = b3Length( upA ) > 1.0e-4f ? b3Normalize( upA ) : b3Sub( worldFwd, b3MulSV( b3Dot( worldFwd, ua ), ua ) );
+	upA = b3Normalize( upA );
+	b3Vec3 wA = b3Cross( ua, upA );
+	// Target frame: ul (long), upT (world up made perpendicular to ul), wT.
+	b3Vec3 upT = b3Sub( worldUp, b3MulSV( b3Dot( worldUp, ul ), ul ) );
+	upT = b3Length( upT ) > 1.0e-4f ? b3Normalize( upT ) : b3Sub( worldFwd, b3MulSV( b3Dot( worldFwd, ul ), ul ) );
+	upT = b3Normalize( upT );
+	b3Vec3 wT = b3Cross( ul, upT );
+	// R maps the authored frame (ua, upA, wA) onto the target frame (ul, upT, wT):
+	// column j = ul*ua[j] + upT*upA[j] + wT*wA[j].
+	b3Matrix3 r;
+	r.cx = b3Add( b3Add( b3MulSV( ua.x, ul ), b3MulSV( upA.x, upT ) ), b3MulSV( wA.x, wT ) );
+	r.cy = b3Add( b3Add( b3MulSV( ua.y, ul ), b3MulSV( upA.y, upT ) ), b3MulSV( wA.y, wT ) );
+	r.cz = b3Add( b3Add( b3MulSV( ua.z, ul ), b3MulSV( upA.z, upT ) ), b3MulSV( wA.z, wT ) );
+	b3Quat rotation = b3MakeQuatFromMatrix( &r );
+
+	// Stretch along whichever authored axis the endpoints run along (arms are on
+	// authored X, the damper on Y), so the part exactly spans liveA..liveB.
+	float s = liveLen / authoredLen;
+	b3Vec3 scale = { 1.0f + ( s - 1.0f ) * std::fabs( ua.x ), 1.0f + ( s - 1.0f ) * std::fabs( ua.y ),
+					 1.0f + ( s - 1.0f ) * std::fabs( ua.z ) };
+	DrawPartScaled( index, rotation, scale, authoredA, liveA, color );
+}
+
+void JozzVehicleRiggedMesh::DrawTelescopingDamper( b3Pos topWorld, b3Pos botWorld, Vec4 color ) const
+{
+	int upper = FindPart( "Upper" );
+	int stretch = FindPart( "Stretch" );
+	int lower = FindPart( "Lower" );
+	if ( upper < 0 || lower < 0 )
+	{
+		return;
+	}
+
+	b3Vec3 restSpan = b3Sub( parts[upper].boneRestWorld, parts[lower].boneRestWorld );
+	float restGap = b3Length( restSpan );
+	b3Vec3 authoredAxis = restGap > 1.0e-5f ? b3MulSV( 1.0f / restGap, restSpan ) : b3Vec3_axisY;
+
+	b3Vec3 liveSpan = b3Sub( topWorld, botWorld );
+	float liveGap = b3Length( liveSpan );
+	b3Vec3 liveAxis = liveGap > 1.0e-5f ? b3MulSV( 1.0f / liveGap, liveSpan ) : b3Vec3_axisY;
+
+	b3Quat rotation = b3ComputeQuatBetweenUnitVectors( authoredAxis, liveAxis );
+
+	// Rigid tubes pinned to the two mount points.
+	DrawPartScaled( upper, rotation, b3Vec3_one, parts[upper].boneRestWorld, topWorld, color );
+	DrawPartScaled( lower, rotation, b3Vec3_one, parts[lower].boneRestWorld, botWorld, color );
+
+	// Stretch section: scaled along the damper axis, placed at the same fraction
+	// of the segment it occupies at rest so it stays exact when uncompressed.
+	if ( stretch >= 0 && restGap > 1.0e-4f )
+	{
+		float f = b3ClampFloat( b3Dot( b3Sub( parts[upper].boneRestWorld, parts[stretch].boneRestWorld ), authoredAxis ) / restGap,
+								0.0f, 1.0f );
+		b3Vec3 target = b3Add( topWorld, b3MulSV( f, b3Sub( botWorld, topWorld ) ) );
+		float scaleY = liveGap / restGap;
+		DrawPartScaled( stretch, rotation, { 1.0f, scaleY, 1.0f }, parts[stretch].boneRestWorld, target, color );
+	}
 }
 
 b3Transform ComputeJozzVehicleWheelVisualCorrection( const JozzVehicleVisualMesh& mesh,

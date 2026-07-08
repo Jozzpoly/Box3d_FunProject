@@ -179,10 +179,16 @@ set(SAMPLE_FILES
     jozz_vehicle_m5_test_course.h
     jozz_vehicle_m5_vehicle.cpp
     jozz_vehicle_m5_vehicle.h
+    jozz_vehicle_m6_config_io.cpp
+    jozz_vehicle_m6_config_io.h
     jozz_vehicle_m6_rig_lab.cpp
     jozz_vehicle_m6_rig_lab.h
     jozz_vehicle_m6_suspension_rig.cpp
     jozz_vehicle_m6_suspension_rig.h
+    jozz_vehicle_m7_suspension_import.cpp
+    jozz_vehicle_m7_suspension_import.h
+    jozz_vehicle_m8_rig_bench.cpp
+    jozz_vehicle_m8_rig_bench.h
     jozz_vehicle_primitive_corner_lab.cpp
     jozz_vehicle_primitive_corner_lab.h
     jozz_vehicle_visual_asset.cpp
@@ -203,6 +209,8 @@ set(SAMPLE_FILES
     sample_issues.cpp
     sample_joint.cpp
     sample_jozz_vehicle_lab.cpp
+    host/screenshot.cpp
+    host/screenshot.h
     sample_manifold.cpp
     sample_mesh.cpp
     sample_ragdoll.cpp
@@ -215,6 +223,14 @@ set(SAMPLE_FILES
 )
 
 add_executable(samples ${SAMPLE_FILES})
+
+# The Jozz Vehicle labs' UI text is Polish, so source files carry non-ASCII
+# UTF-8 bytes (e.g. "prędkość"). Without this flag MSVC falls back to
+# interpreting narrow string literals via the current Windows code page
+# instead of UTF-8, corrupting those bytes at compile time - a different, more
+# fundamental problem than the font glyph range (host/gui.cpp) also fixed for
+# the same reason. /utf-8 is a no-op for the plain-ASCII box3d demo samples.
+target_compile_options(samples PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
 
 # Jozz: headless metadata/contract/vehicle guard, no GUI. Runs in CI-style validation.
 add_executable(jozz_vehicle_validation
@@ -233,6 +249,8 @@ add_executable(jozz_vehicle_validation
     jozz_vehicle_m5_vehicle.h
     jozz_vehicle_m6_suspension_rig.cpp
     jozz_vehicle_m6_suspension_rig.h
+    jozz_vehicle_m7_suspension_import.cpp
+    jozz_vehicle_m7_suspension_import.h
     jsmn.h
 )
 

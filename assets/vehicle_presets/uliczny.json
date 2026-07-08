@@ -1,0 +1,20 @@
+{
+  "_comment": "Uliczny/street baseline - matches JozzVehicleM6DefaultConfig. A known-good reference point distinct from the reset button so it shows up as a normal option next to drift/offroad.",
+  "wishbone": {
+    "casterDeg": 5.0,
+    "restArmDroopDeg": 15.0
+  },
+  "suspensionHertz": 6.0,
+  "suspensionDampingRatio": 0.7,
+  "suspensionPreload": 0.07,
+  "compressionTravel": 0.42,
+  "reboundTravel": 0.28,
+  "frontSuspensionScale": 1.0,
+  "rearSuspensionScale": 1.0,
+  "arbFrontStiffness": 16000.0,
+  "arbRearStiffness": 10000.0,
+  "wheelFriction": 1.25,
+  "maxDriveTorque": 320.0,
+  "steeringHertz": 14.0,
+  "rackFrictionForce": 250.0
+}

@@ -5,6 +5,7 @@
 #include "gfx/keycodes.h"
 #include "gfx/renderer.h"
 #include "host/gui.h"
+#include "host/screenshot.h"
 #include "sample.h"
 #include "sokol_app.h"
 #include "sokol_glue.h"
@@ -32,6 +33,12 @@ static SampleContext s_context;
 static int s_frame = 0;
 static int s_frameLimit = -1;
 static int s_sampleOverride = -1;
+// --screenshot <path>: capture the last rendered frame (including the ImGui
+// panel) to a PNG, then quit. --sample-name <substr> selects a sample by a name
+// substring so a screenshot survives index shifts as samples are added.
+static const char* s_screenshotPath = nullptr;
+static int s_screenshotFrame = -1;
+static const char* s_sampleNameOverride = nullptr;
 
 static int CompareSamples( const void* a, const void* b )
 {
@@ -99,6 +106,20 @@ static void OnInit( void )
 	s_context.windowHeight = sapp_height();
 
 	SortSamples();
+
+	// --sample-name <substr>: resolve a name substring to a sorted index, so a
+	// screenshot targets the right sample even after the index list shifts.
+	if ( s_sampleNameOverride != nullptr )
+	{
+		for ( int i = 0; i < g_sampleCount; ++i )
+		{
+			if ( strstr( g_sampleEntries[i].Name, s_sampleNameOverride ) != nullptr )
+			{
+				s_sampleOverride = i;
+				break;
+			}
+		}
+	}
 
 	// A first run with no settings opens straight into the replay viewer.
 	int index = s_context.sampleIndex;
@@ -423,6 +444,14 @@ static void OnFrame( void )
 
 	RenderUI( &sc );
 	sg_commit();
+
+	// Capture after commit so the backbuffer holds this frame (UI included),
+	// before sokol presents. The last rendered frame is s_frameLimit - 1.
+	if ( s_screenshotPath != nullptr && s_frame == s_screenshotFrame )
+	{
+		CaptureFrameToPng( s_screenshotPath );
+	}
+
 	++s_frame;
 
 	if ( s_frameLimit < 0 )
@@ -482,6 +511,24 @@ sapp_desc sokol_main( int argc, char** argv )
 		{
 			s_sampleOverride = atoi( argv[++i] );
 		}
+		else if ( strcmp( argv[i], "--sample-name" ) == 0 && i + 1 < argc )
+		{
+			s_sampleNameOverride = argv[++i];
+		}
+		else if ( strcmp( argv[i], "--screenshot" ) == 0 && i + 1 < argc )
+		{
+			s_screenshotPath = argv[++i];
+		}
+	}
+
+	// Give a --screenshot run a default settle time, and capture the last frame.
+	if ( s_screenshotPath != nullptr )
+	{
+		if ( s_frameLimit < 0 )
+		{
+			s_frameLimit = 120;
+		}
+		s_screenshotFrame = s_frameLimit - 1;
 	}
 
 	sapp_desc desc{};

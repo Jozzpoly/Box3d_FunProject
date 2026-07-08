@@ -160,7 +160,35 @@ void InitUI( const sg_environment* env, DrawUiFcn* drawGuiFcn )
 	// ScaleAllSizes (below) multiplies them up. Colors are unscaled.
 	guiApplyStyle();
 
-	io.Fonts->AddFontDefaultVector();
+	// The Jozz Vehicle labs' UI is Polish. Two independent things have to be
+	// true for that text to render instead of falling back to "?":
+	//  1. The glyph range requested from the atlas has to cover the needed
+	//     codepoints - the default (ImFontAtlas::GetGlyphRangesDefault) is only
+	//     Basic Latin + Latin-1 Supplement (0x0020-0x00FF), missing Polish
+	//     a-ogonek/c-acute/e-ogonek/l-stroke/n-acute/s-acute/z-acute/z-dot,
+	//     which live in Latin Extended-A (0x0100-017F).
+	//  2. The font FILE actually has to contain outlines for those codepoints.
+	//     The embedded default (AddFontDefaultVector's ProggyForever) does not
+	//     ship Latin Extended-A at all - widening the glyph range alone still
+	//     renders "?" because there is nothing to bake. Segoe UI ships on every
+	//     Windows install and covers it, so load that instead; fall back to the
+	//     old embedded vector font if it's somehow missing (e.g. a stripped
+	//     Windows image), so the UI degrades to tofu/"?" instead of not
+	//     starting.
+	static const ImWchar polishGlyphRanges[] = {
+		0x0020, 0x00FF, // Basic Latin + Latin-1 Supplement
+		0x0100, 0x017F, // Latin Extended-A (Polish + other Central European diacritics)
+		0,
+	};
+	ImFontConfig fontCfg;
+	fontCfg.PixelSnapH = true; // matches AddFontDefaultVector's own no-template default
+	fontCfg.GlyphRanges = polishGlyphRanges;
+	fontCfg.Flags |= ImFontFlags_NoLoadError; // fail quietly, we check for null below
+	ImFont* font = io.Fonts->AddFontFromFileTTF( "C:\\Windows\\Fonts\\segoeui.ttf", 0.0f, &fontCfg );
+	if ( font == nullptr )
+	{
+		io.Fonts->AddFontDefaultVector( &fontCfg );
+	}
 
 	ImGuiStyle& style = ImGui::GetStyle();
 	if ( s_uiScale != 1.0f )

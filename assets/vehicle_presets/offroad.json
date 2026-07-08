@@ -1,0 +1,16 @@
+{
+  "_comment": "Higher stance (more preload), softer/longer-travel springs for articulation over rough terrain, softer ARBs so more wheel travel is available, more torque for climbing, slightly stiffer rear for cargo.",
+  "wishbone": {
+    "restArmDroopDeg": 12.0
+  },
+  "suspensionHertz": 3.5,
+  "suspensionDampingRatio": 0.9,
+  "suspensionPreload": 0.15,
+  "compressionTravel": 0.55,
+  "reboundTravel": 0.38,
+  "rearSuspensionScale": 1.1,
+  "arbFrontStiffness": 6000.0,
+  "arbRearStiffness": 5000.0,
+  "wheelFriction": 1.5,
+  "maxDriveTorque": 500.0
+}

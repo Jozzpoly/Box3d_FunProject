@@ -170,10 +170,18 @@ JozzVehicleM6WishboneHardpoints JozzVehicleM6MakeWishboneHardpoints( const JozzV
 	points.upperBallJoint = b3Add( restWheelCenter, { -casterTangent * h, h, in * ( geometry.kingpinOffset + kpiTangent * h ) } );
 	points.lowerBallJoint = b3Add( restWheelCenter, { casterTangent * h, -h, in * ( geometry.kingpinOffset - kpiTangent * h ) } );
 
-	// Control-arm chassis mounts: straight inboard of the ball joints, split
-	// fore/aft so each triangular arm becomes two rods sharing the ball joint.
-	b3Vec3 upperInboard = b3Add( points.upperBallJoint, { 0.0f, 0.0f, in * geometry.upperArmLength } );
-	b3Vec3 lowerInboard = b3Add( points.lowerBallJoint, { 0.0f, 0.0f, in * geometry.lowerArmLength } );
+	// Control-arm chassis mounts: inboard of the ball joints, split fore/aft so
+	// each triangular arm becomes two rods sharing the ball joint. The rest droop
+	// angle raises the mounts above the ball joints so the arm slopes DOWN to the
+	// wheel at the design pose - the wheels hang on drooping arms instead of the
+	// arms folding up. The raise is purely vertical (inboard reach stays
+	// armLength), so the horizontal kinematics - track, steering-linkage geometry
+	// - are unchanged and no toe/camber is induced; only the arm angle changes.
+	float droopTan = std::tan( geometry.restArmDroopDeg * DEGREES_TO_RADIANS );
+	b3Vec3 upperInboard =
+		b3Add( points.upperBallJoint, { 0.0f, geometry.upperArmLength * droopTan, in * geometry.upperArmLength } );
+	b3Vec3 lowerInboard =
+		b3Add( points.lowerBallJoint, { 0.0f, geometry.lowerArmLength * droopTan, in * geometry.lowerArmLength } );
 	points.upperFrontChassis = b3Add( upperInboard, { geometry.armHalfSpread, 0.0f, 0.0f } );
 	points.upperRearChassis = b3Add( upperInboard, { -geometry.armHalfSpread, 0.0f, 0.0f } );
 	points.lowerFrontChassis = b3Add( lowerInboard, { geometry.armHalfSpread, 0.0f, 0.0f } );
@@ -198,6 +206,21 @@ JozzVehicleM6WishboneHardpoints JozzVehicleM6MakeWishboneHardpoints( const JozzV
 	points.coiloverKnuckle = points.lowerBallJoint;
 
 	return points;
+}
+
+JozzVehicleM6TrailingArmGeometry JozzVehicleM6DefaultTrailingArmGeometry()
+{
+	// Built-in fallback when no asset contract fills the struct: a plain
+	// rear trailing arm with the pivot ahead of the wheel and a near-vertical
+	// coilover. Offsets are chassis-local from the rest wheel center, authored
+	// for the LEFT corner (Z mirrored on the right).
+	JozzVehicleM6TrailingArmGeometry geometry = {};
+	geometry.pivotOffset = { 0.55f, 0.10f, 0.0f };
+	geometry.damperArmOffset = { -0.02f, 0.08f, 0.0f };
+	geometry.damperChassisOffset = { 0.0f, 0.52f, 0.04f };
+	geometry.armMass = 14.0f;
+	geometry.loadedFromContract = false;
+	return geometry;
 }
 
 float ComputeJozzVehicleM6RackStroke( const JozzVehicleM6WishboneGeometry& geometry, float wheelbase, float track,
@@ -263,11 +286,15 @@ JozzVehicleM6Config JozzVehicleM6DefaultConfig( float wheelRadius, float wheelWi
 	config.wishbone.ackermannFraction = 0.6f;
 	config.wishbone.coiloverTopHeight = 0.42f;
 	config.wishbone.coiloverTopInboard = 0.12f;
+	config.wishbone.restArmDroopDeg = 15.0f; // wheels hang on drooping arms at rest
+
+	config.trailingArm = JozzVehicleM6DefaultTrailingArmGeometry();
 
 	// Real-world upright + hub + brake sits around 20-35 kg. Keeping the
 	// knuckle reasonably heavy also keeps the constraint mass ratio against
 	// the ~700 kg chassis inside what the iterative solver likes.
 	config.knuckleMass = 28.0f;
+	config.armMass = 5.0f;
 	config.rackMass = 5.0f;
 	config.rackHalfWidth = 0.45f;
 
@@ -311,9 +338,24 @@ JozzVehicleM6Config JozzVehicleM6DefaultConfig( float wheelRadius, float wheelWi
 	float travel = suspensionTravelHint > 0.05f ? suspensionTravelHint : 0.70f;
 	config.reboundTravel = 0.4f * travel;
 	config.compressionTravel = 0.6f * travel;
+	config.suspensionPreload = 0.07f; // holds the drooped design pose under static weight (toe ~0)
 
-	config.maxDriveSpeed = 26.0f;
+	// Anti-roll bars replace the upright-assist crutch. Sizing sanity: ~0.8 g
+	// lateral on this chassis transfers ~1.5 kN across an axle; a 0.1 m travel
+	// split at these numbers contributes a comparable couple.
+	config.arbFrontStiffness = 16000.0f;
+	config.arbRearStiffness = 10000.0f;
+
+	// Cd*A of a boxy off-roader. Makes top speed a drag-vs-torque balance.
+	config.aeroDragArea = 0.9f;
+
+	// Torque-based drive: the motor targets the rev limit and the throttle
+	// scales available torque (taper above 60% revs). 320 N*m per wheel does
+	// NOT break these tires loose (that takes ~1.2 kN*m at this load) - the
+	// lab slider goes far enough for burnouts on purpose.
+	config.maxDriveSpeed = 40.0f;
 	config.maxDriveTorque = 320.0f;
+	config.driveTaperStart = 0.6f;
 	config.brakeTorque = 650.0f;
 	config.coastTorque = 8.0f;
 	config.allWheelDrive = true;
@@ -322,18 +364,18 @@ JozzVehicleM6Config JozzVehicleM6DefaultConfig( float wheelRadius, float wheelWi
 	config.steeringHertz = 14.0f;
 	config.steeringDampingRatio = 1.0f;
 	config.maxSteeringTorque = 700.0f;
+	// Hands-off resistance: small enough that caster trail (~1 kN at the rack
+	// from a two-wheel slide at 5 deg caster) back-drives the steering, large
+	// enough to damp rack shimmy and to keep parked wheels where you left them.
+	config.rackFrictionForce = 250.0f;
+	config.steeringFrictionTorque = 40.0f;
+	config.steerInputDeadzone = 0.02f;
 	config.ackermannGeometry = true;
 	config.strutCasterDeg = 0.0f; // 0 = exact M5 strut behavior
 
-	// Drift feel: with hands off the wheel the commanded rack angle blends
-	// toward the direction the car actually travels. The physical caster above
-	// is the hardware half of the same effect.
-	config.selfAlignAssist = true;
-	config.selfAlignGain = 0.65f;
-	config.selfAlignMinSpeed = 3.0f;
-	config.selfAlignMaxSlipDeg = 32.0f;
-
-	config.uprightAssist = true;
+	// M7: the honest mechanisms (ARB + geometry) carry the car; the world-
+	// anchored upright spring stays available as a rescue toggle only.
+	config.uprightAssist = false;
 	config.uprightHertz = 0.4f;
 	config.uprightDampingRatio = 1.0f;
 
@@ -345,15 +387,37 @@ JozzVehicleM6Config JozzVehicleM6DefaultConfig( float wheelRadius, float wheelWi
 namespace
 {
 
-b3MassData MakeDiagonalMassData( float mass, b3Vec3 inertiaDiagonal )
+b3MassData MakeDiagonalMassData( float mass, b3Vec3 inertiaDiagonal, b3Vec3 center = b3Vec3_zero )
 {
 	b3MassData massData = {};
 	massData.mass = mass;
-	massData.center = b3Vec3_zero;
+	massData.center = center;
 	massData.inertia.cx = { inertiaDiagonal.x, 0.0f, 0.0f };
 	massData.inertia.cy = { 0.0f, inertiaDiagonal.y, 0.0f };
 	massData.inertia.cz = { 0.0f, 0.0f, inertiaDiagonal.z };
 	return massData;
+}
+
+// Swing allowance for a suspension hinge whose arm has to cover the wheel
+// travel: asin(travel/armLength) plus 25% emergency margin. The coilover
+// length limit remains the precise travel stop; the hinge limit is the
+// anti-fold guard that makes a mirrored/collapsed configuration impossible.
+float HingeSwingLimit( float compressionTravel, float reboundTravel, float armLength )
+{
+	float travel = b3MaxFloat( compressionTravel, reboundTravel );
+	float sine = b3ClampFloat( 1.25f * travel / b3MaxFloat( armLength, 0.05f ), 0.05f, 0.95f );
+	return b3MinFloat( std::asin( sine ), 55.0f * DEGREES_TO_RADIANS );
+}
+
+// Vertical raise applied to the steering-link inner pivots (front rack, rear toe
+// link) so the link stays parallel to the DROOPED lower control arm. Without it,
+// drooping the arms leaves the horizontal steering link crossing the arc at an
+// angle - that is textbook bump steer (toe changes with travel) and it wrecks the
+// static steering ratio. Matching the link's slope to the lower arm keeps toe
+// stable through travel at any droop. lowerArmLength is the design link length.
+float SteeringLinkDroopLift( const JozzVehicleM6Config& config )
+{
+	return config.wishbone.lowerArmLength * std::tan( config.wishbone.restArmDroopDeg * DEGREES_TO_RADIANS );
 }
 
 b3BodyId CreateKnuckleBody( b3WorldId worldId, const JozzVehicleM6Config& config, b3Pos restWheelCenterWorld )
@@ -459,8 +523,83 @@ void CreateStrutCorner( b3WorldId worldId, JozzVehicleM6* vehicle, int corner, b
 	runtime.strutJointId = b3CreateWheelJoint( worldId, &jointDef );
 }
 
+// One control arm as a real hinged body. The hinge axis runs along chassis X
+// through the two fore/aft chassis mount hardpoints; the arm body origin sits
+// at the hinge midpoint so the revolute frames stay trivial. Angle limits are
+// the physical droop/bump stops - the M6 rigid-rod arms had none, and a hard
+// landing could snap the corner into the rods' mirrored solution branch.
+b3BodyId CreateControlArm( b3WorldId worldId, JozzVehicleM6* vehicle, b3Vec3 frontMountLocal, b3Vec3 rearMountLocal,
+						   b3Vec3 ballLocal, b3Vec3 knuckleOriginLocal, b3Quat ballFrameRotation, b3BodyId knuckleId,
+						   b3Pos chassisSpawnPosition, float armLength, b3JointId* outHingeId, b3JointId* outBallId )
+{
+	const JozzVehicleM6Config& config = vehicle->config;
+	b3Vec3 hingeMidLocal = b3MulSV( 0.5f, b3Add( frontMountLocal, rearMountLocal ) );
+	b3Vec3 ballFromHinge = b3Sub( ballLocal, hingeMidLocal );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.position = b3OffsetPos( chassisSpawnPosition, hingeMidLocal );
+	bodyDef.name = "jozz_m6_control_arm";
+	b3BodyId armId = b3CreateBody( worldId, &bodyDef );
+
+	// Shapeless (the M6 CCD/TOI lesson), mass explicit: a flat plate spanning
+	// the arm length across Z and the mount spread across X, COM mid-arm.
+	{
+		float length = b3MaxFloat( armLength, 0.10f );
+		float spread = b3MaxFloat( 2.0f * config.wishbone.armHalfSpread, 0.10f );
+		float mass = b3MaxFloat( config.armMass, 0.5f );
+		b3Vec3 inertia = { mass * length * length / 12.0f, mass * ( length * length + spread * spread ) / 12.0f,
+						   mass * spread * spread / 12.0f };
+		b3Body_SetMassData( armId, MakeDiagonalMassData( mass, inertia, b3MulSV( 0.5f, ballFromHinge ) ) );
+	}
+
+	// Hinge to the chassis: revolute about local frame Z mapped onto chassis X,
+	// symmetric swing limits = droop/bump stops (the coilover length limit is
+	// the precise stop; this one forbids folding).
+	{
+		float swing = HingeSwingLimit( config.compressionTravel, config.reboundTravel, armLength );
+
+		b3RevoluteJointDef def = b3DefaultRevoluteJointDef();
+		def.base.bodyIdA = vehicle->chassisId;
+		def.base.bodyIdB = armId;
+		def.base.localFrameA.p = hingeMidLocal;
+		def.base.localFrameA.q = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisZ, b3Vec3_axisX );
+		def.base.localFrameB.p = b3Vec3_zero;
+		def.base.localFrameB.q = def.base.localFrameA.q;
+		def.base.collideConnected = false;
+		def.enableLimit = true;
+		def.lowerAngle = -swing;
+		def.upperAngle = swing;
+		*outHingeId = b3CreateRevoluteJoint( worldId, &def );
+	}
+
+	// Ball joint to the knuckle: spherical with wide cone/twist limits. These
+	// never engage in normal motion (travel swings stay under ~55 deg, steering
+	// under 32 deg) - they are pure anti-fold guards, the second fence behind
+	// the hinge limits. Frames align local Z with the kingpin so the twist
+	// limit bounds steering rotation.
+	{
+		b3SphericalJointDef def = b3DefaultSphericalJointDef();
+		def.base.bodyIdA = armId;
+		def.base.bodyIdB = knuckleId;
+		def.base.localFrameA.p = ballFromHinge;
+		def.base.localFrameA.q = ballFrameRotation;
+		def.base.localFrameB.p = b3Sub( ballLocal, knuckleOriginLocal );
+		def.base.localFrameB.q = ballFrameRotation;
+		def.base.collideConnected = false;
+		def.enableConeLimit = true;
+		def.coneAngle = 80.0f * DEGREES_TO_RADIANS;
+		def.enableTwistLimit = true;
+		def.lowerTwistAngle = -70.0f * DEGREES_TO_RADIANS;
+		def.upperTwistAngle = 70.0f * DEGREES_TO_RADIANS;
+		*outBallId = b3CreateSphericalJoint( worldId, &def );
+	}
+
+	return armId;
+}
+
 void CreateWishboneCorner( b3WorldId worldId, JozzVehicleM6* vehicle, int corner, b3Vec3 restWheelCenterLocal,
-						   b3Pos restWheelCenterWorld )
+						   b3Pos restWheelCenterWorld, b3Pos chassisSpawnPosition )
 {
 	const JozzVehicleM6Config& config = vehicle->config;
 	JozzVehicleM6CornerRuntime& runtime = vehicle->corners[corner];
@@ -477,28 +616,35 @@ void CreateWishboneCorner( b3WorldId worldId, JozzVehicleM6* vehicle, int corner
 	// The knuckle body origin spawns at the rest wheel center with chassis
 	// orientation, so knuckle-local hardpoints are chassis-local minus the
 	// wheel center.
-	b3Vec3 upperBallKnuckle = b3Sub( hp.upperBallJoint, restWheelCenterLocal );
-	b3Vec3 lowerBallKnuckle = b3Sub( hp.lowerBallJoint, restWheelCenterLocal );
 	b3Vec3 steeringArmKnuckle = b3Sub( hp.steeringArm, restWheelCenterLocal );
 	b3Vec3 coiloverKnuckle = b3Sub( hp.coiloverKnuckle, restWheelCenterLocal );
 
-	// Wishbones as four rigid rods: a triangular control arm is exactly two
-	// two-point links sharing the ball joint.
-	runtime.linkJointIds[0] =
-		CreateLinkRod( worldId, vehicle->chassisId, runtime.knuckleId, hp.upperFrontChassis, upperBallKnuckle, hp.upperBallJoint );
-	runtime.linkJointIds[1] =
-		CreateLinkRod( worldId, vehicle->chassisId, runtime.knuckleId, hp.upperRearChassis, upperBallKnuckle, hp.upperBallJoint );
-	runtime.linkJointIds[2] =
-		CreateLinkRod( worldId, vehicle->chassisId, runtime.knuckleId, hp.lowerFrontChassis, lowerBallKnuckle, hp.lowerBallJoint );
-	runtime.linkJointIds[3] =
-		CreateLinkRod( worldId, vehicle->chassisId, runtime.knuckleId, hp.lowerRearChassis, lowerBallKnuckle, hp.lowerBallJoint );
-	runtime.linkCount = 4;
+	// Ball-joint frames share the kingpin direction so the spherical twist
+	// limit bounds rotation about the steering axis.
+	b3Vec3 kingpinDirection = b3Normalize( b3Sub( hp.upperBallJoint, hp.lowerBallJoint ) );
+	b3Quat kingpinFrame = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisZ, kingpinDirection );
+
+	runtime.upperArmId =
+		CreateControlArm( worldId, vehicle, hp.upperFrontChassis, hp.upperRearChassis, hp.upperBallJoint,
+						  restWheelCenterLocal, kingpinFrame, runtime.knuckleId, chassisSpawnPosition,
+						  config.wishbone.upperArmLength, &runtime.upperHingeId, &runtime.upperBallId );
+	runtime.lowerArmId =
+		CreateControlArm( worldId, vehicle, hp.lowerFrontChassis, hp.lowerRearChassis, hp.lowerBallJoint,
+						  restWheelCenterLocal, kingpinFrame, runtime.knuckleId, chassisSpawnPosition,
+						  config.wishbone.lowerArmLength, &runtime.lowerHingeId, &runtime.lowerBallId );
 
 	// Coilover: the only compliant chassis<->knuckle connection. Spring rest
 	// at the authored pose, travel limits mapped onto rod length.
 	{
 		float scale = CornerSuspensionScale( config, corner );
-		float restLength = DistanceBetween( hp.coiloverChassis, hp.coiloverKnuckle );
+		// designLength = coilover length at the authored (drooped) pose. The
+		// spring rest is preloaded above it so static weight settles back at the
+		// design pose; the travel stops stay measured from the design length.
+		// Preload scales per-axle like hertz/damping, so a stiffer-scaled axle
+		// (which sags less under the same load) doesn't drift off the design pose.
+		float designLength = DistanceBetween( hp.coiloverChassis, hp.coiloverKnuckle );
+		runtime.coiloverDesignLength = designLength;
+		float restLength = designLength + config.suspensionPreload * scale;
 
 		b3DistanceJointDef def = b3DefaultDistanceJointDef();
 		def.base.bodyIdA = vehicle->chassisId;
@@ -512,8 +658,8 @@ void CreateWishboneCorner( b3WorldId worldId, JozzVehicleM6* vehicle, int corner
 		def.dampingRatio = config.suspensionDampingRatio * scale;
 		// Wheel compression shortens the coilover; rebound stretches it.
 		def.enableLimit = true;
-		def.minLength = b3MaxFloat( 0.05f, restLength - config.compressionTravel );
-		def.maxLength = restLength + config.reboundTravel;
+		def.minLength = b3MaxFloat( 0.05f, designLength - config.compressionTravel );
+		def.maxLength = designLength + config.reboundTravel;
 		runtime.coiloverJointId = b3CreateDistanceJoint( worldId, &def );
 	}
 
@@ -524,7 +670,8 @@ void CreateWishboneCorner( b3WorldId worldId, JozzVehicleM6* vehicle, int corner
 		float rackEndZ = IsLeftCorner( corner ) ? -config.rackHalfWidth : config.rackHalfWidth;
 		b3Vec3 rackEndLocal = { 0.0f, 0.0f, rackEndZ };
 		// Rack rest position in chassis space, for the rest length.
-		b3Vec3 rackRestLocal = { config.axleHalfSpacing - config.wishbone.steeringArmBack, -config.restDrop, 0.0f };
+		b3Vec3 rackRestLocal = {
+			config.axleHalfSpacing - config.wishbone.steeringArmBack, -config.restDrop + SteeringLinkDroopLift( config ), 0.0f };
 		b3Vec3 rackEndChassisLocal = b3Add( rackRestLocal, rackEndLocal );
 
 		b3DistanceJointDef def = b3DefaultDistanceJointDef();
@@ -539,9 +686,11 @@ void CreateWishboneCorner( b3WorldId worldId, JozzVehicleM6* vehicle, int corner
 	}
 	else
 	{
-		// Toe link: roughly lower-arm length so bump steer stays small.
+		// Toe link: lower-arm length AND lifted by the same droop as the lower arm,
+		// so it stays parallel to it and bump steer stays small at any droop angle.
 		float in = IsLeftCorner( corner ) ? 1.0f : -1.0f;
-		b3Vec3 toeChassis = b3Add( hp.steeringArm, { 0.0f, 0.0f, in * config.wishbone.lowerArmLength } );
+		b3Vec3 toeChassis =
+			b3Add( hp.steeringArm, { 0.0f, SteeringLinkDroopLift( config ), in * config.wishbone.lowerArmLength } );
 
 		b3DistanceJointDef def = b3DefaultDistanceJointDef();
 		def.base.bodyIdA = vehicle->chassisId;
@@ -562,6 +711,167 @@ void CreateWishboneCorner( b3WorldId worldId, JozzVehicleM6* vehicle, int corner
 		def.base.bodyIdA = runtime.knuckleId;
 		def.base.bodyIdB = runtime.wheelId;
 		def.base.localFrameA.p = b3Vec3_zero;
+		def.base.localFrameA.q = b3Quat_identity;
+		def.base.localFrameB.p = b3Vec3_zero;
+		def.base.localFrameB.q = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisZ, b3Vec3_axisY );
+		def.base.collideConnected = false;
+		def.enableMotor = true;
+		def.maxMotorTorque = 0.0f;
+		def.motorSpeed = 0.0f;
+		runtime.spinJointId = b3CreateRevoluteJoint( worldId, &def );
+	}
+}
+
+// Trailing-arm corner (Jozz's One_Sided_wheel_mount): one arm body hinged to
+// the chassis about the lateral Z axis, the wheel spinning on the arm, and a
+// coilover between the contract damper points. No steering DOF.
+void CreateTrailingArmCorner( b3WorldId worldId, JozzVehicleM6* vehicle, int corner, b3Vec3 restWheelCenterLocal,
+							  b3Pos restWheelCenterWorld, b3Pos chassisSpawnPosition )
+{
+	const JozzVehicleM6Config& config = vehicle->config;
+	JozzVehicleM6CornerRuntime& runtime = vehicle->corners[corner];
+	const JozzVehicleM6TrailingArmGeometry& geometry = config.trailingArm;
+
+	// Geometry offsets are authored for the LEFT corner; mirror Z on the right.
+	float zMirror = IsLeftCorner( corner ) ? 1.0f : -1.0f;
+	b3Vec3 pivotOffset = { geometry.pivotOffset.x, geometry.pivotOffset.y, zMirror * geometry.pivotOffset.z };
+	b3Vec3 damperArmOffset = { geometry.damperArmOffset.x, geometry.damperArmOffset.y,
+							   zMirror * geometry.damperArmOffset.z };
+	b3Vec3 damperChassisOffset = { geometry.damperChassisOffset.x, geometry.damperChassisOffset.y,
+								   zMirror * geometry.damperChassisOffset.z };
+
+	runtime.trailingPivotLocal = b3Add( restWheelCenterLocal, pivotOffset );
+	runtime.trailingDamperArmLocal = b3Add( restWheelCenterLocal, damperArmOffset );
+	runtime.trailingDamperChassisLocal = b3Add( restWheelCenterLocal, damperChassisOffset );
+
+	b3Vec3 wheelFromPivot = b3Sub( restWheelCenterLocal, runtime.trailingPivotLocal );
+	float armLength = b3MaxFloat( b3Length( wheelFromPivot ), 0.15f );
+
+	// Arm body, origin at the hinge. Shapeless + explicit mass (CCD lesson):
+	// a slender rod from the pivot to the wheel center, COM mid-arm.
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.position = b3OffsetPos( chassisSpawnPosition, runtime.trailingPivotLocal );
+		bodyDef.name = "jozz_m6_trailing_arm";
+		b3BodyId armId = b3CreateBody( worldId, &bodyDef );
+
+		float mass = b3MaxFloat( geometry.armMass, 1.0f );
+		float rodInertia = mass * armLength * armLength / 12.0f;
+		b3Vec3 inertia = { 0.2f * rodInertia + 0.001f * mass, rodInertia, rodInertia };
+		b3Body_SetMassData( armId, MakeDiagonalMassData( mass, inertia, b3MulSV( 0.5f, wheelFromPivot ) ) );
+		runtime.trailingArmId = armId;
+	}
+
+	runtime.wheelId =
+		CreateWheelBody( worldId, config, restWheelCenterWorld, runtime.wheelShapeIds, &runtime.wheelShapeCount );
+
+	// Hinge about chassis Z (revolute already rotates about local frame Z),
+	// symmetric swing limits from the wheel travel = physical stops.
+	{
+		float planarArm = b3MaxFloat( std::sqrt( wheelFromPivot.x * wheelFromPivot.x + wheelFromPivot.y * wheelFromPivot.y ),
+									  0.10f );
+		float swing = HingeSwingLimit( config.compressionTravel, config.reboundTravel, planarArm );
+
+		b3RevoluteJointDef def = b3DefaultRevoluteJointDef();
+		def.base.bodyIdA = vehicle->chassisId;
+		def.base.bodyIdB = runtime.trailingArmId;
+		def.base.localFrameA.p = runtime.trailingPivotLocal;
+		def.base.localFrameA.q = b3Quat_identity;
+		def.base.localFrameB.p = b3Vec3_zero;
+		def.base.localFrameB.q = b3Quat_identity;
+		def.base.collideConnected = false;
+		def.enableLimit = true;
+		def.lowerAngle = -swing;
+		def.upperAngle = swing;
+		runtime.armHingeId = b3CreateRevoluteJoint( worldId, &def );
+	}
+
+	// Coilover between the contract damper points, spring rest at the authored
+	// pose. Two rig-specific corrections make the config hertz MEAN the same
+	// wheel rate it means on the other rig types (the M5 lesson: a joint
+	// spring's stiffness follows the constraint's effective mass, and here the
+	// constraint grabs a slender rotating arm whose effective mass at the
+	// damper eye is a few kilograms - naively reusing the config hertz left
+	// the rear parked ON its bump stops):
+	//   1. motion ratio: damper length change per meter of vertical wheel
+	//      travel, from the rest geometry; scales the travel limits so they
+	//      stop the WHEEL at the configured travel, and enters the stiffness.
+	//   2. effective-mass compensation: the damper hertz is recomputed so the
+	//      resulting WHEEL rate equals unsprungMass * (2*pi*configHertz)^2,
+	//      the same definition the strut and wishbone corners effectively use.
+	{
+		float scale = CornerSuspensionScale( config, corner );
+		float restLength = DistanceBetween( runtime.trailingDamperChassisLocal, runtime.trailingDamperArmLocal );
+		if ( restLength < 0.08f )
+		{
+			// Degenerate contract data: fall back to a vertical strut above the
+			// wheel center so the corner still carries the car.
+			runtime.trailingDamperChassisLocal = b3Add( restWheelCenterLocal, { 0.0f, 0.5f, 0.0f } );
+			runtime.trailingDamperArmLocal = restWheelCenterLocal;
+			restLength = 0.5f;
+		}
+
+		// Motion ratio at rest: rotate the arm virtually about the hinge (Z)
+		// and compare the damper-eye speed along the damper axis with the
+		// wheel center's vertical speed.
+		b3Vec3 damperRadius = b3Sub( runtime.trailingDamperArmLocal, runtime.trailingPivotLocal );
+		b3Vec3 damperEyeVelocity = { -damperRadius.y, damperRadius.x, 0.0f }; // z-hat cross r
+		b3Vec3 damperAxis = b3Normalize( b3Sub( runtime.trailingDamperChassisLocal, runtime.trailingDamperArmLocal ) );
+		float damperRate = std::fabs( b3Dot( damperEyeVelocity, damperAxis ) );
+		float wheelVerticalRate = b3MaxFloat( std::fabs( wheelFromPivot.x ), 0.05f );
+		float motionRatio = b3ClampFloat( damperRate / wheelVerticalRate, 0.05f, 5.0f );
+
+		// Effective mass of the distance constraint on the arm side, from the
+		// exact mass data this function just set: 1/m + (r x u)^T I^-1 (r x u).
+		float armMass = b3MaxFloat( geometry.armMass, 1.0f );
+		float rodInertia = armMass * armLength * armLength / 12.0f;
+		b3Vec3 inertiaDiagonal = { 0.2f * rodInertia + 0.001f * armMass, rodInertia, rodInertia };
+		b3Vec3 centerOffset = b3MulSV( 0.5f, wheelFromPivot );
+		b3Vec3 anchorFromCom = b3Sub( damperRadius, centerOffset );
+		b3Vec3 rCrossU = b3Cross( anchorFromCom, damperAxis );
+		float invEffectiveMass = 1.0f / armMass + rCrossU.x * rCrossU.x / inertiaDiagonal.x +
+								 rCrossU.y * rCrossU.y / inertiaDiagonal.y + rCrossU.z * rCrossU.z / inertiaDiagonal.z;
+
+		// Wheel-rate target on the same terms as the other rigs, mapped to the
+		// damper through the motion ratio, then expressed as the hertz the
+		// solver needs on THIS constraint's effective mass.
+		float configOmega = 2.0f * B3_PI * config.suspensionHertz * scale;
+		float unsprungMass = b3Body_GetMass( runtime.wheelId ) + armMass;
+		float wheelRateTarget = unsprungMass * configOmega * configOmega;
+		float damperRateTarget = wheelRateTarget / ( motionRatio * motionRatio );
+		float damperOmega = std::sqrt( damperRateTarget * invEffectiveMass );
+		float damperHertz = b3ClampFloat( damperOmega / ( 2.0f * B3_PI ), 0.5f, 60.0f );
+		runtime.trailingCoiloverHertzScale = damperHertz / b3MaxFloat( config.suspensionHertz * scale, 0.01f );
+		runtime.trailingMotionRatio = motionRatio;
+		runtime.coiloverDesignLength = restLength;
+
+		// Ride height preload is a wheel-space (vertical) rise; the motion ratio
+		// maps it onto the damper's own axis, same as the travel stops below.
+		float preloadedLength = restLength + config.suspensionPreload * scale * motionRatio;
+
+		b3DistanceJointDef def = b3DefaultDistanceJointDef();
+		def.base.bodyIdA = vehicle->chassisId;
+		def.base.bodyIdB = runtime.trailingArmId;
+		def.base.localFrameA.p = runtime.trailingDamperChassisLocal;
+		def.base.localFrameB.p = b3Sub( runtime.trailingDamperArmLocal, runtime.trailingPivotLocal );
+		def.base.collideConnected = false;
+		def.length = preloadedLength;
+		def.enableSpring = true;
+		def.hertz = damperHertz;
+		def.dampingRatio = config.suspensionDampingRatio * scale;
+		def.enableLimit = true;
+		def.minLength = b3MaxFloat( 0.05f, restLength - config.compressionTravel * motionRatio );
+		def.maxLength = restLength + config.reboundTravel * motionRatio;
+		runtime.coiloverJointId = b3CreateDistanceJoint( worldId, &def );
+	}
+
+	// Wheel spins on the arm; same frame convention as the knuckle spin joint.
+	{
+		b3RevoluteJointDef def = b3DefaultRevoluteJointDef();
+		def.base.bodyIdA = runtime.trailingArmId;
+		def.base.bodyIdB = runtime.wheelId;
+		def.base.localFrameA.p = wheelFromPivot;
 		def.base.localFrameA.q = b3Quat_identity;
 		def.base.localFrameB.p = b3Vec3_zero;
 		def.base.localFrameB.q = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisZ, b3Vec3_axisY );
@@ -608,7 +918,8 @@ JozzVehicleM6 CreateJozzVehicleM6( b3WorldId worldId, b3BodyId groundBodyId, con
 	// wheel genuinely holds the whole linkage back.
 	if ( config.frontRigType == JOZZ_M6_RIG_DOUBLE_WISHBONE )
 	{
-		b3Vec3 rackRestLocal = { config.axleHalfSpacing - config.wishbone.steeringArmBack, -config.restDrop, 0.0f };
+		b3Vec3 rackRestLocal = {
+			config.axleHalfSpacing - config.wishbone.steeringArmBack, -config.restDrop + SteeringLinkDroopLift( config ), 0.0f };
 		b3Pos rackRestWorld = b3Body_GetWorldPoint( vehicle.chassisId, rackRestLocal );
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -657,18 +968,24 @@ JozzVehicleM6 CreateJozzVehicleM6( b3WorldId worldId, b3BodyId groundBodyId, con
 		runtime = {};
 		runtime.rigType = CornerRigType( config, corner );
 		runtime.knuckleId = b3_nullBodyId;
+		runtime.upperArmId = b3_nullBodyId;
+		runtime.lowerArmId = b3_nullBodyId;
+		runtime.trailingArmId = b3_nullBodyId;
 		runtime.wheelId = b3_nullBodyId;
 		runtime.strutJointId = b3_nullJointId;
 		runtime.spinJointId = b3_nullJointId;
+		runtime.upperHingeId = b3_nullJointId;
+		runtime.lowerHingeId = b3_nullJointId;
+		runtime.upperBallId = b3_nullJointId;
+		runtime.lowerBallId = b3_nullJointId;
+		runtime.armHingeId = b3_nullJointId;
 		runtime.coiloverJointId = b3_nullJointId;
 		runtime.steerLinkJointId = b3_nullJointId;
+		runtime.trailingCoiloverHertzScale = 1.0f;
+		runtime.trailingMotionRatio = 1.0f;
 		for ( int i = 0; i < JOZZ_M6_MAX_WHEEL_SHAPES; ++i )
 		{
 			runtime.wheelShapeIds[i] = b3_nullShapeId;
-		}
-		for ( int i = 0; i < 4; ++i )
-		{
-			runtime.linkJointIds[i] = b3_nullJointId;
 		}
 
 		b3Vec3 localOffset = CornerLocalOffset( config, corner );
@@ -677,7 +994,11 @@ JozzVehicleM6 CreateJozzVehicleM6( b3WorldId worldId, b3BodyId groundBodyId, con
 
 		if ( runtime.rigType == JOZZ_M6_RIG_DOUBLE_WISHBONE )
 		{
-			CreateWishboneCorner( worldId, &vehicle, corner, localOffset, restWheelCenterWorld );
+			CreateWishboneCorner( worldId, &vehicle, corner, localOffset, restWheelCenterWorld, chassisSpawnPosition );
+		}
+		else if ( runtime.rigType == JOZZ_M6_RIG_TRAILING_ARM )
+		{
+			CreateTrailingArmCorner( worldId, &vehicle, corner, localOffset, restWheelCenterWorld, chassisSpawnPosition );
 		}
 		else
 		{
@@ -719,9 +1040,9 @@ void DestroyJozzVehicleM6( JozzVehicleM6* vehicle )
 	{
 		JozzVehicleM6CornerRuntime& runtime = vehicle->corners[corner];
 
-		b3JointId* cornerJointIds[8] = { &runtime.strutJointId,		&runtime.spinJointId,	  &runtime.coiloverJointId,
-										 &runtime.steerLinkJointId, &runtime.linkJointIds[0], &runtime.linkJointIds[1],
-										 &runtime.linkJointIds[2],	&runtime.linkJointIds[3] };
+		b3JointId* cornerJointIds[9] = { &runtime.strutJointId, &runtime.spinJointId,  &runtime.coiloverJointId,
+										 &runtime.steerLinkJointId, &runtime.upperHingeId, &runtime.lowerHingeId,
+										 &runtime.upperBallId,		&runtime.lowerBallId,  &runtime.armHingeId };
 		for ( b3JointId* jointIdSlot : cornerJointIds )
 		{
 			b3JointId jointId = *jointIdSlot;
@@ -732,15 +1053,16 @@ void DestroyJozzVehicleM6( JozzVehicleM6* vehicle )
 			*jointIdSlot = b3_nullJointId;
 		}
 
-		if ( B3_IS_NON_NULL( runtime.wheelId ) )
+		b3BodyId* cornerBodyIds[5] = { &runtime.wheelId, &runtime.knuckleId, &runtime.upperArmId, &runtime.lowerArmId,
+									   &runtime.trailingArmId };
+		for ( b3BodyId* bodyIdSlot : cornerBodyIds )
 		{
-			b3DestroyBody( runtime.wheelId );
-			runtime.wheelId = b3_nullBodyId;
-		}
-		if ( B3_IS_NON_NULL( runtime.knuckleId ) )
-		{
-			b3DestroyBody( runtime.knuckleId );
-			runtime.knuckleId = b3_nullBodyId;
+			b3BodyId bodyId = *bodyIdSlot;
+			if ( B3_IS_NON_NULL( bodyId ) )
+			{
+				b3DestroyBody( bodyId );
+			}
+			*bodyIdSlot = b3_nullBodyId;
 		}
 		for ( int i = 0; i < JOZZ_M6_MAX_WHEEL_SHAPES; ++i )
 		{
@@ -769,34 +1091,96 @@ void DestroyJozzVehicleM6( JozzVehicleM6* vehicle )
 	vehicle->valid = false;
 }
 
-float ComputeJozzVehicleM6RackAngle( const JozzVehicleM6Config& config, float steerInput, b3Vec3 localVelocity )
+float ComputeJozzVehicleM6RackAngle( const JozzVehicleM6Config& config, float steerInput )
 {
+	// Pure input mapping. The M6 version blended this command toward the
+	// travel direction during slides; that software alignment is gone (it
+	// read as scripted drift). Self-alignment now happens physically: with
+	// the input released the rack spring/servo let go (see the drive update)
+	// and the caster trail back-drives the steering through the tie rods.
 	float maxAngle = config.maxSteeringAngleDegrees * DEGREES_TO_RADIANS;
-	float input = b3ClampFloat( steerInput, -1.0f, 1.0f );
-	float raw = maxAngle * input;
-
-	if ( config.selfAlignAssist == false )
-	{
-		return raw;
-	}
-
-	// Only meaningful while actually moving forward; atan2 goes wild near
-	// standstill and in reverse.
-	if ( localVelocity.x < config.selfAlignMinSpeed )
-	{
-		return raw;
-	}
-
-	// Travel direction left of the nose (-Z) means a POSITIVE steering angle
-	// aligns the wheels with it, hence the negation of atan2(z, x).
-	float maxSlip = config.selfAlignMaxSlipDeg * DEGREES_TO_RADIANS;
-	float alignAngle = b3ClampFloat( -std::atan2( localVelocity.z, localVelocity.x ), -maxSlip, maxSlip );
-
-	// The driver's hands outrank the assist: full input = no blending.
-	float weight = config.selfAlignGain * ( 1.0f - std::fabs( input ) );
-	float rackAngle = raw + weight * ( alignAngle - raw );
-	return b3ClampFloat( rackAngle, -maxAngle, maxAngle );
+	return maxAngle * b3ClampFloat( steerInput, -1.0f, 1.0f );
 }
+
+namespace
+{
+
+// Available drive torque at the current wheel speed: full torque up to
+// driveTaperStart * maxDriveSpeed, then a linear taper to zero at the rev
+// limit. Only spin IN the commanded direction counts against the taper, so
+// torque stays available to slow a wheel spinning the wrong way.
+float TaperedDriveTorque( const JozzVehicleM6Config& config, float spinSpeed, float commandedSpinSpeed, float driveInput )
+{
+	float commandSign = commandedSpinSpeed >= 0.0f ? 1.0f : -1.0f;
+	float forwardSpin = b3MaxFloat( spinSpeed * commandSign, 0.0f );
+
+	float taperStart = b3ClampFloat( config.driveTaperStart, 0.0f, 0.99f ) * config.maxDriveSpeed;
+	float taper = 1.0f;
+	if ( config.maxDriveSpeed > taperStart + 0.001f )
+	{
+		taper = b3ClampFloat( ( config.maxDriveSpeed - forwardSpin ) / ( config.maxDriveSpeed - taperStart ), 0.0f, 1.0f );
+	}
+
+	return std::fabs( driveInput ) * config.maxDriveTorque * taper;
+}
+
+// Anti-roll bar: a couple built from the left/right travel difference,
+// pushing the more-compressed corner's unsprung mass down and its partner up,
+// with equal and opposite reactions on the chassis at the rest anchors. Net
+// force zero, net moment = anti-roll - the same load transfer a torsion bar
+// delivers, computed from the same displacement it physically reads.
+void ApplyAxleAntiRollBar( const JozzVehicleM6& vehicle, int leftCorner, int rightCorner, float stiffness,
+						   b3Vec3 chassisUp )
+{
+	if ( stiffness <= 0.0f )
+	{
+		return;
+	}
+
+	const JozzVehicleM6CornerRuntime& left = vehicle.corners[leftCorner];
+	const JozzVehicleM6CornerRuntime& right = vehicle.corners[rightCorner];
+	if ( B3_IS_NULL( left.wheelId ) || B3_IS_NULL( right.wheelId ) )
+	{
+		return;
+	}
+
+	b3Pos leftRest = b3Body_GetWorldPoint( vehicle.chassisId, left.restWheelCenterLocal );
+	b3Pos rightRest = b3Body_GetWorldPoint( vehicle.chassisId, right.restWheelCenterLocal );
+	float travelLeft = b3Dot( b3SubPos( b3Body_GetPosition( left.wheelId ), leftRest ), chassisUp );
+	float travelRight = b3Dot( b3SubPos( b3Body_GetPosition( right.wheelId ), rightRest ), chassisUp );
+
+	float force = stiffness * ( travelLeft - travelRight );
+	if ( std::fabs( force ) < 1.0f )
+	{
+		return;
+	}
+
+	// The bar pushes on the unsprung side: knuckle when there is one,
+	// otherwise the arm or the wheel body itself (strut corners).
+	auto unsprungBody = []( const JozzVehicleM6CornerRuntime& corner ) -> b3BodyId {
+		if ( B3_IS_NON_NULL( corner.knuckleId ) )
+		{
+			return corner.knuckleId;
+		}
+		if ( B3_IS_NON_NULL( corner.trailingArmId ) )
+		{
+			return corner.trailingArmId;
+		}
+		return corner.wheelId;
+	};
+
+	b3BodyId leftBody = unsprungBody( left );
+	b3BodyId rightBody = unsprungBody( right );
+	b3Vec3 down = b3MulSV( -force, chassisUp );
+	b3Vec3 up = b3MulSV( force, chassisUp );
+	b3Body_ApplyForce( leftBody, down, b3Body_GetPosition( leftBody ), false );
+	b3Body_ApplyForce( rightBody, up, b3Body_GetPosition( rightBody ), false );
+	// Reactions on the chassis at the rest anchors keep the couple internal.
+	b3Body_ApplyForce( vehicle.chassisId, b3MulSV( force, chassisUp ), leftRest, false );
+	b3Body_ApplyForce( vehicle.chassisId, b3MulSV( -force, chassisUp ), rightRest, false );
+}
+
+} // namespace
 
 void UpdateJozzVehicleM6Drive( const JozzVehicleM6& vehicle, const JozzVehicleM6DriveInput& input )
 {
@@ -808,33 +1192,48 @@ void UpdateJozzVehicleM6Drive( const JozzVehicleM6& vehicle, const JozzVehicleM6
 	const JozzVehicleM6Config& config = vehicle.config;
 
 	b3Quat chassisRotation = b3Body_GetRotation( vehicle.chassisId );
-	b3Vec3 localVelocity = b3InvRotateVector( chassisRotation, b3Body_GetLinearVelocity( vehicle.chassisId ) );
-	float rackAngle = ComputeJozzVehicleM6RackAngle( config, input.steer, localVelocity );
+	b3Vec3 chassisUp = b3RotateVector( chassisRotation, b3Vec3_axisY );
+	float rackAngle = ComputeJozzVehicleM6RackAngle( config, input.steer );
+	bool handsOn = std::fabs( input.steer ) > config.steerInputDeadzone;
 
 	// Positive drive = forward (+X). With the axle across +Z forward travel is
-	// a negative spin about the joint axis - the validated M5 motor sign.
-	float targetSpinSpeed = -config.maxDriveSpeed * input.drive;
+	// a negative spin about the joint axis - the validated M5 motor sign. The
+	// motor always targets the rev limit; the throttle decides TORQUE, so
+	// whether a wheel grips or spins up is a fight between engine torque and
+	// contact friction, like it should be.
+	float commandedSpinSpeed = input.drive >= 0.0f ? -config.maxDriveSpeed : config.maxDriveSpeed;
 
-	// Wishbone front axle: the rack spring centers on the stroke that
-	// corresponds to the commanded angle, and the servo motor slews toward it
-	// with a hard force cap - spring for feel, motor for the parking-torque
-	// muscle. The Ackermann split then falls out of the physical trapezoid.
-	// The angle->stroke mapping goes through the exact linkage solution so the
-	// command, the rack limit, and the resulting inner-wheel angle agree.
+	// Wishbone front axle, hands ON: the rack spring centers on the stroke for
+	// the commanded angle and the servo slews toward it with a hard force cap
+	// (power steering + parking-torque muscle); Ackermann falls out of the
+	// physical trapezoid. Hands OFF: spring and servo release and only the
+	// rack friction resists, so the caster trail in the geometry back-drives
+	// the steering through the tie rods - counter-steer in slides and
+	// straightening after corners come from forces, not from a command blend.
 	if ( B3_IS_NON_NULL( vehicle.rackJointId ) )
 	{
-		float strokeMagnitude = ComputeJozzVehicleM6RackStroke( config.wishbone, 2.0f * config.axleHalfSpacing,
-																config.trackHalfWidth, config.rackHalfWidth,
-																std::fabs( rackAngle ) );
-		float target = rackAngle >= 0.0f ? strokeMagnitude : -strokeMagnitude;
-		target = b3ClampFloat( target, -config.rackTravel, config.rackTravel );
-		b3PrismaticJoint_SetTargetTranslation( vehicle.rackJointId, target );
+		if ( handsOn )
+		{
+			float strokeMagnitude = ComputeJozzVehicleM6RackStroke( config.wishbone, 2.0f * config.axleHalfSpacing,
+																	config.trackHalfWidth, config.rackHalfWidth,
+																	std::fabs( rackAngle ) );
+			float target = rackAngle >= 0.0f ? strokeMagnitude : -strokeMagnitude;
+			target = b3ClampFloat( target, -config.rackTravel, config.rackTravel );
+			b3PrismaticJoint_EnableSpring( vehicle.rackJointId, true );
+			b3PrismaticJoint_SetTargetTranslation( vehicle.rackJointId, target );
 
-		float error = target - b3PrismaticJoint_GetTranslation( vehicle.rackJointId );
-		float servoSpeed = b3ClampFloat( config.rackServoSpeedGain * error, -config.rackServoMaxSpeed,
-										 config.rackServoMaxSpeed );
-		b3PrismaticJoint_SetMotorSpeed( vehicle.rackJointId, servoSpeed );
-		b3PrismaticJoint_SetMaxMotorForce( vehicle.rackJointId, config.rackServoForce );
+			float error = target - b3PrismaticJoint_GetTranslation( vehicle.rackJointId );
+			float servoSpeed = b3ClampFloat( config.rackServoSpeedGain * error, -config.rackServoMaxSpeed,
+											 config.rackServoMaxSpeed );
+			b3PrismaticJoint_SetMotorSpeed( vehicle.rackJointId, servoSpeed );
+			b3PrismaticJoint_SetMaxMotorForce( vehicle.rackJointId, config.rackServoForce );
+		}
+		else
+		{
+			b3PrismaticJoint_EnableSpring( vehicle.rackJointId, false );
+			b3PrismaticJoint_SetMotorSpeed( vehicle.rackJointId, 0.0f );
+			b3PrismaticJoint_SetMaxMotorForce( vehicle.rackJointId, config.rackFrictionForce );
+		}
 		b3Joint_WakeBodies( vehicle.rackJointId );
 	}
 
@@ -860,8 +1259,21 @@ void UpdateJozzVehicleM6Drive( const JozzVehicleM6& vehicle, const JozzVehicleM6
 		{
 			if ( IsFrontCorner( corner ) )
 			{
-				b3WheelJoint_SetTargetSteeringAngle( runtime.strutJointId,
-													 IsLeftCorner( corner ) ? strutTargetLeft : strutTargetRight );
+				if ( handsOn )
+				{
+					b3WheelJoint_SetTargetSteeringAngle( runtime.strutJointId,
+														 IsLeftCorner( corner ) ? strutTargetLeft : strutTargetRight );
+					b3WheelJoint_SetMaxSteeringTorque( runtime.strutJointId, config.maxSteeringTorque );
+				}
+				else
+				{
+					// Hands off: the steering spring holds the CURRENT angle
+					// with only friction-level torque, so with a caster-tilted
+					// strut axis the contact forces can back-drive the wheel.
+					b3WheelJoint_SetTargetSteeringAngle( runtime.strutJointId,
+														 b3WheelJoint_GetSteeringAngle( runtime.strutJointId ) );
+					b3WheelJoint_SetMaxSteeringTorque( runtime.strutJointId, config.steeringFrictionTorque );
+				}
 			}
 
 			if ( input.brake )
@@ -871,8 +1283,10 @@ void UpdateJozzVehicleM6Drive( const JozzVehicleM6& vehicle, const JozzVehicleM6
 			}
 			else if ( input.drive != 0.0f && driven )
 			{
-				b3WheelJoint_SetSpinMotorSpeed( runtime.strutJointId, targetSpinSpeed );
-				b3WheelJoint_SetMaxSpinTorque( runtime.strutJointId, config.maxDriveTorque );
+				float spinSpeed = b3WheelJoint_GetSpinSpeed( runtime.strutJointId );
+				b3WheelJoint_SetSpinMotorSpeed( runtime.strutJointId, commandedSpinSpeed );
+				b3WheelJoint_SetMaxSpinTorque( runtime.strutJointId,
+											   TaperedDriveTorque( config, spinSpeed, commandedSpinSpeed, input.drive ) );
 			}
 			else
 			{
@@ -889,14 +1303,40 @@ void UpdateJozzVehicleM6Drive( const JozzVehicleM6& vehicle, const JozzVehicleM6
 			}
 			else if ( input.drive != 0.0f && driven )
 			{
-				b3RevoluteJoint_SetMotorSpeed( runtime.spinJointId, targetSpinSpeed );
-				b3RevoluteJoint_SetMaxMotorTorque( runtime.spinJointId, config.maxDriveTorque );
+				// Relative wheel spin about the live axle, same math as the
+				// telemetry: the motor speed is relative A->B.
+				b3BodyId carrierId = B3_IS_NON_NULL( runtime.knuckleId ) ? runtime.knuckleId : runtime.trailingArmId;
+				b3Vec3 axle = b3RotateVector( b3Body_GetRotation( runtime.wheelId ), b3Vec3_axisY );
+				b3Vec3 relativeAngular =
+					b3Sub( b3Body_GetAngularVelocity( runtime.wheelId ), b3Body_GetAngularVelocity( carrierId ) );
+				float spinSpeed = b3Dot( relativeAngular, axle );
+
+				b3RevoluteJoint_SetMotorSpeed( runtime.spinJointId, commandedSpinSpeed );
+				b3RevoluteJoint_SetMaxMotorTorque( runtime.spinJointId,
+												   TaperedDriveTorque( config, spinSpeed, commandedSpinSpeed, input.drive ) );
 			}
 			else
 			{
 				b3RevoluteJoint_SetMotorSpeed( runtime.spinJointId, 0.0f );
 				b3RevoluteJoint_SetMaxMotorTorque( runtime.spinJointId, config.coastTorque );
 			}
+		}
+	}
+
+	// Real forces that need no input: anti-roll couples per axle and quadratic
+	// aero drag. Forces (not impulses), so they are frame-rate honest.
+	ApplyAxleAntiRollBar( vehicle, JOZZ_M6_FRONT_LEFT, JOZZ_M6_FRONT_RIGHT, config.arbFrontStiffness, chassisUp );
+	ApplyAxleAntiRollBar( vehicle, JOZZ_M6_REAR_LEFT, JOZZ_M6_REAR_RIGHT, config.arbRearStiffness, chassisUp );
+
+	if ( config.aeroDragArea > 0.0f )
+	{
+		b3Vec3 velocity = b3Body_GetLinearVelocity( vehicle.chassisId );
+		float speed = b3Length( velocity );
+		if ( speed > 1.0f )
+		{
+			const float airDensity = 1.225f;
+			b3Vec3 drag = b3MulSV( -0.5f * airDensity * config.aeroDragArea * speed, velocity );
+			b3Body_ApplyForceToCenter( vehicle.chassisId, drag, false );
 		}
 	}
 
@@ -971,20 +1411,30 @@ JozzVehicleM6WheelTelemetry GetJozzVehicleM6WheelTelemetry( const JozzVehicleM6&
 	}
 	else
 	{
-		// The coilover carries the spring load; the rods only guide geometry.
+		// The coilover carries the spring load; the arms only guide geometry.
 		telemetry.suspensionLoad = b3Dot( b3Joint_GetConstraintForce( runtime.coiloverJointId ), chassisUp );
 
-		// Relative spin of the wheel about the live axle direction.
+		// Relative spin of the wheel about the live axle direction, against
+		// whatever body carries the wheel (knuckle or trailing arm).
+		b3BodyId carrierId = B3_IS_NON_NULL( runtime.knuckleId ) ? runtime.knuckleId : runtime.trailingArmId;
 		b3Vec3 axle = b3RotateVector( b3Body_GetRotation( runtime.wheelId ), b3Vec3_axisY );
 		b3Vec3 relativeAngular =
-			b3Sub( b3Body_GetAngularVelocity( runtime.wheelId ), b3Body_GetAngularVelocity( runtime.knuckleId ) );
+			b3Sub( b3Body_GetAngularVelocity( runtime.wheelId ), b3Body_GetAngularVelocity( carrierId ) );
 		telemetry.spinSpeed = b3Dot( relativeAngular, axle );
 
-		// Knuckle yaw relative to the chassis; positive = left, matching the
-		// steering convention (nose swings toward -Z).
-		b3Vec3 knuckleForward =
-			b3InvRotateVector( chassisRotation, b3RotateVector( b3Body_GetRotation( runtime.knuckleId ), b3Vec3_axisX ) );
-		telemetry.steeringAngle = -std::atan2( knuckleForward.z, knuckleForward.x );
+		if ( B3_IS_NON_NULL( runtime.knuckleId ) )
+		{
+			// Knuckle yaw relative to the chassis; positive = left, matching
+			// the steering convention (nose swings toward -Z).
+			b3Vec3 knuckleForward =
+				b3InvRotateVector( chassisRotation, b3RotateVector( b3Body_GetRotation( runtime.knuckleId ), b3Vec3_axisX ) );
+			telemetry.steeringAngle = -std::atan2( knuckleForward.z, knuckleForward.x );
+		}
+		else
+		{
+			// Trailing arms do not steer.
+			telemetry.steeringAngle = 0.0f;
+		}
 
 		// Camber: how far the axle tilts out of the chassis horizontal plane.
 		// Sign flipped per side so "top of the wheel leaning inboard" is

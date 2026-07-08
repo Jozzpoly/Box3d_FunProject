@@ -8,6 +8,7 @@
 #include "gfx/utility.h"
 
 #include <string>
+#include <vector>
 
 struct JozzVehicleVisualMesh
 {
@@ -28,6 +29,71 @@ struct JozzVehicleVisualMesh
 	bool IsLoaded() const;
 	void Draw( b3Pos origin, Vec4 color ) const;
 	void DrawAtTransform( b3WorldTransform worldTransform, Vec4 color ) const;
+};
+
+// One rigidly-skinned part of a multi-bone model: the triangles whose vertices
+// bind to a single bone. Geometry is baked to authored-world-meters (same space
+// as JozzVehicleVisualMesh), so DrawPart(transform) applies transform to the
+// authored rest positions exactly like the whole-mesh path.
+struct JozzVehicleRiggedPart
+{
+	MeshHandle handle = InvalidMeshHandle();
+	std::string boneName;
+	int boneNodeIndex = -1;
+	int vertexCount = 0;
+	int triangleCount = 0;
+	b3Vec3 restCenter = b3Vec3_zero;   // authored-world-meters bbox centre of this part at rest
+	b3Vec3 boneRestWorld = b3Vec3_zero; // authored-world-meters position of this part's bone at rest
+	b3Vec3 restMin = b3Vec3_zero;	   // authored-world-meters bbox min/max at rest
+	b3Vec3 restMax = b3Vec3_zero;
+};
+
+// A model split into rigid per-bone parts. Requires the glTF to be rigidly
+// skinned (each vertex weighted 1.0 to one bone), which the audit confirms for
+// One_Sided_wheel_mount. Each part can then be driven by its own physics body:
+// the hub part follows the wheel/upright while the bracket parts stay with the
+// chassis. This is what actually "rigs" the model, as opposed to drawing the
+// whole mesh rigidly on one body.
+struct JozzVehicleRiggedMesh
+{
+	std::vector<JozzVehicleRiggedPart> parts;
+	std::string status;
+	bool textureLoaded = false;
+	int textureWidth = 0;
+	int textureHeight = 0;
+	float textureAlphaCutoff = 0.0f;
+	b3Vec3 boundsMin = b3Vec3_zero;
+	b3Vec3 boundsMax = b3Vec3_zero;
+
+	// mirrorX builds the opposite-hand copy: authored X (the arm axis) and the
+	// normals' X are negated and triangle winding is reversed, so the same
+	// yaw -90 placement that serves a left corner produces the correct mirror
+	// image for a right corner (a reflection across the car centreline).
+	bool LoadSkinnedGltf( const char* path, float metersPerBlockbenchUnit, bool mirrorX = false );
+	void Destroy();
+	bool IsLoaded() const;
+	int PartCount() const;
+	// Case-sensitive substring match on the bone name; -1 if none.
+	int FindPart( const char* boneNameSubstring ) const;
+	void DrawPart( int index, b3WorldTransform worldTransform, Vec4 color ) const;
+
+	// Draws one part rotated by `rotation` and non-uniformly scaled by `scale`,
+	// with the authored point `pivotAuthored` landing on `targetWorld`. The scale
+	// is around that pivot (so a part can stretch without drifting). Used for the
+	// telescoping damper's stretch section.
+	void DrawPartScaled( int index, b3Quat rotation, b3Vec3 scale, b3Vec3 pivotAuthored, b3Pos targetWorld, Vec4 color ) const;
+
+	// Pins a part's authored endpoints A and B onto two live world points: the
+	// part rotates so its A->B axis aligns with liveA->liveB and stretches along
+	// that axis to span the gap. Used for a wishbone arm (chassis mount -> ball
+	// joint): the arm pivots and its ends stay glued to both bodies.
+	void DrawPartBetween( int index, b3Vec3 authoredA, b3Vec3 authoredB, b3Pos liveA, b3Pos liveB, Vec4 color ) const;
+
+	// Draws an Asset_Dumper-style vertical damper stretched between two live
+	// mount points: Part_Upper pinned rigidly at topWorld, Part_Lower at
+	// botWorld, Part_Stretch scaled along the damper axis to bridge them. Part
+	// names are matched by substring ("Upper"/"Lower"/"Stretch").
+	void DrawTelescopingDamper( b3Pos topWorld, b3Pos botWorld, Vec4 color ) const;
 };
 
 struct JozzVehicleAuditMetadata;

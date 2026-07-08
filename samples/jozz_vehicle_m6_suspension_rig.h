@@ -3,39 +3,64 @@
 
 #pragma once
 
-// M6 Suspension Rig Foundation: the first multi-body suspension layer.
+// M6 Suspension Rig Foundation + M7 Real Forces Foundation.
 //
 // The M5 vehicle proved the single-joint corner (chassis -> b3WheelJoint ->
-// wheel). M6 introduces the real thing: a knuckle (upright) body per corner,
-// control arms expressed as rigid link rods between hardpoints, a coilover
-// spring/damper, and a physical steering rack with tie rods. The foundation
-// is HARDPOINT-BASED on purpose: a suspension type is fully described by
-// where its attachment points sit in chassis-local space, which is exactly
-// the data a future asset importer can read from Blockbench markers/sockets.
-// Swapping geometry (street/drift/offroad, light/heavy) means swapping
-// hardpoints and tuning - not code.
+// wheel). M6 introduced the multi-body corner; M7 rebuilt it so every
+// behavior the driver feels comes from a mechanism a real car has, not from
+// a script. The foundation is HARDPOINT-BASED on purpose: a suspension type
+// is fully described by where its attachment points sit in chassis-local
+// space, which is exactly the data a future asset importer can read from
+// Blockbench markers/sockets. Swapping geometry (street/drift/offroad,
+// light/heavy) means swapping hardpoints and tuning - not code.
 //
 // Rig types per axle:
 //   INTEGRATED_STRUT   - the validated M5 model (one b3WheelJoint per corner).
 //                        Cheap and proven; the fallback and the light-vehicle
 //                        option. Optionally tilts the strut axis by a caster
 //                        angle so even this rig gains a self-centering effect.
-//   DOUBLE_WISHBONE    - multi-body: knuckle + wheel bodies; upper/lower
-//                        wishbones as 2+2 rigid rods (a triangular arm IS two
-//                        rods meeting at a ball joint); coilover as a distance
-//                        joint with spring/damping/travel limits; front axle
-//                        steers through a rack body on a prismatic joint with
-//                        rigid tie rods, rear axle gets a fixed toe link.
+//   DOUBLE_WISHBONE    - multi-body: control-arm BODIES on chassis hinges
+//                        (revolute, axis through the fore/aft mount hardpoints,
+//                        angle limits = physical droop/bump stops) + spherical
+//                        ball joints to the knuckle (cone/twist limited);
+//                        coilover as a distance joint with spring/damping and
+//                        travel limits; front axle steers through a rack body
+//                        on a prismatic joint with rigid tie rods, rear axle
+//                        gets a fixed toe link.
+//   TRAILING_ARM       - one-sided trailing arm (Jozz's One_Sided_wheel_mount
+//                        model): arm body hinged to the chassis about the
+//                        lateral (Z) axis with angle-limit stops, wheel spins
+//                        on the arm, coilover between contract damper points.
+//                        No steering DOF - meant for the rear axle; on the
+//                        front it builds but does not steer.
 //
-// Why link rods instead of wishbone bodies: a two-point rigid rod is exactly
-// a distance constraint - the cheapest, most stable constraint an iterative
-// solver has, and the kinematics are identical. Fewer bodies also keeps the
-// mass ratios sane under a ~700 kg chassis. Visual wishbones can later be
-// drawn/mounted between the same hardpoints (the M4 endpoint-preview idea).
+// M6 LESSON (recorded, do not repeat): the first wishbone build expressed
+// each triangular arm as two rigid distance-joint rods. A distance constraint
+// has TWO solutions (mirrored about the line through the chassis point), so a
+// hard landing that momentarily overwhelmed the solver could snap the corner
+// into the mirrored branch - "broken suspension" that never recovers. Arms as
+// hinged bodies with angle limits have exactly one motion branch, and the
+// limits are the same physical droop/bump stops a real car has.
+//
+// M7 real-forces rules:
+//   Steering is back-drivable: with the driver's hands off (near-zero steer
+//   input) the rack spring/servo release and only a small friction force
+//   remains, so caster trail physically steers the wheels toward the travel
+//   direction (counter-steer in slides, straightening after corners). The M6
+//   software blend of the command toward the travel direction is REMOVED -
+//   it read as scripted drift, which it was.
+//   Drive is torque-based: the spin motor targets the rev limit and throttle
+//   scales the available torque (tapering near the limit), so wheelspin,
+//   burnouts and power-slides come from torque vs grip, not from a speed servo.
+//   Anti-roll bars per axle transfer load between the corner pairs from the
+//   travel difference - the real mechanism that replaces the upright-assist
+//   crutch (now default OFF).
+//   Quadratic aero drag at the chassis makes top speed a force balance.
 //
 // Physics rules carried over:
 //   Wheel collision = primitive shapes, never glTF mesh in v0.
-//   Knuckle/rack shapes never collide (maskBits = 0); they exist for mass.
+//   Structural bodies (knuckle, rack, arms) carry NO shapes; mass is set
+//   explicitly (the M6 CCD/TOI lesson).
 //   Suspension spring rest = the authored rest pose; travel limits explicit.
 //
 // Direction convention (identical to M5, single source of truth there too):
@@ -57,6 +82,7 @@ enum JozzVehicleM6RigType
 {
 	JOZZ_M6_RIG_INTEGRATED_STRUT = 0,
 	JOZZ_M6_RIG_DOUBLE_WISHBONE = 1,
+	JOZZ_M6_RIG_TRAILING_ARM = 2,
 };
 
 // Collision categories. IMPORTANT: b3DefaultShapeDef() sets categoryBits to
@@ -174,12 +200,34 @@ struct JozzVehicleM6WishboneGeometry
 								   // reason; default 0.6.
 	float coiloverTopHeight;	   // coilover chassis eye this far above the wheel center
 	float coiloverTopInboard;	   // ...and this far inboard
+	float restArmDroopDeg;		   // arm rest angle: chassis mounts raised this many degrees
+								   // above the ball joints, so at static ride height the arms
+								   // slope DOWN to the wheel (droop) instead of up. 0 = arms
+								   // level at the design pose; positive = wheels hang below the
+								   // mounts. This is the geometric half of the pose - the spring
+								   // rest holds the car at that pose.
 };
 
 // wheelbase/track feed the Ackermann trapezoid angle; isLeft mirrors Z.
 JozzVehicleM6WishboneHardpoints JozzVehicleM6MakeWishboneHardpoints( const JozzVehicleM6WishboneGeometry& geometry,
 																	 b3Vec3 restWheelCenter, bool isLeft, float wheelbase,
 																	 float track );
+
+// Trailing-arm corner geometry as chassis-local OFFSETS FROM THE REST WHEEL
+// CENTER, authored for the LEFT corner (Z is mirrored for the right side).
+// This is the hardpoint contract of the trailing arm rig: today it comes from
+// the built-in generator or from the One_Sided_wheel_mount sidecar contract
+// (see jozz_vehicle_m7_suspension_import), tomorrow from any asset's markers.
+struct JozzVehicleM6TrailingArmGeometry
+{
+	b3Vec3 pivotOffset;			// hinge point on the chassis; +X = ahead of the wheel (a trailing arm trails)
+	b3Vec3 damperArmOffset;		// coilover lower eye on the arm
+	b3Vec3 damperChassisOffset; // coilover upper eye on the chassis
+	float armMass;				// arm + hub carrier, the unsprung non-wheel mass
+	bool loadedFromContract;	// diagnostics: true when an asset contract filled this struct
+};
+
+JozzVehicleM6TrailingArmGeometry JozzVehicleM6DefaultTrailingArmGeometry();
 
 // Exact rack stroke (meters) that yaws the INNER wheel to steerAngle radians,
 // solved from the tie-rod/steering-arm geometry in the horizontal plane
@@ -210,7 +258,9 @@ struct JozzVehicleM6Config
 
 	// Multi-body pieces.
 	JozzVehicleM6WishboneGeometry wishbone;
+	JozzVehicleM6TrailingArmGeometry trailingArm;
 	float knuckleMass; // upright + hub + brake, the unsprung non-wheel mass
+	float armMass;	   // one control-arm body (wishbone corners)
 	float rackMass;
 	float rackHalfWidth;   // rack body half length across Z
 	float rackTravel;	   // prismatic limit; full steering maps onto this stroke
@@ -236,10 +286,36 @@ struct JozzVehicleM6Config
 	float rearSuspensionScale;
 	float reboundTravel;
 	float compressionTravel;
+	// Spring preload: the coilover rest length is set this far ABOVE the design
+	// length, so under the car's static weight it settles back at the design pose
+	// (arms drooped as authored, correct track, zero toe) instead of sagging below
+	// it. Raising it lifts ride height; travel limits stay measured from the design
+	// pose. This is what makes the pose a deliberate setting, not an accident of
+	// spring rate vs weight.
+	float suspensionPreload;
 
-	// Drive.
-	float maxDriveSpeed;
+	// Anti-roll bars: load transfer per axle from the left/right travel
+	// difference, F = stiffness * (travelLeft - travelRight), pushing the
+	// more-compressed corner down and its partner up, with equal/opposite
+	// reactions on the chassis - a pure anti-roll couple, zero net force.
+	// This is the real mechanism that lets the upright-assist crutch stay off.
+	float arbFrontStiffness; // N per meter of travel difference; 0 disables
+	float arbRearStiffness;
+
+	// Quadratic aero drag applied at the chassis center of mass:
+	// F = -0.5 * airDensity * dragArea * |v| * v. Top speed becomes a force
+	// balance instead of a motor speed cap.
+	float aeroDragArea; // Cd * A in m^2; 0 disables
+
+	// Drive: torque-based. The spin motors always target the rev limit
+	// (maxDriveSpeed) and the throttle scales the available torque, tapering
+	// linearly to zero between driveTaperStart * maxDriveSpeed and
+	// maxDriveSpeed - a minimal engine curve. Whether a wheel spins up (or
+	// breaks loose) is decided by torque against contact grip, not by a
+	// speed servo chasing a target.
+	float maxDriveSpeed; // rad/s rev limit at the wheel
 	float maxDriveTorque;
+	float driveTaperStart; // 0..1 fraction of maxDriveSpeed where torque starts tapering
 	float brakeTorque;
 	float coastTorque;
 	bool allWheelDrive;
@@ -248,23 +324,27 @@ struct JozzVehicleM6Config
 	// front axle the rack spring chases rackTravel-scaled targets and the
 	// Ackermann split comes from the physical trapezoid; on a strut axle the
 	// targets go through the same math the M5 module validated.
+	//
+	// Back-drivable hands model (M7): while |steer input| > deadzone the rack
+	// spring + servo act as the driver's grip and the power steering. With the
+	// input released the spring/servo let go and only the friction force below
+	// resists rack motion, so the caster trail in the geometry physically
+	// steers the wheels toward the travel direction. The M6 software blend of
+	// the command toward the travel direction is gone (documented negative
+	// result: it read as scripted drift).
 	float maxSteeringAngleDegrees;
 	float steeringHertz;
 	float steeringDampingRatio;
-	float maxSteeringTorque; // strut axle only; the rack spring is limited by hertz
-	bool ackermannGeometry;	 // strut: computed targets; wishbone: trapezoid arms
-	float strutCasterDeg;	 // tilts the strut travel/steer axis rearward (0 = exact M5)
+	float maxSteeringTorque;	  // strut axle only; the rack spring is limited by hertz
+	float rackFrictionForce;	  // N; hands-off resistance of the rack + column
+	float steeringFrictionTorque; // N*m; hands-off resistance of a strut corner
+	float steerInputDeadzone;	  // |input| below this = hands off the wheel
+	bool ackermannGeometry;		  // strut: computed targets; wishbone: trapezoid arms
+	float strutCasterDeg;		  // tilts the strut travel/steer axis rearward (0 = exact M5)
 
-	// Self-aligning assist (the software half of drift feel; the hardware
-	// half is casterDeg above). When the driver eases off the steer input
-	// during a slide, the commanded rack angle blends toward the direction
-	// the car is actually moving, like a real wheel finding center.
-	bool selfAlignAssist;
-	float selfAlignGain;	 // 0..1 blend weight at zero steer input
-	float selfAlignMinSpeed; // m/s of planar speed before the assist wakes up
-	float selfAlignMaxSlipDeg; // clamp on the alignment target angle
-
-	// Soft keep-upright helper (same as M5/stock Driving).
+	// Soft keep-upright helper (same as M5/stock Driving). M7 default: OFF -
+	// the anti-roll bars are the honest mechanism; this stays as a rescue
+	// toggle for experiments.
 	bool uprightAssist;
 	float uprightHertz;
 	float uprightDampingRatio;
@@ -277,19 +357,39 @@ JozzVehicleM6Config JozzVehicleM6DefaultConfig( float wheelRadius, float wheelWi
 struct JozzVehicleM6CornerRuntime
 {
 	int rigType;
-	b3BodyId knuckleId; // null on strut corners
+	b3BodyId knuckleId;	 // wishbone corners
+	b3BodyId upperArmId; // wishbone corners: control-arm bodies on chassis hinges
+	b3BodyId lowerArmId;
+	b3BodyId trailingArmId; // trailing-arm corners
 	b3BodyId wheelId;
 	b3ShapeId wheelShapeIds[JOZZ_M6_MAX_WHEEL_SHAPES];
 	int wheelShapeCount;
-	b3JointId strutJointId;	   // b3WheelJoint (strut corners)
-	b3JointId spinJointId;	   // revolute knuckle->wheel (wishbone corners)
-	b3JointId linkJointIds[4]; // upper front/rear, lower front/rear rods
-	int linkCount;
+	b3JointId strutJointId;		// b3WheelJoint (strut corners)
+	b3JointId spinJointId;		// revolute (arm|knuckle)->wheel (multi-body corners)
+	b3JointId upperHingeId;		// revolute chassis->arm, limits = droop/bump stops
+	b3JointId lowerHingeId;
+	b3JointId upperBallId;		// spherical arm->knuckle, cone/twist limited
+	b3JointId lowerBallId;
+	b3JointId armHingeId;		// revolute chassis->trailing arm
 	b3JointId coiloverJointId;
-	b3JointId steerLinkJointId; // tie rod (front) / toe link (rear)
+	b3JointId steerLinkJointId; // tie rod (front) / toe link (rear), wishbone only
 	// Cached rest geometry for telemetry/debug (chassis-local).
 	b3Vec3 restWheelCenterLocal;
 	JozzVehicleM6WishboneHardpoints hardpoints;
+	// Trailing corners: resolved chassis-local points (mirrored per side) and
+	// the coilover compensation the corner was built with. The hertz scale
+	// maps the config suspension hertz onto the damper joint so live tuning
+	// keeps the compensated wheel rate (see CreateTrailingArmCorner).
+	b3Vec3 trailingPivotLocal;
+	b3Vec3 trailingDamperArmLocal;
+	b3Vec3 trailingDamperChassisLocal;
+	float trailingCoiloverHertzScale;
+	float trailingMotionRatio;
+	// Coilover length at the authored design pose (arms at restArmDroopDeg, no
+	// preload). Cached so ride height (preload) and the bump/droop travel stops
+	// can be pushed onto the live joint (b3DistanceJoint_SetLength/SetLengthRange)
+	// whenever the pose config changes, without rebuilding the vehicle.
+	float coiloverDesignLength;
 };
 
 struct JozzVehicleM6
@@ -317,10 +417,10 @@ struct JozzVehicleM6DriveInput
 
 void UpdateJozzVehicleM6Drive( const JozzVehicleM6& vehicle, const JozzVehicleM6DriveInput& input );
 
-// The commanded rack angle after the self-align assist, exposed so the
-// validation CLI asserts the exact math the drive path uses. localVelocity is
-// the chassis velocity rotated into chassis space.
-float ComputeJozzVehicleM6RackAngle( const JozzVehicleM6Config& config, float steerInput, b3Vec3 localVelocity );
+// The commanded rack angle from the raw input (clamped input * max angle).
+// No velocity term: self-alignment is physical (caster trail back-driving the
+// released rack), not a command blend.
+float ComputeJozzVehicleM6RackAngle( const JozzVehicleM6Config& config, float steerInput );
 
 float GetJozzVehicleM6ForwardSpeed( const JozzVehicleM6& vehicle );
 
