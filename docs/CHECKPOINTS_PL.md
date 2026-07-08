@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-08 · P1: twist-fence z configu + STOP — inny mechanizm klinowania · (do commitu)
+- CO:     `CreateControlArm` dostał `twistLimitRadians` (przód=maxSteer+10°=42°, tył=15°, liczone w `CreateWishboneCorner`), zastępując hardcode ±70° na przegubie kulowym; sonda P1 w walidatorze (martwy punkt, udar boczny FL, pełny skręt) — patrz TECH_DEBT #9.
+- CZEMU:  audyt P1-P6 (task #40) — stary płot ±70° był POZA policzonym martwym punktem drążka (59.5°), co teoretycznie pozwalało na przeskok gałęzi rozwiązania bez powrotu.
+- EFEKT:  martwy punkt 59.5° > nowy płot 42°/15° (asercja trzyma); pełny skręt w miejscu nieprzycięty (32.5°). **STOP** — sonda udarowa pokazuje, że koło (V≥10 m/s) i tak NIE wraca do zera (~16-34°) IDENTYCZNIE z i bez płotu (różnica <0.1°, kąty nigdy nie zbliżają się do żadnego limitu), niemonotonicznie względem siły uderzenia, niezależnie od tarcia zębatki (test z tarciem≈0 - bez zmiany). To ODRĘBNY mechanizm niż zdiagnozowany w audycie (prawdopodobnie druga gałąź `sqrt` w `ComputeJozzVehicleM6RackStroke`). Sonda zostawiona jako diagnostyczna (nie blokuje bramki) — pełne dane w TECH_DEBT #9. Walidator OK, test.exe PASS, boot-smoke 0 błędów, żadna istniejąca sonda M7 się nie zmieniła.
+- DALEJ:  **czekam na decyzję Jozza** (TECH_DEBT #9) — jak zaadresować przeskok gałęzi w drążku. Dopóki nierozwiązane, P3-P6 z planu stroją się do wciąż złamanego układu (zasada planu) — nie kontynuuję automatycznie.
+
 ## 2026-07-08 · P2: RecomputeRackTravel() w Apply + tripwire + regresja · (do commitu)
 - CO:     `ApplyPendingStructuralSetup()` (rig_lab) woła teraz `RecomputeRackTravel()` przed `CreateVehicle()`; nowy tripwire w `CreateJozzVehicleM6` (printf, nie assert) porównuje `config.rackTravel` z przeliczonym na miejscu; nowa sonda walidatora `RunP2RackTravelRegressionProbe`.
 - CZEMU:  audyt P1-P6 (task #41) — bez tego suwaki geometrii kierownicy (Apply) rozstrajały limit maglownicy względem realnej geometrii, otwierając drogę do przestrzału w martwy punkt drążka.

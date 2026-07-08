@@ -158,7 +158,55 @@ pamięci.
 
 ---
 
-## 9. Świadomie odłożone (roadmapa, nie „dług") — żeby nie zaskoczyło
+## 9. 🔴 Zakleszczenie kierownicy po udarze — mechanizm INNY niż zdiagnozowany w audycie
+
+**Opis (2026-07-08, znalezisko z weryfikacji etapu P1):** audyt
+`AUDIT_PHYSICS_STEERING_2026_07_08_PL.md` diagnozował „łamanie skrętu pod
+przeciążeniem" jako drążek/toe-link przeskakujący martwy punkt trapezu
+(over-center ~59.5° dla domyślnej geometrii) przez zbyt szeroki, hardcodowany
+płot ±70° na przegubie kulowym. P1 (task #40) zawęził ten płot do wartości z
+configu (przód: maxSteer+10°=42°, tył: 15°) — kod scalony, bezpieczny i
+poprawny SAM W SOBIE (asercja „fence ≤ deadPoint−3°" trzyma, pełny skręt w
+miejscu nieprzycięty).
+
+**ALE** sonda udarowa (boczny impuls na koło przednio-lewe, hands-off, wzorzec
+z planu P1 §3b) pokazuje, że koło i tak **nie wraca do zera** po uderzeniu
+V≥10 m/s — osiada na kącie ~16-34°, **identycznie z i bez płotu P1**
+(liczby nie różnią się o więcej niż 0.1° między starym ±70° a nowym 42°/15°),
+a kąty nigdy nie zbliżają się do żadnego z tych limitów. Sprawdzone i
+wykluczone: (a) trzymanie przez tarcie zębatki (`rackFrictionForce` zbite do
+1 N — bez zmiany, koło nadal nie wraca); (b) monotoniczność względem siły
+uderzenia (V=6→ok, V=10→-15.7°, V=14→-33.8°, V=20→-33.5°, V=28→-22° —
+NIEMONOTONICZNE, typowe dla przeskoku między dwiema gałęziami rozwiązania, nie
+dla efektu ciągłego typu tarcie/sprężystość).
+
+**Hipoteza robocza (niepotwierdzona):** `ComputeJozzVehicleM6RackStroke`
+rozwiązuje pozycję drążka wzorem zamkniętym z `sqrt(...)` — matematycznie ma
+DWA fizyczne pierwiastki (±reach), kod zawsze bierze `+reach` przy PROJEKTOWANIU
+geometrii, ale iteracyjny solver jointów żywego rigu nie ma takiego
+ograniczenia i przy dostatecznie mocnym udarze może osiąść na gałęzi
+odpowiadającej `-reach` w innym miejscu niż zakładany martwy punkt. To
+odrębny mechanizm od tego, który P1 naprawia (limit kąta na przegubie), więc
+zacieśnienie płotu go nie dotyka.
+
+**Ryzyko:** wysokie dla poczucia jazdy — to dokładnie objaw zgłoszony przez
+Jozza („zawieszenie/skręt łamie się pod przeciążeniem"), tyle że mechanizm
+inny niż w audycie. Dalsze etapy planu (P3-P6) zakładają ustabilizowany rig —
+kontynuowanie planu bez naprawy tego ryzykuje strojenie do wciąż złamanego
+układu (zasada planu: „strojenie łamliwego układu stroi się do bugów").
+
+**Plan:** ZATRZYMANE na STOP zgodnie z `PLAN_STABILNOSC_PROWADZENIE_PL.md` §3d
+warunek (c). Sonda pozostaje w walidatorze jako DIAGNOSTYCZNA (drukuje liczby,
+NIE blokuje bramki — patrz komentarz przy `RunP1SteeringFenceProbe` w
+`jozz_vehicle_validation.cpp`). Wymaga decyzji Jozza: albo przeprojektować
+`ComputeJozzVehicleM6RackStroke`/rozwiązanie drążka tak, żeby miało jeden
+jednoznaczny branch (np. dodatkowe ograniczenie geometryczne wykluczające
+`-reach`), albo inny mechanizm (dodatkowy joint/constraint blokujący
+przeskok). NIE improwizować obejścia bez Jozza.
+
+---
+
+## 10. Świadomie odłożone (roadmapa, nie „dług") — żeby nie zaskoczyło
 
 Nie są zepsute, są planowo poza zakresem v0. Wypisane, żeby nikt nie „odkrył" ich
 jako braków: soft-tire (deformacja opony), drivetrain (dyfry/split momentu/engine

@@ -96,6 +96,18 @@ istnieje jeszcze inna rozjechana ścieżka — zapisz którą i pytaj).
 
 ## 3. ETAP P1 — twist-fence z konfiguracji (task #40) — RDZEŃ PLANU
 
+> **STOP wykonany 2026-07-08.** Płot z §3c WDROŻONY (kod scalony, bezpieczny
+> sam w sobie — martwy punkt/pełny skręt trzymają). Ale sonda z §3b/3d ujawniła
+> **STOP warunek (c)**: koło po udarze V≥10 m/s klinuje się (~16-34°)
+> IDENTYCZNIE z i bez płotu — inny, niezdiagnozowany mechanizm (prawdopodobnie
+> druga gałąź `sqrt` w `ComputeJozzVehicleM6RackStroke`). Szczegóły i pełne
+> liczby: `TECH_DEBT_PL.md` #9, `CHECKPOINTS_PL.md` (wpis P1). Sonda jest w
+> walidatorze jako diagnostyczna (nie blokuje bramki). **NIE kontynuuj P3-P6
+> bez decyzji Jozza** — plan zakłada ustabilizowany rig, a ten wciąż się
+> klinuje.
+
+
+
 **Cel:** koło fizycznie NIE MOŻE przeskoczyć martwego punktu drążka →
 „złamany skręt" przestaje istnieć; po udarze układ zawsze wraca.
 

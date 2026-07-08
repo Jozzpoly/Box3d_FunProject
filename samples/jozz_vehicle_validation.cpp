@@ -1192,6 +1192,165 @@ bool RunP2RackTravelRegressionProbe( const JozzVehiclePrimitiveDefaults& default
 	return ok;
 }
 
+// P1: the tie-rod steering linkage has its own over-center "dead point" - a
+// steering angle past which the linkage has no more mechanical advantage
+// (rackTravel stops increasing with angle - see ComputeJozzVehicleM6RackStroke).
+// The knuckle ball-joint's twist limit used to be a flat hardcoded +-70 deg,
+// well past that dead point; this probe (a) locates the dead point for the
+// default geometry and asserts the config-derived fence stays clear of it,
+// and (c) proves the (now tighter) fence does not cut normal full-lock
+// steering. Both hold and are asserted below.
+//
+// (b) ALSO fires a lateral impulse at the front-left wheel while hands-off,
+// per the P1 plan's reproduction recipe. Measured finding (2026-07-08): at
+// V=10/14 m/s the wheel settles at a nonzero angle (roughly 16-34 deg) and
+// never returns to straight - but this persists byte-for-byte identically
+// whether the twist-fence fix is applied or not (angles never approach even
+// the OLD +-70 deg limit), and persists with rackFrictionForce forced near
+// zero (rules out a friction-hold equilibrium). So this is a REAL but
+// SEPARATE mechanism from the one P1 targets - most likely the tie-rod/rack
+// closed-form solve (ComputeJozzVehicleM6RackStroke's sqrt) has two physical
+// roots and the iterative joint solver can settle the live linkage onto the
+// "wrong" one under a hard enough impact, independent of any joint limit.
+// Per the plan's own STOP rule (3d, condition c: "kolo nadal klinuje sie >
+// 20 deg" after the fix), this is left as a documented, NON-gating
+// diagnostic - not asserted - pending Jozz's decision on how to address it
+// (see docs/CHECKPOINTS_PL.md). Do not "fix" this by loosening the numbers
+// below; it needs an actual kinematics decision, not a threshold tweak.
+bool RunP1SteeringFenceProbe( const JozzVehiclePrimitiveDefaults& defaults )
+{
+	std::printf( "p1 steering fence probe:\n" );
+	bool ok = true;
+
+	JozzVehicleM6Config config =
+		JozzVehicleM6DefaultConfig( defaults.wheelRadius, defaults.wheelWidth, defaults.assetSuspensionTravelHint );
+
+	// (a) Dead point: first angle (0.5 deg steps) where the rack stroke stops
+	// increasing.
+	float wheelbase = 2.0f * config.axleHalfSpacing;
+	float deadPointDeg = 90.0f;
+	{
+		float prevStroke = ComputeJozzVehicleM6RackStroke( config.wishbone, wheelbase, config.trackHalfWidth,
+														   config.rackHalfWidth, 1.0f * B3_PI / 180.0f );
+		for ( float deg = 1.5f; deg < 89.0f; deg += 0.5f )
+		{
+			float stroke = ComputeJozzVehicleM6RackStroke( config.wishbone, wheelbase, config.trackHalfWidth,
+														   config.rackHalfWidth, deg * B3_PI / 180.0f );
+			if ( stroke <= prevStroke )
+			{
+				deadPointDeg = deg;
+				break;
+			}
+			prevStroke = stroke;
+		}
+	}
+	std::printf( "p1 tie-rod dead point (default geometry): %.1f deg\n", deadPointDeg );
+
+	float frontFenceDeg = config.maxSteeringAngleDegrees + 10.0f;
+	std::printf( "p1 front twist fence: %.1f deg (maxSteer %.0f + 10 margin)\n", frontFenceDeg,
+				 config.maxSteeringAngleDegrees );
+	ok &= CheckTrue( "p1 front fence stays clear of the tie-rod dead point", frontFenceDeg <= deadPointDeg - 3.0f );
+
+	// (b) Impact probe: three lateral-velocity impulses on the front-left
+	// wheel body while hands-off, then watch whether steering angle returns
+	// near straight or stays jammed near/past the fence.
+	const float impactSpeeds[3] = { 6.0f, 10.0f, 14.0f };
+	for ( float impactSpeed : impactSpeeds )
+	{
+		b3WorldDef worldDef = b3DefaultWorldDef();
+		b3WorldId worldId = b3CreateWorld( &worldDef );
+		b3BodyId groundId = CreateM6SmokeGround( worldId, 0.8f );
+
+		float spawnHeight = config.restDrop + config.wheelEnvelope.radius + 0.05f;
+		JozzVehicleM6 vehicle = CreateJozzVehicleM6( worldId, groundId, config, { 0.0f, spawnHeight, 0.0f } );
+		ok &= CheckTrue( "p1 impact vehicle created", vehicle.valid );
+
+		const float timeStep = 1.0f / 60.0f;
+		const int subStepCount = 4;
+
+		JozzVehicleM6DriveInput input = {};
+		for ( int i = 0; i < 120; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, input );
+			b3World_Step( worldId, timeStep, subStepCount );
+		}
+
+		b3BodyId flWheel = vehicle.corners[JOZZ_M6_FRONT_LEFT].wheelId;
+		b3Vec3 before = b3Body_GetLinearVelocity( flWheel );
+		b3Vec3 impactVelocity = { before.x, before.y, before.z + impactSpeed };
+		b3Body_SetLinearVelocity( flWheel, impactVelocity );
+
+		float worstAngleDeg = 0.0f;
+		float finalAngleDeg = 0.0f;
+		std::printf( "p1 impact V=%.0f m/s:\n", impactSpeed );
+		for ( int i = 0; i < 300; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, input );
+			b3World_Step( worldId, timeStep, subStepCount );
+
+			float flDeg = 180.0f / B3_PI * GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_LEFT ).steeringAngle;
+			float frDeg = 180.0f / B3_PI * GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_RIGHT ).steeringAngle;
+			worstAngleDeg = b3MaxFloat( worstAngleDeg, b3MaxFloat( std::fabs( flDeg ), std::fabs( frDeg ) ) );
+			if ( ( i + 1 ) % 60 == 0 )
+			{
+				std::printf( "  step %3d: FL %.1f deg, FR %.1f deg\n", i + 1, flDeg, frDeg );
+			}
+			if ( i == 299 )
+			{
+				finalAngleDeg = 0.5f * ( std::fabs( flDeg ) + std::fabs( frDeg ) );
+			}
+		}
+
+		char label[64];
+		std::snprintf( label, sizeof( label ), "p1 impact V=%.0f stays within fence + 2 deg", impactSpeed );
+		ok &= CheckTrue( label, worstAngleDeg < frontFenceDeg + 2.0f );
+		// NOT gated - see the function comment above ("separate mechanism,
+		// pending Jozz"). Printed so the number is still visible on every run.
+		std::printf( "  final angle %.1f deg after 300 steps (%s to straight)\n", finalAngleDeg,
+					 finalAngleDeg < 12.0f ? "returned" : "did NOT return" );
+		ok &= CheckTrue( "p1 impact state is finite", IsM6VehicleStateValid( vehicle ) );
+
+		DestroyJozzVehicleM6( &vehicle );
+		b3DestroyWorld( worldId );
+	}
+
+	// (c) Non-interference: existing full-lock steering must still reach
+	// close to the commanded max angle - the fence must not cut normal
+	// steering. Front-left is the Ackermann inner wheel on a left lock, so it
+	// steers MORE than the commanded angle - the harder case for "does the
+	// fence get in the way".
+	{
+		b3WorldDef worldDef = b3DefaultWorldDef();
+		b3WorldId worldId = b3CreateWorld( &worldDef );
+		b3BodyId groundId = CreateM6SmokeGround( worldId, 0.8f );
+
+		float spawnHeight = config.restDrop + config.wheelEnvelope.radius + 0.05f;
+		JozzVehicleM6 vehicle = CreateJozzVehicleM6( worldId, groundId, config, { 0.0f, spawnHeight, 0.0f } );
+
+		const float timeStep = 1.0f / 60.0f;
+		const int subStepCount = 4;
+
+		JozzVehicleM6DriveInput input = {};
+		input.steer = 1.0f;
+		for ( int i = 0; i < 120; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, input );
+			b3World_Step( worldId, timeStep, subStepCount );
+		}
+		float flDeg = 180.0f / B3_PI * GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_LEFT ).steeringAngle;
+		std::printf( "p1 full lock (steer=1.0, 120 steps): FL %.1f deg (commanded limit %.0f deg)\n", flDeg,
+					 config.maxSteeringAngleDegrees );
+		ok &= CheckTrue( "p1 fence does not cut full-lock steering", flDeg >= 30.0f );
+		ok &= CheckTrue( "p1 full lock state is finite", IsM6VehicleStateValid( vehicle ) );
+
+		DestroyJozzVehicleM6( &vehicle );
+		b3DestroyWorld( worldId );
+	}
+
+	std::printf( "p1 steering fence probe: %s\n", ok ? "ok" : "FAILED" );
+	return ok;
+}
+
 // Wheel envelope probe. Three claims to verify:
 // 1) Width: hull-based envelopes (cylinder, union, split sidewall) must not
 //    stick out past the visual tire, unlike the single sphere (which bulges
@@ -1548,6 +1707,7 @@ int main()
 	ok &= RunM7TorqueDriveProbe( defaults );
 	ok &= RunM7TrailingArmSmoke( defaults );
 	ok &= RunP2RackTravelRegressionProbe( defaults );
+	ok &= RunP1SteeringFenceProbe( defaults );
 
 	if ( ok == false )
 	{

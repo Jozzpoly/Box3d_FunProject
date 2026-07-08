@@ -531,7 +531,8 @@ void CreateStrutCorner( b3WorldId worldId, JozzVehicleM6* vehicle, int corner, b
 // landing could snap the corner into the rods' mirrored solution branch.
 b3BodyId CreateControlArm( b3WorldId worldId, JozzVehicleM6* vehicle, b3Vec3 frontMountLocal, b3Vec3 rearMountLocal,
 						   b3Vec3 ballLocal, b3Vec3 knuckleOriginLocal, b3Quat ballFrameRotation, b3BodyId knuckleId,
-						   b3Pos chassisSpawnPosition, float armLength, b3JointId* outHingeId, b3JointId* outBallId )
+						   b3Pos chassisSpawnPosition, float armLength, float twistLimitRadians, b3JointId* outHingeId,
+						   b3JointId* outBallId )
 {
 	const JozzVehicleM6Config& config = vehicle->config;
 	b3Vec3 hingeMidLocal = b3MulSV( 0.5f, b3Add( frontMountLocal, rearMountLocal ) );
@@ -578,7 +579,13 @@ b3BodyId CreateControlArm( b3WorldId worldId, JozzVehicleM6* vehicle, b3Vec3 fro
 	// never engage in normal motion (travel swings stay under ~55 deg, steering
 	// under 32 deg) - they are pure anti-fold guards, the second fence behind
 	// the hinge limits. Frames align local Z with the kingpin so the twist
-	// limit bounds steering rotation.
+	// limit bounds steering rotation. twistLimitRadians is set per-corner by
+	// the caller (front = max steer + margin, rear = a small fixed fence) -
+	// see the P1 fix note at the call site: this used to be a flat hardcoded
+	// +-70 deg, well past the tie-rod linkage's own over-center dead point, so
+	// a hard steering impact could push the knuckle past the dead point and
+	// the rack would clamp it there with no way back (audit
+	// AUDIT_PHYSICS_STEERING_2026_07_08_PL.md).
 	{
 		b3SphericalJointDef def = b3DefaultSphericalJointDef();
 		def.base.bodyIdA = armId;
@@ -591,8 +598,8 @@ b3BodyId CreateControlArm( b3WorldId worldId, JozzVehicleM6* vehicle, b3Vec3 fro
 		def.enableConeLimit = true;
 		def.coneAngle = 80.0f * DEGREES_TO_RADIANS;
 		def.enableTwistLimit = true;
-		def.lowerTwistAngle = -70.0f * DEGREES_TO_RADIANS;
-		def.upperTwistAngle = 70.0f * DEGREES_TO_RADIANS;
+		def.lowerTwistAngle = -twistLimitRadians;
+		def.upperTwistAngle = twistLimitRadians;
 		*outBallId = b3CreateSphericalJoint( worldId, &def );
 	}
 
@@ -625,14 +632,24 @@ void CreateWishboneCorner( b3WorldId worldId, JozzVehicleM6* vehicle, int corner
 	b3Vec3 kingpinDirection = b3Normalize( b3Sub( hp.upperBallJoint, hp.lowerBallJoint ) );
 	b3Quat kingpinFrame = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisZ, kingpinDirection );
 
+	// P1 fix: the ball-joint twist limit must sit just past the tie-rod
+	// linkage's own over-center dead point, not at a flat +-70 deg that let a
+	// hard steering impact push the knuckle past that dead point with no way
+	// back (see AUDIT_PHYSICS_STEERING_2026_07_08_PL.md). Front corners steer;
+	// their fence tracks the configured max steering angle plus a margin.
+	// Rear corners do not steer at all, so a small fixed fence is enough and
+	// stays far from the dead point regardless of front steering config.
+	float twistFence = IsFrontCorner( corner ) ? ( config.maxSteeringAngleDegrees + 10.0f ) * DEGREES_TO_RADIANS
+											   : 15.0f * DEGREES_TO_RADIANS;
+
 	runtime.upperArmId =
 		CreateControlArm( worldId, vehicle, hp.upperFrontChassis, hp.upperRearChassis, hp.upperBallJoint,
 						  restWheelCenterLocal, kingpinFrame, runtime.knuckleId, chassisSpawnPosition,
-						  config.wishbone.upperArmLength, &runtime.upperHingeId, &runtime.upperBallId );
+						  config.wishbone.upperArmLength, twistFence, &runtime.upperHingeId, &runtime.upperBallId );
 	runtime.lowerArmId =
 		CreateControlArm( worldId, vehicle, hp.lowerFrontChassis, hp.lowerRearChassis, hp.lowerBallJoint,
 						  restWheelCenterLocal, kingpinFrame, runtime.knuckleId, chassisSpawnPosition,
-						  config.wishbone.lowerArmLength, &runtime.lowerHingeId, &runtime.lowerBallId );
+						  config.wishbone.lowerArmLength, twistFence, &runtime.lowerHingeId, &runtime.lowerBallId );
 
 	// Coilover: the only compliant chassis<->knuckle connection. Spring rest
 	// at the authored pose, travel limits mapped onto rod length.
