@@ -96,15 +96,15 @@ istnieje jeszcze inna rozjechana ścieżka — zapisz którą i pytaj).
 
 ## 3. ETAP P1 — twist-fence z konfiguracji (task #40) — RDZEŃ PLANU
 
-> **STOP wykonany 2026-07-08.** Płot z §3c WDROŻONY (kod scalony, bezpieczny
-> sam w sobie — martwy punkt/pełny skręt trzymają). Ale sonda z §3b/3d ujawniła
-> **STOP warunek (c)**: koło po udarze V≥10 m/s klinuje się (~16-34°)
-> IDENTYCZNIE z i bez płotu — inny, niezdiagnozowany mechanizm (prawdopodobnie
-> druga gałąź `sqrt` w `ComputeJozzVehicleM6RackStroke`). Szczegóły i pełne
-> liczby: `TECH_DEBT_PL.md` #9, `CHECKPOINTS_PL.md` (wpis P1). Sonda jest w
-> walidatorze jako diagnostyczna (nie blokuje bramki). **NIE kontynuuj P3-P6
-> bez decyzji Jozza** — plan zakłada ustabilizowany rig, a ten wciąż się
-> klinuje.
+> **P1 ZAAKCEPTOWANE przez Jozza 2026-07-08.** Płot z §3c wdrożony (przód
+> maxSteer+10°, tył 15°, zamiast hardcoded ±70°). Sonda z §3b/3d ujawniła
+> osobny efekt (kółko klinuje się w statycznym syntetycznym teście udarowym,
+> niezależnie od płotu) — ale Jozz przetestował ręcznie ~10 min ekstremalnej
+> jazdy i ani razu nie odtworzył pierwotnie zgłoszonego zerwania kierownicy,
+> które wcześniej było łatwe do wywołania. **Decyzja: sukces, kontynuować
+> plan.** Znalezisko zostaje jako watch-item (`TECH_DEBT_PL.md` #9, obniżone
+> do 🟡, nie blokuje) — syntetyczna sonda pozostaje w walidatorze
+> (diagnostyczna, nie gating).
 
 
 

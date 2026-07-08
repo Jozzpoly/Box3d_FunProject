@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-08 · Decyzja Jozza: P1 zaakceptowane, plan kontynuowany · docs
+- CO:     Jozz przetestował ręcznie ~10 min ekstremalnej jazdy po P1 — ani razu nie odtworzył pierwotnie zgłoszonego zerwania kierownicy (wcześniej łatwe do wywołania przy małych siłach/prędkościach).
+- CZEMU:  odpowiedź na STOP z poprzedniego wpisu (sonda syntetyczna pokazywała klinowanie niezależne od płotu P1).
+- EFEKT:  P1 = sukces z perspektywy realnej jazdy. Decyzja: zostawić kod jak jest, obniżyć TECH_DEBT #9 z 🔴 na 🟡 (watch-item, nie blokujący), zapisać warning w dokumentacji, kontynuować plan P2→P6.
+- DALEJ:  P3 (prześwit przód/tył) — tym razem z samodzielną krytyczną analizą planu przed implementacją (prośba Jozza), nie mechaniczne wykonanie.
+
 ## 2026-07-08 · P1: twist-fence z configu + STOP — inny mechanizm klinowania · (do commitu)
 - CO:     `CreateControlArm` dostał `twistLimitRadians` (przód=maxSteer+10°=42°, tył=15°, liczone w `CreateWishboneCorner`), zastępując hardcode ±70° na przegubie kulowym; sonda P1 w walidatorze (martwy punkt, udar boczny FL, pełny skręt) — patrz TECH_DEBT #9.
 - CZEMU:  audyt P1-P6 (task #40) — stary płot ±70° był POZA policzonym martwym punktem drążka (59.5°), co teoretycznie pozwalało na przeskok gałęzi rozwiązania bez powrotu.

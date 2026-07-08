@@ -158,7 +158,18 @@ pamięci.
 
 ---
 
-## 9. 🔴 Zakleszczenie kierownicy po udarze — mechanizm INNY niż zdiagnozowany w audycie
+## 9. 🟡 Zakleszczenie kierownicy w syntetycznej sondzie udarowej — zaakceptowane przez Jozza, watch-item
+
+**Decyzja Jozza (2026-07-08, po zgłoszeniu tego znaleziska):** pierwotny,
+realny problem — „układ kierowniczy zrywa się pod małą siłą/prędkością"
+podczas jazdy — jest NAPRAWIONY. Jozz przetestował ręcznie ~10 minut jazdy w
+ekstremalnych warunkach po P1 i ani razu nie odtworzył zerwania, które wcześniej
+występowało łatwo. **P1 zaakceptowane jako sukces, plan P2→P6 kontynuowany.**
+Poniższe znalezisko zostaje jako udokumentowany warning/watch-item — sonda
+syntetyczna (statyczny boczny impuls na nieruchomym aucie) łapie coś, co nie
+objawia się w rzeczywistej jeździe; obniżone z 🔴 na 🟡, nie blokuje dalszej
+pracy. Jeśli w przyszłości ktoś zgłosi realny nawrót „łamania skrętu" pod
+jazdą (nie w syntetycznym teście), wróć tutaj najpierw.
 
 **Opis (2026-07-08, znalezisko z weryfikacji etapu P1):** audyt
 `AUDIT_PHYSICS_STEERING_2026_07_08_PL.md` diagnozował „łamanie skrętu pod
@@ -189,20 +200,18 @@ odpowiadającej `-reach` w innym miejscu niż zakładany martwy punkt. To
 odrębny mechanizm od tego, który P1 naprawia (limit kąta na przegubie), więc
 zacieśnienie płotu go nie dotyka.
 
-**Ryzyko:** wysokie dla poczucia jazdy — to dokładnie objaw zgłoszony przez
-Jozza („zawieszenie/skręt łamie się pod przeciążeniem"), tyle że mechanizm
-inny niż w audycie. Dalsze etapy planu (P3-P6) zakładają ustabilizowany rig —
-kontynuowanie planu bez naprawy tego ryzykuje strojenie do wciąż złamanego
-układu (zasada planu: „strojenie łamliwego układu stroi się do bugów").
+**Ryzyko (obniżone):** nie odtworzone w realnej jeździe (patrz decyzja Jozza
+powyżej) — prawdopodobnie wymaga nierealistycznie sztywnego warunku (nieruchome
+auto + czysto boczny impuls na jedno koło, bez toczenia/prędkości wzdłużnej,
+bez samo-centrowania od ruchu do przodu) którego zwykła jazda nie generuje.
+Zostaje jako watch-item, nie jako blokujące ryzyko dla dalszych etapów.
 
-**Plan:** ZATRZYMANE na STOP zgodnie z `PLAN_STABILNOSC_PROWADZENIE_PL.md` §3d
-warunek (c). Sonda pozostaje w walidatorze jako DIAGNOSTYCZNA (drukuje liczby,
+**Status:** sonda zostaje w walidatorze jako DIAGNOSTYCZNA (drukuje liczby,
 NIE blokuje bramki — patrz komentarz przy `RunP1SteeringFenceProbe` w
-`jozz_vehicle_validation.cpp`). Wymaga decyzji Jozza: albo przeprojektować
-`ComputeJozzVehicleM6RackStroke`/rozwiązanie drążka tak, żeby miało jeden
-jednoznaczny branch (np. dodatkowe ograniczenie geometryczne wykluczające
-`-reach`), albo inny mechanizm (dodatkowy joint/constraint blokujący
-przeskok). NIE improwizować obejścia bez Jozza.
+`jozz_vehicle_validation.cpp`). Jeśli ktoś zechce to kiedyś domknąć: hipoteza
+robocza wskazuje `ComputeJozzVehicleM6RackStroke`/rozwiązanie drążka jako
+miejsce startowe (jeden jednoznaczny branch zamiast dwóch pierwiastków
+`sqrt`). Nie jest to obecnie zaplanowane — czeka na realny nawrót objawu.
 
 ---
 
