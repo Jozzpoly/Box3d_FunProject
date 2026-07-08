@@ -63,8 +63,12 @@ Claude. Raport M8 kończy się na 2026-07-07 (opadające wahacze).
 nie ma repo-widocznego zapisu jak działa system presetów/sesji ani czemu UI
 wygląda tak jak wygląda.
 
-**Plan:** dopisać do `M8_SUSPENSION_RIG_REPAIR_PLAN_PL.md` sekcję 12 (UI/UX +
-presety) albo krótki `docs/M8_UI_AND_PRESETS_PL.md`. Niepilne, ale zamyka lukę.
+**Częściowo zamknięte (2026-07-08):** wpis w `CHECKPOINTS_PL.md` (UI PL + presety
++ auto-sesja) + README §2 dają repo-widoczny skrót. Nadal **do zrobienia:** albo
+krótki `docs/M8_UI_AND_PRESETS_PL.md` z detalami (format JSON presetu, ścieżka
+sesji, dlaczego `###stableID`), albo świadoma decyzja że checkpoint wystarcza.
+Analogiczny wzorzec: rig/dumper/mount ma teraz `SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md`
+— UI/presety zasługują na taki sam zwięzły subsystem-doc, gdy wróci temat.
 
 ---
 

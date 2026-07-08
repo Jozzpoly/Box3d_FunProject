@@ -29,6 +29,16 @@ Two rules define the whole thing:
   box3d. All Jozz work lives in `samples/jozz_vehicle_*`, `tools/`, `assets/`,
   `docs/`. If you think you need to change engine internals, you are almost
   certainly wrong — stop and ask Jozz.
+  - Narrow exception, used sparingly: the shared sample host
+    (`samples/sample.h/.cpp`, `samples/host/gui.cpp`, `samples/CMakeLists.txt`)
+    may get small, **purely additive, opt-in-by-default-false** hooks when a
+    Jozz lab genuinely needs host behavior no per-sample override already
+    covers — e.g. the Polish-font fix in `gui.cpp` (M8.x), `/utf-8` in
+    `CMakeLists.txt`, and `Sample::CondenseDebugOverlay()` (2026-07-08: lets a
+    tuning-dense lab fold the info panel's frame-time/camera block behind a
+    closed header; every other sample's default is unchanged — verified by
+    screenshotting a stock sample before shipping it). Any such change must be
+    verified to leave every other sample's behavior byte-for-byte identical.
 
 ---
 
@@ -59,13 +69,34 @@ Jozz Vehicle / Lab M1 Smoke            <- oldest smoke sample (kept)
   bodies; suspension **default pose is a deliberate setting** (`restArmDroopDeg`
   geometry + `suspensionPreload` spring preload) so arms droop to the wheels
   instead of folding up; bump-steer compensation keeps the steering geometry
-  correct through droop.
+  correct through droop. ⚠ The **visual dampers are decorative and decoupled
+  from the physics spring** — before any rig/damper/mount work read
+  `docs/SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md`.
 - **Preset + session system** (`jozz_vehicle_m6_config_io.cpp/.h`): whole-vehicle
   configs save/load as JSON. `assets/vehicle_presets/*.json` (committed:
   `uliczny`/`drift`/`offroad`); `build/jozz_vehicle_m6_session.json` (gitignored
   auto-save) means restarting the sample resumes tuning instead of wiping it.
+  Debug-tab view toggles (rig diagnostic lines, wheel/mount visuals, arm tint)
+  are a SEPARATE auto-save, `build/jozz_vehicle_m6_debug_session.txt` — they are
+  view state, not vehicle tuning, so they must never leak into a preset or get
+  wiped by "restore defaults", but they still need to survive the "R" restart
+  the same way tuning does. A "Zresetuj świat" button (Świat tab) does a full
+  in-place simulation reset (vehicle respawn + props + telemetry) without going
+  through the engine's global restart at all, for anyone who wants a clean
+  world without touching the keyboard.
 - **Screenshot tooling** (`samples/host/screenshot.cpp`, `--screenshot`): D3D11
   backbuffer → PNG. This is how you SEE your own visual work headless.
+- **Dual damper visual, socket-driven** (2026-07-08): the telescoping shock
+  mesh (`Asset_Dumper.gltf`) is drawn TWICE per corner, pinned to the model's
+  own `Socket_DamperUpper_L/R` and `Socket_DamperLower_L/R` markers from the
+  `one_sided_wheel_mount.asset.json` contract - not hand-guessed offsets. `_L`/
+  `_R` differ only in Z (two shocks straddling the arm), so both get the same
+  X-mirror treatment as `Socket_WheelCenter` for right-side corners. Upper
+  rides `bracketWorld` (chassis-relative), lower rides `hubWorld` (knuckle-
+  relative) - the exact same per-corner transforms that already pin the
+  Chassis_Top/Chassis_Bottom arms, so the shocks stay glued to the live rig.
+  Visual-only (`physicsAuthority: false` in the contract); the real coilover
+  spring/damper stays the existing distance-joint physics, untouched.
 
 **Experimental / in-flight / not yet done:**
 - Aggressive droop **> ~16°** is unstable (Ackermann over-centre) — 15° is the
@@ -157,9 +188,11 @@ passed.)
   work into one commit, not one commit per file. **`main` is Jozz-only** — he
   updates it himself at real milestones. Agents never push to `main`, never
   force-push, never rewrite history. See §5 for keeping this cheap in tokens.
-- **Doc discipline:** after a real change, update the ledger
-  (`CURRENT_STATE_INDEX_PL.md`) and this file's §2 if the state moved. Do NOT add
-  a new `docs/*.md` per tiny change — the doc pile is already too big (§9).
+- **Doc discipline:** after a real change, add a ≤5-line entry to
+  `docs/CHECKPOINTS_PL.md` (co/czemu/efekt/dalej — the standing handoff
+  mechanism) and update this file's §2 if the state moved. Do NOT add a new
+  `docs/*.md` per tiny change — the doc pile is already too big (§9); a new
+  file is only for a genuinely new subsystem or a full milestone report.
 
 ---
 
@@ -264,12 +297,17 @@ useful as history, **not** as current architecture. Trust this order:
 
 **Current / authoritative:**
 - `README_FOR_AGENTS.md` (this file) — front door.
+- `docs/CHECKPOINTS_PL.md` — handoff ledger (co/czemu/efekt/dalej, newest first).
+  **Read this first for "what happened recently".**
 - `docs/CURRENT_STATE_INDEX_PL.md` — milestone ledger + validated state.
 - `docs/TECH_DEBT_PL.md` — known debt, risks, deferred work.
+- `docs/SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md` — **read before touching the visual
+  rig / dampers / mounts.** Records that the visual dampers are decorative and
+  decoupled from the physics spring, what's solid vs temporary, and a staged
+  polish plan.
 - `docs/M7_REAL_FORCES_FOUNDATION_PL.md` — the current physics model.
-- `docs/M8_SUSPENSION_RIG_REPAIR_PLAN_PL.md` — rig/pose/droop work (physics side).
-  *(Gap: the 2026-07-08 UI redesign + preset/session system are described here and
-  in §2 above but do not yet have their own report — that's a TECH_DEBT item.)*
+- `docs/M8_SUSPENSION_RIG_REPAIR_PLAN_PL.md` — rig/pose/droop work (physics side,
+  history through 2026-07-07; damper/mount current state now in the subsystem doc).
 - `docs/SUSPENSION_RIG_SPACE_CONVENTIONS_PL.md`, `docs/adr/000{1,2,3}` — conventions.
 
 **History only (do not treat as current):** everything `M0_`…`M6_`, all
