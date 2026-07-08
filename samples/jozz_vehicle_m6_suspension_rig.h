@@ -291,8 +291,17 @@ struct JozzVehicleM6Config
 	// (arms drooped as authored, correct track, zero toe) instead of sagging below
 	// it. Raising it lifts ride height; travel limits stay measured from the design
 	// pose. This is what makes the pose a deliberate setting, not an accident of
-	// spring rate vs weight.
-	float suspensionPreload;
+	// spring rate vs weight. Split per axle (P3, 2026-07-08) and deliberately NOT
+	// scaled by frontSuspensionScale/rearSuspensionScale: it used to be, on the
+	// theory that a stiffer-scaled axle sags less so needs less preload to reach
+	// the same pose - but static deflection scales like 1/stiffness while the old
+	// code multiplied preload BY the stiffness scale, coupling ride height to
+	// spring rate in the wrong direction (a stiffness change silently moved ride
+	// height, and there was no way to set height independent of stiffness or
+	// independent per axle - see AUDIT_PHYSICS_STEERING_2026_07_08_PL.md K3).
+	// Ride height and stiffness are now two independent dials.
+	float suspensionPreloadFront;
+	float suspensionPreloadRear;
 
 	// Anti-roll bars: load transfer per axle from the left/right travel
 	// difference, F = stiffness * (travelLeft - travelRight), pushing the

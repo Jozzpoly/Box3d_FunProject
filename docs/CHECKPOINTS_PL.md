@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-08 · P3: prześwit przód/tył rozprzęgnięty od twardości · (do commitu)
+- CO:     `suspensionPreload` → `suspensionPreloadFront/Rear` (config, config_io z kompatybilnością wsteczną, 3 presety, UI - dwa suwaki), usunięte mnożenie `* scale` przy wszystkich 3 miejscach tworzenia/aktualizacji coilovera (wahacz, wahacz wleczony, `ApplySuspensionTuning` na żywo).
+- CZEMU:  audyt K3 — `restLength = design + preload*scale` sprzęgało prześwit z twardością W ZŁĄ STRONĘ (kod sam przyznawał w komentarzu intencję kompensacji, ale kierunek był odwrotny do fizyki ugięcia F/k).
+- EFEKT:  pomiar PRZED: chassis.y 0.9204→1.0682→1.1194 m dla scale 0.5/1.0/2.0 (rozrzut 0.199 m). PO: 0.9337→1.0682→1.0903 m (rozrzut 0.1566 m) — identyczne przy scale=1.0 (sanity check), reszta to NATURALNE ugięcie sprężyny (k~scale², nie bug — udokumentowane w komentarzu sondy, próg asercji 0.18 m, nie "blisko zera"). Niezależność osi: preloadFront 0.07→0.12 (rear bez zmian) → przód -0.0396 m travel, tył +0.0010 m (praktycznie zero crosstalk). Kompatybilność wsteczna zweryfikowana RĘCZNIE zrzutem (stary plik sesji z samym kluczem `suspensionPreload: 0.15` → oba suwaki UI pokazują 0.150 m). Walidator OK, test.exe PASS, boot-smoke 0 błędów.
+- DALEJ:  P4 (powrót kierownicy, rozdział tarcia statyczne/kinetyczne) — z tą samą samodzielną krytyczną analizą co P3.
+
 ## 2026-07-08 · Decyzja Jozza: P1 zaakceptowane, plan kontynuowany · docs
 - CO:     Jozz przetestował ręcznie ~10 min ekstremalnej jazdy po P1 — ani razu nie odtworzył pierwotnie zgłoszonego zerwania kierownicy (wcześniej łatwe do wywołania przy małych siłach/prędkościach).
 - CZEMU:  odpowiedź na STOP z poprzedniego wpisu (sonda syntetyczna pokazywała klinowanie niezależne od płotu P1).

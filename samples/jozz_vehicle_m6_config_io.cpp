@@ -154,7 +154,8 @@ bool SaveJozzVehicleM6Config( const JozzVehicleM6Config& c, const std::string& p
 	WriteFloat( out, "  ", "rearSuspensionScale", c.rearSuspensionScale );
 	WriteFloat( out, "  ", "reboundTravel", c.reboundTravel );
 	WriteFloat( out, "  ", "compressionTravel", c.compressionTravel );
-	WriteFloat( out, "  ", "suspensionPreload", c.suspensionPreload );
+	WriteFloat( out, "  ", "suspensionPreloadFront", c.suspensionPreloadFront );
+	WriteFloat( out, "  ", "suspensionPreloadRear", c.suspensionPreloadRear );
 
 	WriteFloat( out, "  ", "arbFrontStiffness", c.arbFrontStiffness );
 	WriteFloat( out, "  ", "arbRearStiffness", c.arbRearStiffness );
@@ -270,7 +271,22 @@ bool LoadJozzVehicleM6Config( const std::string& path, JozzVehicleM6Config* outC
 	ReadFloat( json, tokens, root, "rearSuspensionScale", &c.rearSuspensionScale );
 	ReadFloat( json, tokens, root, "reboundTravel", &c.reboundTravel );
 	ReadFloat( json, tokens, root, "compressionTravel", &c.compressionTravel );
-	ReadFloat( json, tokens, root, "suspensionPreload", &c.suspensionPreload );
+	ReadFloat( json, tokens, root, "suspensionPreloadFront", &c.suspensionPreloadFront );
+	ReadFloat( json, tokens, root, "suspensionPreloadRear", &c.suspensionPreloadRear );
+	{
+		// Backward compat: pre-P3 files (session/presets saved before the
+		// front/rear split) only have a single "suspensionPreload" key, applied
+		// equally to both axles. Only takes effect if that legacy key is present
+		// - the front/rear reads above already handle new-format files.
+		int legacyIndex = FindObjectValue( json, tokens, root, "suspensionPreload" );
+		if ( legacyIndex >= 0 )
+		{
+			float legacyPreload = c.suspensionPreloadFront;
+			TokenFloat( json, tokens[legacyIndex], &legacyPreload );
+			c.suspensionPreloadFront = legacyPreload;
+			c.suspensionPreloadRear = legacyPreload;
+		}
+	}
 
 	ReadFloat( json, tokens, root, "arbFrontStiffness", &c.arbFrontStiffness );
 	ReadFloat( json, tokens, root, "arbRearStiffness", &c.arbRearStiffness );

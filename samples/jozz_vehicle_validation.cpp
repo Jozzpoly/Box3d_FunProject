@@ -1351,6 +1351,101 @@ bool RunP1SteeringFenceProbe( const JozzVehiclePrimitiveDefaults& defaults )
 	return ok;
 }
 
+struct P3SettleResult
+{
+	float chassisY;
+	float flTravel;
+	float rlTravel;
+};
+
+P3SettleResult SettleAndMeasureP3( const JozzVehicleM6Config& config )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+	b3BodyId groundId = CreateM6SmokeGround( worldId, 0.8f );
+	float spawnHeight = config.restDrop + config.wheelEnvelope.radius + 0.05f;
+	JozzVehicleM6 vehicle = CreateJozzVehicleM6( worldId, groundId, config, { 0.0f, spawnHeight, 0.0f } );
+
+	const float timeStep = 1.0f / 60.0f;
+	const int subStepCount = 4;
+	JozzVehicleM6DriveInput input = {};
+	for ( int i = 0; i < 300; ++i )
+	{
+		UpdateJozzVehicleM6Drive( vehicle, input );
+		b3World_Step( worldId, timeStep, subStepCount );
+	}
+
+	P3SettleResult result;
+	result.chassisY = (float)b3Body_GetPosition( vehicle.chassisId ).y;
+	result.flTravel = GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_LEFT ).suspensionTravel;
+	result.rlTravel = GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_REAR_LEFT ).suspensionTravel;
+
+	DestroyJozzVehicleM6( &vehicle );
+	b3DestroyWorld( worldId );
+	return result;
+}
+
+// P3: suspension preload (ride height) used to be coupled to the stiffness
+// scale in the wrong direction (K3 in the audit - see the suspensionPreload*
+// header field comment). Pre-fix measurement (recorded in CHECKPOINTS_PL.md):
+// chassis.y went 0.9204 -> 1.0682 -> 1.1194 m as frontSuspensionScale swept
+// 0.5 -> 1.0 -> 2.0 m (a 0.199 m spread). Post-fix: 0.9337 -> 1.0682 -> 1.0903 m
+// (0.1566 m spread) - identical at scale=1.0 (sanity check: preload*1.0 was
+// always a no-op), and NOT tiny at the extremes, because a real, expected
+// effect remains: static deflection under the same load is F/k, and k grows
+// with scale^2 (hertz scales with scale, k with hertz^2), so a 4x stiffness
+// sweep genuinely produces real ride-height change even with zero coupling in
+// the code - a stiffer spring naturally sags less. That is normal spring
+// behavior, not the K3 bug; K3 was specifically the EXTRA, backwards-signed
+// term stacking on top of it. This probe confirms two claims post-fix: (a)
+// the spread shrinks from the pre-fix number (some improvement, not zero -
+// don't "fix" this further by chasing full height/stiffness decoupling,
+// that reintroduces the auto-compensation complexity P3 deliberately removed
+// in favor of two independent, honest dials), and (b) front/rear preload
+// genuinely doesn't cross-talk - only the axle you touch moves.
+bool RunP3SuspensionPreloadProbe( const JozzVehiclePrimitiveDefaults& defaults )
+{
+	std::printf( "p3 suspension preload probe:\n" );
+	bool ok = true;
+
+	JozzVehicleM6Config baseConfig =
+		JozzVehicleM6DefaultConfig( defaults.wheelRadius, defaults.wheelWidth, defaults.assetSuspensionTravelHint );
+
+	// (a) Ride height vs stiffness scale - should now stay close together.
+	float minY = 1.0e9f, maxY = -1.0e9f;
+	const float scales[3] = { 0.5f, 1.0f, 2.0f };
+	for ( float scale : scales )
+	{
+		JozzVehicleM6Config config = baseConfig;
+		config.frontSuspensionScale = scale;
+		P3SettleResult r = SettleAndMeasureP3( config );
+		std::printf( "  frontSuspensionScale=%.1f: chassis.y=%.4f m\n", scale, r.chassisY );
+		minY = b3MinFloat( minY, r.chassisY );
+		maxY = b3MaxFloat( maxY, r.chassisY );
+	}
+	std::printf( "p3 ride height spread across scale 0.5-2.0: %.4f m (pre-fix was 0.199 m)\n", maxY - minY );
+	ok &= CheckTrue( "p3 ride height spread improves on the pre-fix number (residual is natural deflection, not K3)",
+					 ( maxY - minY ) < 0.18f );
+
+	// (b) Front/rear preload independence: bump front preload only, rear must
+	// not move (within the noise of a shared chassis + ARB), front must.
+	P3SettleResult baseline = SettleAndMeasureP3( baseConfig );
+
+	JozzVehicleM6Config frontUp = baseConfig;
+	frontUp.suspensionPreloadFront = 0.12f;
+	P3SettleResult altered = SettleAndMeasureP3( frontUp );
+
+	float flDelta = altered.flTravel - baseline.flTravel;
+	float rlDelta = altered.rlTravel - baseline.rlTravel;
+	std::printf( "p3 preloadFront 0.07->0.12 (rear unchanged): FL travel delta %.4f m, RL travel delta %.4f m\n",
+				 flDelta, rlDelta );
+	ok &= CheckTrue( "p3 raising front preload measurably moves the front", std::fabs( flDelta ) > 0.02f );
+	ok &= CheckTrue( "p3 raising front preload leaves the rear alone", std::fabs( rlDelta ) < 0.3f * std::fabs( flDelta ) );
+
+	std::printf( "p3 suspension preload probe: %s\n", ok ? "ok" : "FAILED" );
+	return ok;
+}
+
 // Wheel envelope probe. Three claims to verify:
 // 1) Width: hull-based envelopes (cylinder, union, split sidewall) must not
 //    stick out past the visual tire, unlike the single sphere (which bulges
@@ -1708,6 +1803,7 @@ int main()
 	ok &= RunM7TrailingArmSmoke( defaults );
 	ok &= RunP2RackTravelRegressionProbe( defaults );
 	ok &= RunP1SteeringFenceProbe( defaults );
+	ok &= RunP3SuspensionPreloadProbe( defaults );
 
 	if ( ok == false )
 	{

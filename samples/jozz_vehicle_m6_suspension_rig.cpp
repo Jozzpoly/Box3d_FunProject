@@ -339,7 +339,8 @@ JozzVehicleM6Config JozzVehicleM6DefaultConfig( float wheelRadius, float wheelWi
 	float travel = suspensionTravelHint > 0.05f ? suspensionTravelHint : 0.70f;
 	config.reboundTravel = 0.4f * travel;
 	config.compressionTravel = 0.6f * travel;
-	config.suspensionPreload = 0.07f; // holds the drooped design pose under static weight (toe ~0)
+	config.suspensionPreloadFront = 0.07f; // holds the drooped design pose under static weight (toe ~0)
+	config.suspensionPreloadRear = 0.07f;
 
 	// Anti-roll bars replace the upright-assist crutch. Sizing sanity: ~0.8 g
 	// lateral on this chassis transfers ~1.5 kN across an axle; a 0.1 m travel
@@ -658,11 +659,12 @@ void CreateWishboneCorner( b3WorldId worldId, JozzVehicleM6* vehicle, int corner
 		// designLength = coilover length at the authored (drooped) pose. The
 		// spring rest is preloaded above it so static weight settles back at the
 		// design pose; the travel stops stay measured from the design length.
-		// Preload scales per-axle like hertz/damping, so a stiffer-scaled axle
-		// (which sags less under the same load) doesn't drift off the design pose.
+		// Preload is per-axle (front/rear) but deliberately NOT scaled by the
+		// stiffness multiplier - see the field comment in the header (P3 fix).
 		float designLength = DistanceBetween( hp.coiloverChassis, hp.coiloverKnuckle );
 		runtime.coiloverDesignLength = designLength;
-		float restLength = designLength + config.suspensionPreload * scale;
+		float preload = IsFrontCorner( corner ) ? config.suspensionPreloadFront : config.suspensionPreloadRear;
+		float restLength = designLength + preload;
 
 		b3DistanceJointDef def = b3DefaultDistanceJointDef();
 		def.base.bodyIdA = vehicle->chassisId;
@@ -866,7 +868,9 @@ void CreateTrailingArmCorner( b3WorldId worldId, JozzVehicleM6* vehicle, int cor
 
 		// Ride height preload is a wheel-space (vertical) rise; the motion ratio
 		// maps it onto the damper's own axis, same as the travel stops below.
-		float preloadedLength = restLength + config.suspensionPreload * scale * motionRatio;
+		// Per-axle, NOT scaled by stiffness (P3 fix - see header field comment).
+		float preload = IsFrontCorner( corner ) ? config.suspensionPreloadFront : config.suspensionPreloadRear;
+		float preloadedLength = restLength + preload * motionRatio;
 
 		b3DistanceJointDef def = b3DefaultDistanceJointDef();
 		def.base.bodyIdA = vehicle->chassisId;

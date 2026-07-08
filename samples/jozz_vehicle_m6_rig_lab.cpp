@@ -206,7 +206,11 @@ public:
 		}
 		if ( const char* v = std::getenv( "JOZZ_M6_PRELOAD" ) )
 		{
-			m_config.suspensionPreload = (float)atof( v );
+			// Sets both axles - matches the pre-P3 single-preload behavior for
+			// existing headless-shot scripts. Use the front/rear sliders (or a
+			// preset) to set them independently.
+			m_config.suspensionPreloadFront = (float)atof( v );
+			m_config.suspensionPreloadRear = (float)atof( v );
 			ApplySuspensionTuning();
 			SyncEditFromConfig();
 		}
@@ -680,7 +684,8 @@ public:
 				// the same thing at the wheel as it does on a wishbone corner.
 				float motionRatio = runtime.rigType == JOZZ_M6_RIG_TRAILING_ARM ? runtime.trailingMotionRatio : 1.0f;
 				float design = runtime.coiloverDesignLength;
-				b3DistanceJoint_SetLength( runtime.coiloverJointId, design + m_config.suspensionPreload * scale * motionRatio );
+				float preload = isFront ? m_config.suspensionPreloadFront : m_config.suspensionPreloadRear;
+				b3DistanceJoint_SetLength( runtime.coiloverJointId, design + preload * motionRatio );
 				b3DistanceJoint_SetLengthRange( runtime.coiloverJointId,
 												 b3MaxFloat( 0.05f, design - m_config.compressionTravel * motionRatio ),
 												 design + m_config.reboundTravel * motionRatio );
@@ -852,13 +857,17 @@ public:
 		HelpMarker( "Wahacze zwisają W DÓŁ do koła w spoczynku (jak w BeamNG) zamiast wyginać się do góry. 16 st. to "
 					"zbadany bezpieczny sufit - wyżej kierownica traci geometrię (jedno koło blokuje się do oporu). "
 					"Działa tylko na osiach z podwójnym wahaczem. Wymaga Zastosuj." );
-		if ( ImGui::SliderFloat( "Prześwit", &m_config.suspensionPreload, -0.08f, 0.20f, "%.3f m" ) )
+		if ( ImGui::SliderFloat( "Prześwit przód", &m_config.suspensionPreloadFront, -0.08f, 0.20f, "%.3f m" ) )
 		{
 			ApplySuspensionTuning();
 		}
-		HelpMarker( "Docisk wstępny sprężyny: podnosi lub obniża auto, na żywo, bez przebudowy. Jak regulacja "
-					"talerzyka w regulowanym coiloverze - zmiana sztywności sprężyny (poniżej) lekko przesuwa "
-					"osiadłą wysokość, dostrój wtedy ponownie." );
+		if ( ImGui::SliderFloat( "Prześwit tył", &m_config.suspensionPreloadRear, -0.08f, 0.20f, "%.3f m" ) )
+		{
+			ApplySuspensionTuning();
+		}
+		HelpMarker( "Docisk wstępny sprężyny: podnosi lub obniża daną oś, na żywo, bez przebudowy, NIEZALEŻNIE od "
+					"twardości sprężyny (suwaki 'Mnożnik twardości' poniżej). Osobno przód/tył - podnieś tył pod "
+					"ciężki bagażnik albo przód pod docisk, bez zmiany sztywności." );
 		if ( ImGui::SliderFloat( "Skok ściskania", &m_config.compressionTravel, 0.10f, 0.70f, "%.2f m" ) )
 		{
 			ApplySuspensionTuning();
