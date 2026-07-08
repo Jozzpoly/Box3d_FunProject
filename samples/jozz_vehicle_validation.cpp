@@ -1147,6 +1147,51 @@ bool RunM7TrailingArmSmoke( const JozzVehiclePrimitiveDefaults& defaults )
 	return ok;
 }
 
+// P2 regression: rackTravel is derived from steering geometry
+// (ComputeJozzVehicleM6RackStroke) and must be recomputed whenever that
+// geometry changes, or the rack limit silently goes stale (the linkage can
+// then overshoot its own tie-rod dead point before the joint limit stops it -
+// see AUDIT_PHYSICS_STEERING_2026_07_08_PL.md). This does not assert on the
+// tripwire's stdout line directly (it is a printf, not a bool, by design -
+// see the "NIE assert" note in the plan); instead it proves recomputing
+// actually changes the number, which is the thing ApplyPendingStructuralSetup
+// and LoadPresetByName now do before every CreateVehicle() call.
+bool RunP2RackTravelRegressionProbe( const JozzVehiclePrimitiveDefaults& defaults )
+{
+	std::printf( "p2 rackTravel regression probe:\n" );
+
+	JozzVehicleM6Config config =
+		JozzVehicleM6DefaultConfig( defaults.wheelRadius, defaults.wheelWidth, defaults.assetSuspensionTravelHint );
+	float oldRackTravel = config.rackTravel;
+
+	config.wishbone.steeringArmBack = 0.22f;
+	float maxAngle = config.maxSteeringAngleDegrees * B3_PI / 180.0f;
+	float newRackTravel = ComputeJozzVehicleM6RackStroke( config.wishbone, 2.0f * config.axleHalfSpacing,
+														   config.trackHalfWidth, config.rackHalfWidth, maxAngle );
+	config.rackTravel = newRackTravel;
+
+	std::printf( "p2 rackTravel steeringArmBack 0.17 -> 0.22: %.4f m -> %.4f m\n", oldRackTravel, newRackTravel );
+
+	bool ok = CheckTrue( "p2 recomputing rackTravel after a geometry change actually changes it",
+						 std::fabs( newRackTravel - oldRackTravel ) > 1.0e-4f );
+
+	// Build the vehicle with the freshly recomputed value - CreateJozzVehicleM6's
+	// tripwire should stay silent here (watch the stdout above this line for
+	// "stale rackTravel"; per plan §2 this is a printf, not an assert).
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+	b3BodyId groundId = CreateM6SmokeGround( worldId, 0.8f );
+	float spawnHeight = config.restDrop + config.wheelEnvelope.radius + 0.05f;
+	JozzVehicleM6 vehicle = CreateJozzVehicleM6( worldId, groundId, config, { 0.0f, spawnHeight, 0.0f } );
+	ok &= CheckTrue( "p2 vehicle builds with the recomputed rackTravel", vehicle.valid );
+
+	DestroyJozzVehicleM6( &vehicle );
+	b3DestroyWorld( worldId );
+
+	std::printf( "p2 rackTravel regression probe: %s\n", ok ? "ok" : "FAILED" );
+	return ok;
+}
+
 // Wheel envelope probe. Three claims to verify:
 // 1) Width: hull-based envelopes (cylinder, union, split sidewall) must not
 //    stick out past the visual tire, unlike the single sphere (which bulges
@@ -1502,6 +1547,7 @@ int main()
 	ok &= RunM7HandsOffAlignProbe( defaults );
 	ok &= RunM7TorqueDriveProbe( defaults );
 	ok &= RunM7TrailingArmSmoke( defaults );
+	ok &= RunP2RackTravelRegressionProbe( defaults );
 
 	if ( ok == false )
 	{

@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-08 · P2: RecomputeRackTravel() w Apply + tripwire + regresja · (do commitu)
+- CO:     `ApplyPendingStructuralSetup()` (rig_lab) woła teraz `RecomputeRackTravel()` przed `CreateVehicle()`; nowy tripwire w `CreateJozzVehicleM6` (printf, nie assert) porównuje `config.rackTravel` z przeliczonym na miejscu; nowa sonda walidatora `RunP2RackTravelRegressionProbe`.
+- CZEMU:  audyt P1-P6 (task #41) — bez tego suwaki geometrii kierownicy (Apply) rozstrajały limit maglownicy względem realnej geometrii, otwierając drogę do przestrzału w martwy punkt drążka.
+- EFEKT:  walidator OK, brak "stale rackTravel" WARNING; sonda P2 pokazuje rackTravel 0.0807 m → 0.1033 m dla steeringArmBack 0.17→0.22 (dowód że przeliczanie coś zmienia); test.exe PASS, boot-smoke 0 błędów. Zmiana czysto logiczna (brak renderu do obejrzenia).
+- DALEJ:  P1 (twist-fence z konfiguracji) — rdzeń planu, zależny od P2.
+
 ## 2026-07-08 · Plan wykonawczy P1-P6 dla słabszych agentów · docs
 - CO:     `PLAN_STABILNOSC_PROWADZENIE_PL.md` — krok-po-kroku (pliki, funkcje, liczby oczekiwane, warunki STOP, checklista bramki); taski #40-45 z zależnościami; kolejność P2→P1→P3→P4→P5→P6.
 - CZEMU:  Jozz będzie przydzielał etapy tańszym modelom — plan musi być wykonywalny bez zgadywania.

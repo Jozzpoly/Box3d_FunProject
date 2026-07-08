@@ -360,6 +360,12 @@ public:
 		m_config.trackHalfWidth = m_editTrackHalfWidth;
 		m_config.restDrop = m_editRestDrop;
 		m_config.wheelDensity = m_editWheelDensity;
+		// Steering geometry (wishbone, axle spacing, track, max steer) can all
+		// change above, and rackTravel is derived from them - without this the
+		// rack limit stays stale from whatever geometry built the previous
+		// vehicle, letting the linkage overshoot past its own tie-rod dead
+		// point on the next hard steer input.
+		RecomputeRackTravel();
 		CreateVehicle();
 		m_structuralSetupDirty = false;
 	}

@@ -6,6 +6,7 @@
 #include "jozz_vehicle_m5_vehicle.h"
 
 #include <cmath>
+#include <cstdio>
 
 namespace
 {
@@ -953,6 +954,21 @@ JozzVehicleM6 CreateJozzVehicleM6( b3WorldId worldId, b3BodyId groundBodyId, con
 		jointDef.enableLimit = true;
 		jointDef.lowerTranslation = -config.rackTravel;
 		jointDef.upperTranslation = config.rackTravel;
+
+		// Tripwire: rackTravel is derived from steering geometry and must be
+		// recomputed by the caller (RecomputeRackTravel) whenever that geometry
+		// changes. This catches any future load/apply path that forgets to, by
+		// comparing against a fresh computation from the config actually being
+		// built here. Print-only (not an assert) - the validator reads stdout.
+		{
+			float maxAngle = config.maxSteeringAngleDegrees * B3_PI / 180.0f;
+			float freshRackTravel = ComputeJozzVehicleM6RackStroke( config.wishbone, 2.0f * config.axleHalfSpacing,
+																	 config.trackHalfWidth, config.rackHalfWidth, maxAngle );
+			if ( std::fabs( freshRackTravel - config.rackTravel ) > 1.0e-4f )
+			{
+				std::printf( "jozz m6 WARNING: stale rackTravel %.4f vs %.4f\n", config.rackTravel, freshRackTravel );
+			}
+		}
 		// The servo motor supplies the parking-torque muscle the position
 		// spring cannot (see rackServoForce in the header); the drive update
 		// steers its speed toward the target every step.
