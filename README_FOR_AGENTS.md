@@ -1,432 +1,238 @@
 # README_FOR_AGENTS — Jozz Vehicle Box3D Native
 
-Status: M2.5 + M3A/M3B.3 + M4 Foundation + M5.2 validated. M6 Suspension Rig
-Foundation implemented 2026-07-06 (multi-body double-wishbone corners with a
-knuckle body, rigid link-rod wishbones, coilover, physical steering rack with
-tie rods and mechanical Ackermann, per-axle rig type selection, drift
-self-align assist + physical caster, split wheel collision envelope at the
-true tire width). Machine-validated (headless smoke + probes green, boot
-smoke clean); awaiting Jozz's manual test — checklist in
-docs/M6_SUSPENSION_RIG_FOUNDATION_PL.md section 9. Soft-tire deformation
-stays deferred (roadmap in docs/M5_2_WHEEL_STEERING_FOUNDATIONS_PL.md).
-Date: 2026-07-06
-Owner/creative director: Jozz / Przemek  
-Working branch: `jozz-vehicle-sandbox-m0`
+**This is the single front door. Read this fully before touching anything.**
+It is kept short and current on purpose. Everything else in `docs/` is either a
+milestone report (history) or a deep-dive reference — see §8 for which is which.
 
-## What this branch is
+- **Date of this handoff:** 2026-07-08 (state: M8)
+- **Owner / creative director:** Jozz (respond to Jozz in **Polish**)
+- **Working branch:** `jozz-vehicle-sandbox-m0` (`main` = upstream box3d)
+- **Detailed milestone ledger:** `docs/CURRENT_STATE_INDEX_PL.md`
+- **Known debt & risks:** `docs/TECH_DEBT_PL.md` ← read before "cleaning up"
 
-This branch starts **Jozz Vehicle Box3D Native**, a Windows/native vehicle sandbox built on top of Box3D.
+---
 
-The long-term goal is to use Box3D as a proven physics/render-host foundation, then grow a Jozz Vehicle game/lab layer around vehicle assembly, wheel suspension, visual rigs, and Blockbench-authored parts.
+## 1. What this project is
 
-## Current reality
+**Jozz Vehicle Box3D Native** — a Windows/native sandbox+game about *building
+cars from user-authored Blockbench (glTF) parts*, grown as a **non-invasive
+overlay on the box3d physics engine**.
 
-Jozz Vehicle currently lives inside the existing Box3D `samples` host.
+Two rules define the whole thing:
 
-Current active samples:
+- **Direction = BeamNG.drive.** Vehicle behaviour must **emerge from the
+  construction** (springs, arms, geometry, torque vs grip), never be scripted or
+  animated. If a behaviour is faked, it will be rejected — this has already
+  happened (the old software "self-align assist" was removed in M7 for reading
+  as scripted).
+- **The engine core is untouched.** `src/` and `include/` are box3d and stay
+  box3d. All Jozz work lives in `samples/jozz_vehicle_*`, `tools/`, `assets/`,
+  `docs/`. If you think you need to change engine internals, you are almost
+  certainly wrong — stop and ask Jozz.
 
-```text
-Category: Jozz Vehicle
-Sample:   M6 Suspension Rig Lab    <- multi-body suspension vehicle (new 2026-07-06)
-Source:   samples/jozz_vehicle_m6_rig_lab.cpp + samples/jozz_vehicle_m6_suspension_rig.cpp
+---
 
-Sample:   M5 First Drivable        <- drivable 4-corner strut vehicle (baseline)
-Source:   samples/jozz_vehicle_m5_drivable_lab.cpp + samples/jozz_vehicle_m5_vehicle.cpp
+## 2. Current state (M8, accepted vs experimental)
 
-Sample:   Lab M2 Primitive Corner  <- isolated corner lab, still active
-Source:   samples/sample_jozz_vehicle_lab.cpp + samples/jozz_vehicle_primitive_corner_lab.cpp
-Panel:    Jozz Vehicle Lab M2.5 + M3A/M3B.3 + M4 foundation debug
-```
-
-The sample host gives windowing, camera, debug draw, ImGui, input, registration and build integration. A separate executable may happen later, but it is not the current blocker.
-
-## Read first
-
-Read in this order before making changes:
-
-0. `docs/M6_SUSPENSION_RIG_FOUNDATION_PL.md` (multi-body suspension architecture, hardpoint contract, steering rack/servo, drift self-align, split wheel envelope + terrain category contract, CCD/shapeless-body lesson) then `docs/M5_2_WHEEL_STEERING_FOUNDATIONS_PL.md` (steering convention, wheel shapes, probe data, soft-tire roadmap) then `docs/M5_1_FEEL_TUNING_IMPLEMENTATION_REPORT_PL.md` + `docs/M5_1_FEEL_TUNING_HANDOFF_2026_07_05_PL.md` + `docs/M5_FIRST_DRIVABLE_PL.md` + `docs/adr/0005-m5-first-drivable-before-m4c.md`
-1. `docs/CURRENT_STATE_INDEX_PL.md`
-2. `docs/M4_FOUNDATION_SUSPENSION_RIG_PLAN_PL.md`
-3. `docs/ASSET_CONTRACT_RUNTIME_V1_PL.md`
-4. `docs/SUSPENSION_RIG_SPACE_CONVENTIONS_PL.md`
-5. `docs/M4_MANUAL_SMOKE_2026_07_05_PL.md`
-6. `docs/CODEX_HANDOFF_M4_FOUNDATION_MAIN_READY_PL.md`
-7. `docs/CODEX_START_PROMPT_M4_FOUNDATION_PL.md`
-8. `docs/PROJECT_STABILIZATION_AUDIT_2026_07_03_PL.md`
-9. `docs/CODEX_HANDOFF_M3_STABILIZATION_IMPORT_PREP_PL.md`
-10. `docs/M3B_2_RUNTIME_METADATA_VALIDATION_PL.md`
-11. `docs/M3B_2_PREP_RUNTIME_METADATA_REPORT_PL.md`
-12. `docs/M3B_SEMANTIC_PREVIEW_ANCHORING_FIX_PL.md`
-13. `docs/M3B_SEMANTIC_DEBUG_PREVIEW_IMPLEMENTATION_REPORT_PL.md`
-14. `docs/M3A_IMPLEMENTATION_REPORT_PL.md`
-15. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
-16. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
-17. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
-18. `assets/README.md`
-19. `assets/reports/asset_audit_latest.md`
-20. `samples/sample_jozz_vehicle_lab.cpp`
-21. `samples/jozz_vehicle_asset_contract.h`
-22. `samples/jozz_vehicle_asset_contract.cpp`
-23. `samples/jozz_vehicle_corner_rig.h`
-24. `samples/jozz_vehicle_corner_rig.cpp`
-25. `samples/jozz_vehicle_visual_asset.h`
-26. `samples/jozz_vehicle_visual_asset.cpp`
-27. `samples/jozz_vehicle_asset_metadata.h`
-28. `samples/jozz_vehicle_asset_metadata.cpp`
-29. `samples/jozz_vehicle_asset_dimensions.h`
-30. `samples/jozz_vehicle_asset_dimensions.cpp`
-31. `samples/jozz_vehicle_debug_preview.h`
-32. `samples/jozz_vehicle_debug_preview.cpp`
-33. `samples/jozz_vehicle_primitive_corner_lab.h`
-34. `samples/jozz_vehicle_primitive_corner_lab.cpp`
-35. `samples/jozz_vehicle_visual_mesh.h`
-36. `samples/jozz_vehicle_visual_mesh.cpp`
-37. `samples/jozz_vehicle_image_decode.h`
-38. `samples/jozz_vehicle_image_decode.cpp`
-39. `samples/jozz_vehicle_validation.cpp`
-40. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
-
-Useful background:
-
-- `docs/PROJECT_AUDIT_2026_07_03_PL.md`
-- `docs/FOUNDATION_GROUNDING_PHASE_PLAN_PL.md`
-- `docs/PRE_RIG_IMPORT_READINESS_AUDIT_PL.md`
-- `docs/ASSET_CONTRACT_V2_DRAFT_PL.md`
-- `docs/adr/0001-project-scope.md`
-- `docs/adr/0002-orientation-policy.md`
-- `docs/adr/0003-physics-v0-wheel-joint.md`
-- `docs/adr/0004-renderer-strategy.md`
-
-## Authoritative baseline
-
-M2.5 is still the current wheel-corner physics baseline. M3A adds asset-derived primitive defaults. M3B adds semantic preview and runtime audit metadata loading. M3B.2 adds one static visual-only wheel mesh proof at a fixed debug origin. M3B.2.1 adds baseColor texture loading for that same static proof. M3B.3 attaches that same visual-only wheel mesh to the primitive wheel body with an explicit render-only correction transform. M3B.3 hardening centers the primitive cylinder on the wheel body origin and adds a toggle for the orange primitive wheel debug shape; hiding it does not disable the physics wheel body or collision. M4 Foundation adds sidecar asset contract runtime, one-sided suspension visual proof, contract point overlay, and moving endpoint debug preview without changing physics authority. M5 First Drivable (2026-07-05) scales the same rest-anchor corner model to a dynamic four-corner vehicle with engine-native front steering in a render-free physics module shared with the validation CLI; the corner lab remains the isolated tuning environment. The same day, the Jozz layer deduplicated its jsmn helpers into `jozz_vehicle_json`, centralized asset path resolution in `jozz_vehicle_asset_paths`, and made the metadata module's built-in table the only fallback constants source.
-
-Do not override this with older M2/M2.1/M2.2/M2.3 assumptions.
-
-Core rules:
+The vehicle runs inside the box3d `samples` host. **Active samples** (open by
+name, indices shift — see §5):
 
 ```text
-b3WheelJoint implicit spring rest = translation 0
-Frame A = rest wheel-center anchor on chassis/root
-Frame B = wheel center / wheel body origin
-Rest drop = explicit chassis-to-rest-wheel-center offset
-Visual sockets are not automatically physics frames
+Jozz Vehicle / M6 Suspension Rig Lab   <- THE main drivable car. Multi-body
+                                          double-wishbone corners on the M7 real-
+                                          forces foundation, full Polish tuning UI,
+                                          Jozz's One_Sided_wheel_mount model rigged
+                                          onto the live bodies, telescoping damper.
+Jozz Vehicle / M8 Suspension Rig Bench <- isolated 1-corner spring bench (posable)
+Jozz Vehicle / M5 First Drivable       <- strut baseline (kept as reference)
+Jozz Vehicle / Lab M2 Primitive Corner <- isolated corner lab (kept)
+Jozz Vehicle / Lab M1 Smoke            <- oldest smoke sample (kept)
 ```
 
-M5 vehicle direction convention (settled in M5.2 after two wrong guesses;
-do NOT re-derive it casually, the validation smoke asserts it signed):
+**Accepted / stable foundation** (do not casually rework):
+- **M7 real-forces physics** (`jozz_vehicle_m6_suspension_rig.cpp/.h`): arms are
+  BODIES on hinges with angle limits (not distance-joint rods — those had a
+  mirrored solution branch that snapped on hard landings); back-drivable steering
+  rack (caster/contact forces do the counter-steer, no script); torque-based
+  drive; anti-roll bars; aero drag; split wheel collision envelope.
+- **M8 rig + pose foundation**: the mount model is rigged per-bone onto the live
+  bodies; suspension **default pose is a deliberate setting** (`restArmDroopDeg`
+  geometry + `suspensionPreload` spring preload) so arms droop to the wheels
+  instead of folding up; bump-steer compensation keeps the steering geometry
+  correct through droop.
+- **Preset + session system** (`jozz_vehicle_m6_config_io.cpp/.h`): whole-vehicle
+  configs save/load as JSON. `assets/vehicle_presets/*.json` (committed:
+  `uliczny`/`drift`/`offroad`); `build/jozz_vehicle_m6_session.json` (gitignored
+  auto-save) means restarting the sample resumes tuning instead of wiping it.
+- **Screenshot tooling** (`samples/host/screenshot.cpp`, `--screenshot`): D3D11
+  backbuffer → PNG. This is how you SEE your own visual work headless.
 
-```text
-forward = +X, up = +Y, right = forward x up = +Z, LEFT = -Z
-positive steering angle = left turn (rotates +X toward -Z about +Y)
-```
+**Experimental / in-flight / not yet done:**
+- Aggressive droop **> ~16°** is unstable (Ackermann over-centre) — 15° is the
+  measured safe ceiling. Full screen-2-level droop needs a steering-geometry
+  redesign (deferred, see TECH_DEBT).
+- Soft-tire deformation, differentials/drivetrain, tire slip-curve model,
+  markers→hardpoints import — all still deferred (roadmap in §7).
 
-M3 status:
+**Awaiting Jozz's manual drive test** — the M7/M8 physics passes machine
+validation but Jozz's feel check on several items is still pending.
 
-```text
-M3A: wheel radius/width and travel hint derive from asset audit metadata
-M3B.1: semantic preview is debug-only and follows correct ownership
-M3B.2-prep: runtime metadata loads asset_audit_latest.json if reachable, with fallback
-M3B.2: one Offroad_Big_Wheels glTF mesh primitive renders at a fixed debug origin
-M3B.2.1: that static wheel mesh can load TEXCOORD_0 + pbr baseColorTexture PNG data URI
-M3B.3: that same visual-only wheel mesh can follow the primitive wheel body
-M3B.3 hardening: primitive collision cylinder is centered on body origin; primitive wheel debug shape can be hidden while physics remains active
-M4F.1: one-sided suspension contract resolves from sidecar + source glTF, not audit report
-M4A: One_Sided_wheel_mount.gltf can render visual-only at the one-corner rig
-M4B narrow: damper/cardan endpoint preview is debug-only and follows wheel travel on wheel-side endpoints
-M4 manual smoke 2026-07-05: Jozz screenshots confirm suspension model, texture, transparency and helper lines are visible
-```
+---
 
-Latest Jozz validation showed:
+## 3. How to build, test, and SEE it
 
-```text
-M3B metadata: runtime audit
-metadata: loaded runtime asset audit report
-source: ../../assets/reports/asset_audit_latest.json
-```
-
-## Runtime separation rule
-
-Keep these separate:
-
-```text
-Structural setup
-  - rig height, rest drop, wheel radius, wheel width, collision toggle
-  - pending values
-  - requires Apply rig rebuild
-  - primitive wheel cylinder is centered on body origin because Frame B is wheel center
-
-Live root stress test
-  - realtime chassis/root movement
-  - Q/E and slider
-  - must not rebuild bodies/joints
-
-Semantic debug preview
-  - debug drawing only
-  - wheel schematic follows wheel/body
-  - suspension schematic follows chassis/root
-  - no physics authority
-
-Runtime metadata
-  - reads audit report when reachable
-  - falls back safely when not reachable
-
-Asset contract runtime
-  - reads assets/contracts/*.asset.json and source glTF directly
-  - resolves role/category/node hints into positions after composed node transforms
-  - used for M4 suspension visual proof and validator checks
-  - audit reports remain diagnostics, not the M4 runtime contract source
-
-Static visual proof
-  - loads a narrow subset of Offroad_Big_Wheels.gltf
-  - supports one baseColor PNG data URI through WIC on Windows
-  - draws one mesh at a fixed debug origin
-  - not attached to physics
-
-Attached visual proof
-  - reuses the same Offroad_Big_Wheels.gltf mesh
-  - draws through JozzVehicleVisualMesh::DrawAtTransform(...)
-  - follows the primitive wheel body transform
-  - uses a local render-only correction to center and orient the authored wheel
-  - centers against the loaded mesh bounds when available, with semantic points as fallback
-  - no material/skin/animation/collision/full importer yet
-
-Primitive wheel debug shape
-  - orange Box3D debug shape for the primitive collision wheel
-  - can be hidden from the Jozz panel through the debug adapter hidden-shape path
-  - remains visual/debug-only; physics and collision stay active
-
-Suspension visual foundation
-  - loads one_sided_wheel_mount.asset.json through JozzVehicleAssetContract
-  - loads One_Sided_wheel_mount.gltf through JozzVehicleVisualAsset
-  - draws a visual-only mount proof at the rest wheel-center frame
-  - draws contract points and moving endpoint preview for damper/cardan roles
-  - does not define wheel-joint frames, restDrop, collision, or constraints
-```
-
-## Current assets
-
-Source glTF files live in `assets/source/`.
-
-Current source models:
-
-```text
-Asset_Dumper.gltf
-Cardan_shaft.gltf
-Offroad_Big_Wheels.gltf
-One_Sided_wheel_mount.gltf
-```
-
-The current audit report intentionally records duplicate roots/nodes and unfinished orientation decisions. Do not trust node names alone.
-
-Runtime metadata code:
-
-```text
-samples/jozz_vehicle_asset_metadata.h
-samples/jozz_vehicle_asset_metadata.cpp
-```
-
-Current visual-only proof code:
-
-```text
-samples/jozz_vehicle_primitive_corner_lab.h
-samples/jozz_vehicle_primitive_corner_lab.cpp
-samples/jozz_vehicle_visual_mesh.h
-samples/jozz_vehicle_visual_mesh.cpp
-samples/jozz_vehicle_image_decode.h
-samples/jozz_vehicle_image_decode.cpp
-```
-
-Current M4 foundation code:
-
-```text
-samples/jozz_vehicle_asset_contract.h
-samples/jozz_vehicle_asset_contract.cpp
-samples/jozz_vehicle_corner_rig.h
-samples/jozz_vehicle_corner_rig.cpp
-samples/jozz_vehicle_visual_asset.h
-samples/jozz_vehicle_visual_asset.cpp
-```
-
-Current M5 drivable code:
-
-```text
-samples/jozz_vehicle_m5_vehicle.h        <- physics prefab module, no gfx deps
-samples/jozz_vehicle_m5_vehicle.cpp
-samples/jozz_vehicle_m5_drivable_lab.h
-samples/jozz_vehicle_m5_drivable_lab.cpp
-samples/jozz_vehicle_m5_test_course.h    <- ramps/washboard/rough terrain/props, gfx-free content
-samples/jozz_vehicle_m5_test_course.cpp     (terrainCategoryBits param feeds the M6 split envelope)
-```
-
-Current M6 suspension rig code (2026-07-06):
-
-```text
-samples/jozz_vehicle_m6_suspension_rig.h <- multi-body rig module, no gfx deps
-samples/jozz_vehicle_m6_suspension_rig.cpp  (hardpoints, wishbone generator,
-                                             rack stroke closed form, wheel
-                                             envelope builder, drive/telemetry)
-samples/jozz_vehicle_m6_rig_lab.h
-samples/jozz_vehicle_m6_rig_lab.cpp      <- drivable lab + rig debug draw
-```
-
-M6 collision-category contract (b3DefaultShapeDef has ALL categoryBits!):
-
-```text
-drivable surfaces  categoryBits = JOZZ_M6_TERRAIN_CATEGORY (0x2 only)
-props/obstacles    categoryBits = JOZZ_M6_OBJECT_CATEGORY (0x1)
-rolling sphere collides with terrain only; sidewall cylinder with the rest
-structural bodies (knuckle/rack) are SHAPELESS with explicit mass data
-(small shapes at driving speed trigger continuous collision = TOI asserts)
-```
-
-Shared Jozz infrastructure (2026-07-05 dedup):
-
-```text
-samples/jozz_vehicle_json.h / .cpp        <- shared jsmn token helpers
-samples/jozz_vehicle_asset_paths.h / .cpp <- shared asset path resolver
-```
-
-Asset audit tools:
+Environment: **Windows, PowerShell** (the Bash tool here sometimes has a broken
+PATH; prefer PowerShell for cmake). Run from the **repo root**. Note: the
+PowerShell CWD can drift if a Bash `cd` ran earlier — `Set-Location` to the repo
+root explicitly if a build complains it can't read presets.
 
 ```powershell
-py tools\asset_audit.py
-py tools\asset_contract_audit.py
-```
+# Kill a running sample first (it locks samples.exe and the build fails on LNK1168)
+Get-Process samples -ErrorAction SilentlyContinue | Stop-Process -Force
 
-## Current hotkeys
-
-Lab M2 Primitive Corner:
-
-```text
-W      wheel motor forward
-S      wheel motor reverse
-Space  brake
-Q      live root down
-E      live root up
-```
-
-M5 First Drivable and M6 Suspension Rig Lab (identical):
-
-```text
-W/S    drive forward/reverse
-A/D    steer left/right
-Space  brake
-T      third-person camera toggle
-```
-
-Do not use `[` or `]`; they are global sample switching keys.
-
-Before adding any shortcut, check and update:
-
-1. `docs/HOTKEY_AUDIT_PL.md`
-2. `samples/main.cpp`
-3. `samples/gfx/keycodes.h`
-4. `samples/sample_jozz_vehicle_lab.cpp`
-5. `samples/jozz_vehicle_primitive_corner_lab.cpp`
-6. `samples/jozz_vehicle_m5_drivable_lab.cpp`
-
-## Non-negotiables
-
-- Keep commits small and understandable.
-- Do not trust node names alone; duplicate node names exist in current glTF exports.
-- Always compose parent transforms before reading socket/axis positions.
-- Keep visual rig, physics prefab, authoring asset data, and debug metadata separated.
-- Do not use glTF mesh collision for wheels/suspension in v0.
-- Do not start full vehicle assembly before one corner can load dimensions and show visuals safely.
-- Do not mix visual rig markers with physics joint frames without explicit conversion.
-- Do not rebuild bodies/joints during slider drag.
-- Do not let pending structural setup affect runtime live-root behavior.
-- Do not derive rest drop from visual chassis/wheel sockets until a dedicated physics rest anchor contract exists.
-- Do not treat M3B semantic preview as final import transform.
-- Do not anchor suspension semantic preview to wheel rest drop again.
-
-## Immediate next engineering target
-
-M6 Suspension Rig Foundation is implemented and machine-validated; the next
-gates build on it (details in docs/M6_SUSPENSION_RIG_FOUNDATION_PL.md
-section 10):
-
-```text
-M6.1  visual suspension-model mounting on the LIVE rig hardpoints
-      (the M4C idea upgraded: endpoints are now real physics bodies)
-M6.2  trailing arm (One_Sided_wheel_mount) + solid axle rig types
-M6.3  hardpoints filled from asset markers via the sidecar contract
-M6.4  anti-roll bar, per-axle geometry variants, tuning presets
-```
-
-Strict scope guards that still hold:
-
-```text
-use existing sidecar contract endpoint data for visual bindings
-keep audit reports as diagnostics
-do not regenerate reports unless explicitly intended
-do not build a full glTF importer
-do not add mesh collision for wheels/suspension
-do not re-implement steering/drive outside the M5/M6 modules
-```
-
-## Validation commands
-
-From repo root:
-
-```powershell
-cmake --build --preset windows-debug --target test
 cmake --build --preset windows-debug --target samples
 cmake --build --preset windows-debug --target jozz_vehicle_validation
-build\bin\Debug\test.exe
-build\bin\Debug\jozz_vehicle_validation.exe
-build\bin\Debug\samples.exe --sample 96 --frames 300
-build\bin\Debug\samples.exe --sample 97 --frames 300
+cmake --build --preset windows-debug --target test
+
+.\build\bin\Debug\jozz_vehicle_validation.exe   # MUST end "jozz_vehicle_validation: OK"
+.\build\bin\Debug\test.exe                       # engine suite, ~11 s, "All Box3D tests passed!"
+.\build\bin\Debug\samples.exe --sample-name "Suspension Rig" --frames 300   # boot smoke, 0 sokol errors
 ```
 
-(indices follow registration order: 95 = Lab M2 Primitive Corner, 96 = M5
-First Drivable, 97 = M6 Suspension Rig Lab; they can shift when samples are
-added)
-
-Environment warning (2026-07-05): the historical `cmd /c "set PATH=& ..."`
-wrapper SILENTLY DOES NOTHING when invoked from Git Bash — cmd starts
-interactively, executes nothing, and exits 0, so builds appear green while
-binaries stay stale. Call cmake directly and verify binary timestamps or
-program output. Use the wrapper only in environments where MSBuild actually
-fails on duplicate `Path/PATH` environment keys (the original Codex issue),
-and treat that failure as an environment issue, not a Box3D code issue.
-
-`jozz_vehicle_validation.exe` now includes the M5 headless drive smoke
-(settle/drive/steer/brake assertions) and must end with
-`m5 drive smoke: ok` and `jozz_vehicle_validation: OK`.
-
-Run asset report generators only when you intentionally want to rewrite reports:
-
+**Seeing visual work (mandatory for any visual change — "render is the gate"):**
 ```powershell
-py tools\asset_audit.py
-py tools\asset_contract_audit.py
+# One framed screenshot of the running lab (last frame, incl. the ImGui panel):
+.\build\bin\Debug\samples.exe --sample-name "Suspension Rig" --frames 150 --screenshot <path>.png
+# Then READ the PNG. Four sides stitched into one image:
+.\tools\quad_shot.ps1 -Out <path>.png
 ```
+The lab reads env vars to pose state headless without UI clicks: `JOZZ_M6_CAM`
+("yaw,pitch,radius,px,py,pz"), `JOZZ_M6_DIAG`, `JOZZ_M6_WHEEL`, `JOZZ_M6_DUMPER`,
+`JOZZ_M6_MOUNT`, `JOZZ_M6_TAB` (0-5 forces a UI tab open), `JOZZ_M6_PRESET`,
+`JOZZ_M6_HERTZ`/`DAMP`/`PRELOAD`/`DROOP`, `JOZZ_M6_DUMP` (prints corner geometry
+numbers). *(Full/authoritative list of env hooks + the throwaway ones: TECH_DEBT.)*
 
-Open:
+**⚠ The validator asserts loosely.** It PRINTS diagnostic numbers (e.g. steering
+angle, camber) but many asserts only check "is finite" or a wide threshold. A
+badly broken geometry can print a clearly wrong number and still say `OK`. On any
+geometry change, **read the printed numbers**, don't trust the final `OK` alone.
+(Found exactly this way: droop 20° printed 69° steering vs a 32° limit and still
+passed.)
+
+---
+
+## 4. Non-negotiable rules (physics + workflow)
+
+**Physics / architecture (timeless, verified the hard way):**
+- Direction convention: `forward=+X, up=+Y, right=+Z, LEFT=-Z`; **positive
+  steering angle = LEFT turn**. Asserted signed in the validator. Do not re-derive
+  casually (two wrong guesses already happened).
+- `b3WheelJoint` spring rest = translation 0; Frame A = rest wheel-center anchor;
+  restDrop explicit. **Visual sockets are NOT physics frames** without explicit
+  conversion.
+- `b3DefaultShapeDef()` sets `categoryBits` = **ALL bits** (unlike Box2D's single
+  bit). The split wheel envelope needs both sides tagged: drivable surfaces
+  `JOZZ_M6_TERRAIN_CATEGORY` (0x2), props `JOZZ_M6_OBJECT_CATEGORY` (0x1).
+- Structural bodies (knuckle, rack, arms) are **shapeless** with explicit
+  `b3Body_SetMassData`. A small shape at driving speed makes the body "fast" →
+  continuous collision vs the ground → debug TOI assert. Vehicle worlds also run
+  `b3World_EnableContinuous(false)` for the same reason.
+- No glTF **mesh collision** for wheels/suspension. Wheels = primitive envelope.
+- Keep separated: physics rig · visual/rigged mesh · authoring asset data · debug
+  overlays. Do not merge visual marker positions into joint frames.
+
+**Workflow (this is what keeps multi-agent work sane):**
+- **Render is the gate.** Never report visual work "done" without reading a
+  screenshot of it. Green tests + "0 sokol errors" say nothing about whether the
+  image is correct.
+- **Evidence before fix.** Reproduce a reported bug (headless probe / dump /
+  screenshot) *before* changing code, so you fix the real cause.
+- **Prefer numbers over pixels for geometry.** `JOZZ_M6_DUMP=1` prints exact
+  corner coordinates; that is how the L/R asymmetry was proven to be a render bug,
+  not physics.
+- **Commit discipline:** commit only when Jozz asks; on a shared branch keep
+  commits small and self-describing. ⚠ **Right now everything since M6 is
+  uncommitted** — see TECH_DEBT #1.
+- **Doc discipline:** after a real change, update the ledger
+  (`CURRENT_STATE_INDEX_PL.md`) and this file's §2 if the state moved. Do NOT add
+  a new `docs/*.md` per tiny change — the doc pile is already too big (§8).
+
+---
+
+## 5. Sample indices are fragile — use names
+
+`--sample <N>` numbers = registration order and **shift when samples are added**.
+Jozz samples register last (after all box3d demos). Prefer `--sample-name
+"<substr>"` (e.g. `"Suspension Rig"`, `"Rig Bench"`) which is index-independent.
+Registration order today: Lab M1 Smoke · Lab M2 Primitive Corner · M5 First
+Drivable · M6 Suspension Rig Lab · M8 Suspension Rig Bench.
+
+Do not use `[` / `]` (global sample-switch keys). Adding a hotkey → update
+`docs/HOTKEY_AUDIT_PL.md`, `main.cpp`, `gfx/keycodes.h`, and each lab.
+
+---
+
+## 6. Do NOT do without Jozz's explicit go-ahead
+
+- Change box3d engine internals (`src/`, `include/`).
+- Rework the M7 real-forces model or the M8 pose foundation (they are accepted).
+- Redesign the steering geometry / Ackermann to push droop past 16°
+  (big physics change; Jozz chose this direction but it's a careful multi-step job).
+- Add a full glTF renderer / material / skin / animation importer.
+- Add mesh collision for wheels or suspension.
+- Regenerate `assets/reports/*` (`py tools\asset_audit.py`) unless intentional.
+- Commit, force-push, or rewrite history.
+- Rename/move the active samples or the tuning UI layout (Jozz just approved it).
+
+---
+
+## 7. Priorities / roadmap (next gates)
+
+Nothing here is started; confirm with Jozz before picking one up:
 
 ```text
-Jozz Vehicle / Lab M2 Primitive Corner
+M7.2  wishbone hardpoints filled from asset markers (import fills the struct)
+M7.3  drivetrain: differentials, torque split, engine-braking curve
+M7.4  tire model (slip curve, load sensitivity) — the soft-tire roadmap
+M7.5  analog steering input + soft hands-on/off transition
+--    two side dampers off to the side (Jozz asked, deferred)
+--    steering-geometry redesign to allow aggressive droop >16° (deferred)
 ```
 
-Check:
+---
 
-```text
-sample opens
-W/S, Space, Q/E work
-Apply rig rebuild works
-M3B semantic preview draws
-HUD shows M3B metadata runtime audit or fallback
-Reload metadata + reset defaults is safe
-M3B.2.1 static textured wheel proof can be toggled
-static wheel mesh is visible but not attached to physics
-M3B.3 attached textured wheel visual can be toggled
-attached wheel mesh follows the primitive wheel body
-primitive wheel debug shape can be hidden without disabling physics
-hidden primitive wheel debug shape leaves no thin collision mesh/edge overlay
-texture status reports loaded baseColor or a solid fallback reason
-M4A suspension mount visual toggles independently
-M4A contract points show wheel center/chassis mount/travel axis
-M4B moving endpoints follow wheel travel only on wheel-side points
-2026-07-05 Jozz screenshots show suspension model + texture + transparency + helper lines in the active lab
-```
+## 8. Documentation map (what to trust)
+
+The `docs/` folder has ~40 files. Most are **historical milestone reports** —
+useful as history, **not** as current architecture. Trust this order:
+
+**Current / authoritative:**
+- `README_FOR_AGENTS.md` (this file) — front door.
+- `docs/CURRENT_STATE_INDEX_PL.md` — milestone ledger + validated state.
+- `docs/TECH_DEBT_PL.md` — known debt, risks, deferred work.
+- `docs/M7_REAL_FORCES_FOUNDATION_PL.md` — the current physics model.
+- `docs/M8_SUSPENSION_RIG_REPAIR_PLAN_PL.md` — rig/pose/droop work (physics side).
+  *(Gap: the 2026-07-08 UI redesign + preset/session system are described here and
+  in §2 above but do not yet have their own report — that's a TECH_DEBT item.)*
+- `docs/SUSPENSION_RIG_SPACE_CONVENTIONS_PL.md`, `docs/adr/000{1,2,3}` — conventions.
+
+**History only (do not treat as current):** everything `M0_`…`M6_`, all
+`M3B_*`, `M4_*`, `M5_*`, `CODEX_HANDOFF_*`, `CODEX_START_*`, the `PROJECT_AUDIT_*`
+and `PROJECT_STABILIZATION_*` files. They describe superseded states (e.g. the
+primitive-corner-lab-as-main-thing era, the removed self-align assist).
+
+Also at repo root: `README.md` (upstream box3d), `CONTRIBUTING.md` (upstream),
+`JOZZ_VEHICLE_README_PL.md` (older Polish overview — verify before trusting).
+
+---
+
+## 9. Where a new agent should start
+
+1. Read this file + `docs/TECH_DEBT_PL.md` end to end.
+2. Build the three targets and run the validator + `test.exe` (§3). If they are
+   not green on a clean checkout, that is your first task — nothing else.
+3. Take one screenshot of the M6 lab (§3) so you have working eyes.
+4. Only then pick up work — from Jozz's request, or §7, confirmed with Jozz.
+5. When you touch code: reproduce → change → re-validate → **screenshot if
+   visual** → update §2 / the ledger. Report to Jozz *what* changed, *why*, and
+   the *consequences* — in Polish, plainly, no hedging.

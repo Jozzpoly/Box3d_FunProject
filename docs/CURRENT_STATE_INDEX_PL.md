@@ -1,21 +1,38 @@
 # Current State Index — Jozz Vehicle Box3D Native
 
-Date: 2026-07-06
-Branch: `jozz-vehicle-sandbox-m0`  
-Status: M2.5/M3A/M3B.3 + M4 Foundation + M5.2 validated. **M6 Suspension Rig
-Foundation zaimplementowane 2026-07-06** (multi-body double wishbone per oś,
-fizyczny rack+tie-rody, self-align w driftach, split wheel envelope z poprawną
-szerokością opony); walidacja headless + boot smoke zielone, czeka na ręczny
-test Jozza. Raport: `docs/M6_SUSPENSION_RIG_FOUNDATION_PL.md`. Soft-tire
-deformation nadal świadomie odłożona (roadmapa w docs/M5_2_WHEEL_STEERING_FOUNDATIONS_PL.md
-sekcja 5).
+Date: 2026-07-08
+Branch: `jozz-vehicle-sandbox-m0`
+
+> **Jak używać tego pliku.** Front dla agentów to `README_FOR_AGENTS.md` (krótki,
+> aktualny, jedno wejście). Ten plik to **ledger kamieni + zwalidowany stan**.
+> Sekcje 2–4, 6, 7, 10 opisują szczegółowo **fundament M3B/M4/M5** — to HISTORIA
+> baseline'u, nie aktualna architektura pojazdu. Aktualna fizyka = M7
+> (`docs/M7_REAL_FORCES_FOUNDATION_PL.md`), aktualny rig+poza = M8
+> (`docs/M8_SUSPENSION_RIG_REPAIR_PLAN_PL.md`). Dług/ryzyka: `docs/TECH_DEBT_PL.md`.
+
+Status (2026-07-08): M2.5/M3A/M3B.3 + M4 + M5.2 zwalidowane; fizyka przebudowana
+przez **M7 Real Forces Foundation** (wahacze jako CIAŁA z limitami zawiasów —
+koniec rozpadu na skoczni; back-drivable rack — kontra z castera/sił kontaktu,
+programowy self-align USUNIĘTY; napęd momentem; ARB per oś zamiast upright assist
+default OFF; opór aero; trailing arm z kontraktu One_Sided_wheel_mount).
+**M8 (2026-07-07/08):** rig modelu na żywych ciałach + wahacze wpięte w
+authored-sockety; **poza domyślna jako świadome ustawienie** (`restArmDroopDeg` +
+`suspensionPreload`, opadające wahacze, kompensacja bump-steer, sufit droop 15°);
+system zrzutów D3D11→PNG + `tools/quad_shot.ps1`; **przebudowa UI (polski, 6
+zakładek) + system presetów pojazdu** (`jozz_vehicle_m6_config_io`,
+`assets/vehicle_presets/`, auto-zapis sesji naprawiający „R" kasujące strojenie).
+Walidacja headless + test.exe + boot smoke zielone; czeka na ręczny test feelu
+Jozza. Soft-tire nadal świadomie odłożona.
 
 ## 1. Current active samples
 
 ```text
 Category: Jozz Vehicle
-Sample:   M6 Suspension Rig Lab      <- multi-body zawieszenie (nowe 2026-07-06)
+Sample:   M6 Suspension Rig Lab      <- multi-body zawieszenie na fundamencie M7
+                                        (UI w zakładkach; tył = trailing arm
+                                        z modelu Jozza, przód = wishbone)
 Source:   samples/jozz_vehicle_m6_rig_lab.cpp + samples/jozz_vehicle_m6_suspension_rig.cpp
+          + samples/jozz_vehicle_m7_suspension_import.cpp
 
 Sample:   M5 First Drivable          <- pierwszy jeżdżący pojazd, baseline strut
 Source:   samples/jozz_vehicle_m5_drivable_lab.cpp + samples/jozz_vehicle_m5_vehicle.cpp
@@ -205,63 +222,14 @@ inner rim/felga shows visible banded/striped shading in close-up screenshots
 
 These are not blockers for M3B.3 visual-only attach. Revisit them during a focused render/material polish pass. For the rim banding, first isolate whether the source is shadow acne/self-shadowing, imported vertex normals, material roughness/specular mismatch, or low-resolution nearest-filter texture detail.
 
-## 5. Read order for next agent
+## 5. Kolejność czytania
 
-Read first:
-
-1. `README_FOR_AGENTS.md`
-2. `docs/CURRENT_STATE_INDEX_PL.md`
-3. `docs/M4_FOUNDATION_SUSPENSION_RIG_PLAN_PL.md`
-4. `docs/ASSET_CONTRACT_RUNTIME_V1_PL.md`
-5. `docs/SUSPENSION_RIG_SPACE_CONVENTIONS_PL.md`
-6. `docs/M4_MANUAL_SMOKE_2026_07_05_PL.md`
-7. `docs/CODEX_HANDOFF_M4_FOUNDATION_MAIN_READY_PL.md`
-8. `docs/CODEX_START_PROMPT_M4_FOUNDATION_PL.md`
-9. `docs/PROJECT_STABILIZATION_AUDIT_2026_07_03_PL.md`
-10. `docs/CODEX_HANDOFF_M3_STABILIZATION_IMPORT_PREP_PL.md`
-11. `docs/CODEX_START_PROMPT_M3_STABILIZATION_PL.md`
-12. `docs/M3B_2_RUNTIME_METADATA_VALIDATION_PL.md`
-13. `docs/M3B_2_PREP_RUNTIME_METADATA_REPORT_PL.md`
-14. `docs/M3B_SEMANTIC_PREVIEW_ANCHORING_FIX_PL.md`
-15. `docs/M3B_SEMANTIC_DEBUG_PREVIEW_IMPLEMENTATION_REPORT_PL.md`
-16. `docs/M3A_IMPLEMENTATION_REPORT_PL.md`
-17. `docs/M2_5_LIVE_ROOT_STRESS_MOVER_PL.md`
-18. `docs/M2_4_WHEEL_JOINT_REST_ANCHOR_MODEL_PL.md`
-19. `docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md`
-20. `assets/README.md`
-21. `assets/reports/asset_audit_latest.md`
-22. `samples/sample_jozz_vehicle_lab.cpp`
-23. `samples/jozz_vehicle_asset_contract.h`
-24. `samples/jozz_vehicle_asset_contract.cpp`
-25. `samples/jozz_vehicle_corner_rig.h`
-26. `samples/jozz_vehicle_corner_rig.cpp`
-27. `samples/jozz_vehicle_visual_asset.h`
-28. `samples/jozz_vehicle_visual_asset.cpp`
-29. `samples/jozz_vehicle_asset_metadata.h`
-30. `samples/jozz_vehicle_asset_metadata.cpp`
-31. `samples/jozz_vehicle_asset_dimensions.h`
-32. `samples/jozz_vehicle_asset_dimensions.cpp`
-33. `samples/jozz_vehicle_debug_preview.h`
-34. `samples/jozz_vehicle_debug_preview.cpp`
-35. `samples/jozz_vehicle_primitive_corner_lab.h`
-36. `samples/jozz_vehicle_primitive_corner_lab.cpp`
-37. `samples/jozz_vehicle_visual_mesh.h`
-38. `samples/jozz_vehicle_visual_mesh.cpp`
-39. `samples/jozz_vehicle_image_decode.h`
-40. `samples/jozz_vehicle_image_decode.cpp`
-41. `samples/jozz_vehicle_validation.cpp`
-42. `samples/sample_joint.cpp` sections `WheelJoint` and `Driving` only as reference
-
-Useful background:
-
-- `docs/PROJECT_AUDIT_2026_07_03_PL.md`
-- `docs/FOUNDATION_GROUNDING_PHASE_PLAN_PL.md`
-- `docs/PRE_RIG_IMPORT_READINESS_AUDIT_PL.md`
-- `docs/ASSET_CONTRACT_V2_DRAFT_PL.md`
-- `docs/adr/0001-project-scope.md`
-- `docs/adr/0002-orientation-policy.md`
-- `docs/adr/0003-physics-v0-wheel-joint.md`
-- `docs/adr/0004-renderer-strategy.md`
+Zastąpione. Mapa dokumentacji (co jest aktualne, a co historią) i minimalna
+lista wejściowa są teraz w **`README_FOR_AGENTS.md` §8**. Ta 40-punktowa lista
+istniała tu i w README jednocześnie, spóźniała się o kamień i miała błąd
+numeracji — utrzymywanie jej w dwóch miejscach było źródłem rozjazdu. Aktualny
+kod pojazdu = M7 (fizyka) + M8 (rig/poza/UI/presety); reszta plików w `docs/` to
+historia (patrz sekcja 6 i README §8).
 
 ## 6. Historical docs
 
@@ -508,33 +476,69 @@ procedural damper/cardan/chassis visual parts
 ## 11. Next pass
 
 ```text
-2026-07-06: M6 Suspension Rig Foundation implemented (multi-body double
-  wishbone + knuckle + physical rack/tie-rods per axle, drift self-align,
-  split wheel envelope). Machine-validated; awaiting Jozz's manual drive
-  (checklist: docs/M6_SUSPENSION_RIG_FOUNDATION_PL.md section 9).
-Next gates on this foundation (details in the M6 report section 10):
-  M6.1  visual suspension-model mounting on the LIVE rig hardpoints
-        (the M4C idea, now with real physics endpoints)
-  M6.2  trailing arm (One_Sided_wheel_mount!) + solid axle rig types
-  M6.3  hardpoints from asset markers through the sidecar contract
-  M6.4  anti-roll bar, per-axle geometry, street/drift/offroad presets
-Soft-tire roadmap stays staged for later (docs/M5_2_WHEEL_STEERING_FOUNDATIONS_PL.md
-  section 5); the M6 telemetry (per-wheel load/slip/camber) is the input
-  Stage 1 (visual tire squish) needs.
+2026-07-06 (later): M7 Real Forces Foundation implemented after Jozz's M6
+  drive feedback ("suspension breaks on the jump", "slide self-align feels
+  scripted"). Arms are BODIES with hinge stops now (landing probes at 2.0 m
+  and 3.5 m drops pass with 0.6 deg worst camber), the rack is back-drivable
+  (counter-steer measured -11 deg from contact forces with a FREE rack,
+  -3 deg with a frozen one - the proof it is mechanical), drive is torque-
+  based (wheelspin exists above grip torque), ARB + aero replace the upright
+  crutch, and the rear axle runs Jozz's One_Sided_wheel_mount as a trailing
+  arm imported from the sidecar contract with the model riding the live arm
+  body. Machine-validated; awaiting Jozz's manual drive (checklist:
+  docs/M7_REAL_FORCES_FOUNDATION_PL.md section 9).
+Next gates (szczegóły w raporcie M7 sekcja 10):
+  M7.1  ZROBIONE w M8 (2026-07-07/08): per-part rig na żywych ciałach +
+        lustro prawej strony + wpięcie wahaczy w authored-sockety.
+  M7.2  wishbone hardpoints z markerów assetu (import wypełnia struct) — TODO
+  M7.3  drivetrain: dyfry, split momentu, krzywa engine-brake — TODO
+  M7.4  model opony (krzywa poślizgu, wrażliwość na obciążenie) — TODO (soft-tire)
+  M7.5  analogowe wejście kierownicy + miękkie przejście hands-on/off — TODO
 ```
 
-Ważne lekcje inżynierskie z M6 (pełny opis w raporcie M6, sekcje 2/4/5):
+Zrobione w M8 (poza M7.1 wyżej), czeka na ręczny test feelu Jozza:
+```text
+- Poza domyślna jako świadome ustawienie: restArmDroopDeg (geometria) +
+  suspensionPreload (docisk sprężyny). Opadające wahacze zamiast wyginania w
+  górę. Kompensacja bump-steer drążka. Sufit droop 15° (over-center > 16°).
+- System zrzutów D3D11->PNG (--screenshot) + tools/quad_shot.ps1 (moje oczy).
+- Przebudowa UI: polski, 6 zakładek (Zawieszenie/Nadwozie/Napęd/Kierownica/
+  Świat/Debug), poprawka fontu (Segoe UI + /utf-8).
+- System presetów pojazdu: jozz_vehicle_m6_config_io (JSON save/load całego
+  configu), assets/vehicle_presets/{uliczny,drift,offroad}.json, auto-zapis
+  sesji (build/) naprawiający "R" które kasowało strojenie.
+Odłożone świadomie: dwa boczne dampery; agresywna poza >16° (przeprojektowanie
+  Ackermanna) — patrz docs/TECH_DEBT_PL.md.
+```
+
+Ważne lekcje inżynierskie z M6+M7 (pełne opisy w raportach M6 sekcje 2/4/5
+i M7 sekcje 1/5):
 
 ```text
 - b3DefaultShapeDef() ma categoryBits = WSZYSTKIE bity (nie 0x1 jak Box2D);
   wąskie maski wymagają tagowania OBU stron pary (teren 0x2 / obiekty 0x1)
-- małe ciała strukturalne (rack, zwrotnica) BEZ shape'ów + b3Body_SetMassData,
-  inaczej solver flaguje je jako "fast" i CCD vs grunt potrafi ubić TOI assert
+- małe ciała strukturalne (rack, zwrotnica, wahacze) BEZ shape'ów +
+  b3Body_SetMassData, inaczej solver flaguje je jako "fast" i CCD vs grunt
+  potrafi ubić TOI assert
+- M7: światy pojazdów jeżdżą z b3World_EnableContinuous(false) - powyżej
+  ~15 m/s KOŁA same są "fast", a sweep toczącego się koła startuje w
+  kontakcie i głodzi walidację debug TOI (distance.c:1798); świat nie ma
+  cienkiej geometrii, więc CCD nic nie kupuje (silnik NIETKNIĘTY)
+- M7: wahacze z prętów distance-joint mają GAŁĄŹ LUSTRZANĄ - twarde
+  lądowanie potrafi przerzucić narożnik w odbite rozwiązanie ("złamane
+  zawieszenie"); ciała wahaczy na zawiasach z limitami mają jedną gałąź
+- M7: hertz sprężyny distance jointa na smukłym OBRACAJĄCYM SIĘ ramieniu
+  ma masę efektywną kilka kg (człon rotacyjny (r×û)ᵀI⁻¹(r×û) dominuje) -
+  trailing arm liczy kompensację z docelowej sztywności NA KOLE
+- M7: wyzerowanie castera NIE gasi samo-prostowania kół w ślizgu - scrub
+  radius i offset masy od osi zwrotu też prostują (falsyfikacja = zamrożony
+  rack, nie zerowy caster)
 - pełny Ackermann wpycha trapez w martwy punkt (over-center) przy pełnym
   skoku racka -> ackermannFraction (default 0.6)
 - phased-union kół (nakładane obrócone cylindry) OBALONE pomiarem: skoki
   kontaktu między hullami gubią warm-start, toczy się gorzej niż cylinder
-- rack potrzebuje motor-servo z limitem siły (parking torque, lekcja M5.1)
+- rack potrzebuje motor-servo z limitem siły (parking torque, lekcja M5.1);
+  M7: i musi umieć PUŚCIĆ (spring off + tarcie), żeby caster mógł pracować
 ```
 
 ## 12. No-go list for Codex
