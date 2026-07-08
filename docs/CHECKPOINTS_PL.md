@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-08 · Plan wykonawczy P1-P6 dla słabszych agentów · docs
+- CO:     `PLAN_STABILNOSC_PROWADZENIE_PL.md` — krok-po-kroku (pliki, funkcje, liczby oczekiwane, warunki STOP, checklista bramki); taski #40-45 z zależnościami; kolejność P2→P1→P3→P4→P5→P6.
+- CZEMU:  Jozz będzie przydzielał etapy tańszym modelom — plan musi być wykonywalny bez zgadywania.
+- EFEKT:  API zweryfikowane przed planowaniem (b3PrismaticJoint_GetSpeed box3d.h:1377, b3SphericalJoint_SetTwistLimits — istnieją); każdy etap ma reprodukcję-przed-naprawą i kryteria liczbowe.
+- DALEJ:  wykonawca zaczyna od P2 (task #41), potem P1 (#40). Jeden etap = jedna sesja.
+
 ## 2026-07-08 · Audyt fizyki/skrętu/stabilności · docs
 - CO:     pełny audyt kodu rigu+labu+toru → `AUDIT_PHYSICS_STEERING_2026_07_08_PL.md` z planem P1-P6. Zero zmian w kodzie.
 - CZEMU:  Jozz zgłosił łamanie skrętu pod przeciążeniem, martwe suwaki geometrii, sztuczny powrót kierownicy.
