@@ -21,6 +21,8 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -46,6 +48,18 @@
 // shows up as repo noise; the preset directory is committed on purpose.
 static const char* kSessionFilePath = "build/jozz_vehicle_m6_session.json";
 static const char* kPresetDirectory = "assets/vehicle_presets";
+
+// Debug/view toggles (Debug tab checkboxes) are deliberately NOT part of
+// JozzVehicleM6Config: they are not vehicle tuning, so they must not leak
+// into named presets or get wiped by "Przywroc wszystkie ustawienia
+// domyslne". But they were also not being restored across the engine's
+// global "R" restart, which destroys and reconstructs this whole sample -
+// the constructor hardcoded them back to fixed defaults every time. That
+// meant every "R" silently re-enabled the rig diagnostic lines even after
+// Jozz had turned them off. Small standalone key=value file, same
+// build/-is-gitignored auto-save idea as kSessionFilePath, just a separate
+// file so it stays out of the config JSON format entirely.
+static const char* kDebugSessionFilePath = "build/jozz_vehicle_m6_debug_session.txt";
 
 class JozzVehicleM6RigLab : public Sample
 {
@@ -124,6 +138,11 @@ public:
 		m_showPrimitiveWheelShapes = false;
 		m_showRigDiagnostics = true;
 		m_invertSteering = false;
+
+		// Restore whatever debug/view toggles were in effect last time, for the
+		// same reason the config load above exists: "R" restart must not
+		// silently undo a choice Jozz made in the Debug tab.
+		LoadDebugViewState();
 
 		m_contactHertz = 30.0f;
 		m_contactDampingRatio = 10.0f;
@@ -216,6 +235,7 @@ public:
 		// restart and reopening the app resume the last tuning instead of
 		// wiping it.
 		SaveJozzVehicleM6Config( m_config, kSessionFilePath );
+		SaveDebugViewState();
 
 		DestroyVehicle();
 		m_wheelVisual.Destroy();
@@ -233,6 +253,72 @@ public:
 	float InfoPanelWidthEm() const override
 	{
 		return 31.0f;
+	}
+
+	bool CondenseDebugOverlay() const override
+	{
+		return true;
+	}
+
+	// See kDebugSessionFilePath above for why this is a separate file from the
+	// vehicle config: these are view toggles, not tuning, and must survive "R"
+	// without ever being reset by a preset load or "restore defaults".
+	void SaveDebugViewState()
+	{
+		std::error_code ec;
+		std::filesystem::create_directories( std::filesystem::path( kDebugSessionFilePath ).parent_path(), ec );
+
+		std::ofstream file( kDebugSessionFilePath, std::ios::binary | std::ios::trunc );
+		if ( file.is_open() == false )
+		{
+			return;
+		}
+		file << "showWheelVisuals=" << ( m_showWheelVisuals ? 1 : 0 ) << "\n";
+		file << "showMountVisuals=" << ( m_showMountVisuals ? 1 : 0 ) << "\n";
+		file << "showPrimitiveWheelShapes=" << ( m_showPrimitiveWheelShapes ? 1 : 0 ) << "\n";
+		file << "showRigDiagnostics=" << ( m_showRigDiagnostics ? 1 : 0 ) << "\n";
+		file << "armTint=" << ( m_armTint ? 1 : 0 ) << "\n";
+	}
+
+	void LoadDebugViewState()
+	{
+		std::ifstream file( kDebugSessionFilePath );
+		if ( file.is_open() == false )
+		{
+			return;
+		}
+
+		std::string line;
+		while ( std::getline( file, line ) )
+		{
+			size_t eq = line.find( '=' );
+			if ( eq == std::string::npos )
+			{
+				continue;
+			}
+			std::string key = line.substr( 0, eq );
+			bool value = line.substr( eq + 1 ) == "1";
+			if ( key == "showWheelVisuals" )
+			{
+				m_showWheelVisuals = value;
+			}
+			else if ( key == "showMountVisuals" )
+			{
+				m_showMountVisuals = value;
+			}
+			else if ( key == "showPrimitiveWheelShapes" )
+			{
+				m_showPrimitiveWheelShapes = value;
+			}
+			else if ( key == "showRigDiagnostics" )
+			{
+				m_showRigDiagnostics = value;
+			}
+			else if ( key == "armTint" )
+			{
+				m_armTint = value;
+			}
+		}
 	}
 
 	void SyncEditFromConfig()
@@ -402,6 +488,28 @@ public:
 		{
 			m_mountWheelCenterAuthored = wc->positionMeters;
 		}
+
+		// Damper sockets: two coilovers per corner, straddling the arm (see the
+		// contract - DamperUpper/Lower _L and _R differ only in Z, not X). They
+		// are "visual_endpoint"/physicsAuthority:false markers, same status as
+		// wheel_center above, so they get the exact same treatment: read once
+		// here in the authored (left/unmirrored) frame, mirrored per corner in
+		// SetupMountRig-adjacent draw code by negating X only - Z is untouched
+		// because the L/R damper pair is not the car's left/right side.
+		// Fallbacks below are the shipped One_Sided_wheel_mount.gltf values
+		// (BU * 0.35 m/BU) in case the contract fails to load.
+		auto readDamperSocket = [this]( const char* role, b3Vec3 fallback ) {
+			const JozzVehicleContractBinding* binding = FindJozzVehicleContractBindingByRole( m_mountContract, role );
+			return ( binding != nullptr && binding->resolved ) ? binding->positionMeters : fallback;
+		};
+		m_damperUpperLAuthored =
+			readDamperSocket( "suspension.visual.damper_upper_l", { 0.0164f, 0.6453f, 0.2844f } );
+		m_damperUpperRAuthored =
+			readDamperSocket( "suspension.visual.damper_upper_r", { 0.0164f, 0.6453f, -0.2844f } );
+		m_damperLowerLAuthored =
+			readDamperSocket( "suspension.visual.damper_lower_l", { -0.2516f, 0.0109f, 0.2844f } );
+		m_damperLowerRAuthored =
+			readDamperSocket( "suspension.visual.damper_lower_r", { -0.2516f, 0.0109f, -0.2844f } );
 	}
 
 	static bool CornerIsLeft( int corner )
@@ -483,6 +591,22 @@ public:
 		m_vehicle = CreateJozzVehicleM6( m_worldId, m_groundId, m_config, { 0.0f, GetSpawnHeight(), 0.0f } );
 		UpdateWheelShapeVisibility();
 		SetupMountRig();
+	}
+
+	// "Reset swiat" - a full simulation restart scoped to this running sample
+	// object, so it can never touch m_config or the Debug-tab toggles (there is
+	// nothing to reload them from; they simply aren't part of what this resets).
+	// This is the button form of what "R" does at the process level; it exists
+	// because "R" goes through the engine's global restart (destroy + rebuild
+	// the whole sample), which is what was silently reviving the hardcoded
+	// Debug defaults before LoadDebugViewState() existed.
+	void ResetWorld()
+	{
+		CreateVehicle();
+		ResetJozzVehicleM5TestCourseProps( m_testCourse );
+		m_telemetryHead = 0;
+		m_telemetryCount = 0;
+		m_telemetryClock = 0.0f;
 	}
 
 	void DestroyVehicle()
@@ -924,6 +1048,69 @@ public:
 	// toggles and status live in Debug now; this tab is short on purpose.
 	void DrawWorldTab()
 	{
+		// Moved here from above the tab bar (2026-07-08, UI compaction pass):
+		// switching a whole setup (drift/offroad/street) is a "which car am I
+		// driving" decision, not something tied to whichever tuning tab happens
+		// to be open, but it also doesn't need to sit in front of every tab all
+		// the time - Świat (the sandbox/reset tab) is a natural home for a
+		// once-in-a-while pick. Loading a preset still commits immediately (like
+		// "Przywróć wszystkie ustawienia domyślne" already does) rather than
+		// staging through Apply - loading half of a preset would leave the car
+		// in a state that was never actually designed.
+		SectionHeader( "Presety pojazdu" );
+		{
+			std::vector<const char*> items;
+			items.reserve( m_availablePresets.size() );
+			for ( const std::string& name : m_availablePresets )
+			{
+				items.push_back( name.c_str() );
+			}
+			ImGui::SetNextItemWidth( 12.0f * ImGui::GetFontSize() );
+			if ( items.empty() )
+			{
+				ImGui::TextDisabled( "(brak zapisanych presetów - zapisz jeden poniżej)" );
+			}
+			else
+			{
+				ImGui::Combo( "##PresetSelect", &m_selectedPresetIndex, items.data(), (int)items.size() );
+				ImGui::SameLine();
+				bool validSelection = m_selectedPresetIndex >= 0 && m_selectedPresetIndex < (int)m_availablePresets.size();
+				if ( ImGui::Button( "Wczytaj" ) && validSelection )
+				{
+					LoadPresetByName( m_availablePresets[m_selectedPresetIndex] );
+				}
+			}
+			ImGui::SetNextItemWidth( 12.0f * ImGui::GetFontSize() );
+			ImGui::InputTextWithHint( "##PresetName", "nazwa nowego presetu...", m_presetNameBuffer,
+									   sizeof( m_presetNameBuffer ) );
+			ImGui::SameLine();
+			if ( ImGui::Button( "Zapisz jako" ) )
+			{
+				SaveCurrentAsPreset( m_presetNameBuffer );
+			}
+			// Quiet heads-up, not a confirm popup: overwriting your OWN preset by
+			// re-saving under the same name is a normal, expected part of
+			// iterating on a setup, so this only needs to be visible, not gate
+			// the click behind another dialog.
+			bool nameExists = false;
+			for ( const std::string& name : m_availablePresets )
+			{
+				if ( name == m_presetNameBuffer )
+				{
+					nameExists = true;
+					break;
+				}
+			}
+			if ( nameExists )
+			{
+				ImGui::TextDisabled( "Preset '%s' już istnieje - zapis go nadpisze.", m_presetNameBuffer );
+			}
+			if ( m_presetStatus.empty() == false )
+			{
+				ImGui::TextColored( ImVec4( 0.6f, 0.85f, 0.6f, 1.0f ), "%s", m_presetStatus.c_str() );
+			}
+		}
+
 		SectionHeader( "Przyczepność" );
 		if ( ImGui::SliderFloat( "Tarcie opon", &m_config.wheelFriction, 0.4f, 2.5f, "%.2f" ) )
 		{
@@ -952,6 +1139,14 @@ public:
 		}
 
 		SectionHeader( "Reset" );
+		if ( ImGui::Button( "Zresetuj swiat" ) )
+		{
+			ResetWorld();
+		}
+		HelpMarker( "Pelny restart symulacji: auto na miejsce startowe, przeszkody na miejsce, telemetria od zera. "
+					"Nie rusza dostrojenia (Zawieszenie/Nadwozie/Naped/Kierownica) ani ustawien Debug - to samo co "
+					"robi klawisz R, ale bez ryzyka utraty wlasnie zmienionych suwakow czy checkboxow." );
+		ImGui::Spacing();
 		if ( ImGui::Button( "Zresetuj pojazd" ) )
 		{
 			CreateVehicle();
@@ -1065,75 +1260,24 @@ public:
 		}
 	}
 
+	// The engine/camera stats block above this (frame time, step count, camera
+	// pivot) is folded behind a closed CollapsingHeader for this lab
+	// (CondenseDebugOverlay override below) - with 6 tabs of sliders to fit,
+	// that block ate a third of the panel for numbers nobody tunes with. Same
+	// reasoning killed the multi-line control hint here: one line + a "(?)"
+	// tooltip instead of three permanent TextDisabled lines. Presets used to
+	// live here too, above the tab bar; they now live in the Świat tab
+	// (DrawWorldTab) - "which car am I driving" is a per-session choice, not
+	// something that needs to occupy prime panel space on every tab, and the
+	// tab bar itself is what should greet you first.
 	bool DrawControls() override
 	{
-		ImGui::TextUnformatted( "Warsztat zawieszenia M6/M7" );
 		ImGui::Text( "prędkość %.1f m/s (%.0f km/h)", GetJozzVehicleM6ForwardSpeed( m_vehicle ),
 					 3.6f * GetJozzVehicleM6ForwardSpeed( m_vehicle ) );
-		ImGui::TextDisabled( "W/S jazda, A/D skręt, Spacja hamulec, T kamera, R restart" );
-		ImGui::TextDisabled( "R restart zachowuje aktualne strojenie (auto-zapis sesji)." );
-
-		// Presets sit above the tab bar, visible from every tab, same idea as
-		// the Apply bar below: switching a whole setup (drift/offroad/street)
-		// is a "which car am I driving" decision, not something tied to
-		// whichever tab happens to be open. Picking one commits immediately
-		// (like "Przywróć wszystkie ustawienia domyślne" already does) rather
-		// than staging through Apply - loading half of a preset would leave
-		// the car in a state that was never actually designed.
-		ImGui::Spacing();
-		ImGui::TextUnformatted( "Presety pojazdu" );
-		{
-			std::vector<const char*> items;
-			items.reserve( m_availablePresets.size() );
-			for ( const std::string& name : m_availablePresets )
-			{
-				items.push_back( name.c_str() );
-			}
-			ImGui::SetNextItemWidth( 12.0f * ImGui::GetFontSize() );
-			if ( items.empty() )
-			{
-				ImGui::TextDisabled( "(brak zapisanych presetów - zapisz jeden poniżej)" );
-			}
-			else
-			{
-				ImGui::Combo( "##PresetSelect", &m_selectedPresetIndex, items.data(), (int)items.size() );
-				ImGui::SameLine();
-				bool validSelection = m_selectedPresetIndex >= 0 && m_selectedPresetIndex < (int)m_availablePresets.size();
-				if ( ImGui::Button( "Wczytaj" ) && validSelection )
-				{
-					LoadPresetByName( m_availablePresets[m_selectedPresetIndex] );
-				}
-			}
-			ImGui::SetNextItemWidth( 12.0f * ImGui::GetFontSize() );
-			ImGui::InputTextWithHint( "##PresetName", "nazwa nowego presetu...", m_presetNameBuffer,
-									   sizeof( m_presetNameBuffer ) );
-			ImGui::SameLine();
-			if ( ImGui::Button( "Zapisz jako" ) )
-			{
-				SaveCurrentAsPreset( m_presetNameBuffer );
-			}
-			// Quiet heads-up, not a confirm popup: overwriting your OWN preset by
-			// re-saving under the same name is a normal, expected part of
-			// iterating on a setup, so this only needs to be visible, not gate
-			// the click behind another dialog.
-			bool nameExists = false;
-			for ( const std::string& name : m_availablePresets )
-			{
-				if ( name == m_presetNameBuffer )
-				{
-					nameExists = true;
-					break;
-				}
-			}
-			if ( nameExists )
-			{
-				ImGui::TextDisabled( "Preset '%s' już istnieje - zapis go nadpisze.", m_presetNameBuffer );
-			}
-			if ( m_presetStatus.empty() == false )
-			{
-				ImGui::TextColored( ImVec4( 0.6f, 0.85f, 0.6f, 1.0f ), "%s", m_presetStatus.c_str() );
-			}
-		}
+		ImGui::TextDisabled( "Sterowanie i R restart" );
+		HelpMarker( "W/S jazda, A/D skręt, Spacja hamulec, T kamera, R restart.\n"
+					"R restart zachowuje strojenie i ustawienia Debug (auto-zapis sesji).\n"
+					"Przycisk 'Zresetuj świat' (zakładka Świat) robi to samo bez klawiatury." );
 		ImGui::Separator();
 
 		// The narrow default item width fits the old single-column panel; the
@@ -1495,11 +1639,23 @@ public:
 			}
 		}
 
-		// Telescoping shock per corner: top on the chassis (above + inboard of
-		// the wheel), bottom on the knuckle (upright). Part_Stretch scales as the
-		// suspension travels - one end follows the chassis, the other the wheel.
+		// Two telescoping shocks per corner (2026-07-08 fix), pinned to the
+		// model's own Socket_DamperUpper/Lower_L/R markers instead of guessed
+		// offsets from the wheel centre - the old formula ("+0.62m above",
+		// "0.28m toward centre") had no relationship to the authored geometry,
+		// which is why the shock rendered floating in the air past the tire.
+		// _L/_R differ only in Z in the contract (two shocks straddling the
+		// arm, not the car's left/right side), so both get the SAME mirror
+		// treatment as Socket_WheelCenter: negate X for right-side corners,
+		// leave Z alone. Upper rides bracketWorld (chassis-relative, same as
+		// the ChassisMount bracket parts); lower rides hubWorld (knuckle-
+		// relative, same as the WheelCenter hub part) - the exact transforms
+		// that pin the Chassis_Top/Chassis_Bottom arms above, so the shocks
+		// stay glued to the same live geometry the arms articulate against.
 		if ( m_showDumper && m_dumper.IsLoaded() )
 		{
+			b3WorldTransform chassisLive = b3Body_GetTransform( m_vehicle.chassisId );
+			const Vec4 damperColor = MakeVec4( 0.82f, 0.84f, 0.9f, 1.0f );
 			for ( int corner = 0; corner < JOZZ_M6_CORNER_COUNT; ++corner )
 			{
 				if ( m_cornerHasMount[corner] == false )
@@ -1507,12 +1663,26 @@ public:
 					continue;
 				}
 				const JozzVehicleM6CornerRuntime& runtime = m_vehicle.corners[corner];
-				b3Vec3 wheelLocal = runtime.restWheelCenterLocal;
-				float inboardZ = wheelLocal.z > 0.0f ? -0.28f : 0.28f; // toward the car centre
-				b3Vec3 topLocal = { wheelLocal.x, wheelLocal.y + 0.62f, wheelLocal.z + inboardZ };
-				b3Pos topWorld = b3Body_GetWorldPoint( m_vehicle.chassisId, topLocal );
-				b3Pos botWorld = b3Body_GetWorldPoint( runtime.knuckleId, { 0.0f, 0.0f, 0.25f * inboardZ } );
-				m_dumper.DrawTelescopingDamper( topWorld, botWorld, MakeVec4( 0.82f, 0.84f, 0.9f, 1.0f ) );
+				b3WorldTransform bracketWorld = b3MulWorldTransforms( chassisLive, m_bracketLocal[corner] );
+				b3WorldTransform hubWorld =
+					b3MulWorldTransforms( b3Body_GetTransform( runtime.knuckleId ), m_hubLocal[corner] );
+
+				b3Vec3 upperL = m_damperUpperLAuthored;
+				b3Vec3 upperR = m_damperUpperRAuthored;
+				b3Vec3 lowerL = m_damperLowerLAuthored;
+				b3Vec3 lowerR = m_damperLowerRAuthored;
+				if ( CornerIsLeft( corner ) == false )
+				{
+					upperL.x = -upperL.x;
+					upperR.x = -upperR.x;
+					lowerL.x = -lowerL.x;
+					lowerR.x = -lowerR.x;
+				}
+
+				m_dumper.DrawTelescopingDamper( b3TransformPoint( bracketWorld, upperL ),
+												 b3TransformPoint( hubWorld, lowerL ), damperColor );
+				m_dumper.DrawTelescopingDamper( b3TransformPoint( bracketWorld, upperR ),
+												 b3TransformPoint( hubWorld, lowerR ), damperColor );
 			}
 		}
 
@@ -1581,6 +1751,10 @@ public:
 	std::string m_presetStatus;
 	bool m_testOpenResetModal = false; // JOZZ_M6_TEST_RESET_MODAL: render-verify the confirm popup headless
 	b3Vec3 m_mountWheelCenterAuthored = { -0.416f, 0.175f, 0.0f };
+	b3Vec3 m_damperUpperLAuthored = { 0.0164f, 0.6453f, 0.2844f };
+	b3Vec3 m_damperUpperRAuthored = { 0.0164f, 0.6453f, -0.2844f };
+	b3Vec3 m_damperLowerLAuthored = { -0.2516f, 0.0109f, 0.2844f };
+	b3Vec3 m_damperLowerRAuthored = { -0.2516f, 0.0109f, -0.2844f };
 	b3Transform m_bracketLocal[JOZZ_M6_CORNER_COUNT];
 	b3Transform m_hubLocal[JOZZ_M6_CORNER_COUNT];
 	bool m_cornerHasMount[JOZZ_M6_CORNER_COUNT] = {};

@@ -99,6 +99,31 @@ Everything M6-specific (rig type per axle, wishbone geometry, self-align
 assist, wheel envelope, rack servo force) is ImGui-only, per the control
 policy below.
 
+### `R` restart and Debug-tab view toggles (2026-07-08 fix)
+
+`R` is still the global sample-host restart (destroy + reconstruct the whole
+sample). The constructor already restores saved vehicle tuning from
+`build/jozz_vehicle_m6_session.json` (see `jozz_vehicle_m6_config_io`), but the
+Debug tab's view checkboxes (rig diagnostic lines, wheel/mount 3D models,
+wheel-collision-shape overlay, arm tint) were hardcoded back to fixed defaults
+on every construction, independent of that config file. Effect: pressing `R`
+silently re-enabled "Linie geometrii zawieszenia" (and any other Debug
+checkbox) even after Jozz had turned it off — reported as "R kasuje ustawienia
+debug".
+
+Fix: those toggles now round-trip through their own auto-save,
+`build/jozz_vehicle_m6_debug_session.txt` (plain `key=value` lines, not JSON —
+deliberately not folded into `JozzVehicleM6Config` so they can never leak into
+a named preset or get wiped by "Przywróć wszystkie ustawienia domyślne").
+Loaded in the constructor right after the hardcoded defaults, saved in the
+destructor alongside the vehicle config.
+
+Also added: a "Zresetuj świat" button (Świat tab) that does a full
+in-place reset — vehicle respawn, test-course props, telemetry buffers —
+without going through the sample-host's destroy/reconstruct path at all. It is
+the recommended way to get a clean world state; `R` remains available for
+cases that need the full engine-level restart.
+
 ## Current code ownership summary
 
 `Q/E` live root control is implemented inside `JozzVehiclePrimitiveCornerM2::Step()`.

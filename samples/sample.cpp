@@ -1909,22 +1909,39 @@ static void DrawInfoPanel( SampleContext* context )
 		ImGui::Separator();
 	}
 
-	const float frameMs = (float)( sapp_frame_duration() * 1000.0 );
-	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "%.1f ms", frameMs );
-	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "step %d", context->sample->m_stepCount );
-	ImGui::Separator();
+	auto drawDebugOverlayBody = [context]() {
+		const float frameMs = (float)( sapp_frame_duration() * 1000.0 );
+		ImGui::TextColored( HexColor( b3_colorSeaGreen ), "%.1f ms", frameMs );
+		ImGui::TextColored( HexColor( b3_colorSeaGreen ), "step %d", context->sample->m_stepCount );
+		ImGui::Separator();
 
-	// The camera lives in display space, so pivot, radius and speed are in meters
-	// regardless of the simulation's length units.
-	b3Pos p = context->camera.m_pivot;
-	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "pivot m (%.1f, %.1f, %.1f)", p.x, p.y, p.z );
-	float yawDeg = B3_RAD_TO_DEG * context->camera.m_yaw;
-	float pitchDeg = B3_RAD_TO_DEG * context->camera.m_pitch;
-	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "yaw/pitch (%.1f, %.1f)", yawDeg, pitchDeg );
-	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "radius m %.1f, speed m/s %.1f", context->camera.m_radius,
-						context->camera.m_speed );
+		// The camera lives in display space, so pivot, radius and speed are in
+		// meters regardless of the simulation's length units.
+		b3Pos p = context->camera.m_pivot;
+		ImGui::TextColored( HexColor( b3_colorSeaGreen ), "pivot m (%.1f, %.1f, %.1f)", p.x, p.y, p.z );
+		float yawDeg = B3_RAD_TO_DEG * context->camera.m_yaw;
+		float pitchDeg = B3_RAD_TO_DEG * context->camera.m_pitch;
+		ImGui::TextColored( HexColor( b3_colorSeaGreen ), "yaw/pitch (%.1f, %.1f)", yawDeg, pitchDeg );
+		ImGui::TextColored( HexColor( b3_colorSeaGreen ), "radius m %.1f, speed m/s %.1f", context->camera.m_radius,
+							context->camera.m_speed );
 
-	ImGui::Separator();
+		ImGui::Separator();
+	};
+
+	// Most samples want this always visible; a sample with tall, tuning-dense
+	// controls of its own (CondenseDebugOverlay) gets it folded away by
+	// default instead, so its own panel starts right after the title.
+	if ( context->sample->CondenseDebugOverlay() )
+	{
+		if ( ImGui::CollapsingHeader( "Silnik (czas klatki / kamera)" ) )
+		{
+			drawDebugOverlayBody();
+		}
+	}
+	else
+	{
+		drawDebugOverlayBody();
+	}
 
 	ImGui::PushItemWidth( 6.0f * fontSize );
 	if ( context->sample->DrawControls() )

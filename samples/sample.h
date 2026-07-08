@@ -133,6 +133,17 @@ public:
 		return true;
 	}
 
+	// The info panel normally prints frame-time/step-count/camera pivot stats
+	// up front, always expanded. A sample whose own controls are tall and
+	// tuning-dense (many sliders/tabs) can fold that block behind a closed
+	// CollapsingHeader instead, so the panel opens straight into the sample's
+	// own content. Off by default so every existing sample keeps its current
+	// layout untouched.
+	virtual bool CondenseDebugOverlay() const
+	{
+		return false;
+	}
+
 	// Width of the right info panel in em. The bottom drawer clears to the same width. A sample that
 	// hosts heavier content there, such as the replay viewer's detail pane, can widen it.
 	virtual float InfoPanelWidthEm() const;
