@@ -9,24 +9,24 @@ Legenda ryzyka: 🔴 wysokie · 🟠 średnie · 🟡 niskie.
 
 ---
 
-## 1. 🔴 Cała praca M7+M8 jest NIEZACOMMITOWANA
+## 1. ✅ ROZWIĄZANE — Cała praca M7+M8 była NIEZACOMMITOWANA
 
-**Opis:** ostatni commit to `f09139b` (M6, 2026-07-06). Wszystko od tego czasu —
-M7 real forces, M8 rig/poza/droop, system zrzutów, `jozz_vehicle_m6_config_io`,
-presety, przebudowa UI, poprawka fontu, naprawa bugów zakładek/sesji — to **25
-niezacommitowanych plików** (13 zmodyfikowanych + 12 nowych). To ~tydzień pracy
-wielu sesji poza historią gita.
+**Opis (historyczny):** do 2026-07-08 ostatni commit to był `f09139b` (M6,
+2026-07-06). M7 real forces, M8 rig/poza/droop, system zrzutów,
+`jozz_vehicle_m6_config_io`, presety, przebudowa UI, poprawka fontu, naprawa
+bugów zakładek/sesji — 25 niezacommitowanych plików, ~tydzień pracy poza
+historią gita.
 
-**Ryzyko:** pojedynczy zły `git checkout/reset/clean`, restart maszyny albo nowy
-agent zaczynający „od czysta" może to **bezpowrotnie skasować**. Dodatkowo
-granularna, audytowalna historia commitów urywa się na M6 — M7/M8 nie da się
-bisectować ani przejrzeć per-zmiana.
+**Rozwiązanie (2026-07-08):** pogrupowane w 2 commity (`1446c9d` kod+narzędzia,
+`d2da267` dokumentacja) i wypchnięte na `jozz-vehicle-sandbox-m0`. Przy okazji
+Jozz ustanowił trwałą zasadę: **agenci odtąd samodzielnie commitują i pushują
+na `jozz-vehicle-sandbox-m0`**, gdy bramka (build+walidator+test) jest zielona
+— nie czekają na osobną prośbę per commit. `main` zostaje wyłącznie dla Jozza.
+Zasada opisana w README_FOR_AGENTS §4/§5.
 
-**Plan:** Jozz decyduje o commitowaniu (zasada: agent commituje tylko na prośbę).
-Rekomendacja: pogrupować w kilka logicznych commitów (np. „M7 real forces", „M8
-rig + poza", „system zrzutów + quad_shot", „UI PL + presety + config_io",
-„przegląd dokumentacji"), branch `jozz-vehicle-sandbox-m0` jest właściwy.
-**To jest pozycja #1 do zaadresowania — reszta długu jest dużo mniej pilna.**
+**Watch-item na przyszłość:** ten scenariusz (tydzień pracy bez commitów) nie
+powinien się już powtórzyć przy nowej zasadzie — jeśli się powtórzy, to sygnał
+że agent nie stosuje bramki/dyscypliny z README.
 
 ---
 

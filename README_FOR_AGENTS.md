@@ -2,7 +2,7 @@
 
 **This is the single front door. Read this fully before touching anything.**
 It is kept short and current on purpose. Everything else in `docs/` is either a
-milestone report (history) or a deep-dive reference — see §8 for which is which.
+milestone report (history) or a deep-dive reference — see §9 for which is which.
 
 - **Date of this handoff:** 2026-07-08 (state: M8)
 - **Owner / creative director:** Jozz (respond to Jozz in **Polish**)
@@ -35,7 +35,7 @@ Two rules define the whole thing:
 ## 2. Current state (M8, accepted vs experimental)
 
 The vehicle runs inside the box3d `samples` host. **Active samples** (open by
-name, indices shift — see §5):
+name, indices shift — see §6):
 
 ```text
 Jozz Vehicle / M6 Suspension Rig Lab   <- THE main drivable car. Multi-body
@@ -72,7 +72,7 @@ Jozz Vehicle / Lab M1 Smoke            <- oldest smoke sample (kept)
   measured safe ceiling. Full screen-2-level droop needs a steering-geometry
   redesign (deferred, see TECH_DEBT).
 - Soft-tire deformation, differentials/drivetrain, tire slip-curve model,
-  markers→hardpoints import — all still deferred (roadmap in §7).
+  markers→hardpoints import — all still deferred (roadmap in §8).
 
 **Awaiting Jozz's manual drive test** — the M7/M8 physics passes machine
 validation but Jozz's feel check on several items is still pending.
@@ -150,16 +150,70 @@ passed.)
 - **Prefer numbers over pixels for geometry.** `JOZZ_M6_DUMP=1` prints exact
   corner coordinates; that is how the L/R asymmetry was proven to be a render bug,
   not physics.
-- **Commit discipline:** commit only when Jozz asks; on a shared branch keep
-  commits small and self-describing. ⚠ **Right now everything since M6 is
-  uncommitted** — see TECH_DEBT #1.
+- **Commit discipline (2026-07-08, Jozz's standing rule):** agents commit
+  and push **autonomously** to `jozz-vehicle-sandbox-m0` whenever the quality
+  gate (build + validator + `test.exe`) is green — do not wait to be asked per
+  commit. Keep commits small and self-describing; group a logical unit of
+  work into one commit, not one commit per file. **`main` is Jozz-only** — he
+  updates it himself at real milestones. Agents never push to `main`, never
+  force-push, never rewrite history. See §5 for keeping this cheap in tokens.
 - **Doc discipline:** after a real change, update the ledger
   (`CURRENT_STATE_INDEX_PL.md`) and this file's §2 if the state moved. Do NOT add
-  a new `docs/*.md` per tiny change — the doc pile is already too big (§8).
+  a new `docs/*.md` per tiny change — the doc pile is already too big (§9).
 
 ---
 
-## 5. Sample indices are fragile — use names
+## 5. Token economy — keep chat lean, repo authoritative
+
+Rules Jozz set 2026-07-08 to cut token spend without cutting rigor. The
+quality gate (build + validator + `test.exe`) and doc/commit discipline stay
+**mandatory** — this section changes *how much of the process gets narrated
+in chat*, not what gets done.
+
+- **Never paste raw tool output.** Summarize builds/tests/`git status`/diffs
+  in one line ("Build: 3/3 targets OK", "Testy: 11/11 PASS (11.2s)"). Paste
+  the actual failing fragment only when something failed and you need it for
+  diagnosis. Still scan full output for `warning` even on success — a silent
+  new compiler warning is exactly the kind of thing this project has been
+  bitten by before (§3's "validator asserts loosely" is the same failure
+  mode: don't let a green summary hide a bad detail). Screenshots are
+  evidence, not log spam — "render is the gate" (§3) is untouched, always
+  show and read the PNG.
+- **Quiet flags where they exist:** `git push -q`, `git fetch -q`,
+  `git diff --stat` instead of a full diff, `git log --oneline -5` instead of
+  full history. Full `git diff` only when actually reviewing a specific hunk.
+  Caveat: `-q` suppresses *progress* output, not error text — a failed command
+  still prints its error and still needs full, un-quieted output for
+  diagnosis.
+- **Grep/offset before full Read.** The three largest files
+  (`jozz_vehicle_m6_rig_lab.cpp` ~1600L, `jozz_vehicle_visual_mesh.cpp`
+  ~1900L, `jozz_vehicle_m6_suspension_rig.cpp` ~1500L — see TECH_DEBT #7) are
+  exactly where a targeted Grep beats reading the whole file. Don't re-read a
+  file already seen this session unless something could plausibly have
+  changed it (your own edit already invalidates the "unread" assumption
+  automatically; a fresh session, a compaction, or work landing on the shared
+  branch from another agent does not — `git fetch -q && git status` before
+  trusting a stale read of shared-branch state).
+- **Batch independent steps into one call.** Build + validator + test + status
+  is one chained command, not four narrated ones. This never overrides
+  safety: `git status` still runs before any destructive git command, and the
+  full gate still runs before every commit — batching cuts round-trips and
+  narration, not verification.
+- **Gate reporting is one line**, e.g. "Bramka: build 3/3 OK, walidator OK,
+  testy 11/11 PASS (11.2s) — commituję." Full transcript only on failure.
+- **One milestone per session where practical.** Detailed step-by-step
+  narrative belongs in the repo's milestone `docs/*.md`, not the chat log —
+  chat gets a 2-3 sentence close-out + the commit list. An agent can't force a
+  new session, but should say so and suggest `/compact` or a fresh session
+  once a milestone's gate is green and pushed, or once a session is carrying
+  a long tool-call history.
+- **What this does NOT shrink:** the explanation Jozz actually asked for in
+  §10 ("what changed, why, consequences — in Polish, plainly") stays full.
+  Token economy trims raw tool transcripts, not reasoning or communication.
+
+---
+
+## 6. Sample indices are fragile — use names
 
 `--sample <N>` numbers = registration order and **shift when samples are added**.
 Jozz samples register last (after all box3d demos). Prefer `--sample-name
@@ -172,7 +226,7 @@ Do not use `[` / `]` (global sample-switch keys). Adding a hotkey → update
 
 ---
 
-## 6. Do NOT do without Jozz's explicit go-ahead
+## 7. Do NOT do without Jozz's explicit go-ahead
 
 - Change box3d engine internals (`src/`, `include/`).
 - Rework the M7 real-forces model or the M8 pose foundation (they are accepted).
@@ -181,12 +235,14 @@ Do not use `[` / `]` (global sample-switch keys). Adding a hotkey → update
 - Add a full glTF renderer / material / skin / animation importer.
 - Add mesh collision for wheels or suspension.
 - Regenerate `assets/reports/*` (`py tools\asset_audit.py`) unless intentional.
-- Commit, force-push, or rewrite history.
+- Push to `main`, force-push, or rewrite history anywhere. (Routine commits +
+  pushes to `jozz-vehicle-sandbox-m0` behind a green gate do NOT need
+  go-ahead — see §4/§5.)
 - Rename/move the active samples or the tuning UI layout (Jozz just approved it).
 
 ---
 
-## 7. Priorities / roadmap (next gates)
+## 8. Priorities / roadmap (next gates)
 
 Nothing here is started; confirm with Jozz before picking one up:
 
@@ -201,7 +257,7 @@ M7.5  analog steering input + soft hands-on/off transition
 
 ---
 
-## 8. Documentation map (what to trust)
+## 9. Documentation map (what to trust)
 
 The `docs/` folder has ~40 files. Most are **historical milestone reports** —
 useful as history, **not** as current architecture. Trust this order:
@@ -226,13 +282,13 @@ Also at repo root: `README.md` (upstream box3d), `CONTRIBUTING.md` (upstream),
 
 ---
 
-## 9. Where a new agent should start
+## 10. Where a new agent should start
 
 1. Read this file + `docs/TECH_DEBT_PL.md` end to end.
 2. Build the three targets and run the validator + `test.exe` (§3). If they are
    not green on a clean checkout, that is your first task — nothing else.
 3. Take one screenshot of the M6 lab (§3) so you have working eyes.
-4. Only then pick up work — from Jozz's request, or §7, confirmed with Jozz.
+4. Only then pick up work — from Jozz's request, or §8, confirmed with Jozz.
 5. When you touch code: reproduce → change → re-validate → **screenshot if
    visual** → update §2 / the ledger. Report to Jozz *what* changed, *why*, and
    the *consequences* — in Polish, plainly, no hedging.
