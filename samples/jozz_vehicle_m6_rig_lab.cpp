@@ -805,7 +805,8 @@ public:
 
 	void DrawSteeringTab()
 	{
-		ImGui::TextWrapped( "Puszczona kierownica sama wraca do środka dzięki fizyce, nie skryptowi." );
+		ImGui::TextWrapped( "W ruchu puszczona kierownica sama wraca do środka dzięki fizyce (caster), nie skryptowi. "
+							"Na postoju koła zostają skręcone - jak w prawdziwym aucie." );
 		HelpMarker( "Trzymanie A/D włącza sprężynę zębatki + serwo (wspomaganie). Puszczenie zostawia tylko tarcie "
 					"zębatki, więc geometria zwrotnicy i siły z kontaktu z podłożem same kierują kołami - kontra w "
 					"poślizgu i prostowanie na wyjściu z zakrętu wynikają z sił, nie ze skryptu." );
@@ -831,10 +832,18 @@ public:
 		ImGui::SliderFloat( "Tarcie kinetyczne (ruch)", &m_config.rackKineticFrictionForce, 0.0f, 300.0f, "%.0f N" );
 		HelpMarker( "Opór, jaki musi pokonać ślad koła (caster), gdy zębatka JUŻ się rusza - to ono decyduje o "
 					"szybkości powrotu po poślizgu. Mniej = szybszy powrót do środka. UWAGA: poniżej ok. 200 N "
-					"zmierzono realną utratę stabilności przy twardym lądowaniu/uderzeniu (koło może utknąć w złej "
-					"geometrii - patrz TECH_DEBT #9) - nie schodź poniżej bez sprawdzenia skoku z rampy." );
+					"zmierzono realną utratę stabilności przy twardym lądowaniu z rampy (przechył/znos nadwozia) - "
+					"nie schodź poniżej bez sprawdzenia skoku z rampy." );
 		ImGui::SliderFloat( "Tarcie skrętu kolumny", &m_config.steeringFrictionTorque, 0.0f, 200.0f, "%.0f N*m" );
 		HelpMarker( "To samo co tarcie zębatki, ale dla osi na kolumnie McPhersona zamiast wahaczy." );
+		ImGui::SliderFloat( "Wspomaganie powrotu (arcade)", &m_config.rackCenteringHertz, 0.0f, 30.0f, "%.0f Hz" );
+		HelpMarker( "OPCJONALNE, domyślnie 0 = WYŁĄCZONE (realistycznie). Prawdziwe auto NIE centruje kół na "
+					"postoju - koła wracają do środka dopiero w ruchu, dzięki wleczeniu casterem (to domyślne, "
+					"uczciwe zachowanie). Podniesienie dodaje sprężynę ciągnącą kierownicę do środka nawet na "
+					"postoju. Zmierzone: zauważalne dopiero od ok. 10 Hz (niżej opona za mocno trzyma o ziemię), "
+					"od 10-15 Hz koła wracają do środka same. Im wyżej, tym mocniej - ale tym bardziej walczy z "
+					"naturalnym kontra-skrętem w poślizgu. Jak wspomaganie pionowania: podpórka na życzenie, nie "
+					"domyślny mechanizm." );
 	}
 
 	// The single "Zawieszenie" tab, front to back: what kind of suspension ->

@@ -64,7 +64,15 @@ Jozz Vehicle / Lab M1 Smoke            <- oldest smoke sample (kept)
   BODIES on hinges with angle limits (not distance-joint rods — those had a
   mirrored solution branch that snapped on hard landings); back-drivable steering
   rack (caster/contact forces do the counter-steer, no script); torque-based
-  drive; anti-roll bars; aero drag; split wheel collision envelope.
+  drive; anti-roll bars; aero drag; split wheel collision envelope. The rack is
+  hands-off spring-free by design: the wheels self-center **only while rolling**
+  (caster trail), and stay put at a standstill — this is correct (a stopped car
+  doesn't self-center), not a bug. An **opt-in** `rackCenteringHertz` slider
+  (default 0 = off, "Wspomaganie powrotu (arcade)") adds a rest-centering spring
+  for players who want it; it's a sibling of `uprightAssist`, not the default.
+  (History note: the "steering jam" once tracked in TECH_DEBT #9 was proven to
+  be this rest-state no-centering, misdiagnosed by a probe that demanded
+  self-centering on a stationary car — now closed.)
 - **M8 rig + pose foundation**: the mount model is rigged per-bone onto the live
   bodies; suspension **default pose is a deliberate setting** (`restArmDroopDeg`
   geometry + `suspensionPreload` spring preload) so arms droop to the wheels

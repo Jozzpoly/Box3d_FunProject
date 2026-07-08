@@ -358,6 +358,18 @@ struct JozzVehicleM6Config
 	float rackKineticFrictionForce;
 	float steeringFrictionTorque; // N*m; hands-off resistance of a strut corner
 	float steerInputDeadzone;	  // |input| below this = hands off the wheel
+	// OPT-IN arcade return-to-center assist (default 0 = OFF = realistic). When
+	// > 0, the hands-off rack also gets a WEAK spring pulling it toward center,
+	// so the wheels straighten even at a standstill. This is deliberately off by
+	// default and clearly an assist, NOT the honest mechanism: at rest a real
+	// back-drivable steering has NO centering force (caster trail needs forward
+	// rolling), which is exactly why M7 removed the old software self-align.
+	// Verified empirically (2026-07-08): with this at 0, a wheel knocked to full
+	// lock on a stationary car stays there and self-centers only once driving
+	// (-29 deg -> 1.4 deg at 12.7 m/s) - correct physics. This slider exists for
+	// players who want arcade auto-centering; it will lightly fight the caster
+	// counter-steer in slides, so keep it low. Sibling of uprightAssist below.
+	float rackCenteringHertz;
 	bool ackermannGeometry;		  // strut: computed targets; wishbone: trapezoid arms
 	float strutCasterDeg;		  // tilts the strut travel/steer axis rearward (0 = exact M5)
 

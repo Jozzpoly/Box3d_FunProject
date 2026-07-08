@@ -1193,6 +1193,97 @@ bool RunP2RackTravelRegressionProbe( const JozzVehiclePrimitiveDefaults& default
 	return ok;
 }
 
+// Opt-in arcade centering assist (config.rackCenteringHertz): with it OFF
+// (default 0), a wheel knocked off-center on a STATIONARY car stays there
+// (realistic - no caster force at rest). With it ON, a weak spring pulls the
+// rack toward center even at a standstill. This probe asserts exactly that
+// contrast, so the honest default and the assist are both pinned by a test.
+bool RunP4CenteringAssistProbe( const JozzVehiclePrimitiveDefaults& defaults )
+{
+	std::printf( "p4 centering assist probe:\n" );
+	bool ok = true;
+
+	auto kickAtRestAndSettle = []( const JozzVehicleM6Config& config ) {
+		b3WorldDef worldDef = b3DefaultWorldDef();
+		b3WorldId worldId = b3CreateWorld( &worldDef );
+		b3BodyId groundId = CreateM6SmokeGround( worldId, 0.8f );
+		float spawnHeight = config.restDrop + config.wheelEnvelope.radius + 0.05f;
+		JozzVehicleM6 vehicle = CreateJozzVehicleM6( worldId, groundId, config, { 0.0f, spawnHeight, 0.0f } );
+		const float timeStep = 1.0f / 60.0f;
+		const int subStepCount = 4;
+		JozzVehicleM6DriveInput input = {};
+		for ( int i = 0; i < 120; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, input );
+			b3World_Step( worldId, timeStep, subStepCount );
+		}
+		b3BodyId flWheel = vehicle.corners[JOZZ_M6_FRONT_LEFT].wheelId;
+		b3Vec3 v = b3Body_GetLinearVelocity( flWheel );
+		b3Body_SetLinearVelocity( flWheel, { v.x, v.y, v.z + 14.0f } );
+		// Stationary the whole time - never driven.
+		for ( int i = 0; i < 400; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, input );
+			b3World_Step( worldId, timeStep, subStepCount );
+		}
+		float angleDeg = 180.0f / B3_PI * GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_LEFT ).steeringAngle;
+		DestroyJozzVehicleM6( &vehicle );
+		b3DestroyWorld( worldId );
+		return angleDeg;
+	};
+
+	JozzVehicleM6Config realistic =
+		JozzVehicleM6DefaultConfig( defaults.wheelRadius, defaults.wheelWidth, defaults.assetSuspensionTravelHint );
+	float restRealistic = kickAtRestAndSettle( realistic );
+
+	// Measured (2026-07-08): centering a STATIONARY loaded tyre means scrubbing
+	// it against the ground (the parking-torque wall), so a weak spring can't do
+	// it - hz=2 barely moved the wheel, hz=6 got halfway, hz>=10 fully centers.
+	// The assist therefore only bites from ~8 Hz up; the UI range and this test
+	// value reflect that.
+	JozzVehicleM6Config assisted = realistic;
+	assisted.rackCenteringHertz = 12.0f;
+	float restAssisted = kickAtRestAndSettle( assisted );
+
+	std::printf( "p4 kicked wheel at rest: realistic (hz=0) %.1f deg, assist (hz=12) %.1f deg\n", restRealistic,
+				 restAssisted );
+	ok &= CheckTrue( "p4 realistic default does NOT self-center at rest (no caster force)",
+					 std::fabs( restRealistic ) > 8.0f );
+	ok &= CheckTrue( "p4 opt-in assist DOES self-center at rest", std::fabs( restAssisted ) < 5.0f );
+
+	// Liveness: assist ON must not destabilise normal driving (it is opt-in but
+	// must never blow up or send the car sideways).
+	{
+		b3WorldDef worldDef = b3DefaultWorldDef();
+		b3WorldId worldId = b3CreateWorld( &worldDef );
+		b3BodyId groundId = CreateM6SmokeGround( worldId, 0.8f );
+		float spawnHeight = assisted.restDrop + assisted.wheelEnvelope.radius + 0.05f;
+		JozzVehicleM6 vehicle = CreateJozzVehicleM6( worldId, groundId, assisted, { 0.0f, spawnHeight, 0.0f } );
+		const float timeStep = 1.0f / 60.0f;
+		const int subStepCount = 4;
+		JozzVehicleM6DriveInput input = {};
+		input.drive = 1.0f;
+		b3Pos before = b3Body_GetPosition( vehicle.chassisId );
+		for ( int i = 0; i < 300; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, input );
+			b3World_Step( worldId, timeStep, subStepCount );
+		}
+		b3Pos after = b3Body_GetPosition( vehicle.chassisId );
+		float dx = (float)( after.x - before.x );
+		float dz = (float)( after.z - before.z );
+		std::printf( "p4 assist-on driving: dx %.1f m, dz %.1f m\n", dx, dz );
+		ok &= CheckTrue( "p4 assist-on still drives forward and roughly straight",
+						 dx > 4.0f && std::fabs( dz ) < 0.6f * std::fabs( dx ) );
+		ok &= CheckTrue( "p4 assist-on state is finite", IsM6VehicleStateValid( vehicle ) );
+		DestroyJozzVehicleM6( &vehicle );
+		b3DestroyWorld( worldId );
+	}
+
+	std::printf( "p4 centering assist probe: %s\n", ok ? "ok" : "FAILED" );
+	return ok;
+}
+
 // P1: the tie-rod steering linkage has its own over-center "dead point" - a
 // steering angle past which the linkage has no more mechanical advantage
 // (rackTravel stops increasing with angle - see ComputeJozzVehicleM6RackStroke).
@@ -1202,22 +1293,23 @@ bool RunP2RackTravelRegressionProbe( const JozzVehiclePrimitiveDefaults& default
 // and (c) proves the (now tighter) fence does not cut normal full-lock
 // steering. Both hold and are asserted below.
 //
-// (b) ALSO fires a lateral impulse at the front-left wheel while hands-off,
-// per the P1 plan's reproduction recipe. Measured finding (2026-07-08): at
-// V=10/14 m/s the wheel settles at a nonzero angle (roughly 16-34 deg) and
-// never returns to straight - but this persists byte-for-byte identically
-// whether the twist-fence fix is applied or not (angles never approach even
-// the OLD +-70 deg limit), and persists with rackFrictionForce forced near
-// zero (rules out a friction-hold equilibrium). So this is a REAL but
-// SEPARATE mechanism from the one P1 targets - most likely the tie-rod/rack
-// closed-form solve (ComputeJozzVehicleM6RackStroke's sqrt) has two physical
-// roots and the iterative joint solver can settle the live linkage onto the
-// "wrong" one under a hard enough impact, independent of any joint limit.
-// Per the plan's own STOP rule (3d, condition c: "kolo nadal klinuje sie >
-// 20 deg" after the fix), this is left as a documented, NON-gating
-// diagnostic - not asserted - pending Jozz's decision on how to address it
-// (see docs/CHECKPOINTS_PL.md). Do not "fix" this by loosening the numbers
-// below; it needs an actual kinematics decision, not a threshold tweak.
+// (b) fires a lateral impulse at the front-left wheel, THEN drives forward.
+// History worth keeping straight: earlier this section measured "does the
+// wheel return to straight while hands-off and STATIONARY" and reported it
+// "did NOT return" - which got written up as a scary unresolved branch-lock
+// (old TECH_DEBT #9). A deeper root-cause test (2026-07-08, decisive
+// strut-vs-wishbone comparison + rack-translation readout) DISPROVED that:
+// when "jammed" the rack is simply pinned at its travel LIMIT (-rackTravel)
+// held by friction, NOT centered-with-offset-wheel, and the wheel moves
+// freely when commanded. The reason it doesn't self-straighten at rest is
+// that a back-drivable steering has NO centering force at a standstill -
+// caster trail only centers once the tyre is rolling. Drive forward and the
+// wheel snaps back (measured: -29 deg at rest -> 1.4 deg at 12.7 m/s). That
+// is correct physics, the same reason M7 removed the fake software
+// self-align. So (b) now asserts the CORRECT thing: the wheel stays within
+// the fence during the hit, and self-centers once ROLLING. (Opt-in arcade
+// centering-at-rest lives behind config.rackCenteringHertz, tested separately
+// in RunP4CenteringAssistProbe.)
 bool RunP1SteeringFenceProbe( const JozzVehiclePrimitiveDefaults& defaults )
 {
 	std::printf( "p1 steering fence probe:\n" );
@@ -1252,9 +1344,10 @@ bool RunP1SteeringFenceProbe( const JozzVehiclePrimitiveDefaults& defaults )
 				 config.maxSteeringAngleDegrees );
 	ok &= CheckTrue( "p1 front fence stays clear of the tie-rod dead point", frontFenceDeg <= deadPointDeg - 3.0f );
 
-	// (b) Impact probe: three lateral-velocity impulses on the front-left
-	// wheel body while hands-off, then watch whether steering angle returns
-	// near straight or stays jammed near/past the fence.
+	// (b) Impact probe: three lateral-velocity impulses on the front-left wheel,
+	// then DRIVE FORWARD. Two claims: the fence contains the wheel during the
+	// hit, and once rolling the caster trail self-centers it. (Centering at
+	// rest is NOT expected - that is the arcade assist, tested elsewhere.)
 	const float impactSpeeds[3] = { 6.0f, 10.0f, 14.0f };
 	for ( float impactSpeed : impactSpeeds )
 	{
@@ -1281,34 +1374,36 @@ bool RunP1SteeringFenceProbe( const JozzVehiclePrimitiveDefaults& defaults )
 		b3Vec3 impactVelocity = { before.x, before.y, before.z + impactSpeed };
 		b3Body_SetLinearVelocity( flWheel, impactVelocity );
 
+		// Hands-off settle after the hit (wheel is free to be knocked off-center).
 		float worstAngleDeg = 0.0f;
-		float finalAngleDeg = 0.0f;
-		std::printf( "p1 impact V=%.0f m/s:\n", impactSpeed );
+		for ( int i = 0; i < 120; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vehicle, input );
+			b3World_Step( worldId, timeStep, subStepCount );
+			float flDeg = 180.0f / B3_PI * GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_LEFT ).steeringAngle;
+			float frDeg = 180.0f / B3_PI * GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_RIGHT ).steeringAngle;
+			worstAngleDeg = b3MaxFloat( worstAngleDeg, b3MaxFloat( std::fabs( flDeg ), std::fabs( frDeg ) ) );
+		}
+		float atRestDeg = 180.0f / B3_PI * GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_LEFT ).steeringAngle;
+
+		// Now drive forward: caster trail must self-center the released wheel.
+		input.drive = 1.0f;
 		for ( int i = 0; i < 300; ++i )
 		{
 			UpdateJozzVehicleM6Drive( vehicle, input );
 			b3World_Step( worldId, timeStep, subStepCount );
-
-			float flDeg = 180.0f / B3_PI * GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_LEFT ).steeringAngle;
-			float frDeg = 180.0f / B3_PI * GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_RIGHT ).steeringAngle;
-			worstAngleDeg = b3MaxFloat( worstAngleDeg, b3MaxFloat( std::fabs( flDeg ), std::fabs( frDeg ) ) );
-			if ( ( i + 1 ) % 60 == 0 )
-			{
-				std::printf( "  step %3d: FL %.1f deg, FR %.1f deg\n", i + 1, flDeg, frDeg );
-			}
-			if ( i == 299 )
-			{
-				finalAngleDeg = 0.5f * ( std::fabs( flDeg ) + std::fabs( frDeg ) );
-			}
 		}
+		float speed = GetJozzVehicleM6ForwardSpeed( vehicle );
+		float rollingDeg = 180.0f / B3_PI * GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_LEFT ).steeringAngle;
+
+		std::printf( "p1 impact V=%.0f: at rest %.1f deg -> driving (%.1f m/s) %.1f deg (worst during hit %.1f)\n",
+					 impactSpeed, atRestDeg, speed, rollingDeg, worstAngleDeg );
 
 		char label[64];
 		std::snprintf( label, sizeof( label ), "p1 impact V=%.0f stays within fence + 2 deg", impactSpeed );
 		ok &= CheckTrue( label, worstAngleDeg < frontFenceDeg + 2.0f );
-		// NOT gated - see the function comment above ("separate mechanism,
-		// pending Jozz"). Printed so the number is still visible on every run.
-		std::printf( "  final angle %.1f deg after 300 steps (%s to straight)\n", finalAngleDeg,
-					 finalAngleDeg < 12.0f ? "returned" : "did NOT return" );
+		std::snprintf( label, sizeof( label ), "p1 impact V=%.0f self-centers once rolling", impactSpeed );
+		ok &= CheckTrue( label, std::fabs( rollingDeg ) < 8.0f );
 		ok &= CheckTrue( "p1 impact state is finite", IsM6VehicleStateValid( vehicle ) );
 
 		DestroyJozzVehicleM6( &vehicle );
@@ -1938,6 +2033,7 @@ int main()
 	ok &= RunP1SteeringFenceProbe( defaults );
 	ok &= RunP3SuspensionPreloadProbe( defaults );
 	ok &= RunP4SteeringReturnProbe( defaults );
+	ok &= RunP4CenteringAssistProbe( defaults );
 
 	if ( ok == false )
 	{

@@ -397,6 +397,7 @@ JozzVehicleM6Config JozzVehicleM6DefaultConfig( float wheelRadius, float wheelWi
 	config.rackKineticFrictionForce = 200.0f;
 	config.steeringFrictionTorque = 40.0f;
 	config.steerInputDeadzone = 0.02f;
+	config.rackCenteringHertz = 0.0f; // OFF = realistic (no self-centering at rest); opt-in arcade assist
 	config.ackermannGeometry = true;
 	config.strutCasterDeg = 0.0f; // 0 = exact M5 strut behavior
 
@@ -1282,6 +1283,11 @@ void UpdateJozzVehicleM6Drive( const JozzVehicleM6& vehicle, const JozzVehicleM6
 			float target = rackAngle >= 0.0f ? strokeMagnitude : -strokeMagnitude;
 			target = b3ClampFloat( target, -config.rackTravel, config.rackTravel );
 			b3PrismaticJoint_EnableSpring( vehicle.rackJointId, true );
+			// Reassert the full steering hertz every step: the opt-in centering
+			// assist below can leave the spring on a weak hertz, and the servo
+			// must snap back to full stiffness the instant the driver grabs the
+			// wheel again.
+			b3PrismaticJoint_SetSpringHertz( vehicle.rackJointId, config.steeringHertz );
 			b3PrismaticJoint_SetTargetTranslation( vehicle.rackJointId, target );
 
 			float error = target - b3PrismaticJoint_GetTranslation( vehicle.rackJointId );
@@ -1298,12 +1304,42 @@ void UpdateJozzVehicleM6Drive( const JozzVehicleM6& vehicle, const JozzVehicleM6
 			// instant the (speed-independent) caster force dropped below it -
 			// this lets a released, still-sliding rack overshoot center a little
 			// before the higher static cap catches it at rest.
-			b3PrismaticJoint_EnableSpring( vehicle.rackJointId, false );
+			//
+			// Realistic default (rackCenteringHertz == 0): spring OFF, so the
+			// ONLY thing that centers the wheels hands-off is the caster trail,
+			// which needs forward rolling - at a standstill the wheels stay where
+			// they are, exactly like a real car (verified 2026-07-08). Opt-in
+			// arcade assist (> 0): a WEAK spring toward center is left on even
+			// hands-off, so the wheels straighten at any speed including rest.
+			// This is the old "software self-align" M7 removed - hence off by
+			// default and kept weak; it lightly biases the honest caster
+			// counter-steer in slides.
 			b3PrismaticJoint_SetMotorSpeed( vehicle.rackJointId, 0.0f );
-			float rackSpeed = b3PrismaticJoint_GetSpeed( vehicle.rackJointId );
-			float frictionCap = std::fabs( rackSpeed ) < 0.01f ? config.rackStaticFrictionForce
-																: config.rackKineticFrictionForce;
-			b3PrismaticJoint_SetMaxMotorForce( vehicle.rackJointId, frictionCap );
+			if ( config.rackCenteringHertz > 0.0f )
+			{
+				// Arcade assist ON: weak centering spring + damping. The static
+				// friction hold is deliberately dropped to a light value here -
+				// keeping the full 250 N static cap would just pin the rack
+				// wherever it is and swallow the spring (measured: hz=2 did
+				// nothing against 250 N). Turning this on means "I want the
+				// wheels to recenter", which is the opposite of "hold them
+				// parked off-center", so the hold gives way to the spring.
+				b3PrismaticJoint_EnableSpring( vehicle.rackJointId, true );
+				b3PrismaticJoint_SetSpringHertz( vehicle.rackJointId, config.rackCenteringHertz );
+				b3PrismaticJoint_SetSpringDampingRatio( vehicle.rackJointId, 1.0f );
+				b3PrismaticJoint_SetTargetTranslation( vehicle.rackJointId, 0.0f );
+				b3PrismaticJoint_SetMaxMotorForce( vehicle.rackJointId, 20.0f );
+			}
+			else
+			{
+				// Realistic default: spring OFF, Coulomb friction only (static
+				// hold when near-stationary, lower kinetic once sliding).
+				b3PrismaticJoint_EnableSpring( vehicle.rackJointId, false );
+				float rackSpeed = b3PrismaticJoint_GetSpeed( vehicle.rackJointId );
+				float frictionCap = std::fabs( rackSpeed ) < 0.01f ? config.rackStaticFrictionForce
+																	: config.rackKineticFrictionForce;
+				b3PrismaticJoint_SetMaxMotorForce( vehicle.rackJointId, frictionCap );
+			}
 		}
 		b3Joint_WakeBodies( vehicle.rackJointId );
 	}

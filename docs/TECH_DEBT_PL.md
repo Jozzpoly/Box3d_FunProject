@@ -158,76 +158,64 @@ pamięci.
 
 ---
 
-## 9. 🟡 Zakleszczenie kierownicy w syntetycznej sondzie udarowej — zaakceptowane przez Jozza, watch-item
+## 9. ✅ ROZWIĄZANE / FANTOM — „zakleszczenie kierownicy" to poprawna fizyka spoczynku (brak samocentrowania na postoju)
 
-**Decyzja Jozza (2026-07-08, po zgłoszeniu tego znaleziska):** pierwotny,
-realny problem — „układ kierowniczy zrywa się pod małą siłą/prędkością"
-podczas jazdy — jest NAPRAWIONY. Jozz przetestował ręcznie ~10 minut jazdy w
-ekstremalnych warunkach po P1 i ani razu nie odtworzył zerwania, które wcześniej
-występowało łatwo. **P1 zaakceptowane jako sukces, plan P2→P6 kontynuowany.**
-Poniższe znalezisko zostaje jako udokumentowany warning/watch-item — sonda
-syntetyczna (statyczny boczny impuls na nieruchomym aucie) łapie coś, co nie
-objawia się w rzeczywistej jeździe; obniżone z 🔴 na 🟡, nie blokuje dalszej
-pracy. Jeśli w przyszłości ktoś zgłosi realny nawrót „łamania skrętu" pod
-jazdą (nie w syntetycznym teście), wróć tutaj najpierw.
+**Wniosek (2026-07-08, głęboka reanaliza na prośbę Jozza — OBALA wcześniejszą
+narrację tego punktu):** nie ma żadnego „zatrzasku geometrycznego bez drogi
+powrotu". „Zakleszczenie", które łapała moja sonda P1, to po prostu BRAK
+siły centrującej na postoju — a to jest fizycznie POPRAWNE (potwierdził Jozz:
+„czy to czasem nie tak działają prawdziwe samochody"). Wcześniejsza hipoteza
+o drugiej gałęzi `sqrt` w `ComputeJozzVehicleM6RackStroke` była BŁĘDNA.
 
-**Opis (2026-07-08, znalezisko z weryfikacji etapu P1):** audyt
-`AUDIT_PHYSICS_STEERING_2026_07_08_PL.md` diagnozował „łamanie skrętu pod
-przeciążeniem" jako drążek/toe-link przeskakujący martwy punkt trapezu
-(over-center ~59.5° dla domyślnej geometrii) przez zbyt szeroki, hardcodowany
-płot ±70° na przegubie kulowym. P1 (task #40) zawęził ten płot do wartości z
-configu (przód: maxSteer+10°=42°, tył: 15°) — kod scalony, bezpieczny i
-poprawny SAM W SOBIE (asercja „fence ≤ deadPoint−3°" trzyma, pełny skręt w
-miejscu nieprzycięty).
+**Decydujący dowód (nowa metoda — porównanie kolumna vs wahacz + odczyt
+maglownicy + jazda):**
+1. Ten sam boczny udar V=14 m/s: KOLUMNA (`b3WheelJoint`, jednowartościowe
+   sterowanie) prawie nie drgnęła (1.7°), WAHACZ „zakleszczył się" na -29°.
+   Ale przy zakleszczeniu **maglownica stoi na swoim LIMICIE (-0.0811 m ≈
+   -rackTravel 0.0807), NIE w centrum** — więc to nie jest „środek maglownicy
+   przy skręconym kole" (co byłoby drugą gałęzią drążka). To maglownica
+   dojechana do końca skoku i przytrzymana tarciem.
+2. **Jazda do przodu centruje koło NATYCHMIAST:** -29° w spoczynku → **1.4°
+   przy 12.7 m/s**. Koło porusza się też swobodnie na komendę (do +32.8°).
+   Nie ma żadnej blokady.
 
-**ALE** sonda udarowa (boczny impuls na koło przednio-lewe, hands-off, wzorzec
-z planu P1 §3b) pokazuje, że koło i tak **nie wraca do zera** po uderzeniu
-V≥10 m/s — osiada na kącie ~16-34°, **identycznie z i bez płotu P1**
-(liczby nie różnią się o więcej niż 0.1° między starym ±70° a nowym 42°/15°),
-a kąty nigdy nie zbliżają się do żadnego z tych limitów. Sprawdzone i
-wykluczone: (a) trzymanie przez tarcie zębatki (`rackFrictionForce` zbite do
-1 N — bez zmiany, koło nadal nie wraca); (b) monotoniczność względem siły
-uderzenia (V=6→ok, V=10→-15.7°, V=14→-33.8°, V=20→-33.5°, V=28→-22° —
-NIEMONOTONICZNE, typowe dla przeskoku między dwiema gałęziami rozwiązania, nie
-dla efektu ciągłego typu tarcie/sprężystość).
+**Mechanizm (poprawny):** hands-off maglownica NIE ma sprężyny — jedyną siłą
+centrującą jest wleczenie casterem, które przy zerowej prędkości jest ZEROWE
+(caster działa dopiero, gdy opona się toczy). Więc mocny boczny udar na
+stojącym aucie przepycha maglownicę do końca skoku i tarcie ją tam trzyma —
+dokładnie jak w prawdziwym aucie z wyłączonym silnikiem: kopnięte koło
+zostaje kopnięte. To NIE jest bug; to jest ten sam powód, dla którego M7
+usunął sztuczny „self-align" (README §1).
 
-**Hipoteza robocza (niepotwierdzona):** `ComputeJozzVehicleM6RackStroke`
-rozwiązuje pozycję drążka wzorem zamkniętym z `sqrt(...)` — matematycznie ma
-DWA fizyczne pierwiastki (±reach), kod zawsze bierze `+reach` przy PROJEKTOWANIU
-geometrii, ale iteracyjny solver jointów żywego rigu nie ma takiego
-ograniczenia i przy dostatecznie mocnym udarze może osiąść na gałęzi
-odpowiadającej `-reach` w innym miejscu niż zakładany martwy punkt. To
-odrębny mechanizm od tego, który P1 naprawia (limit kąta na przegubie), więc
-zacieśnienie płotu go nie dotyka.
+**Błąd był w SONDZIE, nie w rigu:** kryterium „koło wraca do prostej po 300
+krokach" mierzyłem na NIERUCHOMYM aucie — żądałem samocentrowania bez
+jakiejkolwiek siły centrującej. Sonda P1 (`RunP1SteeringFenceProbe`) jest
+teraz naprawiona: uderzenie → JAZDA → asercja, że koło centruje się w ruchu
+(< 8°; zmierzone ~1.3° dla V=6/10/14). To jest realne, przechodzące kryterium
+zamiast mylącego „did NOT return".
 
-**Ryzyko (obniżone):** nie odtworzone w realnej jeździe (patrz decyzja Jozza
-powyżej) — prawdopodobnie wymaga nierealistycznie sztywnego warunku (nieruchome
-auto + czysto boczny impuls na jedno koło, bez toczenia/prędkości wzdłużnej,
-bez samo-centrowania od ruchu do przodu) którego zwykła jazda nie generuje.
-Zostaje jako watch-item, nie jako blokujące ryzyko dla dalszych etapów.
+**Realny problem Jozza (zrywanie skrętu pod małą siłą podczas JAZDY) — nadal
+naprawiony** przez P2 (poprawny limit maglownicy) + P1 (płot z konfiguracji);
+Jozz potwierdził ~10 min ekstremalnej jazdy bez nawrotu. Ten punkt nigdy nie
+dotyczył tego, co Jozz zgłaszał — dotyczył artefaktu mojej sondy na postoju.
 
-**Status:** sonda zostaje w walidatorze jako DIAGNOSTYCZNA (drukuje liczby,
-NIE blokuje bramki — patrz komentarz przy `RunP1SteeringFenceProbe` w
-`jozz_vehicle_validation.cpp`). Jeśli ktoś zechce to kiedyś domknąć: hipoteza
-robocza wskazuje `ComputeJozzVehicleM6RackStroke`/rozwiązanie drążka jako
-miejsce startowe (jeden jednoznaczny branch zamiast dwóch pierwiastków
-`sqrt`). Nie jest to obecnie zaplanowane — czeka na realny nawrót objawu.
+**Opcjonalne wspomaganie (dodane w tej samej reanalizie):** dla graczy, którzy
+CHCĄ centrowania na postoju (arcade), jest suwak `rackCenteringHertz`
+(domyślnie 0 = OFF = realistycznie). Uwaga fizyczna zmierzona przy okazji:
+słaba sprężyna NIE wystarczy — wycentrowanie stojącej, obciążonej opony wymaga
+przetarcia jej o ziemię (moment parkingowy), więc suwak zaczyna działać
+dopiero od ~10 Hz (hz=2 nic, hz=6 połowicznie, hz≥10 pełne centrowanie). Gdy
+włączony, tarcie statyczne ustępuje sprężynie (bo „chcę centrowanie" = przeciw
+„trzymaj krzywo"). To jest opt-in, jak wspomaganie pionowania — świadomie NIE
+domyślny mechanizm (walczy z uczciwym kontra-skrętem casterem w poślizgu).
 
-**AKTUALIZACJA (2026-07-08, przy okazji P4):** ten sam mechanizm okazał się
-JEDNAK czuły na poziom tarcia zębatki hands-off — tyle że nie na statyczny
-impuls boczny (tam 1N vs 250N nie robiło różnicy, jak wyżej), tylko na
-WSTRZĄS LĄDOWANIA. Sonda `RunM7LandingIntegrityProbe` (skok 3.5 m) pokazała
-OSTRY próg między 130N a 140N tarcia kinetycznego: poniżej — camber 11-12°
-(ten sam zły branch), powyżej — 0.6-0.8° (zdrowo). To znaczy, że mechanizm
-NIE jest całkowicie niezależny od tarcia — zależy od TYPU wyzwalacza
-(czysty boczny impuls na nieruchomym kole = niezależny od tarcia w
-przetestowanym zakresie; wstrząs całego zawieszenia przy lądowaniu = zależny,
-z ostrym progiem). Szczegóły i druga, osobna krzywa bezpieczeństwa (próg
-stabilności yaw nadwozia, wyższy niż próg cambera — patrz P4 w
-`CHECKPOINTS_PL.md`) w commicie P4. **Praktyczna konsekwencja:** przy
-przyszłym stosowaniu niskiego tarcia zębatki (P5 suwaki, presety) ZAWSZE
-przetestuj sondę lądowania 3.5 m przed zejściem poniżej ~200N kinetycznego —
-nie tylko syntetyczny impuls boczny.
+**Osobna, WCIĄŻ AKTUALNA notatka o tarciu kinetycznym (z P4):** niezależnie
+od powyższego, tarcie kinetyczne maglownicy poniżej ~200N realnie destabilizuje
+TWARDE LĄDOWANIE z rampy (sonda `RunM7LandingIntegrityProbe` 3.5 m: camber
+11-12° i znos nadwozia poniżej progu; powyżej ~200N zdrowo). To osobny, realny
+efekt (wstrząs całego zawieszenia, nie sterowanie), dlatego default kinetic =
+200N i **przy przyszłym obniżaniu tarcia zębatki ZAWSZE sprawdź sondę
+lądowania 3.5 m**, nie tylko impuls boczny.
 
 ---
 

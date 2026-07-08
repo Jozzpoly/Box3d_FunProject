@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-08 · Reanaliza: „zakleszczenie kierownicy" to fantom + opcja arcade-centrowania · (do commitu)
+- CO:     głęboka reanaliza całego audytu+planu na prośbę Jozza. Decydujący eksperyment (kolumna vs wahacz + odczyt maglownicy + jazda) OBALIŁ narrację TECH_DEBT #9: nie ma zatrzasku geometrycznego. Naprawiona mylona sonda P1 (uderzenie→JAZDA→asercja samocentrowania), przepisany TECH_DEBT #9 na ✅ROZWIĄZANE/fantom, dodany opcjonalny suwak `rackCenteringHertz` (arcade auto-centrowanie na postoju, domyślnie 0=off).
+- CZEMU:  dwa razy trafiłem w to samo „zakleszczenie" (P1, P4) i opisałem jako nierozwiązany watch-item — Jozz kazał zbadać głębiej i podejść inaczej.
+- EFEKT:  DOWÓD: przy „zakleszczeniu" maglownica stoi na LIMICIE (-0.0811≈-rackTravel), nie w centrum; jazda centruje koło -29°→1.4° @12.7m/s (caster działa dopiero w ruchu — poprawna fizyka, potwierdził Jozz). Błąd był w sondzie (mierzyła samocentrowanie na STOJĄCYM aucie). Zmierzone przy okazji: słaba sprężyna centrująca nie rusza stojącej opony (moment parkingowy) — suwak działa od ~10 Hz (hz=2 nic, hz≥10 pełne), przy włączeniu tarcie statyczne ustępuje sprężynie. Walidator OK (P1 samocentrowanie w ruchu ~1.3°, P4 centering-assist off→trzyma -29°/on→1.0°, jazda ze wspomaganiem prosto, M7 bez regresji rack rms 0.17), test.exe PASS, boot-smoke 0, zrzut UI (suwak „Wspomaganie powrotu (arcade)" 0 Hz).
+- DALEJ:  domyślnie realizm bez zmian; arcade-centrowanie czeka jako opt-in gdyby Jozz chciał. Kolejny wg planu: P5 (brakujące suwaki max-skręt/toe + opisy).
+
 ## 2026-07-08 · P4: tarcie statyczne/kinetyczne zębatki + odkrycie bezpiecznego progu · (do commitu)
 - CO:     `rackFrictionForce` → `rackStaticFrictionForce`/`rackKineticFrictionForce` (Coulomb, próg prędkości 0.01 m/s), config_io z kompatybilnością (stary klucz → static=wartość, kinetic=0.5×), UI dwa suwaki, 3 presety zmigrowane, nowa sonda walidatora `RunP4SteeringReturnProbe`.
 - CZEMU:  audyt S1 — płaskie 250N zatrzymywało kierownicę martwo w centrum bez zależności od prędkości; cel: naturalny powrót + lekki przestrzał po mocnym odbiciu.

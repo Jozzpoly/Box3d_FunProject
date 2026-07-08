@@ -177,6 +177,7 @@ bool SaveJozzVehicleM6Config( const JozzVehicleM6Config& c, const std::string& p
 	WriteFloat( out, "  ", "rackKineticFrictionForce", c.rackKineticFrictionForce );
 	WriteFloat( out, "  ", "steeringFrictionTorque", c.steeringFrictionTorque );
 	WriteFloat( out, "  ", "steerInputDeadzone", c.steerInputDeadzone );
+	WriteFloat( out, "  ", "rackCenteringHertz", c.rackCenteringHertz );
 	WriteBool( out, "  ", "ackermannGeometry", c.ackermannGeometry );
 	WriteFloat( out, "  ", "strutCasterDeg", c.strutCasterDeg );
 
@@ -325,6 +326,7 @@ bool LoadJozzVehicleM6Config( const std::string& path, JozzVehicleM6Config* outC
 	}
 	ReadFloat( json, tokens, root, "steeringFrictionTorque", &c.steeringFrictionTorque );
 	ReadFloat( json, tokens, root, "steerInputDeadzone", &c.steerInputDeadzone );
+	ReadFloat( json, tokens, root, "rackCenteringHertz", &c.rackCenteringHertz );
 	ReadBool( json, tokens, root, "ackermannGeometry", &c.ackermannGeometry );
 	ReadFloat( json, tokens, root, "strutCasterDeg", &c.strutCasterDeg );
 
