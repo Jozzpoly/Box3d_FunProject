@@ -360,6 +360,11 @@ suwaka — wymagana decyzja Jozza o zakresie.
    gdy `max(compression,rebound) / lowerArmLength > 0.85`; w walidatorze
    wydrukuj stosunek. **Zapytaj Jozza którą opcję wybrać PRZED implementacją**
    (to zmiana feelu defaultowego auta).
+   > **ROZSTRZYGNIĘTE (2026-07-09):** zostawić jak jest, tylko ostrzeżenie
+   > (wdrożone w P6, commit 56af66e). Jozz: niedługo dojdą nowe modele
+   > zawieszenia ze znacznie dłuższymi wahaczami — przy dłuższym ramieniu ten
+   > sam skok w cm odpowiada MNIEJSZEMU kątowi, więc saturacja zniknie sama
+   > dla tych modeli. Nie zmieniać defaultu pod obecny (krótki) wahacz.
 3. **Cone limit:** zamień hardcode 80° na
    `HingeSwingLimit(compression, rebound, armLength) + 15°` (spójny z
    zawiasem + margines). Weryfikacja: sondy lądowania bez zmian wyników.
