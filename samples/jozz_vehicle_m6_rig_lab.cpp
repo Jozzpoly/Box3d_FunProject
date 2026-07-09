@@ -891,14 +891,18 @@ public:
 		ImGui::SliderFloat( "Siła wspomagania", &m_config.rackServoForce, 0.0f, 20000.0f, "%.0f N" );
 		HelpMarker( "Ile siły ma wspomaganie, gdy trzymasz kierownicę - musi pokonać moment parkingowy obciążonej "
 					"opony (~700 N*m na koło), inaczej auto 'nie posłucha' przy postoju." );
-		ImGui::SliderFloat( "Tarcie statyczne (trzymanie)", &m_config.rackStaticFrictionForce, 0.0f, 400.0f, "%.0f N" );
-		HelpMarker( "Ile oporu trzeba pokonać, żeby zębatka w ogóle ruszyła z miejsca - to ono trzyma zaparkowane "
-					"koła i tłumi drobne szarpnięcia. Nie wpływa na ruch, gdy koło już wraca do środka." );
-		ImGui::SliderFloat( "Tarcie kinetyczne (ruch)", &m_config.rackKineticFrictionForce, 0.0f, 300.0f, "%.0f N" );
-		HelpMarker( "Opór, jaki musi pokonać ślad koła (caster), gdy zębatka JUŻ się rusza - to ono decyduje o "
-					"szybkości powrotu po poślizgu. Mniej = szybszy powrót do środka. UWAGA: poniżej ok. 200 N "
-					"zmierzono realną utratę stabilności przy twardym lądowaniu z rampy (przechył/znos nadwozia) - "
-					"nie schodź poniżej bez sprawdzenia skoku z rampy." );
+		ImGui::SliderFloat( "Tarcie zębatki - bazowe", &m_config.rackFrictionBase, 0.0f, 200.0f, "%.0f N" );
+		HelpMarker( "[FIZYCZNY] Stały opór uszczelek i łożysk kolumny - działa zawsze, niezależnie od obciążenia. "
+					"Decyduje, jak łatwo MAŁE siły (ślad casteru przy jeździe na wprost) poruszają kierownicą. "
+					"Mniej = kierownica żywsza i sama się prostuje po drobnych szarpnięciach; więcej = spokojniejsza, "
+					"ale może zostawać lekko skręcona po wybojach." );
+		ImGui::SliderFloat( "Tarcie zębatki - od obciążenia", &m_config.rackFrictionLoadCoeff, 0.0f, 0.40f, "%.2f" );
+		HelpMarker( "[FIZYCZNY] Ile tarcia dokłada każdy niuton bocznego obciążenia drążków (siły dociskające "
+					"zębatkę do prowadnic - tak powstaje tarcie w prawdziwej przekładni). Rośnie SAMO przy twardych "
+					"lądowaniach i mocnym skręcie - trzyma wtedy stabilność układu - a przy spokojnej jeździe na "
+					"wprost prawie znika, więc nie usztywnia powrotu kierownicy. Mniej = luźniejszy układ pod "
+					"obciążeniem (ryzyko szarpnięć przy lądowaniu), więcej = stabilniej, ale powrót po mocnym "
+					"skręcie wolniejszy." );
 		ImGui::SliderFloat( "Tarcie skrętu kolumny", &m_config.steeringFrictionTorque, 0.0f, 200.0f, "%.0f N*m" );
 		HelpMarker( "To samo co tarcie zębatki, ale dla osi na kolumnie McPhersona zamiast wahaczy." );
 		ImGui::SliderFloat( "[ARCADE] Wspomaganie powrotu", &m_config.rackCenteringHertz, 0.0f, 30.0f, "%.0f Hz" );

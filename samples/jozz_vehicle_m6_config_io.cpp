@@ -6,6 +6,7 @@
 #include "jozz_vehicle_json.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -175,8 +176,8 @@ bool SaveJozzVehicleM6Config( const JozzVehicleM6Config& c, const std::string& p
 	WriteFloat( out, "  ", "steeringHertz", c.steeringHertz );
 	WriteFloat( out, "  ", "steeringDampingRatio", c.steeringDampingRatio );
 	WriteFloat( out, "  ", "maxSteeringTorque", c.maxSteeringTorque );
-	WriteFloat( out, "  ", "rackStaticFrictionForce", c.rackStaticFrictionForce );
-	WriteFloat( out, "  ", "rackKineticFrictionForce", c.rackKineticFrictionForce );
+	WriteFloat( out, "  ", "rackFrictionBase", c.rackFrictionBase );
+	WriteFloat( out, "  ", "rackFrictionLoadCoeff", c.rackFrictionLoadCoeff );
 	WriteFloat( out, "  ", "steeringFrictionTorque", c.steeringFrictionTorque );
 	WriteFloat( out, "  ", "steerInputDeadzone", c.steerInputDeadzone );
 	WriteFloat( out, "  ", "rackCenteringHertz", c.rackCenteringHertz );
@@ -310,22 +311,26 @@ bool LoadJozzVehicleM6Config( const std::string& path, JozzVehicleM6Config* outC
 	ReadFloat( json, tokens, root, "steeringHertz", &c.steeringHertz );
 	ReadFloat( json, tokens, root, "steeringDampingRatio", &c.steeringDampingRatio );
 	ReadFloat( json, tokens, root, "maxSteeringTorque", &c.maxSteeringTorque );
-	ReadFloat( json, tokens, root, "rackStaticFrictionForce", &c.rackStaticFrictionForce );
-	ReadFloat( json, tokens, root, "rackKineticFrictionForce", &c.rackKineticFrictionForce );
+	ReadFloat( json, tokens, root, "rackFrictionBase", &c.rackFrictionBase );
+	ReadFloat( json, tokens, root, "rackFrictionLoadCoeff", &c.rackFrictionLoadCoeff );
 	{
-		// Backward compat: pre-P4 files only have a single "rackFrictionForce"
-		// key. Migrate it to the split model rather than treating both as
-		// equal (P3's pattern) - the whole point of P4 is that static and
-		// kinetic should NOT be equal, so an old file's single value becomes
-		// the static (holding) force and half of it becomes kinetic, matching
-		// the plan's migration rule.
-		int legacyIndex = FindObjectValue( json, tokens, root, "rackFrictionForce" );
-		if ( legacyIndex >= 0 )
+		// Legacy rack-friction keys (pre-P4 "rackFrictionForce" and the P4
+		// flat static/kinetic pair) describe a DIFFERENT model - a flat force
+		// cap - and there is no honest numeric conversion to the P4b
+		// load-dependent pair (base + coeff * tie-rod load). Deliberately NOT
+		// converted: files carrying only legacy keys get the current model
+		// defaults, with a printed note so nobody wonders why an old tuned
+		// value "disappeared". (Old files keep loading fine - every other key
+		// is unchanged.)
+		const char* legacyKeys[] = { "rackFrictionForce", "rackStaticFrictionForce", "rackKineticFrictionForce" };
+		for ( const char* key : legacyKeys )
 		{
-			float legacyFriction = c.rackStaticFrictionForce;
-			TokenFloat( json, tokens[legacyIndex], &legacyFriction );
-			c.rackStaticFrictionForce = legacyFriction;
-			c.rackKineticFrictionForce = 0.5f * legacyFriction;
+			if ( FindObjectValue( json, tokens, root, key ) >= 0 )
+			{
+				std::printf( "jozz m6 note: legacy key '%s' ignored - rack friction is load-dependent now "
+							 "(rackFrictionBase/rackFrictionLoadCoeff, P4b)\n",
+							 key );
+			}
 		}
 	}
 	ReadFloat( json, tokens, root, "steeringFrictionTorque", &c.steeringFrictionTorque );

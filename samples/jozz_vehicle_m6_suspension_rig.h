@@ -97,6 +97,12 @@ enum JozzVehicleM6RigType
 #define JOZZ_M6_TERRAIN_CATEGORY 0x2ull
 #define JOZZ_M6_OBJECT_CATEGORY 0x1ull
 
+// Breakaway ratio of the hands-off rack friction (P4b): while the rack is
+// near-stationary the friction cap is this factor above the sliding value -
+// classic stiction. A fixed engineering constant, not a tuning dial (the
+// tunable dials are rackFrictionBase / rackFrictionLoadCoeff).
+#define JOZZ_M6_RACK_STICTION_RATIO 1.4f
+
 // Wheel collision envelope. The single sphere (M5.2 default) is perfectly
 // smooth but bulges past the visual tire laterally by (radius - width/2),
 // ~0.29 m at the current offroad wheel - the "invisible wall" next to props.
@@ -369,17 +375,30 @@ struct JozzVehicleM6Config
 	float steeringHertz;
 	float steeringDampingRatio;
 	float maxSteeringTorque;	  // strut axle only; the rack spring is limited by hertz
-	// Hands-off rack resistance, split into a Coulomb static/kinetic pair (P4,
-	// 2026-07-08) instead of one flat force. A single flat cap made the rack
-	// stop dead exactly where the caster centering force first dropped below
-	// it - zero velocity dependence, so it could never overshoot center even
-	// after a hard lock at speed (see AUDIT_PHYSICS_STEERING_2026_07_08_PL.md
-	// S1). Static applies while the rack is (near) stationary - parking hold,
-	// getting it moving at all; kinetic (lower) applies once it's actually
-	// sliding, so the knuckle/wheel inertia can carry it a little past center
-	// before it settles, the way a real column does.
-	float rackStaticFrictionForce;
-	float rackKineticFrictionForce;
+	// Hands-off rack resistance, LOAD-DEPENDENT (P4b rework, 2026-07-09, on
+	// Jozz's decision - brief §3.1). The friction cap each step is
+	//
+	//   cap = stiction * ( rackFrictionBase
+	//                      + rackFrictionLoadCoeff * transverseTieRodLoad )
+	//
+	// where transverseTieRodLoad is the magnitude of both front tie-rod
+	// constraint forces PERPENDICULAR to the rack slide axis (the components
+	// that press the rack into its guide bushings - exactly what generates
+	// friction in a real rack), and stiction is a fixed breakaway ratio
+	// (JOZZ_M6_RACK_STICTION_RATIO) applied while the rack is near-stationary.
+	//
+	// Why this replaced the flat static/kinetic pair: a flat cap high enough
+	// to keep a 3.5 m landing shock stable (measured floor ~200 N) was also
+	// high enough to park the rack ~1 mm off-center during ordinary straight
+	// driving - the drive-torque transient nudged it there and near-straight
+	// caster forces could never exceed the flat breakaway again, which read
+	// as a permanent pull to one side (diagnosed 2026-07-09, straight-pull
+	// probe). With load-proportional friction the landing shock loads the tie
+	// rods with kN -> friction spikes exactly when stability needs it, while
+	// near-straight cruising leaves the rack free enough for small caster
+	// forces to keep it centered. Both needs met by ONE physical mechanism.
+	float rackFrictionBase;		 // N; seal/bearing drag, load-independent
+	float rackFrictionLoadCoeff; // -; friction newtons per newton of transverse tie-rod load
 	float steeringFrictionTorque; // N*m; hands-off resistance of a strut corner
 	float steerInputDeadzone;	  // |input| below this = hands off the wheel
 	// OPT-IN arcade return-to-center assist (default 0 = OFF = realistic). When

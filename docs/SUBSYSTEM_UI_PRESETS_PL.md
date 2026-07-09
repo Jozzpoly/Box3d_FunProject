@@ -46,8 +46,9 @@ presety wczytują się bez błędu.
 | Etap | Stary klucz (usunięty) | Nowe klucze | Uwaga migracji |
 |---|---|---|---|
 | P3 | `suspensionPreload` | `suspensionPreloadFront/Rear` | stary → oba pola (ta sama wartość) |
-| P4 | `rackFrictionForce` | `rackStaticFrictionForce/rackKineticFrictionForce` | stary → static=wartość, kinetic=0.5×wartość |
-| P4 | — (nowe) | `rackCenteringHertz` | domyślnie 0 (brak w starych plikach = 0 = wyłączone, bezpieczne) |
+| P4 | `rackFrictionForce` | `rackStaticFrictionForce/rackKineticFrictionForce` | (zastąpione ponownie w P4b, patrz niżej) |
+| **P4b** | `rackStaticFrictionForce`, `rackKineticFrictionForce`, `rackFrictionForce` | `rackFrictionBase`, `rackFrictionLoadCoeff` | **INNY MODEL** (tarcie zależne od obciążenia drążków) — brak uczciwej konwersji liczbowej; klucze legacy są IGNOROWANE z wypisaną notką, plik dostaje defaulty nowego modelu. Presety zmigrowane ręcznie. |
+| P4 | — (nowe) | `rackCenteringHertz` | domyślnie 0 (brak w starych plikach = 0 = wyłączone, bezpieczne); w UI jako `[ARCADE]` (ADR-0006) |
 | P5 | — (nowe) | `frontToeDeg`, `rearToeDeg` | domyślnie 0 w starych plikach = brak toe, bezpieczne |
 | P5 | — (już było) | `maxSteeringAngleDegrees` dostał suwak UI | pole istniało w configu od M7, teraz edytowalne (pending-edit, Apply przelicza i w razie potrzeby zaciska - patrz P5 w `CHECKPOINTS_PL.md`) |
 

@@ -345,6 +345,11 @@ bool SanitizeJozzVehicleM6Config( JozzVehicleM6Config* config )
 	clampField( &config->rearToeDeg, "rearToeDeg", -5.0f, 5.0f );
 	clampField( &config->steeringHertz, "steeringHertz", 0.5f, 60.0f );
 	clampField( &config->steeringDampingRatio, "steeringDampingRatio", 0.0f, 20.0f );
+	// P4b load-dependent rack friction: negative values would ADD energy
+	// (anti-friction); a coeff past 1.0 means more friction than the load
+	// itself - both nonsensical, not tuning.
+	clampField( &config->rackFrictionBase, "rackFrictionBase", 0.0f, 1000.0f );
+	clampField( &config->rackFrictionLoadCoeff, "rackFrictionLoadCoeff", 0.0f, 1.0f );
 
 	// The P5 dead-point clamp, applied AFTER the geometry fields above so it
 	// evaluates the sanitized geometry. Mirrors ApplyPendingStructuralSetup's
@@ -471,35 +476,19 @@ JozzVehicleM6Config JozzVehicleM6DefaultConfig( float wheelRadius, float wheelWi
 	config.steeringHertz = 14.0f;
 	config.steeringDampingRatio = 1.0f;
 	config.maxSteeringTorque = 700.0f;
-	// Hands-off resistance: small enough that caster trail (~1 kN at the rack
-	// from a two-wheel slide at 5 deg caster) back-drives the steering. Split
-	// static/kinetic (P4) - but measured NARROWER than the audit's suggested
-	// ~80-120 N: a validator sweep (2026-07-08) found kinetic friction below
-	// this range is actively unsafe against the EXISTING, accepted 3.5 m
-	// landing-integrity probe (do not casually change - README SS2), via two
-	// separate, stacked effects, both worse the lower kinetic goes:
-	//  1. Below ~140 N (a sharp cliff, not gradual): worst camber after that
-	//     drop jumps from ~0.6-0.8 deg to 11-12 deg - the SAME tie-rod
-	//     branch-snap mechanism as the P1 finding (TECH_DEBT_PL.md #9):
-	//     insufficient resistance during the shock lets the linkage settle
-	//     onto the wrong kinematic branch.
-	//  2. Separately, even once camber is sane (kinetic >= 140), less rack
-	//     resistance during the violent bounce itself lets more chassis yaw
-	//     build up before the settle check (measured pre-drive heading: -40
-	//     deg at kinetic=150 N vs -13 deg at the old flat 250 N), which then
-	//     integrates into a much bigger post-landing sideways drift. This
-	//     needed kinetic >= ~200 N for the post-landing straight-line drive
-	//     to stay within the existing 0.6x tolerance, with some margin.
-	// Net: this landing-shock scenario, not the calm return-to-center feel,
-	// is what actually bounds kinetic friction here. A genuinely livelier
-	// return (matching the audit's original ~80-120 N intent) is NOT safe
-	// with this flat-Coulomb model; it would need a proper velocity-dependent
-	// term (plan's own STOP condition for this stage) - a decision for Jozz,
-	// not a threshold tweak. Static is left at the old flat value (unchanged
-	// parking hold / dead-stop resistance); only kinetic actually moved,
-	// modestly, from the old 250 N down to 200 N.
-	config.rackStaticFrictionForce = 250.0f;
-	config.rackKineticFrictionForce = 200.0f;
+	// Hands-off resistance: load-dependent since P4b (see the header field
+	// comment for the model and why it replaced the flat static/kinetic
+	// pair). Historical context kept for the record: the flat model needed
+	// kinetic >= ~200 N to keep the 3.5 m landing stable (sharp cliff below
+	// ~140 N: tie-rod branch-snap camber, plus a separate yaw-drift threshold
+	// ~200 N), and that same floor parked the rack ~1 mm off-center in
+	// ordinary driving (the diagnosed left-pull). The load-proportional term
+	// resolves that tension physically: a landing loads the tie rods with kN
+	// so friction spikes right when stability needs it, while near-straight
+	// cruising leaves the rack nearly free. Defaults re-validated against the
+	// same landing probe (see RunP4SteeringReturnProbe's comment).
+	config.rackFrictionBase = 40.0f;
+	config.rackFrictionLoadCoeff = 0.10f;
 	config.steeringFrictionTorque = 40.0f;
 	config.steerInputDeadzone = 0.02f;
 	config.rackCenteringHertz = 0.0f; // OFF = realistic (no self-centering at rest); opt-in arcade assist
@@ -1492,12 +1481,32 @@ void UpdateJozzVehicleM6Drive( const JozzVehicleM6& vehicle, const JozzVehicleM6
 			}
 			else
 			{
-				// Realistic default: spring OFF, Coulomb friction only (static
-				// hold when near-stationary, lower kinetic once sliding).
+				// Realistic default: spring OFF, LOAD-DEPENDENT Coulomb friction
+				// (P4b - see the rackFrictionBase header comment for the model).
+				// The transverse components of the front tie-rod constraint
+				// forces press the rack into its guides; friction follows them
+				// (mu * N) on top of a small constant seal/bearing drag. The
+				// constraint force is last step's - a one-step lag is fine for
+				// a friction magnitude.
 				b3PrismaticJoint_EnableSpring( vehicle.rackJointId, false );
+
+				b3Vec3 slideAxis = b3RotateVector( chassisRotation, b3Vec3_axisZ );
+				float transverseLoad = 0.0f;
+				for ( int corner = 0; corner < JOZZ_M6_CORNER_COUNT; ++corner )
+				{
+					const JozzVehicleM6CornerRuntime& runtime = vehicle.corners[corner];
+					if ( IsFrontCorner( corner ) && B3_IS_NON_NULL( runtime.steerLinkJointId ) )
+					{
+						b3Vec3 tieForce = b3Joint_GetConstraintForce( runtime.steerLinkJointId );
+						b3Vec3 transverse = b3Sub( tieForce, b3MulSV( b3Dot( tieForce, slideAxis ), slideAxis ) );
+						transverseLoad += b3Length( transverse );
+					}
+				}
+
 				float rackSpeed = b3PrismaticJoint_GetSpeed( vehicle.rackJointId );
-				float frictionCap = std::fabs( rackSpeed ) < 0.01f ? config.rackStaticFrictionForce
-																	: config.rackKineticFrictionForce;
+				float stiction = std::fabs( rackSpeed ) < 0.01f ? JOZZ_M6_RACK_STICTION_RATIO : 1.0f;
+				float frictionCap =
+					stiction * ( config.rackFrictionBase + config.rackFrictionLoadCoeff * transverseLoad );
 				b3PrismaticJoint_SetMaxMotorForce( vehicle.rackJointId, frictionCap );
 			}
 		}

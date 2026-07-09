@@ -726,9 +726,9 @@ bool RunM7HandsOffAlignProbe( const JozzVehiclePrimitiveDefaults& defaults )
 			JozzVehicleM6DefaultConfig( defaults.wheelRadius, defaults.wheelWidth, defaults.assetSuspensionTravelHint );
 		if ( rackFree == false )
 		{
-			// Frozen rack: hands-off friction so large the linkage cannot move.
-			config.rackStaticFrictionForce = 1.0e6f;
-			config.rackKineticFrictionForce = 1.0e6f;
+			// Frozen rack: hands-off friction so large the linkage cannot move
+			// (base term alone does it - no load needed).
+			config.rackFrictionBase = 1.0e6f;
 		}
 		float spawnHeight = config.restDrop + config.wheelEnvelope.radius + 0.05f;
 		JozzVehicleM6 vehicle = CreateJozzVehicleM6( worldId, groundId, config, { 0.0f, spawnHeight, 0.0f } );
@@ -1940,34 +1940,30 @@ bool RunP3SuspensionPreloadProbe( const JozzVehiclePrimitiveDefaults& defaults )
 	return ok;
 }
 
-// P4: hands-off rack resistance is now a Coulomb static/kinetic pair instead
-// of one flat force (S1 in the audit - a flat cap made the rack stop dead
-// exactly where the speed-independent caster force first dropped below it).
+// P4b (2026-07-09, Jozz's decision): hands-off rack resistance is
+// LOAD-DEPENDENT - cap = stiction * (base + coeff * transverse tie-rod load)
+// - replacing the flat static/kinetic pair. See the rackFrictionBase field
+// comment in jozz_vehicle_m6_suspension_rig.h for the model.
 //
-// The audit expected lowering kinetic friction (~80-120 N) to let inertia
-// carry a released wheel past center ("przestrzal"). Measured finding
-// (2026-07-08, validator sweep across kinetic 40-250 N, both from a static
-// full-lock-release and from a moderate hands-off kick while driving): true
-// overshoot (crossing to a NEGATIVE angle) never occurs anywhere in that
-// range - a weak perturbation just settles back near zero without crossing,
-// and a strong enough one instead snaps the linkage onto the SAME wrong
-// branch documented in TECH_DEBT_PL.md #9 (the P1 finding), which does not
-// recover at all. There is no friction value that produces a clean
-// "swings past center, then settles" - only "settles smoothly" or "jams".
-// Worse, kinetic friction below ~140 N (sharp cliff, not gradual) reactivates
-// that same branch-snap under a plain 3.5 m landing shock: worst camber goes
-// from ~0.6-0.8 deg to 11-12 deg and the post-landing drive goes backward/
-// sideways instead of forward (see RunM7LandingIntegrityProbe). So the
-// audit's suggested range is actively unsafe, not just insufficiently lively.
+// History that shaped it (flat-model sweep, 2026-07-08, kept as the record
+// of WHY flat friction could not work): a flat cap needed >= ~200 N to keep
+// the 3.5 m landing stable (sharp branch-snap cliff below ~140 N: worst
+// camber 11-12 deg instead of 0.6-0.8; separate yaw-drift threshold ~200 N),
+// but any cap that high also parked the rack ~1 mm off-center after a
+// drive-torque transient and near-straight caster forces could never break
+// it loose again - the diagnosed left-pull. One flat number could not serve
+// both. The load-proportional term resolves it: a landing loads the tie rods
+// with kN so friction spikes exactly when stability needs it (3.5 m landing
+// re-measured with base=40/coeff=0.10: worst camber 0.6 deg - identical to
+// the old 200 N floor), while near-straight cruising leaves the rack free
+// enough to self-center (straight-pull probe: heading @10 s dropped from
+// +14 deg to a ~+-3 deg wander around zero, rack no longer parks off-center).
 //
-// Chosen defaults (static 250 N / kinetic 200 N) sit safely above that cliff.
-// This still delivers what P4 actually needs for feel: settling MUCH closer
-// to dead center after a hard lock (release-to-final error dropped from
-// ~0.7-0.9 deg pre-fix to ~0.2-0.5 deg here) with no sustained oscillation,
-// plus a genuinely separate, tunable static (parking-hold) dial - just not
-// literal overshoot. The overshoot measurement stays below as a printed,
-// NON-gating diagnostic; don't chase it further by lowering kinetic without
-// re-checking the landing probe first.
+// Overshoot ("przestrzal") after a full-lock release stays a printed,
+// NON-gating diagnostic: measured min angle stays slightly positive even
+// with the free-er rack (the caster force fades exactly at center - an
+// honest property of this linkage, not a friction artifact; the flat-model
+// sweep already showed no friction value produces a clean crossing).
 bool RunP4SteeringReturnProbe( const JozzVehiclePrimitiveDefaults& defaults )
 {
 	std::printf( "p4 steering return probe:\n" );
@@ -2072,14 +2068,18 @@ bool RunP4SteeringReturnProbe( const JozzVehiclePrimitiveDefaults& defaults )
 	return ok;
 }
 
-// Straight-line pull diagnosis (Jozz report 2026-07-09: the car visibly pulls
-// LEFT in ordinary straight driving; steering convention: positive = LEFT).
-// This probe MEASURES, it does not judge: rest-state symmetry per wheel
-// (steer/camber/travel), rack position, then a hands-off constant-throttle
-// straight drive sampling heading, lateral displacement and rack creep - so
-// the cause can be classified as an alignment/centering offset (Gate 1
-// territory) vs an equilibrium of the rack friction model (Gate 2). Gated on
-// finiteness only while the defect is open; tighten the numbers once fixed.
+// Straight-line pull regression (born as the diagnosis of Jozz's 2026-07-09
+// report: the car visibly pulled LEFT in ordinary straight driving; steering
+// convention: positive = LEFT). Diagnosis found: rest state symmetric, the
+// kick came from the drive-torque transient (AWD +14 deg/10 s vs RWD +3.4),
+// and the flat 250 N static friction then PARKED the rack ~1 mm off-center
+// where near-straight caster forces could never break it loose. Fixed by the
+// P4b load-dependent friction model: with the rack nearly free when
+// unloaded, small caster forces keep re-centering it (measured after fix:
+// heading @10 s ~-2.7 deg slow wander around zero instead of a one-sided
+// +14 deg march; rack oscillates around 0 instead of parking). GATED on that
+// fixed behavior below; the AWD/RWD/reverse variants stay as diagnostics
+// (hands-off reverse flopping to the rack limit is correct caster physics).
 bool RunStraightPullDiagnosisProbe( const JozzVehiclePrimitiveDefaults& defaults )
 {
 	std::printf( "straight-pull diagnosis probe:\n" );
@@ -2135,6 +2135,18 @@ bool RunStraightPullDiagnosisProbe( const JozzVehiclePrimitiveDefaults& defaults
 	}
 
 	ok &= CheckTrue( "straight-pull probe state is finite", IsM6VehicleStateValid( vehicle ) );
+	// Regression gate (post-P4b numbers +100% margin): the pre-fix pull
+	// measured +14.0 deg heading and -15.0 m lateral at t=10 s; fixed model
+	// wanders within ~+-2.7 deg / +-1.9 m. Gate at the midpoint so a
+	// re-introduced systematic pull fails loudly while the honest slow wander
+	// of a nearly-free rack does not flake the build.
+	{
+		b3Vec3 forward = b3RotateVector( b3Body_GetRotation( vehicle.chassisId ), b3Vec3_axisX );
+		float headingDeg = 180.0f / B3_PI * std::atan2( -forward.z, forward.x );
+		b3Pos p = b3Body_GetPosition( vehicle.chassisId );
+		ok &= CheckTrue( "straight-pull heading stays under 6 deg after 10 s", std::fabs( headingDeg ) < 6.0f );
+		ok &= CheckTrue( "straight-pull lateral drift stays under 5 m after 10 s", std::fabs( p.z ) < 5.0f );
+	}
 
 	DestroyJozzVehicleM6( &vehicle );
 	b3DestroyWorld( worldId );
