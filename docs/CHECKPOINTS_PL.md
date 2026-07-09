@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-09 · M9: nowy model OneSided_Steering_Suspension_Rig + izolowany bench · 9eaab34
+- CO:     Jozz przysłał nowy model skrętnego zawieszenia (inna organizacja niż One_Sided_wheel_mount: Socket_ChassisMount_b to upright/knuckle nie chassis, damper dolny na dolnym wahaczu, nowy Socket_SteeringRod). Nowy kontrakt `one_sided_steering_suspension.asset.json` (jawne `ridesBody` per sokiet) + izolowany bench M9 (2 narożniki L/R, chassis→carrier(skok)→knuckle(skręt), bez auta). Wydzielono `JozzVehicleComputeArmPlacement`/`JozzVehicleMapAuthoredPoint` z `DrawPartBetween` (czysty refaktor) żeby damper dolny mógł jechać z żywej pozycji wahacza bez osobnego ciała fizyki.
+- CZEMU:  Jozz zażądał krytycznej analizy PRZED kodem (nie kopiować 1:1 starego rigu) + walidacji na izolowanym benchu przed wpięciem w M6. Drążek kierowniczy celowo NIE dostał nowej fizyki — pinowany do stałego punktu (rozciąga się jak wahacze), prawdziwa integracja ma czytać istniejący rack/steerLinkJoint.
+- EFEKT:  Walidator: nowe liczby kontraktu zgodne z analizą (travelAxis 0.700 m, damperSpan 0.689 m, wheelCenter-chassisMountB 0.217 m) — OK. `JOZZ_M9_DUMP` przy skręcie 30°: chassisMountB przesuwa się lustrzanie (+0.0786/-0.0786), drążek kompresuje się z jednej strony (0.781×) i rozciąga z drugiej (1.236×) — potwierdza poprawne wiązanie do knuckle i brak błędu gałęzi lustrzanej. Zrzuty: spoczynek/skręt/droop/bump bez klipowania. Regresja M6+M8 sprawdzona zrzutem — bez zmian. Build 3/3 OK, test.exe 11/11 PASS, boot-smoke 0 sokol errors. Zapushowane na `jozz-vehicle-sandbox-m0`.
+- DALEJ:  Jozz waliduje wizualnie nowy rig na benchu; jeśli zaakceptuje — integracja z przednimi narożnikami M6 (czytanie realnego racka dla drążka) i decyzja o migracji starego rigu.
+
 ## 2026-07-09 · Decyzja Jozza: default skoku zostaje + filozofia limitów na przyszłość · docs
 - CO:     zamknięta otwarta decyzja z P6 (saturacja S2 skoku przy domyślnym wahaczu) — zostaje jak jest, tylko żółte ostrzeżenie w UI (już wdrożone).
 - CZEMU:  Jozz: niedługo dojdą nowe modele zawieszenia ze ZNACZNIE dłuższymi wahaczami — dłuższe ramię przy tym samym skoku w cm potrzebuje mniejszego kąta, więc saturacja przy nowych modelach zniknie sama. Zmiana defaultu pod dzisiejszy (krótki) wahacz byłaby krótkowzroczna.

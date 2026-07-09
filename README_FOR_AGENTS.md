@@ -54,6 +54,11 @@ Jozz Vehicle / M6 Suspension Rig Lab   <- THE main drivable car. Multi-body
                                           Jozz's One_Sided_wheel_mount model rigged
                                           onto the live bodies, telescoping damper.
 Jozz Vehicle / M8 Suspension Rig Bench <- isolated 1-corner spring bench (posable)
+Jozz Vehicle / M9 Steering Rig Bench   <- isolated 2-corner (L/R) bench for the NEW
+                                          OneSided_Steering_Suspension_Rig model
+                                          (steer + travel DOF, no vehicle yet - see
+                                          §7's "not yet integrated" note and
+                                          docs/CHECKPOINTS_PL.md 2026-07-09).
 Jozz Vehicle / M5 First Drivable       <- strut baseline (kept as reference)
 Jozz Vehicle / Lab M2 Primitive Corner <- isolated corner lab (kept)
 Jozz Vehicle / Lab M1 Smoke            <- oldest smoke sample (kept)
@@ -260,7 +265,8 @@ in chat*, not what gets done.
 Jozz samples register last (after all box3d demos). Prefer `--sample-name
 "<substr>"` (e.g. `"Suspension Rig"`, `"Rig Bench"`) which is index-independent.
 Registration order today: Lab M1 Smoke · Lab M2 Primitive Corner · M5 First
-Drivable · M6 Suspension Rig Lab · M8 Suspension Rig Bench.
+Drivable · M6 Suspension Rig Lab · M8 Suspension Rig Bench · M9 Steering Rig
+Bench.
 
 Do not use `[` / `]` (global sample-switch keys). Adding a hotkey → update
 `docs/HOTKEY_AUDIT_PL.md`, `main.cpp`, `gfx/keycodes.h`, and each lab.
