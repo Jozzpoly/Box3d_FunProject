@@ -1822,18 +1822,17 @@ void JozzVehicleRiggedMesh::DrawPartScaled( int index, b3Quat rotation, b3Vec3 s
 				TRANSPARENT_SHADOW_FULL );
 }
 
-void JozzVehicleRiggedMesh::DrawPartBetween( int index, b3Vec3 authoredA, b3Vec3 authoredB, b3Pos liveA, b3Pos liveB,
-											Vec4 color ) const
+JozzVehicleArmPlacement JozzVehicleComputeArmPlacement( b3Vec3 authoredA, b3Vec3 authoredB, b3Pos liveA, b3Pos liveB )
 {
-	if ( index < 0 || index >= (int)parts.size() || IsMeshHandleValid( parts[index].handle ) == false )
-	{
-		return;
-	}
+	JozzVehicleArmPlacement placement;
+	placement.pivotAuthored = authoredA;
+	placement.pivotWorld = liveA;
+
 	b3Vec3 authoredDir = b3Sub( authoredB, authoredA );
 	float authoredLen = b3Length( authoredDir );
 	if ( authoredLen < 1.0e-5f )
 	{
-		return;
+		return placement;
 	}
 	b3Vec3 ua = b3MulSV( 1.0f / authoredLen, authoredDir );
 	b3Vec3 liveDir = b3Sub( liveB, liveA );
@@ -1864,14 +1863,42 @@ void JozzVehicleRiggedMesh::DrawPartBetween( int index, b3Vec3 authoredA, b3Vec3
 	r.cx = b3Add( b3Add( b3MulSV( ua.x, ul ), b3MulSV( upA.x, upT ) ), b3MulSV( wA.x, wT ) );
 	r.cy = b3Add( b3Add( b3MulSV( ua.y, ul ), b3MulSV( upA.y, upT ) ), b3MulSV( wA.y, wT ) );
 	r.cz = b3Add( b3Add( b3MulSV( ua.z, ul ), b3MulSV( upA.z, upT ) ), b3MulSV( wA.z, wT ) );
-	b3Quat rotation = b3MakeQuatFromMatrix( &r );
+	placement.rotation = b3MakeQuatFromMatrix( &r );
 
 	// Stretch along whichever authored axis the endpoints run along (arms are on
 	// authored X, the damper on Y), so the part exactly spans liveA..liveB.
 	float s = liveLen / authoredLen;
-	b3Vec3 scale = { 1.0f + ( s - 1.0f ) * std::fabs( ua.x ), 1.0f + ( s - 1.0f ) * std::fabs( ua.y ),
-					 1.0f + ( s - 1.0f ) * std::fabs( ua.z ) };
-	DrawPartScaled( index, rotation, scale, authoredA, liveA, color );
+	placement.scale = { 1.0f + ( s - 1.0f ) * std::fabs( ua.x ), 1.0f + ( s - 1.0f ) * std::fabs( ua.y ),
+						 1.0f + ( s - 1.0f ) * std::fabs( ua.z ) };
+	placement.valid = true;
+	return placement;
+}
+
+b3Pos JozzVehicleMapAuthoredPoint( const JozzVehicleArmPlacement& placement, b3Vec3 authoredPoint )
+{
+	if ( placement.valid == false )
+	{
+		return placement.pivotWorld;
+	}
+	b3Vec3 local = b3Sub( authoredPoint, placement.pivotAuthored );
+	b3Vec3 scaled = { placement.scale.x * local.x, placement.scale.y * local.y, placement.scale.z * local.z };
+	b3Vec3 rotated = b3RotateVector( placement.rotation, scaled );
+	return b3Add( placement.pivotWorld, rotated );
+}
+
+void JozzVehicleRiggedMesh::DrawPartBetween( int index, b3Vec3 authoredA, b3Vec3 authoredB, b3Pos liveA, b3Pos liveB,
+											Vec4 color ) const
+{
+	if ( index < 0 || index >= (int)parts.size() || IsMeshHandleValid( parts[index].handle ) == false )
+	{
+		return;
+	}
+	JozzVehicleArmPlacement placement = JozzVehicleComputeArmPlacement( authoredA, authoredB, liveA, liveB );
+	if ( placement.valid == false )
+	{
+		return;
+	}
+	DrawPartScaled( index, placement.rotation, placement.scale, authoredA, liveA, color );
 }
 
 void JozzVehicleRiggedMesh::DrawTelescopingDamper( b3Pos topWorld, b3Pos botWorld, Vec4 color ) const

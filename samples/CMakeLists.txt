@@ -189,8 +189,12 @@ set(SAMPLE_FILES
     jozz_vehicle_m7_suspension_import.h
     jozz_vehicle_m8_rig_bench.cpp
     jozz_vehicle_m8_rig_bench.h
+    jozz_vehicle_m9_steering_rig_bench.cpp
+    jozz_vehicle_m9_steering_rig_bench.h
     jozz_vehicle_primitive_corner_lab.cpp
     jozz_vehicle_primitive_corner_lab.h
+    jozz_vehicle_steering_suspension_contract.cpp
+    jozz_vehicle_steering_suspension_contract.h
     jozz_vehicle_visual_asset.cpp
     jozz_vehicle_visual_asset.h
     jozz_vehicle_visual_mesh.cpp
@@ -251,6 +255,8 @@ add_executable(jozz_vehicle_validation
     jozz_vehicle_m6_suspension_rig.h
     jozz_vehicle_m7_suspension_import.cpp
     jozz_vehicle_m7_suspension_import.h
+    jozz_vehicle_steering_suspension_contract.cpp
+    jozz_vehicle_steering_suspension_contract.h
     jsmn.h
 )
 

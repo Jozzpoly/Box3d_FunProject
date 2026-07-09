@@ -7,6 +7,7 @@
 #include "jozz_vehicle_m5_vehicle.h"
 #include "jozz_vehicle_m6_suspension_rig.h"
 #include "jozz_vehicle_m7_suspension_import.h"
+#include "jozz_vehicle_steering_suspension_contract.h"
 
 #include "box3d/box3d.h"
 
@@ -2393,6 +2394,64 @@ int main()
 	ok &= CheckContractRole( suspensionContract, "suspension.travel_axis.bottom", "physics_hint" );
 	ok &= CheckContractRole( suspensionContract, "suspension.visual.chassis_top", "visual_part" );
 	ok &= CheckContractRole( suspensionContract, "suspension.visual.chassis_bottom", "visual_part" );
+
+	// New steering-suspension rig (OneSided_Steering_Suspension_Rig.gltf) - a
+	// SEPARATE contract from one_sided_wheel_mount above, not interchangeable.
+	// See the contract's "notes" block for the parenting differences (upright
+	// named ChassisMount_b, damper lower eye on the lower arm, new steering rod
+	// part) that make this model's rig binding different from the old one.
+	JozzVehicleAssetContract steeringContract = LoadJozzVehicleAssetContract( "one_sided_steering_suspension.asset.json" );
+	std::printf( "steering contract: %s\n", steeringContract.status.c_str() );
+	std::printf( "steering contract source: %s\n",
+				 steeringContract.sourcePath.empty() ? "missing" : steeringContract.sourcePath.c_str() );
+	for ( const std::string& warning : steeringContract.warnings )
+	{
+		std::printf( "steering contract warning: %s\n", warning.c_str() );
+	}
+
+	std::vector<std::string> steeringContractErrors;
+	ok &= ValidateJozzVehicleSteeringSuspensionContract( steeringContract, &steeringContractErrors );
+	for ( const std::string& error : steeringContractErrors )
+	{
+		std::printf( "steering contract error: %s\n", error.c_str() );
+	}
+
+	ok &= CheckContractRole( steeringContract, "steering_suspension.visual.chassis_mount_a", "visual_endpoint" );
+	ok &= CheckContractRole( steeringContract, "steering_suspension.visual.chassis_mount_b", "visual_endpoint" );
+	ok &= CheckContractRole( steeringContract, "steering_suspension.visual.wheel_center", "visual_endpoint" );
+	ok &= CheckContractRole( steeringContract, "steering_suspension.visual.damper_mount", "visual_endpoint" );
+	ok &= CheckContractRole( steeringContract, "steering_suspension.visual.damper_upper", "visual_endpoint" );
+	ok &= CheckContractRole( steeringContract, "steering_suspension.visual.damper_lower", "visual_endpoint" );
+	ok &= CheckContractRole( steeringContract, "steering_suspension.visual.steering_rod", "visual_endpoint" );
+	ok &= CheckContractRole( steeringContract, "steering_suspension.visual.cardan_drive", "visual_endpoint" );
+	ok &= CheckContractRole( steeringContract, "steering_suspension.visual.cardan_hub", "visual_endpoint" );
+	ok &= CheckContractRole( steeringContract, "steering_suspension.travel_axis.top", "physics_hint" );
+	ok &= CheckContractRole( steeringContract, "steering_suspension.travel_axis.bottom", "physics_hint" );
+	ok &= CheckContractRole( steeringContract, "steering_suspension.visual.chassis_top", "visual_part" );
+	ok &= CheckContractRole( steeringContract, "steering_suspension.visual.chassis_bottom", "visual_part" );
+
+	// Derived-vector sanity numbers (printed, not just asserted - see the
+	// "validator asserts loosely" rule in README_FOR_AGENTS.md): these are the
+	// same authoring-unit distances the model analysis was built from, so a
+	// bad re-export or a wrong nodeIndexHint edit shows up as a wrong number
+	// here instead of silently passing.
+	JozzVehicleSteeringSuspensionSockets steeringSockets = ResolveJozzVehicleSteeringSuspensionSockets( steeringContract );
+	if ( steeringSockets.resolved )
+	{
+		float travel = b3Distance( steeringSockets.travelAxisTop, steeringSockets.travelAxisBottom );
+		float damperSpan = b3Distance( steeringSockets.damperUpper, steeringSockets.damperLower );
+		float uprightSpan = b3Distance( steeringSockets.wheelCenter, steeringSockets.chassisMountB );
+		std::printf( "steering sockets: travelAxis=%.4f m, damperSpan=%.4f m, wheelCenter-chassisMountB=%.4f m\n", travel,
+					 damperSpan, uprightSpan );
+		ok &= CheckApprox( "steeringTravelAxis", travel, 0.700f, 0.03f );
+		ok &= CheckApprox( "steeringDamperSpan", damperSpan, 0.689f, 0.03f );
+		ok &= CheckApprox( "steeringWheelCenterToChassisMountB", uprightSpan, 0.217f, 0.03f );
+	}
+	else
+	{
+		std::printf( "steering sockets: FAILED to resolve\n" );
+		ok = false;
+	}
 
 	ok &= RunM5DriveSmoke( defaults );
 	ok &= RunM5WheelShapeExperiment( defaults );

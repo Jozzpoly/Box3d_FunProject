@@ -1,0 +1,185 @@
+{
+  "assetId": "jozz.one_sided_steering_suspension.v0",
+  "assetType": "steering_suspension_corner_visual",
+  "source": {
+    "gltf": "../source/OneSided_Steering_Suspension_Rig.gltf",
+    "authoringTool": "Blockbench",
+    "contractVersion": 2
+  },
+  "units": {
+    "metersPerBlockbenchUnit": 0.35,
+    "status": "prototype_scale_matches_one_sided_wheel_mount"
+  },
+  "orientation": {
+    "status": "authoring_orientation_not_final",
+    "authoringUp": "+Y",
+    "knownAuthoringHints": {
+      "suspensionTravelAxisFromMarkers": "+Y"
+    },
+    "temporaryImporterCorrection": {
+      "enabled": true,
+      "note": "Final orientation will be adjusted after native in-game visual tests."
+    }
+  },
+  "notes": {
+    "criticalParentingWarning": "Socket_ChassisMount_b is NOT chassis-mounted despite its name: it is the upright/knuckle that ties both wishbone arms to the wheel, and must ride the KNUCKLE body, not the chassis. Socket_WheelCenter also rides the knuckle. Do not classify parts by name substring alone - see roleCategory/role below.",
+    "damperLowerParent": "Socket_SingleDamperLower is a child of Chassis_Bottom (the lower wishbone arm) in the source glTF, not of the knuckle. Its live position must be derived from the lower arm's placement, not the upright's.",
+    "steeringRodParent": "Socket_SteeringRod is a child of Socket_WheelCenter (rides the knuckle at the outboard end). The inboard end is NOT part of this model - it must be driven by the vehicle's real steering rack body/joint (no new physics should be invented for it)."
+  },
+  "semantics": {
+    "sockets": {
+      "chassisMountA": {
+        "role": "steering_suspension.visual.chassis_mount_a",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_ChassisMount_a",
+        "nodeIndexHint": 2,
+        "nodePathHint": "2:Socket_ChassisMount_a",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false,
+        "ridesBody": "chassis"
+      },
+      "chassisMountB": {
+        "role": "steering_suspension.visual.chassis_mount_b",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_ChassisMount_b",
+        "nodeIndexHint": 6,
+        "nodePathHint": "6:Socket_ChassisMount_b",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false,
+        "ridesBody": "knuckle"
+      },
+      "wheelCenter": {
+        "role": "steering_suspension.visual.wheel_center",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_WheelCenter",
+        "nodeIndexHint": 8,
+        "nodePathHint": "8:Socket_WheelCenter",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false,
+        "ridesBody": "knuckle"
+      },
+      "damperMount": {
+        "role": "steering_suspension.visual.damper_mount",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_SingleDamper_Mount",
+        "nodeIndexHint": 1,
+        "nodePathHint": "1:Socket_SingleDamper_Mount",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false,
+        "ridesBody": "chassis"
+      },
+      "damperUpper": {
+        "role": "steering_suspension.visual.damper_upper",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_SingleDamperUpper",
+        "nodeIndexHint": 0,
+        "nodePathHint": "0:Socket_SingleDamperUpper",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false,
+        "ridesBody": "chassis"
+      },
+      "damperLower": {
+        "role": "steering_suspension.visual.damper_lower",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_SingleDamperLower",
+        "nodeIndexHint": 4,
+        "nodePathHint": "4:Socket_SingleDamperLower",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false,
+        "ridesBody": "lowerArm"
+      },
+      "steeringRod": {
+        "role": "steering_suspension.visual.steering_rod",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_SteeringRod",
+        "nodeIndexHint": 7,
+        "nodePathHint": "7:Socket_SteeringRod",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false,
+        "ridesBody": "knuckle"
+      },
+      "cardanDrive": {
+        "role": "steering_suspension.visual.cardan_drive",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_CardanDrive",
+        "nodeIndexHint": 9,
+        "nodePathHint": "9:Socket_CardanDrive",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false,
+        "ridesBody": "chassis"
+      },
+      "cardanHub": {
+        "role": "steering_suspension.visual.cardan_hub",
+        "roleCategory": "visual_endpoint",
+        "nameHint": "Socket_CardanHub",
+        "nodeIndexHint": 10,
+        "nodePathHint": "10:Socket_CardanHub",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false,
+        "ridesBody": "knuckle"
+      }
+    },
+    "axes": {
+      "suspensionTravel": [
+        {
+          "role": "steering_suspension.travel_axis.top",
+          "roleCategory": "physics_hint",
+          "nameHint": "Axis_SuspensionTravel_Top",
+          "nodeIndexHint": 11,
+          "nodePathHint": "11:Axis_SuspensionTravel_Top",
+          "space": "authoring_world_after_composed_transforms",
+          "required": true,
+          "physicsAuthority": false
+        },
+        {
+          "role": "steering_suspension.travel_axis.bottom",
+          "roleCategory": "physics_hint",
+          "nameHint": "Axis_SuspensionTravel_Bottom",
+          "nodeIndexHint": 12,
+          "nodePathHint": "12:Axis_SuspensionTravel_Bottom",
+          "space": "authoring_world_after_composed_transforms",
+          "required": true,
+          "physicsAuthority": false
+        }
+      ]
+    },
+    "visualParts": {
+      "chassisTop": {
+        "role": "steering_suspension.visual.chassis_top",
+        "roleCategory": "visual_part",
+        "nameHint": "Chassis_Top",
+        "nodeIndexHint": 3,
+        "nodePathHint": "3:Chassis_Top",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false,
+        "note": "upper wishbone arm - chassis end rides chassis, wheel end rides knuckle (DrawPartBetween)"
+      },
+      "chassisBottom": {
+        "role": "steering_suspension.visual.chassis_bottom",
+        "roleCategory": "visual_part",
+        "nameHint": "Chassis_Bottom",
+        "nodeIndexHint": 5,
+        "nodePathHint": "5:Chassis_Bottom",
+        "space": "authoring_world_after_composed_transforms",
+        "required": true,
+        "physicsAuthority": false,
+        "note": "lower wishbone arm - chassis end rides chassis, wheel end rides knuckle (DrawPartBetween); also carries the damper's lower eye"
+      }
+    }
+  },
+  "physics": {
+    "v0Treatment": "visual_only_isolated_bench_before_vehicle_integration",
+    "futureTreatment": "front double-wishbone corner replacement for one_sided_wheel_mount after validation",
+    "steeringRodInboardEnd": "must be driven by the vehicle's existing rack/steerLinkJoint physics, never a new body or constraint"
+  }
+}

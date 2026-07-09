@@ -89,12 +89,41 @@ struct JozzVehicleRiggedMesh
 	// joint): the arm pivots and its ends stay glued to both bodies.
 	void DrawPartBetween( int index, b3Vec3 authoredA, b3Vec3 authoredB, b3Pos liveA, b3Pos liveB, Vec4 color ) const;
 
+	// A point that is a child of some other bone but is not itself one of the
+	// mesh's own parts (e.g. a socket bolted to a wishbone arm) can still be
+	// carried along the arm's live placement via JozzVehicleComputeArmPlacement
+	// + JozzVehicleMapAuthoredPoint below, without a dedicated physics body.
+
 	// Draws an Asset_Dumper-style vertical damper stretched between two live
 	// mount points: Part_Upper pinned rigidly at topWorld, Part_Lower at
 	// botWorld, Part_Stretch scaled along the damper axis to bridge them. Part
 	// names are matched by substring ("Upper"/"Lower"/"Stretch").
 	void DrawTelescopingDamper( b3Pos topWorld, b3Pos botWorld, Vec4 color ) const;
 };
+
+// The rigid+non-uniform-scale placement that pins authored point A onto liveA
+// and authored point B onto liveB, preserving world up/forward as much as
+// possible (see DrawPartBetween's comment for why a minimal rotation is not
+// used). `valid` is false when authoredA/authoredB coincide (degenerate arm
+// axis) - callers should skip drawing/mapping in that case, same as
+// DrawPartBetween does internally.
+struct JozzVehicleArmPlacement
+{
+	bool valid = false;
+	b3Quat rotation = b3Quat_identity;
+	b3Vec3 scale = b3Vec3_one;
+	b3Vec3 pivotAuthored = b3Vec3_zero;
+	b3Pos pivotWorld = b3Vec3_zero;
+};
+
+JozzVehicleArmPlacement JozzVehicleComputeArmPlacement( b3Vec3 authoredA, b3Vec3 authoredB, b3Pos liveA, b3Pos liveB );
+
+// Maps an arbitrary authored-world-meters point through a placement computed
+// by JozzVehicleComputeArmPlacement - for a socket that hangs off the arm bone
+// itself but is not one of the two pinned endpoints (e.g. a damper eye bolted
+// to the lower wishbone arm in a rig with no dedicated physics body for that
+// arm, such as an isolated bench).
+b3Pos JozzVehicleMapAuthoredPoint( const JozzVehicleArmPlacement& placement, b3Vec3 authoredPoint );
 
 struct JozzVehicleAuditMetadata;
 

@@ -6,6 +6,7 @@
 #include "jozz_vehicle_m5_drivable_lab.h"
 #include "jozz_vehicle_m6_rig_lab.h"
 #include "jozz_vehicle_m8_rig_bench.h"
+#include "jozz_vehicle_m9_steering_rig_bench.h"
 #include "jozz_vehicle_primitive_corner_lab.h"
 #include "sample.h"
 
@@ -81,3 +82,6 @@ static int sampleJozzVehicleM6RigLab =
 
 static int sampleJozzVehicleM8RigBench =
 	RegisterSample( "Jozz Vehicle", "M8 Suspension Rig Bench", CreateJozzVehicleM8RigBench );
+
+static int sampleJozzVehicleM9SteeringRigBench =
+	RegisterSample( "Jozz Vehicle", "M9 Steering Rig Bench", CreateJozzVehicleM9SteeringRigBench );
