@@ -1521,51 +1521,75 @@ bool RunP5SteeringSetupProbe( const JozzVehiclePrimitiveDefaults& defaults )
 	for ( int pass = 0; pass < 2; ++pass )
 	{
 		bool frontPass = pass == 0;
-		JozzVehicleM6Config config =
-			JozzVehicleM6DefaultConfig( defaults.wheelRadius, defaults.wheelWidth, defaults.assetSuspensionTravelHint );
-		if ( frontPass )
-		{
-			config.frontToeDeg = 1.0f;
-		}
-		else
-		{
-			config.rearToeDeg = 1.0f;
-		}
-		config.steerInputDeadzone = 0.0f;
-
-		b3WorldDef worldDef = b3DefaultWorldDef();
-		b3WorldId worldId = b3CreateWorld( &worldDef );
-		b3BodyId groundId = CreateM6SmokeGround( worldId, 0.8f );
-		float spawnHeight = config.restDrop + config.wheelEnvelope.radius + 0.05f;
-		JozzVehicleM6 vehicle = CreateJozzVehicleM6( worldId, groundId, config, { 0.0f, spawnHeight, 0.0f } );
-		const float timeStep = 1.0f / 60.0f;
-		const int subStepCount = 4;
-		JozzVehicleM6DriveInput input = {};
-		input.steer = 0.0001f; // hair above the (now zero) deadzone, commands ~0 deg
-		for ( int i = 0; i < 180; ++i )
-		{
-			UpdateJozzVehicleM6Drive( vehicle, input );
-			b3World_Step( worldId, timeStep, subStepCount );
-		}
-
 		int leftCorner = frontPass ? JOZZ_M6_FRONT_LEFT : JOZZ_M6_REAR_LEFT;
 		int rightCorner = frontPass ? JOZZ_M6_FRONT_RIGHT : JOZZ_M6_REAR_RIGHT;
-		float leftDeg = 180.0f / B3_PI * GetJozzVehicleM6WheelTelemetry( vehicle, leftCorner ).steeringAngle;
-		float rightDeg = 180.0f / B3_PI * GetJozzVehicleM6WheelTelemetry( vehicle, rightCorner ).steeringAngle;
-		std::printf( "  %s toe=+1 deg: left %.2f deg, right %.2f deg\n", frontPass ? "front" : "rear", leftDeg,
-					 rightDeg );
 
-		char label[80];
-		std::snprintf( label, sizeof( label ), "p5 %s toe=+1 gives opposite-signed L/R angles (toe-in)",
-						frontPass ? "front" : "rear" );
-		ok &= CheckTrue( label, leftDeg * rightDeg < 0.0f );
-		std::snprintf( label, sizeof( label ), "p5 %s toe=+1 magnitude is in the right ballpark (0.3-3 deg)",
-						frontPass ? "front" : "rear" );
-		ok &= CheckTrue( label, std::fabs( leftDeg ) > 0.3f && std::fabs( leftDeg ) < 3.0f );
-		ok &= CheckTrue( "p5 toe probe state is finite", IsM6VehicleStateValid( vehicle ) );
+		// Calibrated dial (audit A4, plan tolerance restored): the settle
+		// splay documented above sits ON TOP of the commanded toe, so the
+		// dial is judged on the DELTA between a toe=+1 build and an otherwise
+		// identical toe=0 baseline build - measuring the absolute angle mixes
+		// the two and is exactly how the old 1.43x dial slipped through a
+		// widened "ballpark" band. With SteeringArmWithToe's exact
+		// kingpin-axis rotation the delta must land within +-0.3 deg of the
+		// commanded 1 deg on BOTH wheels (measured 2026-07-09: front
+		// -0.99/+0.96, rear -0.88/+0.89).
+		float angles[2][2] = {}; // [toePass][left/right]
+		bool finiteOk = true;
+		for ( int toePass = 0; toePass < 2; ++toePass )
+		{
+			JozzVehicleM6Config config = JozzVehicleM6DefaultConfig( defaults.wheelRadius, defaults.wheelWidth,
+																	 defaults.assetSuspensionTravelHint );
+			float toe = toePass == 0 ? 0.0f : 1.0f;
+			if ( frontPass )
+			{
+				config.frontToeDeg = toe;
+			}
+			else
+			{
+				config.rearToeDeg = toe;
+			}
+			config.steerInputDeadzone = 0.0f;
 
-		DestroyJozzVehicleM6( &vehicle );
-		b3DestroyWorld( worldId );
+			b3WorldDef worldDef = b3DefaultWorldDef();
+			b3WorldId worldId = b3CreateWorld( &worldDef );
+			b3BodyId groundId = CreateM6SmokeGround( worldId, 0.8f );
+			float spawnHeight = config.restDrop + config.wheelEnvelope.radius + 0.05f;
+			JozzVehicleM6 vehicle = CreateJozzVehicleM6( worldId, groundId, config, { 0.0f, spawnHeight, 0.0f } );
+			const float timeStep = 1.0f / 60.0f;
+			const int subStepCount = 4;
+			JozzVehicleM6DriveInput input = {};
+			input.steer = 0.0001f; // hair above the (now zero) deadzone, commands ~0 deg
+			for ( int i = 0; i < 180; ++i )
+			{
+				UpdateJozzVehicleM6Drive( vehicle, input );
+				b3World_Step( worldId, timeStep, subStepCount );
+			}
+
+			angles[toePass][0] = 180.0f / B3_PI * GetJozzVehicleM6WheelTelemetry( vehicle, leftCorner ).steeringAngle;
+			angles[toePass][1] = 180.0f / B3_PI * GetJozzVehicleM6WheelTelemetry( vehicle, rightCorner ).steeringAngle;
+			finiteOk &= IsM6VehicleStateValid( vehicle );
+
+			DestroyJozzVehicleM6( &vehicle );
+			b3DestroyWorld( worldId );
+		}
+
+		float leftDelta = angles[1][0] - angles[0][0];
+		float rightDelta = angles[1][1] - angles[0][1];
+		std::printf( "  %s toe=+1 deg: baseline %.2f/%.2f, toed %.2f/%.2f -> delta left %+.2f, right %+.2f deg\n",
+					 frontPass ? "front" : "rear", angles[0][0], angles[0][1], angles[1][0], angles[1][1], leftDelta,
+					 rightDelta );
+
+		char label[96];
+		std::snprintf( label, sizeof( label ), "p5 %s toe=+1 delta has opposite-signed L/R angles (toe-in)",
+						frontPass ? "front" : "rear" );
+		ok &= CheckTrue( label, leftDelta < 0.0f && rightDelta > 0.0f );
+		std::snprintf( label, sizeof( label ), "p5 %s toe=+1 left delta within +-0.3 deg of commanded",
+						frontPass ? "front" : "rear" );
+		ok &= CheckTrue( label, std::fabs( leftDelta + 1.0f ) <= 0.3f );
+		std::snprintf( label, sizeof( label ), "p5 %s toe=+1 right delta within +-0.3 deg of commanded",
+						frontPass ? "front" : "rear" );
+		ok &= CheckTrue( label, std::fabs( rightDelta - 1.0f ) <= 0.3f );
+		ok &= CheckTrue( "p5 toe probe state is finite", finiteOk );
 	}
 
 	std::printf( "p5 steering setup probe: %s\n", ok ? "ok" : "FAILED" );
@@ -1936,7 +1960,7 @@ bool RunP3SuspensionPreloadProbe( const JozzVehiclePrimitiveDefaults& defaults )
 // sideways instead of forward (see RunM7LandingIntegrityProbe). So the
 // audit's suggested range is actively unsafe, not just insufficiently lively.
 //
-// Chosen defaults (static 200 N / kinetic 150 N) sit safely above that cliff.
+// Chosen defaults (static 250 N / kinetic 200 N) sit safely above that cliff.
 // This still delivers what P4 actually needs for feel: settling MUCH closer
 // to dead center after a hard lock (release-to-final error dropped from
 // ~0.7-0.9 deg pre-fix to ~0.2-0.5 deg here) with no sustained oscillation,
@@ -2045,6 +2069,125 @@ bool RunP4SteeringReturnProbe( const JozzVehiclePrimitiveDefaults& defaults )
 	}
 
 	std::printf( "p4 steering return probe: %s\n", ok ? "ok" : "FAILED" );
+	return ok;
+}
+
+// Straight-line pull diagnosis (Jozz report 2026-07-09: the car visibly pulls
+// LEFT in ordinary straight driving; steering convention: positive = LEFT).
+// This probe MEASURES, it does not judge: rest-state symmetry per wheel
+// (steer/camber/travel), rack position, then a hands-off constant-throttle
+// straight drive sampling heading, lateral displacement and rack creep - so
+// the cause can be classified as an alignment/centering offset (Gate 1
+// territory) vs an equilibrium of the rack friction model (Gate 2). Gated on
+// finiteness only while the defect is open; tighten the numbers once fixed.
+bool RunStraightPullDiagnosisProbe( const JozzVehiclePrimitiveDefaults& defaults )
+{
+	std::printf( "straight-pull diagnosis probe:\n" );
+	bool ok = true;
+
+	JozzVehicleM6Config config =
+		JozzVehicleM6DefaultConfig( defaults.wheelRadius, defaults.wheelWidth, defaults.assetSuspensionTravelHint );
+
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+	b3BodyId groundId = CreateM6SmokeGround( worldId, 0.8f );
+	float spawnHeight = config.restDrop + config.wheelEnvelope.radius + 0.05f;
+	JozzVehicleM6 vehicle = CreateJozzVehicleM6( worldId, groundId, config, { 0.0f, spawnHeight, 0.0f } );
+
+	const float timeStep = 1.0f / 60.0f;
+	const int subStepCount = 4;
+	JozzVehicleM6DriveInput input = {};
+
+	for ( int i = 0; i < 240; ++i )
+	{
+		UpdateJozzVehicleM6Drive( vehicle, input );
+		b3World_Step( worldId, timeStep, subStepCount );
+	}
+
+	const char* cornerNames[JOZZ_M6_CORNER_COUNT] = { "FL", "FR", "RL", "RR" };
+	std::printf( "  rest after settle: rack %+.5f m\n", b3PrismaticJoint_GetTranslation( vehicle.rackJointId ) );
+	for ( int corner = 0; corner < JOZZ_M6_CORNER_COUNT; ++corner )
+	{
+		JozzVehicleM6WheelTelemetry t = GetJozzVehicleM6WheelTelemetry( vehicle, corner );
+		std::printf( "    %s: steer %+.3f deg, camber %+.3f deg, travel %+.4f m\n", cornerNames[corner],
+					 180.0f / B3_PI * t.steeringAngle, 180.0f / B3_PI * t.camberAngle, t.suspensionTravel );
+	}
+
+	// Hands-off straight drive: steer stays 0 (below the deadzone), so the
+	// rack rides on friction only - exactly the reported scenario.
+	input.drive = 1.0f;
+	for ( int i = 1; i <= 600; ++i )
+	{
+		UpdateJozzVehicleM6Drive( vehicle, input );
+		b3World_Step( worldId, timeStep, subStepCount );
+		if ( i % 120 == 0 )
+		{
+			b3Vec3 forward = b3RotateVector( b3Body_GetRotation( vehicle.chassisId ), b3Vec3_axisX );
+			float headingDeg = 180.0f / B3_PI * std::atan2( -forward.z, forward.x ); // + = nose LEFT
+			b3Pos p = b3Body_GetPosition( vehicle.chassisId );
+			JozzVehicleM6WheelTelemetry fl = GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_LEFT );
+			JozzVehicleM6WheelTelemetry fr = GetJozzVehicleM6WheelTelemetry( vehicle, JOZZ_M6_FRONT_RIGHT );
+			std::printf( "  t=%.0fs: heading %+.2f deg, x %.1f m, z %+.3f m, rack %+.5f m, FL %+.2f FR %+.2f deg\n",
+						 (double)( i * timeStep ), headingDeg, p.x, p.z,
+						 b3PrismaticJoint_GetTranslation( vehicle.rackJointId ), 180.0f / B3_PI * fl.steeringAngle,
+						 180.0f / B3_PI * fr.steeringAngle );
+		}
+	}
+
+	ok &= CheckTrue( "straight-pull probe state is finite", IsM6VehicleStateValid( vehicle ) );
+
+	DestroyJozzVehicleM6( &vehicle );
+	b3DestroyWorld( worldId );
+
+	// Variant runs to pin the source of the throttle-on kick: if the drift
+	// flips with REVERSE drive, the kick is mediated by the drive-torque
+	// reaction; if it persists with the same sign regardless of direction and
+	// drivetrain, it is a systematic solver-order bias. Either way the HOLD
+	// half of the pull (rack parked ~1 mm off-center by static friction) is
+	// the friction model's doing - Gate 2 territory.
+	struct PullVariant
+	{
+		const char* label;
+		float drive;
+		bool awd;
+	};
+	PullVariant variants[] = {
+		{ "reverse-awd", -1.0f, true },
+		{ "forward-rwd", 1.0f, false },
+	};
+	for ( const PullVariant& variant : variants )
+	{
+		JozzVehicleM6Config vconfig = config;
+		vconfig.allWheelDrive = variant.awd;
+
+		b3WorldId vworldId = b3CreateWorld( &worldDef );
+		b3BodyId vgroundId = CreateM6SmokeGround( vworldId, 0.8f );
+		JozzVehicleM6 vvehicle = CreateJozzVehicleM6( vworldId, vgroundId, vconfig, { 0.0f, spawnHeight, 0.0f } );
+
+		JozzVehicleM6DriveInput vinput = {};
+		for ( int i = 0; i < 240; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vvehicle, vinput );
+			b3World_Step( vworldId, timeStep, subStepCount );
+		}
+		vinput.drive = variant.drive;
+		for ( int i = 1; i <= 600; ++i )
+		{
+			UpdateJozzVehicleM6Drive( vvehicle, vinput );
+			b3World_Step( vworldId, timeStep, subStepCount );
+		}
+		b3Vec3 forward = b3RotateVector( b3Body_GetRotation( vvehicle.chassisId ), b3Vec3_axisX );
+		float headingDeg = 180.0f / B3_PI * std::atan2( -forward.z, forward.x );
+		b3Pos p = b3Body_GetPosition( vvehicle.chassisId );
+		std::printf( "  variant %s: heading %+.2f deg, x %.1f m, z %+.3f m, rack %+.5f m\n", variant.label, headingDeg,
+					 p.x, p.z, b3PrismaticJoint_GetTranslation( vvehicle.rackJointId ) );
+		ok &= CheckTrue( "straight-pull variant state is finite", IsM6VehicleStateValid( vvehicle ) );
+
+		DestroyJozzVehicleM6( &vvehicle );
+		b3DestroyWorld( vworldId );
+	}
+
+	std::printf( "straight-pull diagnosis probe: %s\n", ok ? "ok" : "FAILED" );
 	return ok;
 }
 
@@ -2469,6 +2612,7 @@ int main()
 	ok &= RunP3SuspensionPreloadProbe( defaults );
 	ok &= RunP4SteeringReturnProbe( defaults );
 	ok &= RunP4CenteringAssistProbe( defaults );
+	ok &= RunStraightPullDiagnosisProbe( defaults );
 
 	if ( ok == false )
 	{

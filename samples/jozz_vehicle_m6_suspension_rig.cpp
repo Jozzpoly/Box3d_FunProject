@@ -758,24 +758,35 @@ b3BodyId CreateControlArm( b3WorldId worldId, JozzVehicleM6* vehicle, b3Vec3 fro
 // different mechanisms for front/rear invited exactly the kind of asymmetry
 // bug this project has been bitten by before).
 //
-// Magnitude: arc length of a small kingpin rotation at the arm's own radius
-// (steeringArmBack). Sign: verified empirically against the validator's toe
-// probe (steeringAngle telemetry), NOT just derived on paper - an initial
-// per-side `IsLeftCorner`-flipped version measured as producing a coordinated
-// STEER (both wheels' steeringAngle shifting the same sign, like turning the
-// whole rack) instead of TOE (opposite signs, converging/diverging) - the
-// mirroring this needs is already baked into the hardpoint geometry and the
-// steeringAngle telemetry formula (both already flip per side), so adding
-// another `IsLeftCorner` flip here canceled it out. The same, UNFLIPPED delta
-// on both sides (lengthening both links for positive toeDeg) is what actually
-// converges the two noses - confirmed by measurement (A/B toe=+-2 deg test:
-// clean +-2.1 to 2.2 deg response, opposite-signed L/R). Positive toeDeg =
-// toe-in (both wheels' noses point toward the chassis centerline).
-float SteeringToeLengthDelta( const JozzVehicleM6Config& config, int corner )
+// Magnitude (recalibrated 2026-07-09, audit A4): the first version used the
+// small-angle arc length `steeringArmBack * toeRad`, but steeringArmBack is
+// NOT the arm's lever about the kingpin (the kingpin is offset and tilted by
+// caster/KPI, and the Ackermann trapezoid angles the arm inward), so the dial
+// over-steered by ~43% (commanded 1 deg -> measured 1.43 deg). Now computed
+// EXACTLY: rotate the steering-arm attachment about the corner's own kingpin
+// axis by the commanded toe angle and measure the link rest length to THAT
+// point - the knuckle's equilibrium is then the exact commanded rotation (all
+// its other constraints - both ball joints - sit ON the axis and don't move).
+//
+// Sign convention (kept from the calibrated-by-measurement first version):
+// positive toeDeg = toe-IN, both noses toward the chassis centerline. With
+// positive steer = LEFT (+X toward -Z about +Y), toe-in means the left wheel
+// (at -Z) yaws negative and the right wheel positive - the per-side flip here
+// defines that target POSE; the mirrored hardpoint geometry then yields the
+// mirrored (equal) length change per side, matching the measured behavior of
+// the original (same lengthening on both sides converges the noses).
+b3Vec3 SteeringArmWithToe( const JozzVehicleM6Config& config, int corner, const JozzVehicleM6WishboneHardpoints& hp )
 {
 	float toeDeg = IsFrontCorner( corner ) ? config.frontToeDeg : config.rearToeDeg;
-	float toeRad = toeDeg * DEGREES_TO_RADIANS;
-	return config.wishbone.steeringArmBack * toeRad;
+	if ( toeDeg == 0.0f )
+	{
+		return hp.steeringArm;
+	}
+	float yaw = ( IsLeftCorner( corner ) ? -1.0f : 1.0f ) * toeDeg * DEGREES_TO_RADIANS;
+	b3Vec3 axisPoint = hp.lowerBallJoint;
+	b3Vec3 axisDirection = b3Normalize( b3Sub( hp.upperBallJoint, hp.lowerBallJoint ) );
+	b3Quat rotation = b3MakeQuatFromAxisAngle( axisDirection, yaw );
+	return b3Add( axisPoint, b3RotateVector( rotation, b3Sub( hp.steeringArm, axisPoint ) ) );
 }
 
 void CreateWishboneCorner( b3WorldId worldId, JozzVehicleM6* vehicle, int corner, b3Vec3 restWheelCenterLocal,
@@ -871,7 +882,7 @@ void CreateWishboneCorner( b3WorldId worldId, JozzVehicleM6* vehicle, int corner
 		def.base.localFrameA.p = rackEndLocal;
 		def.base.localFrameB.p = steeringArmKnuckle;
 		def.base.collideConnected = false;
-		def.length = DistanceBetween( rackEndChassisLocal, hp.steeringArm ) + SteeringToeLengthDelta( config, corner );
+		def.length = DistanceBetween( rackEndChassisLocal, SteeringArmWithToe( config, corner, hp ) );
 		def.enableSpring = false;
 		runtime.steerLinkJointId = b3CreateDistanceJoint( worldId, &def );
 	}
@@ -889,7 +900,7 @@ void CreateWishboneCorner( b3WorldId worldId, JozzVehicleM6* vehicle, int corner
 		def.base.localFrameA.p = toeChassis;
 		def.base.localFrameB.p = steeringArmKnuckle;
 		def.base.collideConnected = false;
-		def.length = DistanceBetween( toeChassis, hp.steeringArm ) + SteeringToeLengthDelta( config, corner );
+		def.length = DistanceBetween( toeChassis, SteeringArmWithToe( config, corner, hp ) );
 		def.enableSpring = false;
 		runtime.steerLinkJointId = b3CreateDistanceJoint( worldId, &def );
 	}
@@ -1428,11 +1439,15 @@ void UpdateJozzVehicleM6Drive( const JozzVehicleM6& vehicle, const JozzVehicleM6
 			float target = rackAngle >= 0.0f ? strokeMagnitude : -strokeMagnitude;
 			target = b3ClampFloat( target, -config.rackTravel, config.rackTravel );
 			b3PrismaticJoint_EnableSpring( vehicle.rackJointId, true );
-			// Reassert the full steering hertz every step: the opt-in centering
-			// assist below can leave the spring on a weak hertz, and the servo
-			// must snap back to full stiffness the instant the driver grabs the
-			// wheel again.
+			// Reassert the full steering hertz AND damping every step: the
+			// opt-in centering assist below can leave the spring on a weak
+			// hertz with damping forced to 1.0, and the servo must snap back
+			// to the configured stiffness/damping the instant the driver
+			// grabs the wheel again (audit A3: hertz alone left the user's
+			// steeringDampingRatio silently replaced until the next slider
+			// touch).
 			b3PrismaticJoint_SetSpringHertz( vehicle.rackJointId, config.steeringHertz );
+			b3PrismaticJoint_SetSpringDampingRatio( vehicle.rackJointId, config.steeringDampingRatio );
 			b3PrismaticJoint_SetTargetTranslation( vehicle.rackJointId, target );
 
 			float error = target - b3PrismaticJoint_GetTranslation( vehicle.rackJointId );

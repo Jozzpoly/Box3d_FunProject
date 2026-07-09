@@ -333,7 +333,9 @@ useful as history, **not** as current architecture. Trust this order:
 - `docs/M7_REAL_FORCES_FOUNDATION_PL.md` — the current physics model.
 - `docs/M8_SUSPENSION_RIG_REPAIR_PLAN_PL.md` — rig/pose/droop work (physics side,
   history through 2026-07-07; damper/mount current state now in the subsystem doc).
-- `docs/SUSPENSION_RIG_SPACE_CONVENTIONS_PL.md`, `docs/adr/000{1,2,3}` — conventions.
+- `docs/SUSPENSION_RIG_SPACE_CONVENTIONS_PL.md`, `docs/adr/` (0001–0006) — conventions.
+  ADR-0006 is load-bearing for gameplay work: **realistic core, [ARCADE]
+  overlays default-off and labeled** — any future assist follows it.
 
 **History only, moved to `docs/archive/`** (2026-07-08, `git mv` — history
 preserved): all `M0_`…`M5_*`, `CODEX_HANDOFF_*`, `CODEX_START_*`,

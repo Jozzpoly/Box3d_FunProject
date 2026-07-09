@@ -360,8 +360,10 @@ struct JozzVehicleM6Config
 	// - a virtual turnbuckle - rather than moving any hardpoint, so it can't
 	// perturb the P1 dead-point/P2 rackTravel calibration (those only look at
 	// hp.steeringArm, which stays exactly as authored). See
-	// CreateWishboneCorner's SteeringToeLengthDelta for the derivation and the
-	// sign, verified against the validator's toe probe.
+	// CreateWishboneCorner's SteeringArmWithToe for the derivation and the
+	// sign, verified against the validator's toe probe (exact kingpin-axis
+	// rotation since 2026-07-09 - the earlier arc-length approximation read
+	// ~43% high, audit A4).
 	float frontToeDeg;
 	float rearToeDeg;
 	float steeringHertz;

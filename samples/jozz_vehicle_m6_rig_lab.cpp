@@ -901,14 +901,13 @@ public:
 					"nie schodź poniżej bez sprawdzenia skoku z rampy." );
 		ImGui::SliderFloat( "Tarcie skrętu kolumny", &m_config.steeringFrictionTorque, 0.0f, 200.0f, "%.0f N*m" );
 		HelpMarker( "To samo co tarcie zębatki, ale dla osi na kolumnie McPhersona zamiast wahaczy." );
-		ImGui::SliderFloat( "Wspomaganie powrotu (arcade)", &m_config.rackCenteringHertz, 0.0f, 30.0f, "%.0f Hz" );
-		HelpMarker( "OPCJONALNE, domyślnie 0 = WYŁĄCZONE (realistycznie). Prawdziwe auto NIE centruje kół na "
-					"postoju - koła wracają do środka dopiero w ruchu, dzięki wleczeniu casterem (to domyślne, "
-					"uczciwe zachowanie). Podniesienie dodaje sprężynę ciągnącą kierownicę do środka nawet na "
-					"postoju. Zmierzone: zauważalne dopiero od ok. 10 Hz (niżej opona za mocno trzyma o ziemię), "
-					"od 10-15 Hz koła wracają do środka same. Im wyżej, tym mocniej - ale tym bardziej walczy z "
-					"naturalnym kontra-skrętem w poślizgu. Jak wspomaganie pionowania: podpórka na życzenie, nie "
-					"domyślny mechanizm." );
+		ImGui::SliderFloat( "[ARCADE] Wspomaganie powrotu", &m_config.rackCenteringHertz, 0.0f, 30.0f, "%.0f Hz" );
+		HelpMarker( "MECHANIKA POZA MODELEM FIZYCZNYM (ADR-0006). Domyślnie 0 = WYŁĄCZONE (realistycznie). "
+					"Prawdziwe auto NIE centruje kół na postoju - koła wracają do środka dopiero w ruchu, dzięki "
+					"wleczeniu casterem (to domyślne, uczciwe zachowanie). Podniesienie dodaje sztuczną sprężynę "
+					"ciągnącą kierownicę do środka nawet na postoju. Zmierzone: zauważalne dopiero od ok. 10 Hz "
+					"(niżej opona za mocno trzyma o ziemię), od 10-15 Hz koła wracają do środka same. Im wyżej, tym "
+					"mocniej - ale tym bardziej walczy z naturalnym kontra-skrętem w poślizgu." );
 	}
 
 	// The single "Zawieszenie" tab, front to back: what kind of suspension ->
@@ -1009,13 +1008,13 @@ public:
 		HelpMarker( "Ogranicza przechył nadwozia w zakręcie, przenosząc obciążenie między lewym a prawym kołem tej "
 					"samej osi. Mocniejszy przedni = więcej podsterowności; mocniejszy tylny = auto chętniej "
 					"'wchodzi w tył' (żywsza rotacja)." );
-		if ( ImGui::Checkbox( "Wspomaganie pionowania (podpórka ratunkowa)", &m_config.uprightAssist ) )
+		if ( ImGui::Checkbox( "[ARCADE] Wspomaganie pionowania", &m_config.uprightAssist ) )
 		{
 			CreateVehicle();
 		}
-		HelpMarker( "Sztuczna siła trzymająca nadwozie poziomo - włącz tylko gdy auto się przewraca mimo dobrze "
-					"ustawionych stabilizatorów. Domyślnie wyłączone: przechył kontrolują stabilizatory powyżej, "
-					"uczciwie." );
+		HelpMarker( "MECHANIKA POZA MODELEM FIZYCZNYM (ADR-0006). Sztuczna siła trzymająca nadwozie poziomo - "
+					"włącz tylko gdy auto się przewraca mimo dobrze ustawionych stabilizatorów. Domyślnie "
+					"wyłączone: przechył kontrolują stabilizatory powyżej, uczciwie." );
 
 		if ( ImGui::CollapsingHeader( "Zaawansowane: geometria wahaczy" ) )
 		{
