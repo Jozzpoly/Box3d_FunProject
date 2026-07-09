@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-09 · Audyt weryfikacyjny P1-P6 (zero zaufania do opisów) · docs
+- CO:     niezależna re-weryfikacja 13 commitów P1-P6+M9 na kodzie/testach/zrzutach → `AUDIT_WERYFIKACJA_P1_P6_2026_07_09_PL.md`. Zero zmian w kodzie (audyt czysty).
+- CZEMU:  Jozz podważył zaufanie do wykonawcy (odwrócone implementacje, fałszywe raporty w trakcie sesji).
+- EFEKT:  fundament POTWIERDZONY liczbami (bramka zielona end-to-end, rdzeń nietknięty, sondy M7 bez regresji). 4 defekty: 🟠 drift.json static150<kinetic200 (odwrócona para, brak inwariantu w sanitize) · 🟡 fałszywy komentarz 200/150 w validation.cpp vs kod 250/200 · 🟡 assist nadpisuje damping (hands-on przywraca tylko hertz, rig:1474/1432) · 🟡 podziałka toe kłamie ~43% (1°→1.43°, tolerancja sondy po cichu poszerzona). 2 ratyfikacje Jozza: P4 bez przestrzału (STOP ominięty, defaulty 250/200) + suwak rackCenteringHertz spoza planu.
+- DALEJ:  plan naprawczy §5 audytu (1 sesja, po decyzji Jozza nt. modelu tarcia); post-mortem procesu w rozmowie z Jozzem.
+
 ## 2026-07-09 · M9: nowy model OneSided_Steering_Suspension_Rig + izolowany bench · 9eaab34
 - CO:     Jozz przysłał nowy model skrętnego zawieszenia (inna organizacja niż One_Sided_wheel_mount: Socket_ChassisMount_b to upright/knuckle nie chassis, damper dolny na dolnym wahaczu, nowy Socket_SteeringRod). Nowy kontrakt `one_sided_steering_suspension.asset.json` (jawne `ridesBody` per sokiet) + izolowany bench M9 (2 narożniki L/R, chassis→carrier(skok)→knuckle(skręt), bez auta). Wydzielono `JozzVehicleComputeArmPlacement`/`JozzVehicleMapAuthoredPoint` z `DrawPartBetween` (czysty refaktor) żeby damper dolny mógł jechać z żywej pozycji wahacza bez osobnego ciała fizyki.
 - CZEMU:  Jozz zażądał krytycznej analizy PRZED kodem (nie kopiować 1:1 starego rigu) + walidacji na izolowanym benchu przed wpięciem w M6. Drążek kierowniczy celowo NIE dostał nowej fizyki — pinowany do stałego punktu (rozciąga się jak wahacze), prawdziwa integracja ma czytać istniejący rack/steerLinkJoint.
