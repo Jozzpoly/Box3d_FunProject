@@ -212,6 +212,23 @@ public:
 		return v;
 	}
 
+	// The wheel tire mesh's authored spin axis is +X, and the primitive wheel
+	// body convention used everywhere else in this codebase (M6, M8) puts the
+	// axle on body-local +Y. M8's bench bakes local-Y -> world-Z directly into
+	// its wheel body's spawn rotation, which works there because that body has
+	// no other rotational DOF (only a prismatic, which fixes all rotation).
+	// The M9 knuckle body DOES have a real rotational DOF (the steer revolute)
+	// - baking this fix into the body's rest rotation would fight the joint
+	// solver, which forces the knuckle toward whatever rotation the revolute's
+	// localFrameA/B + targetAngle demand (pure yaw about world Y at rest),
+	// snapping any other baked-in rotation away. So this stays a render-only
+	// correction, composed onto the live knuckle transform at draw time
+	// instead of being part of the physics body.
+	static b3Quat WheelAxleFix()
+	{
+		return b3ComputeQuatBetweenUnitVectors( b3Vec3_axisY, b3Vec3_axisZ );
+	}
+
 	// Chassis-end and rack/wheel-extreme end of a part along its authored X
 	// axis, at the vertical/lateral midpoint of its bbox. Mirrors the M6 rig
 	// lab's ArmEnds helper (same math: rigid-skin parts in this family of
@@ -451,7 +468,9 @@ public:
 
 		if ( m_showWheel && m_wheelVisual.IsLoaded() )
 		{
-			b3WorldTransform wheelDraw = b3MulWorldTransforms( b3Body_GetTransform( c.knuckleBodyId ), m_wheelCorrection );
+			b3WorldTransform knuckleLive = b3Body_GetTransform( c.knuckleBodyId );
+			b3Transform axleFix = { b3Vec3_zero, WheelAxleFix() };
+			b3WorldTransform wheelDraw = b3MulWorldTransforms( b3MulWorldTransforms( knuckleLive, axleFix ), m_wheelCorrection );
 			m_wheelVisual.DrawAtTransform( wheelDraw, MakeVec4( 1.0f, 1.0f, 1.0f, 1.0f ) );
 		}
 
@@ -485,9 +504,17 @@ public:
 					b3Pos outboardLive = b3TransformPoint( hubWorld, outboardA );
 					mesh.DrawPartBetween( i, inboardA, outboardA, c.rackRestWorld, outboardLive, rodColor );
 				}
-				else if ( part.boneNodeIndex == 8 || part.boneNodeIndex == 6 ) // WheelCenter / ChassisMount_b -> knuckle
+				else if ( part.boneNodeIndex == 8 ) // Socket_WheelCenter -> knuckle
 				{
-					mesh.DrawPart( i, hubWorld, white );
+					// Tinted (not white) so its boundary against ChassisMount_b is
+					// unambiguous in a screenshot - both ride the same rigid knuckle
+					// and sit close together by design, but must read as two
+					// distinct parts, never as one fused blob.
+					mesh.DrawPart( i, hubWorld, MakeVec4( 0.2f, 1.0f, 0.4f, 1.0f ) );
+				}
+				else if ( part.boneNodeIndex == 6 ) // Socket_ChassisMount_b (upright/knuckle carrier) -> knuckle
+				{
+					mesh.DrawPart( i, hubWorld, MakeVec4( 0.2f, 0.9f, 1.0f, 1.0f ) );
 				}
 				else // ChassisMount_a, SingleDamper_Mount -> chassis
 				{
