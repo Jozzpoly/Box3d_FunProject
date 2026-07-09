@@ -129,6 +129,10 @@ public:
 		// file on the way out, so it always reflects the last config in memory.
 		if ( LoadJozzVehicleM6Config( kSessionFilePath, &m_config ) )
 		{
+			// Defensive: the session file is hand-editable JSON; sanitize before
+			// deriving anything from it (P6 - also closes the P5 gap where the
+			// max-steer dead-point clamp only guarded the UI Apply path).
+			SanitizeJozzVehicleM6Config( &m_config );
 			RecomputeRackTravel();
 		}
 		RefreshPresetList();
@@ -448,10 +452,15 @@ public:
 			m_presetStatus = "Nie udało się wczytać presetu '" + name + "'.";
 			return;
 		}
+		// Same defensive boundary as the session load in the constructor:
+		// presets are hand-editable JSON (P6).
+		bool sanitized = SanitizeJozzVehicleM6Config( &m_config );
 		RecomputeRackTravel();
 		CreateVehicle();
 		SyncEditFromConfig();
-		m_presetStatus = "Wczytano preset: " + name;
+		m_presetStatus = sanitized ? "Wczytano preset: " + name +
+										 " (część wartości poza bezpiecznym zakresem - przycięte, szczegóły w konsoli)"
+								   : "Wczytano preset: " + name;
 	}
 
 	void SaveCurrentAsPreset( const std::string& name )
@@ -948,6 +957,27 @@ public:
 		HelpMarker( "Jak daleko koło może się ruszyć w górę (ściskanie) i w dół (odbicie) od pozycji spoczynkowej, "
 					"zanim amortyzator dojdzie do ogranicznika. Offroad chce obu dużo, drift/tor chce ciasno. Na "
 					"żywo, bez przebudowy." );
+		// P6 (audit S2): the hinge anti-fold guard computes its angle from
+		// travel/armLength and clamps at asin(0.95); past that the requested
+		// travel physically exceeds what the arm arc can deliver and the
+		// "25% margin" in the formula is fiction. Warn instead of silently
+		// saturating - the default config itself trips this (a known, accepted
+		// state; changing the default travel is Jozz's call, not a hotfix).
+		{
+			float travel = b3MaxFloat( m_config.compressionTravel, m_config.reboundTravel );
+			float saturation = 1.25f * travel / b3MaxFloat( m_editWishbone.lowerArmLength, 0.05f );
+			if ( saturation >= 0.95f )
+			{
+				ImGui::PushStyleColor( ImGuiCol_Text, ImVec4( 1.0f, 0.75f, 0.25f, 1.0f ) );
+				ImGui::TextWrapped( "Skok większy niż zasięg wahacza (%.0f%% nasycenia) - realny skok ogranicza "
+									 "długość ramienia, nie suwak.",
+									 (double)( 100.0f * saturation / 0.95f ) );
+				ImGui::PopStyleColor();
+				HelpMarker( "Ogranicznik kąta wahacza siedzi na swoim suficie (55 st.) - powyżej tej granicy "
+							"zwiększanie skoku suwakiem NIE wydłuża realnego ruchu koła, bo geometria ramienia "
+							"go nie pokryje. Dłuższy dolny wahacz (sekcja Zaawansowane) podnosi granicę." );
+			}
+		}
 
 		SectionHeader( "Sprężyny i tłumienie (na żywo)" );
 		if ( ImGui::SliderFloat( "Twardość sprężyny", &m_config.suspensionHertz, 1.0f, 12.0f, "%.1f Hz" ) )

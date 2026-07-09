@@ -219,7 +219,22 @@ lądowania 3.5 m**, nie tylko impuls boczny.
 
 ---
 
-## 10. Świadomie odłożone (roadmapa, nie „dług") — żeby nie zaskoczyło
+## 10. 🟡 Bump-stopy są sztywne — granica API silnika (P6.4)
+
+**Opis (2026-07-08, sprawdzone w P6):** limity długości coilovera (`b3DistanceJoint`)
+to twarde stopy — box3d nie wystawia API miękkiego limitu (sprężyny odboju) dla
+distance jointa (jest tylko `SetSpringForceRange`, co ogranicza siłę sprężyny
+głównej, nie robi progresywnego odboju). „Twardość odbojów" jako suwak wymagałaby
+zmian w `src/` (nietykalne) albo emulacji drugim, krótkim distance jointem ze
+sprężyną — odłożone, bo stress matrix P6 (w tym drop 2 m na najsztywniejszym
+setupie) nie wykazał problemu z twardymi stopami.
+
+**Plan:** nic teraz. Jeśli kiedyś twarde dobicie zacznie przeszkadzać w feelu
+(np. przy soft-tire M7.4), rozważyć emulację krótkim jointem-odbojem per narożnik.
+
+---
+
+## 11. Świadomie odłożone (roadmapa, nie „dług") — żeby nie zaskoczyło
 
 Nie są zepsute, są planowo poza zakresem v0. Wypisane, żeby nikt nie „odkrył" ich
 jako braków: soft-tire (deformacja opony), drivetrain (dyfry/split momentu/engine

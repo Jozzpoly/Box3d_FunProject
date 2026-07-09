@@ -276,6 +276,91 @@ float ComputeJozzVehicleM6SteeringDeadPointDeg( const JozzVehicleM6WishboneGeome
 	return deadPointDeg;
 }
 
+bool SanitizeJozzVehicleM6Config( JozzVehicleM6Config* config )
+{
+	bool changed = false;
+
+	// One clamp with one printed warning per field. Bounds are deliberately
+	// WIDE - this is a "don't hand the solver a NaN or a singular constraint"
+	// net for hand-edited files, not a tuning opinion (the UI sliders already
+	// express those). A non-finite value clamps to the LOWER bound.
+	auto clampField = [&changed]( float* field, const char* name, float lo, float hi ) {
+		float value = *field;
+		if ( std::isfinite( value ) == false )
+		{
+			value = lo;
+		}
+		value = b3ClampFloat( value, lo, hi );
+		if ( value != *field )
+		{
+			std::printf( "jozz m6 WARNING: config sanitized: %s %.4f -> %.4f\n", name, (double)*field, (double)value );
+			*field = value;
+			changed = true;
+		}
+	};
+
+	// Structural lengths: zero or negative here means a zero-length arm/link
+	// or a degenerate hull - singular joint frames, NaN normals.
+	clampField( &config->chassisHalfExtents.x, "chassisHalfExtents.x", 0.10f, 10.0f );
+	clampField( &config->chassisHalfExtents.y, "chassisHalfExtents.y", 0.05f, 5.0f );
+	clampField( &config->chassisHalfExtents.z, "chassisHalfExtents.z", 0.10f, 5.0f );
+	clampField( &config->axleHalfSpacing, "axleHalfSpacing", 0.30f, 6.0f );
+	clampField( &config->trackHalfWidth, "trackHalfWidth", 0.30f, 4.0f );
+	clampField( &config->restDrop, "restDrop", 0.05f, 3.0f );
+	clampField( &config->wishbone.uprightHalfHeight, "uprightHalfHeight", 0.05f, 1.0f );
+	clampField( &config->wishbone.upperArmLength, "upperArmLength", 0.10f, 2.0f );
+	clampField( &config->wishbone.lowerArmLength, "lowerArmLength", 0.10f, 2.0f );
+	clampField( &config->wishbone.armHalfSpread, "armHalfSpread", 0.05f, 1.0f );
+	clampField( &config->wishbone.steeringArmBack, "steeringArmBack", 0.05f, 1.0f );
+	clampField( &config->wishbone.kingpinOffset, "kingpinOffset", 0.01f, 0.5f );
+	clampField( &config->wishbone.ackermannFraction, "ackermannFraction", 0.0f, 1.0f );
+	// Measured over-center ceiling for droop is 16 deg (M8 pose work); past it
+	// the steering trapezoid goes non-deterministic. The UI slider already
+	// stops at 16 - this catches the file/env path.
+	clampField( &config->wishbone.restArmDroopDeg, "restArmDroopDeg", 0.0f, 16.0f );
+	// A rack as wide as the track means zero-length tie rods.
+	clampField( &config->rackHalfWidth, "rackHalfWidth", 0.05f, b3MaxFloat( 0.06f, config->trackHalfWidth - 0.10f ) );
+
+	// Masses and densities: zero mass = infinite inverse mass in the solver.
+	clampField( &config->chassisDensity, "chassisDensity", 10.0f, 5000.0f );
+	clampField( &config->wheelDensity, "wheelDensity", 5.0f, 2000.0f );
+	clampField( &config->knuckleMass, "knuckleMass", 1.0f, 500.0f );
+	clampField( &config->armMass, "armMass", 0.5f, 200.0f );
+	clampField( &config->rackMass, "rackMass", 0.5f, 200.0f );
+	clampField( &config->trailingArm.armMass, "trailingArm.armMass", 1.0f, 500.0f );
+
+	// Suspension: non-positive travel inverts the coilover length limits.
+	clampField( &config->compressionTravel, "compressionTravel", 0.02f, 2.0f );
+	clampField( &config->reboundTravel, "reboundTravel", 0.02f, 2.0f );
+	clampField( &config->suspensionHertz, "suspensionHertz", 0.2f, 60.0f );
+	clampField( &config->suspensionDampingRatio, "suspensionDampingRatio", 0.0f, 20.0f );
+	clampField( &config->frontSuspensionScale, "frontSuspensionScale", 0.05f, 10.0f );
+	clampField( &config->rearSuspensionScale, "rearSuspensionScale", 0.05f, 10.0f );
+	clampField( &config->suspensionPreloadFront, "suspensionPreloadFront", -0.30f, 0.50f );
+	clampField( &config->suspensionPreloadRear, "suspensionPreloadRear", -0.30f, 0.50f );
+
+	// Steering: toe far past the UI range makes the virtual turnbuckle bend
+	// the linkage into geometries the dead-point math never sees.
+	clampField( &config->frontToeDeg, "frontToeDeg", -5.0f, 5.0f );
+	clampField( &config->rearToeDeg, "rearToeDeg", -5.0f, 5.0f );
+	clampField( &config->steeringHertz, "steeringHertz", 0.5f, 60.0f );
+	clampField( &config->steeringDampingRatio, "steeringDampingRatio", 0.0f, 20.0f );
+
+	// The P5 dead-point clamp, applied AFTER the geometry fields above so it
+	// evaluates the sanitized geometry. Mirrors ApplyPendingStructuralSetup's
+	// UI clamp (fence margin 10 + 3 deg clearance); without this a hand-edited
+	// preset bypassed the fence entirely.
+	{
+		float wheelbase = 2.0f * config->axleHalfSpacing;
+		float deadPointDeg = ComputeJozzVehicleM6SteeringDeadPointDeg( config->wishbone, wheelbase,
+																	   config->trackHalfWidth, config->rackHalfWidth );
+		float safeMax = b3MaxFloat( 15.0f, deadPointDeg - 13.0f );
+		clampField( &config->maxSteeringAngleDegrees, "maxSteeringAngleDegrees", 5.0f, safeMax );
+	}
+
+	return changed;
+}
+
 JozzVehicleM6Config JozzVehicleM6DefaultConfig( float wheelRadius, float wheelWidth, float suspensionTravelHint )
 {
 	JozzVehicleM6Config config = {};
@@ -602,12 +687,14 @@ b3BodyId CreateControlArm( b3WorldId worldId, JozzVehicleM6* vehicle, b3Vec3 fro
 		b3Body_SetMassData( armId, MakeDiagonalMassData( mass, inertia, b3MulSV( 0.5f, ballFromHinge ) ) );
 	}
 
+	// Shared by the hinge limit and the ball-joint cone limit below, so the
+	// two fences always agree on how far this arm can legally swing.
+	float swing = HingeSwingLimit( config.compressionTravel, config.reboundTravel, armLength );
+
 	// Hinge to the chassis: revolute about local frame Z mapped onto chassis X,
 	// symmetric swing limits = droop/bump stops (the coilover length limit is
 	// the precise stop; this one forbids folding).
 	{
-		float swing = HingeSwingLimit( config.compressionTravel, config.reboundTravel, armLength );
-
 		b3RevoluteJointDef def = b3DefaultRevoluteJointDef();
 		def.base.bodyIdA = vehicle->chassisId;
 		def.base.bodyIdB = armId;
@@ -643,7 +730,13 @@ b3BodyId CreateControlArm( b3WorldId worldId, JozzVehicleM6* vehicle, b3Vec3 fro
 		def.base.localFrameB.q = ballFrameRotation;
 		def.base.collideConnected = false;
 		def.enableConeLimit = true;
-		def.coneAngle = 80.0f * DEGREES_TO_RADIANS;
+		// P6 (audit S5): derived from the hinge swing range + margin instead of
+		// a flat 80 deg, so the second fence tracks the geometry the same way
+		// the first one does. Suspension travel deflects the cone (the arm
+		// rotates about the hinge while the knuckle's kingpin stays near
+		// vertical); steering deflects twist, not cone - so swing + margin is
+		// the honest bound.
+		def.coneAngle = swing + 15.0f * DEGREES_TO_RADIANS;
 		def.enableTwistLimit = true;
 		def.lowerTwistAngle = -twistLimitRadians;
 		def.upperTwistAngle = twistLimitRadians;

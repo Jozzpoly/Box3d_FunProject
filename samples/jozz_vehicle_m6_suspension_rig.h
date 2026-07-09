@@ -407,6 +407,19 @@ struct JozzVehicleM6Config
 
 JozzVehicleM6Config JozzVehicleM6DefaultConfig( float wheelRadius, float wheelWidth, float suspensionTravelHint );
 
+// P6: defensive clamp for configs loaded from DISK (session file, preset
+// JSON) - files a user can hand-edit into non-finite or structurally
+// degenerate values (zero-length arms, zero-mass bodies, a rack wider than
+// the track...) that would otherwise reach the solver as NaNs or singular
+// constraints. Also re-applies the P5 max-steer dead-point clamp, which
+// previously lived ONLY on the UI Apply path - a hand-edited preset with
+// maxSteer=45 + ackermannFraction=1.0 sailed straight past the safety fence.
+// Returns true (and prints one WARNING line per field) if anything changed.
+// Deliberately NOT called inside CreateJozzVehicleM6: the validator's probes
+// build intentionally extreme configs (e.g. 1e6 N frozen-rack friction) and
+// must keep that freedom; this guards the file-load boundary only.
+bool SanitizeJozzVehicleM6Config( JozzVehicleM6Config* config );
+
 struct JozzVehicleM6CornerRuntime
 {
 	int rigType;
