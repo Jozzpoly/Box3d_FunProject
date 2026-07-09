@@ -17,7 +17,7 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
-## 2026-07-09 · BRAMKA 1: diagnoza ściągania w lewo + A2/A3/A4 + ADR-0006 · <commit>
+## 2026-07-09 · BRAMKA 1: diagnoza ściągania w lewo + A2/A3/A4 + ADR-0006 · 371e99b
 - CO:     (1) sonda `RunStraightPullDiagnosisProbe` + 2 warianty — ściąganie ZDIAGNOZOWANE, naprawa → Bramka 2; (2) A2: komentarz 200/150→250/200; (3) A3: hands-on reassert damping obok hertz; (4) A4: toe przez DOKŁADNĄ rotację wokół osi sworznia (`SteeringArmWithToe`) + sonda mierzy DELTĘ od bazy toe=0 z tolerancją ±0.3°; (5) ADR-0006 (realistyczny rdzeń, nakładki [ARCADE] default-off) + etykiety `[ARCADE]` na 2 kontrolkach.
 - CZEMU:  brief Jozza 2026-07-09 §5/Bramka 1; zasada rdzenia wcześniej nigdzie nie była zapisana (stąd spór o rackCenteringHertz).
 - EFEKT:  DIAGNOZA ściągania (liczby): spoczynek SYMETRYCZNY (FL/FR ∓0.4°, rack +0.00007 m) → to NIE offset wyrównania; kopnięcie powstaje pod momentem napędu (t=2s FL +1.45/FR −1.04; AWD +14°/10s vs RWD +3.4° — reakcja momentu na przednich zwrotnicach + mały bias solvera), a rack zaparkowany +1 mm w lewo TRZYMA tarcie statyczne 250 N (caster przy ~0.2° poślizgu nie przebija progu) → splecione z modelem tarcia → **Bramka 2** (wg §4 briefu). Reverse hands-off = flop do limitu (−60°, rack −0.0757) — poprawna fizyka casteru na wstecznym, nie bug. TOE: delta przód −0.97/+0.98, tył −0.89/+0.88 (było efektywnie ±1.43) — dial skalibrowany, kluczem było odjęcie bazowego rozstawu osiadania (∓0.4°), który wcześniej zawyżał pomiar absolutny. Bramka: build 3/3, walidator OK (regresje P1/M7 identyczne: impact −29→1.4, full lock 32.5°, rack rms 0.17), test.exe PASS 11.58 s, smoke 300 kl. 0 err, zrzut UI z [ARCADE].
