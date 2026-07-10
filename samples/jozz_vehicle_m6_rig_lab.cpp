@@ -295,6 +295,10 @@ public:
 		file << "showPrimitiveWheelShapes=" << ( m_showPrimitiveWheelShapes ? 1 : 0 ) << "\n";
 		file << "showRigDiagnostics=" << ( m_showRigDiagnostics ? 1 : 0 ) << "\n";
 		file << "armTint=" << ( m_armTint ? 1 : 0 ) << "\n";
+		// Not a view toggle, but the same class: a sample-level preference that
+		// is NOT vehicle config, so it belongs here (survives "R", never leaks
+		// into a preset). See SUBSYSTEM_UI_PRESETS_PL.md §1b (TECH_DEBT #12).
+		file << "invertSteering=" << ( m_invertSteering ? 1 : 0 ) << "\n";
 	}
 
 	void LoadDebugViewState()
@@ -334,6 +338,10 @@ public:
 			else if ( key == "armTint" )
 			{
 				m_armTint = value;
+			}
+			else if ( key == "invertSteering" )
+			{
+				m_invertSteering = value;
 			}
 		}
 	}

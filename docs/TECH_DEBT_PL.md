@@ -252,18 +252,23 @@ małych kątach) i ewentualnie z redukcją biasu solvera (kolejność narożnik�
 
 ---
 
-## 12. 🟡 Pola poza configiem nie przeżywają „R" (solver kontaktu, preferencje)
+## 12. 🟡 CZĘŚCIOWO ROZWIĄZANE — pola poza configiem a „R"
 
-**Opis (2026-07-09, znalezione przy przeglądzie klasy problemu z presetami):**
-`m_contactHertz/Damping/Speed` (Świat → Solver kontaktu) i `m_invertSteering`
-(Kierownica → preferencja) są polami sampla, nie `JozzVehicleM6Config` — nie
-wpadają do sesji ani presetów, więc restart „R" cicho przywraca im defaulty.
-Mniejsza klasa niż bug presetów (nic nie „zapisuje się bez pozwolenia" — po
-prostu nie persystuje), ale niespójna z obietnicą „R nie kasuje strojenia".
+**Opis (2026-07-09):** `m_contactHertz/Damping/Speed` (Świat → Solver
+kontaktu) i `m_invertSteering` (Kierownica) to pola sampla, nie
+`JozzVehicleM6Config` — nie wpadały do sesji/presetów, więc „R" cicho
+przywracał im defaulty. Mniejsza klasa niż bug presetów (nic nie „zapisuje się
+bez pozwolenia", tylko nie persystuje).
 
-**Plan:** przy najbliższym porządkowaniu UI zdecydować per pole: solver
-kontaktu → do sesji (to strojenie świata); invert → do pliku debug-session
-(preferencja widoku/sterowania). Nie robić „przy okazji" bramek fizyki.
+**✅ Zrobione (Porządki E, 2026-07-09):** `invertSteering` persystuje w
+debug-session txt — czytane przy inpucie, więc zero ryzyka fizyki.
+
+**⏸ Odłożone z powodem — solver kontaktu:** poprawna persystencja wymaga
+APLIKOWANIA wartości przy starcie, a `ApplyContactTuning()` jest dziś wołane
+TYLKO przy ruchu suwaka (świat startuje na domyślnych silnika, nie na 30/10/3
+z UI). Dodanie aplikacji startowej to zmiana fizyki-startu — poza zakresem
+porządków strukturalnych. Kandydat na wielki refactor albo osobną skupioną
+zmianę za zgodą Jozza. Mapa w `SUBSYSTEM_UI_PRESETS_PL.md §1b`.
 
 ---
 

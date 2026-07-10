@@ -16,6 +16,35 @@ zapisu configu. Stan: 2026-07-08 (M8). Historia decyzji:
 wyciekać do nazwanego presetu ani zniknąć pod „Przywróć domyślne". Rozdzielenie
 jest świadome, nie przypadkowe zaśmiecenie.
 
+## 1b. MAPA PERSYSTENCJI — gdzie żyje każde pole (2026-07-09)
+
+Autorytatywna odpowiedź na „czy to przeżyje R / trafi do presetu". Kategoria,
+nie lista 50 pól (lista sama by dryfowała — patrz zasada niżej).
+
+| Kategoria pól | Gdzie | Przeżywa „R"? | W presecie? |
+|---|---|---|---|
+| Wszystko w `JozzVehicleM6Config` (zawieszenie, napęd, kierownica, nadwozie, koło...) | sesja JSON + presety | TAK (sesja) | TAK |
+| Toggle widoku Debug (linie diagnostyczne, wizual koła/mocowania, tint) | debug-session txt | TAK | NIE (to widok) |
+| `invertSteering` (preferencja sterowania) | debug-session txt (od 2026-07-09) | TAK | NIE (preferencja) |
+| Solver kontaktu (`m_contactHertz/DampingRatio/Speed`, zakładka Świat) | **nigdzie** — patrz #12 poniżej | NIE (jeszcze) | NIE |
+| `m_editX` (bufory pending-edit) | pochodne `m_config` (SyncEditFromConfig) | n/d | n/d |
+
+**Reguła utrzymania (żeby ta mapa nie zdradzała):** to jest mapa KATEGORII, nie
+pól. Dodając pole do `JozzVehicleM6Config` — automatycznie łapie je config_io
+(sesja+preset), nic nie trzeba dopisywać do tej tabeli. Dodając pole SAMPLA
+poza configiem (jak invert) — zdecyduj kategorię i dopisz do debug-session +
+tu. Strażnik: `RunPresetDeterminismProbe` pilnuje że pola configu wracają do
+fabryki przy wczytaniu presetu (klasa buga z 2026-07-09).
+
+**#12 — solver kontaktu, świadomie ODŁOŻONE:** `m_contactHertz/DampingRatio/
+Speed` nie persystują, bo do poprawnej persystencji trzeba by je APLIKOWAĆ przy
+starcie (`ApplyContactTuning()` jest dziś wołane TYLKO przy ruchu suwaka —
+świat startuje na domyślnych silnika, nie na 30/10/3 z UI). Dodanie aplikacji
+startowej to zmiana fizyki-startu — poza zakresem porządków strukturalnych.
+Kandydat na wielki refactor albo osobną, skupioną zmianę za zgodą Jozza.
+`invertSteering` NIE ma tego problemu (czytane przy inpucie, nie aplikowane do
+świata) — dlatego zrobione teraz.
+
 ## 2. Zakładki (kolejność = flow, ustalone z Jozzem)
 
 `Zawieszenie · Nadwozie · Napęd · Kierownica · Świat · Debug`
