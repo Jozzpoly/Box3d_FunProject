@@ -72,9 +72,14 @@ Jozz Vehicle / Lab M1 Smoke            <- oldest smoke sample (kept)
   drive; anti-roll bars; aero drag; split wheel collision envelope. The rack is
   hands-off spring-free by design: the wheels self-center **only while rolling**
   (caster trail), and stay put at a standstill — this is correct (a stopped car
-  doesn't self-center), not a bug. An **opt-in** `rackCenteringHertz` slider
-  (default 0 = off, "Wspomaganie powrotu (arcade)") adds a rest-centering spring
-  for players who want it; it's a sibling of `uprightAssist`, not the default.
+  doesn't self-center), not a bug. Hands-off rack friction is **load-dependent**
+  (P4b): `cap = stiction·(rackFrictionBase + rackFrictionLoadCoeff·transverse
+  tie-rod load)` — a landing loads the tie rods so friction spikes when
+  stability needs it, while near-straight cruising leaves the rack free enough
+  to self-center (this fixed the diagnosed left-pull; a faint residual wander
+  is accepted, TECH_DEBT #11). An **opt-in** `rackCenteringHertz` slider
+  (default 0 = off, labeled `[ARCADE] Wspomaganie powrotu` per ADR-0006) adds a
+  rest-centering spring for players who want it; sibling of `uprightAssist`.
   (History note: the "steering jam" once tracked in TECH_DEBT #9 was proven to
   be this rest-state no-centering, misdiagnosed by a probe that demanded
   self-centering on a stationary car — now closed.)
@@ -89,6 +94,11 @@ Jozz Vehicle / Lab M1 Smoke            <- oldest smoke sample (kept)
   configs save/load as JSON. `assets/vehicle_presets/*.json` (committed:
   `uliczny`/`drift`/`offroad`); `build/jozz_vehicle_m6_session.json` (gitignored
   auto-save) means restarting the sample resumes tuning instead of wiping it.
+  **Two load semantics, do not mix** (`SUBSYSTEM_UI_PRESETS_PL.md §2a`): the
+  session loads IN PLACE; a preset is a PARTIAL file loaded as
+  factory-defaults + its own keys (`LoadJozzVehicleM6PresetConfig`) so it is a
+  deterministic restore, not an overlay on leftover experiments. Guarded by
+  `RunPresetDeterminismProbe`.
   Debug-tab view toggles (rig diagnostic lines, wheel/mount visuals, arm tint)
   are a SEPARATE auto-save, `build/jozz_vehicle_m6_debug_session.txt` — they are
   view state, not vehicle tuning, so they must never leak into a preset or get

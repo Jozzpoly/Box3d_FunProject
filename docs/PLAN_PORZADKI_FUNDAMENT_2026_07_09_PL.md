@@ -163,9 +163,13 @@ sekcję STOP-gate; (opcj.) skrypt drift-check zielony.
 
 - **Podział plików ~2000-liniowych** (validation, rig_lab, visual_mesh,
   suspension_rig). Kod zaakceptowany; refaktor = ryzyko regresji bez zysku
-  funkcjonalnego (TECH_DEBT #7). Wracamy TYLKO gdy: (a) plik znów istotnie
-  urośnie, albo (b) edytor wymusi ekstrakcję (np. reużycie `visual_mesh`
-  renderu) — wtedy ekstrakcja pod konkretną potrzebę, nie „bo brzydkie".
+  funkcjonalnego (TECH_DEBT #7). **Ma zaplanowany dom:** Jozz (2026-07-09)
+  zapowiedział WIELKI ETAP REFACTORINGU po tych porządkach, a przed edytorem
+  — wtedy ciężkie sprawy (podział monolitów, twarde długi) robione z czasem i
+  energią, których normalnie brak. Te porządki (zwł. B skrypt bramki, C
+  wspólna lista, D rejestr sond) mają ten refaktor **umożliwić i uczynić
+  bezpiecznym** (bramka jednym poleceniem = szybka regresja przy krojeniu
+  plików). Więc: teraz NIE tniemy — budujemy siatkę bezpieczeństwa pod cięcie.
 - **Edytor rigu** — osobny temat (brief §7), NIE teraz. Porządki E/C/F są
   jego przygotowaniem.
 - **Fizyka/geometria/filozofia** — zamrożone; porządki są czysto strukturalne.

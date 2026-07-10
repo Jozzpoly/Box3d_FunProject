@@ -1,5 +1,14 @@
 # PLAN WYKONAWCZY — stabilność zawieszenia i polish prowadzenia (P1–P6 → dalej)
 
+> ## ✅ ZAMKNIĘTE (2026-07-09) — TO JEST HISTORIA, NIE AKTYWNY PLAN
+> P1–P6 wykonane i zweryfikowane audytem zero-trust; Bramki 1–2 (fix ściągania,
+> model tarcia P4b) i deterministyczny fix presetu — **zaakceptowane przez
+> Jozza w teście ręcznym**. Aktualny stan: `CHECKPOINTS_PL.md` (najnowsze u
+> góry) + `README_FOR_AGENTS.md §2`. Aktywny plan porządków:
+> `PLAN_PORZADKI_FUNDAMENT_2026_07_09_PL.md`. Ten dokument zostaje jako zapis
+> JAK to zrobiono (metoda: sonda-przed-fixem, bramka-po-etapie, STOP-gate) —
+> wzorzec do powielania, nie lista do wykonania.
+
 Operacyjna mapa naprawy wynikająca z audytu
 `AUDIT_PHYSICS_STEERING_2026_07_08_PL.md` (tam: diagnozy i dowody; tutaj:
 JAK to wykonać krok po kroku). Pisany tak, żeby wykonać go mógł tańszy/słabszy
