@@ -14,7 +14,7 @@ Set-Location $repoRoot
 
 # Each check: a term that, if present in <code>, must also be present in <doc>.
 $checks = @(
-    @{ term = "[ARCADE]";              code = "samples\jozz_vehicle_m6_rig_lab.cpp";        doc = "README_FOR_AGENTS.md" },
+    @{ term = "[ARCADE]";              code = "samples\jozz_vehicle_m6_rig_lab_ui_tabs.cpp"; doc = "README_FOR_AGENTS.md" },
     @{ term = "rackFrictionBase";      code = "samples\jozz_vehicle_m6_suspension_rig.h";   doc = "README_FOR_AGENTS.md" },
     @{ term = "rackFrictionLoadCoeff"; code = "samples\jozz_vehicle_m6_suspension_rig.h";   doc = "README_FOR_AGENTS.md" },
     @{ term = "LoadJozzVehicleM6PresetConfig"; code = "samples\jozz_vehicle_m6_config_io.h"; doc = "docs\SUBSYSTEM_UI_PRESETS_PL.md" }

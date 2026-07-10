@@ -1,7 +1,8 @@
 # Podsystem: UI · sesja · presety — stan aktualny
 
-Krótka mapa panelu strojenia (`jozz_vehicle_m6_rig_lab.cpp`) i systemu
-zapisu configu. Stan: 2026-07-08 (M8). Historia decyzji:
+Krótka mapa panelu strojenia (`jozz_vehicle_m6_rig_lab_ui_tabs.cpp` — zakładki,
+po podziale R3) i systemu zapisu configu. Stan: 2026-07-08 (M8, split R3
+2026-07-11). Historia decyzji:
 `M8_SUSPENSION_RIG_REPAIR_PLAN_PL.md` (fizyka), `CHECKPOINTS_PL.md` (skrót UI).
 
 ## 1. Trzy niezależne pliki zapisu — i dlaczego
@@ -114,7 +115,9 @@ P3/P4 bezpośrednio (nie polegają na fallbacku) - patrz `assets/vehicle_presets
 
 ## 4. Gdzie szukać w kodzie
 
-`jozz_vehicle_m6_config_io.h/.cpp` (save/load/list), `jozz_vehicle_m6_rig_lab.cpp`
-`kSessionFilePath`/`kPresetDirectory` (linie ~49-50), `LoadDebugViewState`/
-`SaveDebugViewState` (osobny mechanizm, patrz `SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md`
+`jozz_vehicle_m6_config_io.h/.cpp` (save/load/list); po podziale R3:
+`kSessionFilePath`/`kPresetDirectory`/`kDebugSessionFilePath` w
+`jozz_vehicle_m6_rig_lab_internal.h`, presety + `LoadDebugViewState`/
+`SaveDebugViewState` w `jozz_vehicle_m6_rig_lab_persistence.cpp` (osobny
+mechanizm, patrz `SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md`
 dla kontekstu równoległej zmiany „Zresetuj świat").

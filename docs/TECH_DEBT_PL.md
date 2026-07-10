@@ -139,6 +139,13 @@ regresji). Watch-item: gdy `rig_lab` znów urośnie, wydzielić rysowanie zakła
 osobnego TU. `visual_mesh` jest duży, ale spójny (ładowanie+rysowanie glTF) —
 zostawić.
 
+**✅ ADRESOWANE dla `rig_lab` (R3, 2026-07-11):** wielki refactor wykonał ten
+watch-item i więcej — `rig_lab.cpp` (2003 l.) podzielony move-only na nagłówek
+wewnętrzny (klasa) + 4 TU per odpowiedzialność (main / `_ui_tabs` / `_persistence`
+/ `_mount_visual`), zweryfikowany `-DiffBaseline` + quad + 6 zrzutów zakładek
+identycznych. `visual_mesh` (R4) i `suspension_rig` (R5) — kolejne etapy w
+`PLAN_WIELKI_REFACTOR_2026_07_09_PL.md`.
+
 ---
 
 ## 8. 🟠 Dwa narzędzia agentowe (Codex + Claude), rozdzielona pamięć

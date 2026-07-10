@@ -143,6 +143,38 @@ nie regułą).
   odnotowane jako możliwe rozszerzenie później.
 
 ### R3 — rig_lab: klasa do nagłówka wewnętrznego + podział na TU (move-only)
+> **Status:** ✅ WYKONANE 2026-07-11. `rig_lab.cpp` (2003 l.) → nagłówek
+> wewnętrzny `jozz_vehicle_m6_rig_lab_internal.h` (klasa: 42 metody + składowe)
+> + 4 TU: główny `.cpp` (625 l.: ctor/dtor, lifecycle, aplikatory, Step, Render,
+> Keyboard, env-registry, fabryka), `_ui_tabs.cpp` (751 l.: 6 zakładek +
+> DrawControls + HelpMarker/SectionHeader), `_persistence.cpp` (240 l.: sesja/
+> debug-sesja/presety/Sync/Apply/Recompute), `_mount_visual.cpp` (265 l.:
+> Load/SetupMountRig + CornerIsLeft/ArmEnds + DrawRigDiagnostics/DumpCornerGeometry).
+> Cięcie skryptem z asercjami granic (jak R1); transformowana tylko linia
+> sygnatury każdej metody na definicję poza-klasową, ciała bajt-w-bajt.
+>
+> **Dwie korekty względem litery planu (krytyczne):**
+> 1. **„35 metod" było zaniżone — jest 42.** Inwentarz w §1 przeoczył 4 STATYCZNE
+>    metody składowe (`CornerIsLeft`, `ArmEnds`, `HelpMarker`, `SectionHeader` —
+>    wzorzec nie łapał `static` przed typem). Wykryte przez KOMPILATOR (main.cpp
+>    nie widział `CornerIsLeft`/`ArmEnds` z `Render`, gdy skrypt wrzucił je jako
+>    funkcje plikowe do innego TU) — dodane jako statyczne składowe deklarowane w
+>    nagłówku, definiowane w swoim TU. Re-inwentarz przez detekcję klamer Allman
+>    (linia przed każdym `^\t{`) potwierdził dokładnie 42.
+> 2. **NIE wydzieliłem wewnętrznych bloków `Render()` do nowych metod-helperów**
+>    (plan to SUGEROWAŁ: „kawał Rendera... wydzielony jako metody pomocnicze").
+>    To jedyna nietrywialna transformacja z ryzykiem zmiany zachowania (nowe
+>    granice metod). Bloki są samodzielne (własne `chassisLive`, tylko składowe),
+>    więc byłoby to bezpieczne — ale §2.2 mówi „żadnych ulepszeń w etapach
+>    przenoszących". `Render()` został w main VERBATIM; przeniesione tylko całe,
+>    już-osobne metody (DrawRigDiagnostics/DumpCornerGeometry → mount_visual).
+>
+> **Weryfikacja (silniejsza niż litera):** build 3/3 czysty (po naprawie 42-metod);
+> `-DiffBaseline` walidator 349 linii IDENTYCZNE; quad render IDENTYCZNY (hash);
+> ORAZ 6 zrzutów zakładek (JOZZ_M6_TAB 0-5, 150 klatek, neutralne env) PIKSEL-w-
+> piksel identycznych przed/po (MD5) + obejrzany render (poprawny lab). Stałe
+> `kSessionFilePath`/`kPresetDirectory`/`kDebugSessionFilePath` → nagłówek
+> wewnętrzny verbatim (każda używana w 1 TU; `static` = kopia per-TU, bez ODR).
 Mechanizm C++: definicje metod klasy MOGĄ żyć w osobnych TU — klasa idzie do
 `jozz_vehicle_m6_rig_lab_internal.h` (prywatny nagłówek, nie API), ciała metod
 rozjeżdżają się po odpowiedzialnościach:

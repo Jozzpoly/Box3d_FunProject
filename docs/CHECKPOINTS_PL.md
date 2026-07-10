@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-11 · R3: rig_lab — podział na nagłówek wewnętrzny + 4 TU · <commit>
+- CO:     `jozz_vehicle_m6_rig_lab.cpp` (2003 l.) → `_internal.h` (klasa, 42 metody) + 4 TU (main / `_ui_tabs` / `_persistence` / `_mount_visual`); move-only.
+- CZEMU:  spłata długu monolitu (TECH_DEBT #7) + tańsza nawigacja/sesje agentów przed pracą nad contentem; fundament pod R4/R5.
+- EFEKT:  build 3/3 OK; walidator 349 linii IDENTYCZNE; quad render IDENTYCZNY (hash); 6 zakładek (TAB 0-5) piksel-identycznych przed/po. Inwentarz planu zaniżony (35→42: 4 statyczne składowe); `Render()` NIE rozbijany na helpery (czysto move-only).
+- DALEJ:  R4 (visual_mesh: loader vs rysowanie) — za sygnałem Jozza. Warstwa zdolności contentu (TECH_DEBT #6/#12/#13) osobno.
+
 ## 2026-07-10 · R2: config_io — tabela pól zamiast ręcznych write/read · <commit>
 - CO:     `jozz_vehicle_m6_config_io.cpp` przepisany: 71 pól (51 root + 13 wishbone + 4 trailingArm + 3 wheelEnvelope, zmierzone dokładnie) w jednej uporządkowanej, otagowanej typem tablicy (`template <typename Owner> struct JozzFieldDesc` + anonimowa unia wskaźników-do-składowej — bez makr X), napędzającej i writer, i reader. Root podzielony na 3 segmenty wokół 2 zagnieżdżonych obiektów (kolejność JSON-a mieszała typy, więc „osobne tablice per typ" złamałoby kolejność — stąd jedna tablica z tagiem, nie tablice per typ jak sugerował dosłowny zapis planu). Legacy-migracje (suspensionPreload 1→2, 3 martwe klucze rack-friction) zostały ręczne, jak w planie.
 - CZEMU:  R2 — jedyny etap „nowego kodu" w serii; usuwa klasę błędu „dodano pole do writera, zapomniano w readerze" (dwa miejsca → jedno).

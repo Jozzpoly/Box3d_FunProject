@@ -20,7 +20,7 @@ To świadomy stan v0; polish tej warstwy jest odłożony.
 |---|---|---|
 | **Sprężyna fizyczna (wishbone)** | `jozz_vehicle_m6_suspension_rig.cpp:205,645` | `b3DistanceJoint` coilover: `coiloverChassis` (chassis) → `coiloverKnuckle` = **dolny ball-joint**. To ona trzyma masę. |
 | **Sprężyna fizyczna (trailing-arm)** | `..._rig.cpp:790–861` | coilover między authored `damperArmOffset`/`damperChassisOffset`, z motion-ratio + kompensacją masy efektywnej. Tu fizyka JEST zgodna z markerami assetu. |
-| **Wizualne mocowanie (mount)** | `jozz_vehicle_m6_rig_lab.cpp:459,536` (`LoadMountVisual`,`SetupMountRig`) | model `One_Sided_wheel_mount.gltf` zrigowany per-kość na żywe ciała; wahacze `Chassis_Top/Bottom` rysowane bracket→hub (`DrawPartBetween`). |
+| **Wizualne mocowanie (mount)** | `jozz_vehicle_m6_rig_lab_mount_visual.cpp` (`LoadMountVisual`,`SetupMountRig` — po podziale R3) | model `One_Sided_wheel_mount.gltf` zrigowany per-kość na żywe ciała; wahacze `Chassis_Top/Bottom` rysowane bracket→hub (`DrawPartBetween`). |
 | **Wizualne dumpery** | `rig_lab.cpp:1655–1687` + `visual_mesh.cpp:1877` (`DrawTelescopingDamper`) | 2 teleskopowe amortyzatory/narożnik z `Asset_Dumper.gltf` (kości Upper/Stretch/Lower), pięte do authored `Socket_DamperUpper/Lower_L/R`, rysowane bracket→hub. |
 
 ## 3. Trzy fakty, które MUSISZ znać przed dotknięciem
