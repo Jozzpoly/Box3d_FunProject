@@ -410,12 +410,12 @@ z kroku 2 odnotowana.
 
 ## 9. Checklista bramki (kopiuj do każdej sesji)
 
+Kroki 1–4 to teraz **jedno polecenie** `.\tools\gate.ps1 -Numbers` (build 3
+targety + walidator + test + boot-smoke, jednoliniowe PASS/FAIL). Reszta
+zostaje ręczna:
+
 ```
-[ ] Get-Process samples | Stop-Process (przed buildem)
-[ ] cmake --build --preset windows-debug --target samples / jozz_vehicle_validation / test
-[ ] .\build\bin\Debug\jozz_vehicle_validation.exe  → OK + PRZECZYTANE liczby sond
-[ ] .\build\bin\Debug\test.exe                     → All Box3D tests passed
-[ ] boot smoke: samples.exe --sample-name "M6 Suspension Rig Lab" --frames 300
+[ ] .\tools\gate.ps1 -Numbers      → BRAMKA: ...OK + PRZECZYTANE liczby sond
 [ ] zmiana wizualna? → --screenshot + obejrzyj PNG (render is the gate)
 [ ] wpis w docs/CHECKPOINTS_PL.md (co/czemu/efekt-LICZBY/dalej)
 [ ] git add <jawne pliki> && commit && push -q origin jozz-vehicle-sandbox-m0

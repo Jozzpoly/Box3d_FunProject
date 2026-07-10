@@ -140,6 +140,15 @@ PATH; prefer PowerShell for cmake). Run from the **repo root**. Note: the
 PowerShell CWD can drift if a Bash `cd` ran earlier — `Set-Location` to the repo
 root explicitly if a build complains it can't read presets.
 
+**The whole gate in one command** (build 3 targets + validator + tests + boot
+smoke, one PASS/FAIL line; exits non-zero on failure with the first offending
+line):
+```powershell
+.\tools\gate.ps1            # green/red summary
+.\tools\gate.ps1 -Numbers   # also echoes the key probe numbers agents read by hand
+```
+Use it as the gate for every stage. The manual steps it wraps, if you need them
+individually:
 ```powershell
 # Kill a running sample first (it locks samples.exe and the build fails on LNK1168)
 Get-Process samples -ErrorAction SilentlyContinue | Stop-Process -Force
