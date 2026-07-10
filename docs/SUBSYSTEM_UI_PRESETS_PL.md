@@ -29,13 +29,41 @@ przypina identity do stałego stringa niezależnie od widocznego tekstu.
 **Wzorzec do powielania:** każda zakładka z dynamicznym tytułem (gwiazdka,
 licznik itp.) MUSI mieć `###StabilnySufiks`.
 
+## 2a. SEMANTYKA WCZYTYWANIA — reguła obowiązkowa (2026-07-09)
+
+Dwie ścieżki, dwa RÓŻNE kontrakty — nie wolno ich mylić:
+
+| Ścieżka | Semantyka | Dlaczego |
+|---|---|---|
+| **Sesja** (`build/..._session.json`) | in-place (`LoadJozzVehicleM6Config`) — brakujący klucz zachowuje bieżącą wartość | plik pisany ZAWSZE w całości przez destruktor na świeżo-domyślny config; in-place daje darmową kompatybilność wsteczną (stary plik bez nowego klucza → default) |
+| **Preset** (`assets/vehicle_presets/*.json`) | **deterministyczny** (`LoadJozzVehicleM6PresetConfig`) — wynik = `m_factoryConfig` + klucze pliku, NIEZALEŻNIE od stanu przed wczytaniem | presety są CZĘŚCIOWE („tylko to, co odróżnia setup"); in-place po cichu dziedziczył każdy eksperymentalny suwak, którego preset nie wymieniał |
+
+**Incydent, który to wymusił (2026-07-09, złapany przez Jozza w grze):**
+pokręcił suwakami „na brudno", wczytał preset licząc na pełny powrót — preset
+ustawił tylko swoje ~15-19 kluczy, reszta eksperymentów ZOSTAŁA, a auto-sesja
+utrwaliła je na dysku. Z fotela użytkownika: „preset zapisał moje zmiany bez
+pozwolenia". Pliki presetów na dysku były nietknięte — wadliwa była semantyka
+wczytania, nie zapis.
+
+**Reguły na przyszłość:**
+1. Każda nowa ścieżka load, która dla użytkownika znaczy „przywróć zapisany
+   stan", MUSI iść przez `LoadJozzVehicleM6PresetConfig` (defaulty+nadpisania).
+2. Baza fabryczna = `m_factoryConfig` (komponowana RAZ w konstruktorze:
+   defaulty silnika + geometria z kontraktu + typy osi) — presety nakładają
+   się na NIĄ, przycisk „Przywróć domyślne" przywraca JĄ. Jedno źródło prawdy,
+   trzy miejsca użycia.
+3. Strażnik maszynowy: sonda `RunPresetDeterminismProbe` w walidatorze
+   (sabotuje pola spoza presetu → muszą wrócić do fabrycznych po load).
+
 ## 3. Co solidne / do polishu
 
 - **Solidne:** rozdzielenie session/presety/debug-session; stabilne ID zakładek;
   `RefreshPresetList` (naprawiony bug `-1` na starcie).
 - **Do polishu (niepilne):** brak walidacji wersji formatu presetu (nowe pole w
-  configu → stary preset go po prostu nie ma, brak ostrzeżenia); brak UI do
-  usuwania presetu (tylko save/load).
+  configu → stary preset go po prostu nie ma → po fixie 2026-07-09 dostaje
+  wartość FABRYCZNĄ, bezpiecznie); brak UI do usuwania presetu (tylko
+  save/load); pola POZA configiem nie przeżywają R (solver kontaktu w Świat,
+  „Odwróć kierowanie") — TECH_DEBT #12.
 
 ## 3a. Nowe klucze configu (P3/P4/P5, 2026-07-08)
 

@@ -234,7 +234,40 @@ setupie) nie wykazał problemu z twardymi stopami.
 
 ---
 
-## 11. Świadomie odłożone (roadmapa, nie „dług") — żeby nie zaskoczyło
+## 11. 🟡 Resztkowe delikatne ściąganie na wprost (zaakceptowane)
+
+**Opis (2026-07-09):** po naprawie systematycznego ściągania w lewo (P4b —
+tarcie racka zależne od obciążenia; było +14°/10 s, jest ±2.7° wolnej wędrówki
+wokół zera) pojazd przy dłuższej jeździe na wprost nadal delikatnie znosi —
+prawie wolny rack podąża za drobnymi perturbacjami w OBE strony (to nie jest
+jednostronny marsz). Jozz przetestował ręcznie i zaakceptował jako
+wystarczające („dla mnie jest teraz wystarczająco okej").
+
+**Strażnik:** sonda straight-pull bramkuje |heading| < 6° i |znos| < 5 m po
+10 s — regres do systematycznego ściągania nie przejdzie.
+
+**Plan:** nic teraz. Naturalna dalsza poprawa przyjdzie z modelem opony
+(M7.4 — pneumatic trail/slip stiffness da mocniejsze samocentrowanie przy
+małych kątach) i ewentualnie z redukcją biasu solvera (kolejność narożników).
+
+---
+
+## 12. 🟡 Pola poza configiem nie przeżywają „R" (solver kontaktu, preferencje)
+
+**Opis (2026-07-09, znalezione przy przeglądzie klasy problemu z presetami):**
+`m_contactHertz/Damping/Speed` (Świat → Solver kontaktu) i `m_invertSteering`
+(Kierownica → preferencja) są polami sampla, nie `JozzVehicleM6Config` — nie
+wpadają do sesji ani presetów, więc restart „R" cicho przywraca im defaulty.
+Mniejsza klasa niż bug presetów (nic nie „zapisuje się bez pozwolenia" — po
+prostu nie persystuje), ale niespójna z obietnicą „R nie kasuje strojenia".
+
+**Plan:** przy najbliższym porządkowaniu UI zdecydować per pole: solver
+kontaktu → do sesji (to strojenie świata); invert → do pliku debug-session
+(preferencja widoku/sterowania). Nie robić „przy okazji" bramek fizyki.
+
+---
+
+## 13. Świadomie odłożone (roadmapa, nie „dług") — żeby nie zaskoczyło
 
 Nie są zepsute, są planowo poza zakresem v0. Wypisane, żeby nikt nie „odkrył" ich
 jako braków: soft-tire (deformacja opony), drivetrain (dyfry/split momentu/engine

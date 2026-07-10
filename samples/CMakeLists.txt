@@ -243,6 +243,8 @@ add_executable(jozz_vehicle_validation
     jozz_vehicle_asset_contract.h
     jozz_vehicle_asset_dimensions.cpp
     jozz_vehicle_asset_dimensions.h
+    jozz_vehicle_m6_config_io.cpp
+    jozz_vehicle_m6_config_io.h
     jozz_vehicle_asset_metadata.cpp
     jozz_vehicle_asset_metadata.h
     jozz_vehicle_asset_paths.cpp

@@ -4,7 +4,9 @@
 #include "jozz_vehicle_asset_dimensions.h"
 #include "jozz_vehicle_asset_contract.h"
 #include "jozz_vehicle_asset_metadata.h"
+#include "jozz_vehicle_asset_paths.h"
 #include "jozz_vehicle_m5_vehicle.h"
+#include "jozz_vehicle_m6_config_io.h"
 #include "jozz_vehicle_m6_suspension_rig.h"
 #include "jozz_vehicle_m7_suspension_import.h"
 #include "jozz_vehicle_steering_suspension_contract.h"
@@ -2203,6 +2205,57 @@ bool RunStraightPullDiagnosisProbe( const JozzVehiclePrimitiveDefaults& defaults
 	return ok;
 }
 
+// Preset determinism regression (2026-07-09, caught by Jozz in manual play):
+// presets are PARTIAL files ("only what makes this setup different") and were
+// loaded IN PLACE, so every field a preset didn't mention silently kept
+// whatever experimental value the sliders had left there - from the user's
+// chair "the preset saved my changes without permission", and the session
+// auto-save then persisted them across restarts. The contract pinned here:
+// loading a preset = FACTORY DEFAULTS + the preset's own keys, regardless of
+// the config state before the load (LoadJozzVehicleM6PresetConfig).
+bool RunPresetDeterminismProbe( const JozzVehiclePrimitiveDefaults& defaults )
+{
+	std::printf( "preset determinism probe:\n" );
+	bool ok = true;
+
+	JozzVehicleM6Config factory =
+		JozzVehicleM6DefaultConfig( defaults.wheelRadius, defaults.wheelWidth, defaults.assetSuspensionTravelHint );
+
+	// Simulate a slider-fiddling session: fields offroad.json does NOT define
+	// (must come back as factory values after the load)...
+	JozzVehicleM6Config fiddled = factory;
+	fiddled.rackFrictionBase = 999.0f;
+	fiddled.brakeTorque = 123.0f;
+	fiddled.frontToeDeg = 3.0f;
+	// ...and one it DOES define (must come back as the preset's value).
+	fiddled.suspensionHertz = 11.0f;
+
+	std::string presetPath;
+	bool found = FindJozzVehicleAssetFile( "assets/vehicle_presets/offroad.json", &presetPath );
+	ok &= CheckTrue( "preset determinism: offroad.json found", found );
+	if ( found )
+	{
+		JozzVehicleM6Config loaded = fiddled;
+		ok &= CheckTrue( "preset determinism: offroad.json loads",
+						 LoadJozzVehicleM6PresetConfig( presetPath, factory, &loaded ) );
+		std::printf( "  after load: rackFrictionBase %.0f (factory %.0f), brakeTorque %.0f (factory %.0f), "
+					 "frontToeDeg %.1f (factory %.1f), suspensionHertz %.1f (preset 3.5)\n",
+					 loaded.rackFrictionBase, factory.rackFrictionBase, loaded.brakeTorque, factory.brakeTorque,
+					 loaded.frontToeDeg, factory.frontToeDeg, loaded.suspensionHertz );
+		ok &= CheckTrue( "preset determinism: unlisted rackFrictionBase returns to factory",
+						 loaded.rackFrictionBase == factory.rackFrictionBase );
+		ok &= CheckTrue( "preset determinism: unlisted brakeTorque returns to factory",
+						 loaded.brakeTorque == factory.brakeTorque );
+		ok &= CheckTrue( "preset determinism: unlisted frontToeDeg returns to factory",
+						 loaded.frontToeDeg == factory.frontToeDeg );
+		ok &= CheckTrue( "preset determinism: listed suspensionHertz takes the preset value",
+						 std::fabs( loaded.suspensionHertz - 3.5f ) < 1.0e-4f );
+	}
+
+	std::printf( "preset determinism probe: %s\n", ok ? "ok" : "FAILED" );
+	return ok;
+}
+
 // Wheel envelope probe. Three claims to verify:
 // 1) Width: hull-based envelopes (cylinder, union, split sidewall) must not
 //    stick out past the visual tire, unlike the single sphere (which bulges
@@ -2625,6 +2678,7 @@ int main()
 	ok &= RunP4SteeringReturnProbe( defaults );
 	ok &= RunP4CenteringAssistProbe( defaults );
 	ok &= RunStraightPullDiagnosisProbe( defaults );
+	ok &= RunPresetDeterminismProbe( defaults );
 
 	if ( ok == false )
 	{

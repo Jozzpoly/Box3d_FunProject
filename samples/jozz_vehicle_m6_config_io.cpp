@@ -346,6 +346,20 @@ bool LoadJozzVehicleM6Config( const std::string& path, JozzVehicleM6Config* outC
 	return true;
 }
 
+bool LoadJozzVehicleM6PresetConfig( const std::string& path, const JozzVehicleM6Config& factoryDefaults,
+									JozzVehicleM6Config* outConfig )
+{
+	// Deterministic by construction: start from the factory baseline, then let
+	// the file's keys override. On failure *outConfig is untouched.
+	JozzVehicleM6Config fresh = factoryDefaults;
+	if ( LoadJozzVehicleM6Config( path, &fresh ) == false )
+	{
+		return false;
+	}
+	*outConfig = fresh;
+	return true;
+}
+
 std::vector<std::string> ListJozzVehicleM6Presets( const std::string& directoryPath )
 {
 	std::vector<std::string> names;

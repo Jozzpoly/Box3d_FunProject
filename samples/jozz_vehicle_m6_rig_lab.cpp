@@ -120,6 +120,15 @@ public:
 		m_config.frontRigType = JOZZ_M6_RIG_DOUBLE_WISHBONE;
 		m_config.rearRigType = JOZZ_M6_RIG_DOUBLE_WISHBONE;
 
+		// The lab's FACTORY state: engine defaults + everything the constructor
+		// wires in above (asset-derived wheel dims, trailing-arm contract
+		// geometry, both axles on wishbone). Stashed BEFORE the session load so
+		// there is exactly one source of truth for "fabryczne ustawienia" -
+		// preset loads overlay onto THIS (deterministic restore) and the reset
+		// button restores THIS, instead of each site rebuilding its own idea of
+		// the baseline.
+		m_factoryConfig = m_config;
+
 		// Restore whatever tuning was in effect last time this lab ran, if any.
 		// Without this, the engine's global "R" restart shortcut - and simply
 		// closing and reopening samples.exe - silently discarded every dial back
@@ -447,7 +456,14 @@ public:
 	void LoadPresetByName( const std::string& name )
 	{
 		std::string path = std::string( kPresetDirectory ) + "/" + name + ".json";
-		if ( LoadJozzVehicleM6Config( path, &m_config ) == false )
+		// DETERMINISTIC restore (2026-07-09 fix): overlay the preset onto the
+		// factory baseline, never onto the live config. Presets are partial
+		// files; the old in-place load silently kept every experimental slider
+		// value the preset didn't mention - "the preset saved my changes
+		// without permission" from the user's chair (and the session auto-save
+		// then made it permanent). Caught by Jozz in manual play; pinned by the
+		// validator's preset-determinism probe.
+		if ( LoadJozzVehicleM6PresetConfig( path, m_factoryConfig, &m_config ) == false )
 		{
 			m_presetStatus = "Nie udało się wczytać presetu '" + name + "'.";
 			return;
@@ -1160,10 +1176,11 @@ public:
 								 "najpierw zapisz je jako preset (pole 'nazwa nowego presetu' powyżej)." );
 			if ( ImGui::Button( "Tak, resetuj" ) )
 			{
-				JozzVehiclePrimitiveDefaults defaults = GetJozzVehicleM3ADefaults( m_assetMetadata );
-				m_config = JozzVehicleM6DefaultConfig( defaults.wheelRadius, defaults.wheelWidth,
-														defaults.assetSuspensionTravelHint );
-				m_config.trailingArm = m_trailingImport.geometry;
+				// Same single source of truth as preset loads: the factory
+				// baseline stashed by the constructor (this used to rebuild its
+				// own copy and could drift from what presets overlay onto).
+				m_config = m_factoryConfig;
+				RecomputeRackTravel();
 				CreateVehicle();
 				SyncEditFromConfig();
 				ImGui::CloseCurrentPopup();
@@ -1902,6 +1919,7 @@ public:
 	JozzVehicleM5TestCourse m_testCourse;
 	JozzVehicleM6 m_vehicle;
 	JozzVehicleM6Config m_config;
+	JozzVehicleM6Config m_factoryConfig; // constructor-composed baseline; see the stash site
 	JozzVehicleAuditMetadata m_assetMetadata;
 	JozzVehicleVisualMesh m_wheelVisual;
 	b3Transform m_wheelVisualCorrection;
