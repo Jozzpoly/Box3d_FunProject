@@ -1,5 +1,11 @@
 # PLAN PORZĄDKÓW — przygotowanie fundamentu pod dalszą rozbudowę
 
+> ## ✅ WYKONANE (etapy A–G, 2026-07-09) — commity a989459 · e19e8db · ea1d1b7 · 4cded89 · bc209cd · 7f0e197 · c0cfad4
+> Wszystkie 7 etapów zamknięte, każdy przez `gate.ps1`. Skrót w
+> `CHECKPOINTS_PL.md`. Ten dokument zostaje jako zapis CO i DLACZEGO. Następny
+> wielki etap (refactoring ciężkich spraw / podział monolitów) czeka na sygnał
+> Jozza — ma teraz siatkę bezpieczeństwa (`gate.ps1`).
+
 Cel Jozza (2026-07-09): projekt ma być **idealnie gotowy pod dalszą pracę** —
 w tym pod przyszły edytor rigu (którego TERAZ nie projektujemy, ale robimy
 porządki z myślą o nim). Priorytet: co może się wysypać, co realnie ułatwia

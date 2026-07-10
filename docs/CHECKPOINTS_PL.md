@@ -17,6 +17,18 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-09 · Porządki D+E+F+G: rejestr sond, persystencja, env, STOP-gate · 4cded89, bc209cd, 7f0e197, c0cfad4
+- CO:     D: rejestr sond walidatora (tablica {nazwa,fn} + „ran 18 probes" — zapomniana sonda widoczna). E: mapa persystencji `SUBSYSTEM_UI_PRESETS §1b` + `invertSteering` persystuje (debug-session), solver kontaktu ODŁOŻONY z powodem (#12). F: rejestr 13 env-hooków przy kodzie + usunięte 2 martwe rusztowania (DIRTY_AT_FRAME, TEST_RESET_MODAL + pola). G: README §4 protokół STOP-gate (4 sytuacje = MUSISZ stanąć) + reguła anty-dryf doc↔kod + `tools/doc_drift_check.ps1` (tripwire 4 termów).
+- CZEMU:  domknięcie planu porządków (etapy D–G); anty-rozjazd testu + zamknięcie klasy persystencji + zaszycie STOP-gate/anty-dryf jako PROCESU (nie intencji — to był rdzeń porażki poprzedniego wykonawcy).
+- EFEKT:  cały PLAN PORZĄDKÓW A–G WYKONANY. Bramka `gate.ps1` zielona po każdym etapie (build 3/3, walidator 18 sond OK, test PASS, smoke 0). doc_drift_check zielony (4/4 termy zgodne). invertSteering round-trip potwierdzony (destruktor pisze klucz). Env-hooki: 15→13, martwe usunięte.
+- DALEJ:  fundament gotowy pod dalszą pracę. Następny WIELKI ETAP (zapowiedź Jozza): refactoring ciężkich spraw (podział plików ~2000 linii: validation 2700, rig_lab ~2000, visual_mesh ~2000) — teraz bezpieczny dzięki `gate.ps1`. Potem edytor rigu. Oba czekają na sygnał Jozza.
+
+## 2026-07-09 · Porządki A+B+C: higiena, skrypt bramki, wspólna lista CMake · a989459, e19e8db, ea1d1b7
+- CO:     A: README §2↔kod (label [ARCADE], model tarcia P4b, reguła 2 semantyk load presetu), baner DONE na PLAN_STABILNOSC, usunięte 30 archeologicznych tasków. B: `tools/gate.ps1` — cała bramka jednym poleceniem (build 3 + walidator + test + smoke, 1 linia PASS/FAIL, exit≠0 z pierwszym błędem). C: `set(JOZZ_VEHICLE_CORE_FILES)` — koniec zduplikowanej listy źródeł Jozza w CMake (samples + validation z jednej zmiennej).
+- CZEMU:  plan porządków fundamentu, etapy A–C (anty-rozjazd + przyspieszenie). Klasa A2 (doc↔kod) już się mnożyła; lista źródeł CMake była pułapką „dodasz plik, zapomnisz targetu".
+- EFEKT:  gate.ps1 zweryfikowany OBUSTRONNIE: zielony end-to-end + wstrzyknięty #error → czerwony na „build (samples)" z dokładną linią i exit 1. CMake: zbiory źródeł PROWADZALNIE identyczne (union core+GUI = te same 21 plików), oba targety budują się, walidator OK, test PASS, smoke 0 err. README §3 + PLAN §9 wskazują na skrypt.
+- DALEJ:  etapy D (rejestr sond walidatora), E (mapa persystencji + #12), F (rejestr env), G (STOP-gate jako proces). Każdy = 1 sesja + `gate.ps1` + checkpoint.
+
 ## 2026-07-09 · Plan porządków fundamentu (walidacja + rozbudowa) · docs
 - CO:     `PLAN_PORZADKI_FUNDAMENT_2026_07_09_PL.md` — krytyczna walidacja dotychczasowego (nie)planu porządków + 7 etapów (A higiena, B skrypt bramki, C wspólna lista CMake, D rejestr sond, E mapa persystencji, F rejestr env, G STOP-gate jako proces). Zero zmian kodu — plan.
 - CZEMU:  Jozz: przygotować projekt POWAŻNIE pod dalszą rozbudowę (i przyszły edytor rigu, którego NIE projektujemy teraz); najpierw zwalidować i rozbudować plan.
