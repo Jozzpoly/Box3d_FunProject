@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-10 · R0: poprzeczka baseline-diff (start wielkiego refaktoru) · <commit>
+- CO:     `tools/gate.ps1` + `-SaveBaseline` (snapshot stdout walidatora → `build/gate_baseline.txt` + quad render → `build/gate_baseline_shots/`, oba gitignored) i `-DiffBaseline [-Shots]` (pełna bramka + diff linia-po-linii vs baseline; PIERWSZA różniąca się linia = FAIL; `-Shots` porównuje hash quada). Filtr linii czasowych (duration/elapsed) defensywny — walidator dziś ich nie drukuje. README §3 + PLAN R0 zaktualizowane.
+- CZEMU:  R0 z `PLAN_WIELKI_REFACTOR` — dla move-only refaktoru „bramka zielona" NIE wystarcza (kolejność tworzenia ciał/jointów wpływa na solver, a zielone tego nie widzi); poprzeczka = liczby IDENTYCZNE co do bajta.
+- EFEKT:  determinizm ZMIERZONY (założenie R0, nie z opisu): walidator 349 linii identyczne w 3 uruchomieniach, render quad ten sam hash PNG. Weryfikacja OBUSTRONNA: niezmienione repo → `-SaveBaseline`+`-DiffBaseline -Shots` zielone (walidator IDENTICAL + render hash match); wstrzyknięta subtelna zmiana `suspensionHertz` 6.0→6.1 (CAŁA bramka zielona: walidator OK/test PASS/smoke 0) → diff CZERWONY na linii 87 (`settle sag 0.046→0.044 m`); po cofnięciu znów zielone. Working tree czysty (cofnięcie bit-identyczne).
+- DALEJ:  R1 (podział `validation.cpp` 2691 l. na harness+sondy, trening na nie-shippingowym kodzie) — kończy się `-DiffBaseline` zero różnic. Jeden etap = jedna sesja = jeden commit.
+
 ## 2026-07-09 · Plan WIELKIEGO REFACTORU (R0–R7) · docs
 - CO:     `PLAN_WIELKI_REFACTOR_2026_07_09_PL.md` — mapa zapowiedzianego przez Jozza etapu ciężkich spraw: R0 baseline-diff (poprzeczka „liczby IDENTYCZNE co do bajta", nie „zielone"), R1 podział validation.cpp (2691 l.), R2 tabela pól config_io (koniec 71+51 ręcznych linii; metadane pól = prep edytora), R3 rig_lab→TU per odpowiedzialność (35 metod, klasa do internal-header), R4 visual_mesh loader/draw, R5 ekstrakcja czystej geometrii (serce prep-u edytora), R6/R7 opcjonalne za osobną zgodą (katalogi; #12 solver — jedyny zmieniający zachowanie). Zero kodu — plan. Taski #56–63.
 - CZEMU:  Jozz: zaplanować solidnie i krytycznie następny etap. Plan ugruntowany POMIAREM (inwentarze funkcji per plik) + sekcja samokrytyki (ryzyko #1: solver zależy od KOLEJNOŚCI tworzenia — stąd poprzeczka R0; scope-creep „przy okazji" zakazany; anty-cel: projektowanie pod edytor na zapas).

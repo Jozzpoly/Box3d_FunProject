@@ -147,8 +147,17 @@ line):
 .\tools\gate.ps1            # green/red summary
 .\tools\gate.ps1 -Numbers   # also echoes the key probe numbers agents read by hand
 ```
-Use it as the gate for every stage. The manual steps it wraps, if you need them
-individually:
+Use it as the gate for every stage. **For the R0–R7 refactor series** (move-only,
+where "green" is not enough — the numbers must be byte-identical) the gate has a
+baseline mode (R0):
+```powershell
+.\tools\gate.ps1 -SaveBaseline          # once, on the pre-refactor state
+.\tools\gate.ps1 -DiffBaseline          # after a stage: FAIL on ANY changed validator line
+.\tools\gate.ps1 -DiffBaseline -Shots   # + compare the render quad (use for the visual R3/R4)
+```
+Baseline files live under `build\` (gitignored, local snapshot). Rests on two
+measured facts: the validator is deterministic run-to-run and so is the render.
+The manual steps the gate wraps, if you need them individually:
 ```powershell
 # Kill a running sample first (it locks samples.exe and the build fails on LNK1168)
 Get-Process samples -ErrorAction SilentlyContinue | Stop-Process -Force

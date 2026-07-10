@@ -51,8 +51,13 @@ tylko to, co ma wartość TERAZ albo jest pewne.
 
 ## 3. Etapy
 
-### R0 — Poprzeczka: baseline-diff (OBOWIĄZKOWY PIERWSZY)
+### R0 — Poprzeczka: baseline-diff (OBOWIĄZKOWY PIERWSZY) — ✅ WYKONANE 2026-07-10
 **Cel:** narzędziowo wymusić „identyczne", nie „zielone".
+> **Status:** zrobione w `tools/gate.ps1` (`-SaveBaseline`/`-DiffBaseline`/`-Shots`).
+> Zweryfikowane obustronnie: niezmienione repo = zielone; subtelna zmiana defaultu
+> (6.0→6.1 Hz, przy której CAŁA bramka jest zielona) = czerwone na diffie (linia 87
+> `settle sag 0.046→0.044 m`). Determinizm potwierdzony pomiarem: walidator 349
+> linii identyczne w 3 uruchomieniach; render quad ten sam hash PNG.
 - `tools/gate.ps1 -SaveBaseline`: zapisuje stdout walidatora (z odfiltrowanymi
   liniami czasowymi, np. „Test duration") do `build/gate_baseline.txt` +
   komplet quad_shot PNG do `build/gate_baseline_shots/`.
