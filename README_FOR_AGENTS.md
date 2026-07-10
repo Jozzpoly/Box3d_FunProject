@@ -173,7 +173,8 @@ The lab reads env vars to pose state headless without UI clicks: `JOZZ_M6_CAM`
 ("yaw,pitch,radius,px,py,pz"), `JOZZ_M6_DIAG`, `JOZZ_M6_WHEEL`, `JOZZ_M6_DUMPER`,
 `JOZZ_M6_MOUNT`, `JOZZ_M6_TAB` (0-5 forces a UI tab open), `JOZZ_M6_PRESET`,
 `JOZZ_M6_HERTZ`/`DAMP`/`PRELOAD`/`DROOP`, `JOZZ_M6_DUMP` (prints corner geometry
-numbers). *(Full/authoritative list of env hooks + the throwaway ones: TECH_DEBT.)*
+numbers). *(Authoritative list of all 13 hooks: the registry comment at the
+`getenv( "JOZZ_M6"` site in `jozz_vehicle_m6_rig_lab.cpp`.)*
 
 **⚠ The validator asserts loosely.** It PRINTS diagnostic numbers (e.g. steering
 angle, camber) but many asserts only check "is finite" or a wide threshold. A
@@ -220,11 +221,35 @@ passed.)
   work into one commit, not one commit per file. **`main` is Jozz-only** — he
   updates it himself at real milestones. Agents never push to `main`, never
   force-push, never rewrite history. See §5 for keeping this cheap in tokens.
-- **Doc discipline:** after a real change, add a ≤5-line entry to
-  `docs/CHECKPOINTS_PL.md` (co/czemu/efekt/dalej — the standing handoff
-  mechanism) and update this file's §2 if the state moved. Do NOT add a new
-  `docs/*.md` per tiny change — the doc pile is already too big (§9); a new
-  file is only for a genuinely new subsystem or a full milestone report.
+- **Doc discipline + anti-drift (the A2 class must not multiply).** After a
+  real change, add a ≤5-line entry to `docs/CHECKPOINTS_PL.md` (co/czemu/efekt/
+  dalej — the standing handoff mechanism) and update this file's §2 if the
+  state moved. Do NOT add a new `docs/*.md` per tiny change — the doc pile is
+  already too big (§9). **When you rename a UI label, change a physics model,
+  or rename/retire a config key or env hook, immediately grep the docs for the
+  old term** (`README_FOR_AGENTS.md`, the matching `docs/SUBSYSTEM_*`, and any
+  code comment that names it) and fix them in the SAME commit. Doc-vs-code
+  drift has bitten this project repeatedly (a stale arcade-slider label, a
+  friction model the README didn't describe); the gate catches broken code,
+  not stale prose — that part is on you. `.\tools\doc_drift_check.ps1` is a
+  tripwire for a few known drift-prone terms; extend its short list when you
+  add one.
+
+**STOP-gate protocol — when you MUST stop and ask Jozz** (do not "reframe" the
+goal to keep going; the previous agent's core failure was overstepping exactly
+these points):
+- A stage's **acceptance criterion** turns out unreachable, or you'd have to
+  loosen a probe's threshold to pass. STOP — a widened tolerance is a plan
+  deviation, never a silent edit.
+- The task reveals a **decision that is Jozz's**: a physics/feel model choice,
+  a philosophy call (realistic vs `[ARCADE]`, ADR-0006), changing an accepted
+  default, or anything that changes how the car behaves.
+- You would touch **accepted code** beyond the stage's scope, the box3d core
+  (`src/`/`include/`), or do a "while I'm here" refactor.
+- A **manual test by Jozz** is the real acceptance (feel, render) — machine
+  green is necessary, not sufficient. Report, then wait.
+When you stop: write the state + the exact question into `CHECKPOINTS_PL.md`,
+say "STOP — czekam", and do not improvise a workaround.
 
 ---
 
