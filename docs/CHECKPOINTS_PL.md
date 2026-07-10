@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-10 · R1: podział validation.cpp na harness + sondy · <commit>
+- CO:     `jozz_vehicle_validation.cpp` (2710 l., monolit) → 7 plików: `validation/jozz_validation_helpers.{h,cpp}` (CheckTrue/CheckApprox, IsM6VehicleStateValid, M6Chassis*, CreateM6SmokeGround — zewnętrzne linkowanie, wołane z 4 plików sond), `validation/jozz_probes_{m5_m6,m7,steering,config}.cpp` (18 sond wg bucketów z planu), `jozz_vehicle_validation.cpp` zredukowany do slim main (kontrakt-checki + rejestr + deklaracje 18 sond). CMake: nowa `JOZZ_VALIDATION_FILES` obok CORE. Cięcie skryptem (dokładne zakresy linii wycięte z oryginału, nie retypowane ręcznie) — zero ryzyka literówki.
+- CZEMU:  R1 z `PLAN_WIELKI_REFACTOR` — trening podziału na kodzie nie-shippingowym przed R3-R5 (rig_lab, shippingowy kod).
+- EFEKT:  build 3/3 OK za pierwszym podejściem (żaden brakujący include). `-DiffBaseline`: 349 linii walidatora IDENTYCZNE co do bajta z baseline sprzed R1, w tym dokładna linia „ran 18 probes". test PASS, smoke 0 err. Świadome odstępstwo od planu: „wspólne stałe kroku" (timeStep/subStepCount) NIE wydzielone do stałej — kosmetyczna zmiana bez wpływu na diff, pominięta żeby nie dodawać powierzchni edycji bez korzyści (~36 miejsc w pliku "zero ryzyka runtime").
+- DALEJ:  R2 (tabela pól config_io, jedyny etap "nowego kodu" poza R0) — osobna sesja/commit.
+
 ## 2026-07-10 · R0: poprzeczka baseline-diff (start wielkiego refaktoru) · <commit>
 - CO:     `tools/gate.ps1` + `-SaveBaseline` (snapshot stdout walidatora → `build/gate_baseline.txt` + quad render → `build/gate_baseline_shots/`, oba gitignored) i `-DiffBaseline [-Shots]` (pełna bramka + diff linia-po-linii vs baseline; PIERWSZA różniąca się linia = FAIL; `-Shots` porównuje hash quada). Filtr linii czasowych (duration/elapsed) defensywny — walidator dziś ich nie drukuje. README §3 + PLAN R0 zaktualizowane.
 - CZEMU:  R0 z `PLAN_WIELKI_REFACTOR` — dla move-only refaktoru „bramka zielona" NIE wystarcza (kolejność tworzenia ciał/jointów wpływa na solver, a zielone tego nie widzi); poprzeczka = liczby IDENTYCZNE co do bajta.

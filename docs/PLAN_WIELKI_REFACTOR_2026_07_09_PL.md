@@ -69,6 +69,19 @@ tylko to, co ma wartość TERAZ albo jest pewne.
 **Każdy etap R1–R6 kończy się `-DiffBaseline` = zero różnic.**
 
 ### R1 — validation.cpp: podział na harness + sondy (trening, zero ryzyka runtime)
+> **Status:** ✅ WYKONANE 2026-07-10. `-DiffBaseline` na 7-plikowym podziale =
+> 349 linii walidatora IDENTYCZNE co do bajta z baseline sprzed R1 (w tym
+> dokładna linia „jozz_vehicle_validation: ran 18 probes"), build 3/3 OK,
+> test PASS, smoke 0 err. Cięcie zrobione skryptem (dokładne zakresy linii
+> 1-indeksowane, wycięte z oryginału i wklejone bez retypowania — zero ryzyka
+> literówki w 2710-liniowym pliku), nie ręcznym kopiowaniem.
+>
+> Odstępstwo od listy niżej, udokumentowane świadomie: „wspólne stałe kroku"
+> (timeStep=1/60, subStepCount=4) NIE zostały wydzielone do stałej w
+> helpers.h — są identyczne w ~18 miejscach, ale to czysto kosmetyczna
+> deduplikacja bez wpływu na `-DiffBaseline`; podmiana ~36 wystąpień w pliku
+> „zero ryzyka runtime" dodawałaby powierzchnię edycji bez żadnej korzyści
+> funkcjonalnej. Zostawione jak było (dosłowny move).
 2691 linii → ~6 plików; kod NIE-shippingowy (najbezpieczniejszy start):
 - `validation/jozz_validation_helpers.{h,cpp}` — CheckTrue/CheckApprox,
   CreateM6SmokeGround, IsM6VehicleStateValid, wspólne stałe kroku.

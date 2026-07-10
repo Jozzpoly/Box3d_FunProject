@@ -250,9 +250,20 @@ add_executable(samples ${SAMPLE_FILES})
 target_compile_options(samples PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
 
 # Jozz: headless metadata/contract/vehicle guard, no GUI. Runs in CI-style validation.
+# R1 split (2026-07-10): the probe bodies live in validation/, one file per
+# responsibility group, sharing validation/jozz_validation_helpers.{h,cpp}.
+set(JOZZ_VALIDATION_FILES
+    validation/jozz_validation_helpers.h
+    validation/jozz_validation_helpers.cpp
+    validation/jozz_probes_m5_m6.cpp
+    validation/jozz_probes_m7.cpp
+    validation/jozz_probes_steering.cpp
+    validation/jozz_probes_config.cpp
+)
 add_executable(jozz_vehicle_validation
     jozz_vehicle_validation.cpp
     ${JOZZ_VEHICLE_CORE_FILES}
+    ${JOZZ_VALIDATION_FILES}
 )
 
 if(APPLE)
