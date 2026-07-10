@@ -70,7 +70,7 @@ Write-Host "  boot smoke: 0 sokol errors"
 # Optional: echo the key probe numbers agents usually read by hand.
 if ($Numbers) {
     Write-Host "`n--- key probe numbers ---"
-    $valOut | Select-String -Pattern "landing \(3.5|straight-pull heading|p4 steering return probe:|full lock|preset determinism probe:|uruchomiono" |
+    $valOut | Select-String -Pattern "landing \(3.5|straight-pull heading|p4 steering return probe:|full lock|preset determinism probe:|ran \d+ probes" |
         ForEach-Object { Write-Host ("  {0}" -f $_.Line.Trim()) }
 }
 

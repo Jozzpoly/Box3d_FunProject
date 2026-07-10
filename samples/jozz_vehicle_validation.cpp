@@ -2661,24 +2661,43 @@ int main()
 		ok = false;
 	}
 
-	ok &= RunM5DriveSmoke( defaults );
-	ok &= RunM5WheelShapeExperiment( defaults );
-	ok &= RunM6SuspensionRigSmoke( defaults );
-	ok &= RunM6WheelEnvelopeProbe( defaults );
-	ok &= RunM7LandingIntegrityProbe( defaults );
-	ok &= RunM7HandsOffAlignProbe( defaults );
-	ok &= RunM7TorqueDriveProbe( defaults );
-	ok &= RunM7TrailingArmSmoke( defaults );
-	ok &= RunP2RackTravelRegressionProbe( defaults );
-	ok &= RunP1SteeringFenceProbe( defaults );
-	ok &= RunP5SteeringSetupProbe( defaults );
-	ok &= RunP6MassAndLimitSanityProbe( defaults );
-	ok &= RunP6StressMatrixProbe( defaults );
-	ok &= RunP3SuspensionPreloadProbe( defaults );
-	ok &= RunP4SteeringReturnProbe( defaults );
-	ok &= RunP4CenteringAssistProbe( defaults );
-	ok &= RunStraightPullDiagnosisProbe( defaults );
-	ok &= RunPresetDeterminismProbe( defaults );
+	// Probe registry: ONE list, iterated. Adding a probe = one line here;
+	// forgetting to register it now shows up as a smaller "ran N probes"
+	// count instead of silently never running (the old hand-kept `ok &= Run`
+	// chain let a written-but-unregistered probe pass unnoticed - a false
+	// green). Every probe shares the signature bool(const
+	// JozzVehiclePrimitiveDefaults&).
+	struct Probe
+	{
+		const char* name;
+		bool ( *run )( const JozzVehiclePrimitiveDefaults& );
+	};
+	const Probe probes[] = {
+		{ "m5 drive smoke", RunM5DriveSmoke },
+		{ "m5 wheel shape", RunM5WheelShapeExperiment },
+		{ "m6 suspension rig smoke", RunM6SuspensionRigSmoke },
+		{ "m6 wheel envelope", RunM6WheelEnvelopeProbe },
+		{ "m7 landing integrity", RunM7LandingIntegrityProbe },
+		{ "m7 hands-off align", RunM7HandsOffAlignProbe },
+		{ "m7 torque drive", RunM7TorqueDriveProbe },
+		{ "m7 trailing arm smoke", RunM7TrailingArmSmoke },
+		{ "p2 rackTravel regression", RunP2RackTravelRegressionProbe },
+		{ "p1 steering fence", RunP1SteeringFenceProbe },
+		{ "p5 steering setup", RunP5SteeringSetupProbe },
+		{ "p6 mass & limit sanity", RunP6MassAndLimitSanityProbe },
+		{ "p6 stress matrix", RunP6StressMatrixProbe },
+		{ "p3 suspension preload", RunP3SuspensionPreloadProbe },
+		{ "p4 steering return", RunP4SteeringReturnProbe },
+		{ "p4 centering assist", RunP4CenteringAssistProbe },
+		{ "straight-pull diagnosis", RunStraightPullDiagnosisProbe },
+		{ "preset determinism", RunPresetDeterminismProbe },
+	};
+	const int probeCount = (int)( sizeof( probes ) / sizeof( probes[0] ) );
+	for ( const Probe& probe : probes )
+	{
+		ok &= probe.run( defaults );
+	}
+	std::printf( "jozz_vehicle_validation: ran %d probes\n", probeCount );
 
 	if ( ok == false )
 	{
