@@ -17,6 +17,18 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-09 · Plan porządków fundamentu (walidacja + rozbudowa) · docs
+- CO:     `PLAN_PORZADKI_FUNDAMENT_2026_07_09_PL.md` — krytyczna walidacja dotychczasowego (nie)planu porządków + 7 etapów (A higiena, B skrypt bramki, C wspólna lista CMake, D rejestr sond, E mapa persystencji, F rejestr env, G STOP-gate jako proces). Zero zmian kodu — plan.
+- CZEMU:  Jozz: przygotować projekt POWAŻNIE pod dalszą rozbudowę (i przyszły edytor rigu, którego NIE projektujemy teraz); najpierw zwalidować i rozbudować plan.
+- EFEKT:  znaleziska z POMIARU (dowody): CMake duplikuje listę źródeł Jozza 2× (B1), validation.cpp 2691 linii z ręczną listą ~17 sond (B2), README już dryfuje vs kod — nazwa suwaka arcade (B3, klasa A2 już się mnoży), klasa persystencji niezmapowana (B6). Wspólny mianownik: ręcznie utrzymywane duplikaty prawdy → cel: jedno źródło albo maszynowy strażnik. Świadomie NIE ruszamy: podział plików ~2000 linii, edytor, fizyka.
+- DALEJ:  **STOP — czekam na akceptację planu przez Jozza.** Rekomendacja startu: Etap A (higiena, near-zero ryzyko) → B (skrypt bramki, przyspiesza resztę). Każdy etap = 1 sesja + bramka + checkpoint.
+
+## 2026-07-09 · Gate 2 + fix presetu ZAAKCEPTOWANE przez Jozza · —
+- CO:     Jozz potwierdził ręcznym testem: ściąganie znacząco mniejsze (resztkowe delikatne — zaakceptowane, TECH_DEBT #11), stabilnie na lądowaniach, powrót kierownicy „serio odbija w drugą stronę", preset driftowy lżejszy; fix determinizmu presetu potwierdzony („błąd załatany").
+- CZEMU:  dwufazowe zamknięcie — wykonawca nie ocenia sam siebie (zasada z post-mortem).
+- EFEKT:  Bramki 1–2 + fix presetu odebrane. Task #48 zamknięty.
+- DALEJ:  porządki fundamentu (plan wyżej).
+
 ## 2026-07-09 · KRYTYCZNY fix: preset = deterministyczny powrót do fabryki+nadpisań · dc3a4a3
 - CO:     nowa semantyka wczytania presetu (`LoadJozzVehicleM6PresetConfig`): wynik = `m_factoryConfig` (jedno źródło prawdy, komponowane w konstruktorze) + klucze pliku — NIEZALEŻNIE od stanu suwaków przed wczytaniem. Przycisk „Przywróć domyślne" przywraca tę samą bazę. Sonda `RunPresetDeterminismProbe` pilnuje kontraktu na stałe. Reguła + tabela semantyk load w `SUBSYSTEM_UI_PRESETS_PL.md` §2a. TECH_DEBT #11 (resztkowe delikatne ściąganie — zaakceptowane) i #12 (pola poza configiem nie przeżywają R: solver kontaktu, invert).
 - CZEMU:  KRYTYCZNY bug złapany przez Jozza w grze: kręcił suwakami „na brudno", wczytał preset licząc na pełny powrót — presety są CZĘŚCIOWE a load był IN-PLACE, więc wszystko czego preset nie wymieniał ZOSTAŁO (i auto-sesja utrwaliła to na dysku). Z fotela gracza „preset zapisał zmiany bez pozwolenia". Pliki presetów na dysku nietknięte (git czysty) — wadliwa była semantyka, nie zapis. Dotyczyło WSZYSTKICH ~50 suwaków, nie tylko tarcia.
