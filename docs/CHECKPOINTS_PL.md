@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-09 · Plan WIELKIEGO REFACTORU (R0–R7) · docs
+- CO:     `PLAN_WIELKI_REFACTOR_2026_07_09_PL.md` — mapa zapowiedzianego przez Jozza etapu ciężkich spraw: R0 baseline-diff (poprzeczka „liczby IDENTYCZNE co do bajta", nie „zielone"), R1 podział validation.cpp (2691 l.), R2 tabela pól config_io (koniec 71+51 ręcznych linii; metadane pól = prep edytora), R3 rig_lab→TU per odpowiedzialność (35 metod, klasa do internal-header), R4 visual_mesh loader/draw, R5 ekstrakcja czystej geometrii (serce prep-u edytora), R6/R7 opcjonalne za osobną zgodą (katalogi; #12 solver — jedyny zmieniający zachowanie). Zero kodu — plan. Taski #56–63.
+- CZEMU:  Jozz: zaplanować solidnie i krytycznie następny etap. Plan ugruntowany POMIAREM (inwentarze funkcji per plik) + sekcja samokrytyki (ryzyko #1: solver zależy od KOLEJNOŚCI tworzenia — stąd poprzeczka R0; scope-creep „przy okazji" zakazany; anty-cel: projektowanie pod edytor na zapas).
+- EFEKT:  każdy etap = 1 sesja + `-DiffBaseline` zero różnic + commit; kolejność R0→R1 (trening na nie-shippingowym)→R2→R3→R4→R5; STOP gdy diff pokaże JAKĄKOLWIEK różnicę.
+- DALEJ:  **STOP — czekam na akceptację planu przez Jozza** (+ dwie osobne decyzje: R6 katalogi? R7 solver?). Po akceptacji start od R0.
+
 ## 2026-07-09 · Porządki D+E+F+G: rejestr sond, persystencja, env, STOP-gate · 4cded89, bc209cd, 7f0e197, c0cfad4
 - CO:     D: rejestr sond walidatora (tablica {nazwa,fn} + „ran 18 probes" — zapomniana sonda widoczna). E: mapa persystencji `SUBSYSTEM_UI_PRESETS §1b` + `invertSteering` persystuje (debug-session), solver kontaktu ODŁOŻONY z powodem (#12). F: rejestr 13 env-hooków przy kodzie + usunięte 2 martwe rusztowania (DIRTY_AT_FRAME, TEST_RESET_MODAL + pola). G: README §4 protokół STOP-gate (4 sytuacje = MUSISZ stanąć) + reguła anty-dryf doc↔kod + `tools/doc_drift_check.ps1` (tripwire 4 termów).
 - CZEMU:  domknięcie planu porządków (etapy D–G); anty-rozjazd testu + zamknięcie klasy persystencji + zaszycie STOP-gate/anty-dryf jako PROCESU (nie intencji — to był rdzeń porażki poprzedniego wykonawcy).

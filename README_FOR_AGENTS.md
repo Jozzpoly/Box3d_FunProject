@@ -366,11 +366,14 @@ useful as history, **not** as current architecture. Trust this order:
 - `docs/SUBSYSTEM_UI_PRESETS_PL.md` — the tuning UI/session/preset system: the
   three separate save files and why, tab order, the `###stable-suffix` tab-ID
   pattern (copy it for any future dynamic tab title).
-- `docs/PLAN_PORZADKI_FUNDAMENT_2026_07_09_PL.md` — **the active plan** once
-  Jozz approves it: staged (A–G) structural cleanup to make the repo
-  drift-proof and ready for further work (build/validator/doc single-source-of-
-  truth, gate script, persistence map, env registry, encoded STOP-gates).
-  Physics is frozen; big-file refactors deliberately deferred.
+- `docs/PLAN_WIELKI_REFACTOR_2026_07_09_PL.md` — **the active plan** once Jozz
+  approves it: staged (R0–R7) big refactor — baseline-diff bar (validator
+  numbers byte-identical, not just green), split of the four monoliths,
+  config field-table, pure-geometry extraction (editor prep). Move-only
+  except R7; physics frozen.
+- `docs/PLAN_PORZADKI_FUNDAMENT_2026_07_09_PL.md` — **DONE** (stages A–G,
+  2026-07-09): gate script, shared CMake list, probe registry, persistence
+  map, env registry, encoded STOP-gates.
 - `docs/PLAN_STABILNOSC_PROWADZENIE_PL.md` — **DONE** (P1–P6 + Gates 1–2,
   accepted 2026-07-09). History now; current state = CHECKPOINTS + this file.
 - `docs/AUDIT_PHYSICS_STEERING_2026_07_08_PL.md` — the findings behind that
