@@ -96,6 +96,38 @@ tylko to, co ma wartość TERAZ albo jest pewne.
 Kryterium: `-DiffBaseline` zero różnic (w tym „ran 18 probes").
 
 ### R2 — config_io: tabela pól zamiast 71+51 ręcznych linii (STRUKTURA, nie move-only)
+> **Status:** ✅ WYKONANE 2026-07-10. 71 pól zmierzone dokładnie (51 root +
+> 13 wishbone + 4 trailingArm + 3 wheelEnvelope) — zgadza się z liczbą z tego
+> akapitu. Dwie krytyczne korekty względem litery planu:
+> 1. **„jedna tabela" vs „tablice per typ" — sprzeczność.** Kolejność kluczy
+>    w JSON-ie miesza typy (vec3, float×5, int×2, potem zagnieżdżony obiekt...);
+>    osobne tablice per typ zmieniłyby kolejność wyjścia = złamałoby „tekstowo
+>    identyczne". Rozwiązanie: JEDNA uporządkowana tablica z tagiem typu
+>    (anonimowa unia wskaźników-do-składowej + enum), bez makr — `template
+>    <typename Owner> struct JozzFieldDesc`, osobna instancja per właściciel
+>    (Config/Wishbone/TrailingArm/WheelEnvelope), bo wskaźnik-do-składowej
+>    niesie typ właściciela. Zagnieżdżone obiekty NIE są wierszem tabeli
+>    (nie da się zmieszać `JozzFieldDesc<Config>` z `JozzFieldDesc<Wishbone>`
+>    w jednym typie tablicy bez type erasure) — root podzielony na 3 segmenty
+>    (przed wishbone / między trailingArm a wheelEnvelope / po wheelEnvelope),
+>    każdy zagnieżdżony obiekt to 2 linie kleju (otwórz/zamknij) + własna mała
+>    tabela — dokładnie „małe pod-tabele" z akapitu niżej.
+> 2. **Tabela ≠ odbicie struktury.** `rackTravel` (POCHODNE — przeliczane po
+>    wczytaniu, tripwire w kodzie + sonda p2) i `filterGroupIndex` (runtime)
+>    świadomie NIE są w tabeli, dokładnie jak nie były w starym ręcznym
+>    kodzie. Tabela zbudowana ręcznie z listy write/read, nie odbiciem structu.
+>
+> **Weryfikacja silniejsza niż litera kryterium:** zamiast/obok diffu
+> tekstowego configu domyślnego (który ma ślepy punkt — dwa pola z tym samym
+> defaultem maskują zamienione wskaźniki), dodałem TYMCZASOWĄ sondę z
+> unikalną wartością na KAŻDYM z 71 pól (save→load→porównaj), niezależnie
+> wypisaną z definicji structu (nie z tabeli pod testem — inaczej błąd w
+> tabeli byłby niewidoczny sam dla siebie). Uruchomiona: wszystkie 71 pól
+> wróciły dokładnie, exit 0, 0 linii „bad". Usunięta przed commitem (patrz
+> niżej — dodanie jej NA STAŁE złamałoby `-DiffBaseline`).
+> `-DiffBaseline`: 349 linii walidatora identyczne (w tym „ran 18 probes") —
+> bo litera R2 tego etapu wymaga zero różnic w SAMYM walidatorze, nowe
+> pokrycie testowe to osobna decyzja (nie dodane na stałe w tej sesji).
 **Jedyny etap „nowego kodu" w serii (poza R0):** jedna tabela
 `{klucz, wskaźnik-na-pole, typ}` (zwykłe tablice per typ, wskaźniki na
 składowe — BEZ makr X, czytelne dla słabszego agenta), z której generuje się

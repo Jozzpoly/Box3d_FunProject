@@ -17,7 +17,7 @@ namespace
 {
 
 // --- writer: hand-rolled, not a general JSON library -----------------------
-// The config is a flat set of named floats/ints/bools/vec3s (plus two small
+// The config is a flat set of named floats/ints/bools/vec3s (plus small
 // nested structs); a real serializer would be a lot of machinery for what is,
 // in the end, a fixed list of "key: number" lines.
 
@@ -90,6 +90,209 @@ void ReadVec3( std::string_view json, const std::vector<jsmntok_t>& tokens, int 
 	}
 }
 
+// --- R2: field table -------------------------------------------------------
+// One row = one field, driving BOTH the writer and the reader, so a new
+// tunable is one entry instead of two hand-kept call sites that can drift
+// apart (the exact bug class this replaces: a field added to the writer and
+// forgotten in the reader loads back as whatever the caller pre-filled, with
+// no error - silently stale).
+//
+// Deliberately NOT a reflection of JozzVehicleM6Config: rackTravel is
+// DERIVED (recomputed from wishbone geometry after every load - see the
+// "stale rackTravel" tripwire in jozz_vehicle_m6_suspension_rig.cpp and the
+// validator's p2 rackTravel regression probe) and filterGroupIndex is
+// runtime-only. Neither belongs in a saved file; both are absent from the
+// table below on purpose, exactly as they were absent from the old
+// hand-written Write*/Read* call sequence.
+//
+// One array, not "plain arrays per type": the JSON key order interleaves
+// vec3/float/int fields and three nested objects in a specific historical
+// sequence (byte-identical output is the R2 acceptance bar), so a single
+// ordered, type-tagged row is the only shape that reproduces that order
+// without extra bookkeeping. The union is anonymous (not a named member), so
+// each row is still a plain aggregate initializer - no macros, no builder
+// functions.
+enum class JozzFieldType
+{
+	Float,
+	Int,
+	Bool,
+	Vec3,
+};
+
+template <typename Owner>
+struct JozzFieldDesc
+{
+	const char* key;
+	JozzFieldType type;
+	bool lastInObject; // false -> writer emits a trailing comma
+	union
+	{
+		float Owner::*floatMember;
+		int Owner::*intMember;
+		bool Owner::*boolMember;
+		b3Vec3 Owner::*vec3Member;
+	};
+};
+
+template <typename Owner>
+void WriteFieldTable( std::ostringstream& out, const char* indent, const JozzFieldDesc<Owner>* fields, int count,
+					   const Owner& obj )
+{
+	for ( int i = 0; i < count; ++i )
+	{
+		const JozzFieldDesc<Owner>& f = fields[i];
+		bool comma = f.lastInObject == false;
+		switch ( f.type )
+		{
+			case JozzFieldType::Float:
+				WriteFloat( out, indent, f.key, obj.*f.floatMember, comma );
+				break;
+			case JozzFieldType::Int:
+				WriteInt( out, indent, f.key, obj.*f.intMember, comma );
+				break;
+			case JozzFieldType::Bool:
+				WriteBool( out, indent, f.key, obj.*f.boolMember, comma );
+				break;
+			case JozzFieldType::Vec3:
+				WriteVec3( out, indent, f.key, obj.*f.vec3Member, comma );
+				break;
+		}
+	}
+}
+
+template <typename Owner>
+void ReadFieldTable( std::string_view json, const std::vector<jsmntok_t>& tokens, int objectIndex,
+					  const JozzFieldDesc<Owner>* fields, int count, Owner* obj )
+{
+	for ( int i = 0; i < count; ++i )
+	{
+		const JozzFieldDesc<Owner>& f = fields[i];
+		switch ( f.type )
+		{
+			case JozzFieldType::Float:
+				ReadFloat( json, tokens, objectIndex, f.key, &( obj->*f.floatMember ) );
+				break;
+			case JozzFieldType::Int:
+				ReadInt( json, tokens, objectIndex, f.key, &( obj->*f.intMember ) );
+				break;
+			case JozzFieldType::Bool:
+				ReadBool( json, tokens, objectIndex, f.key, &( obj->*f.boolMember ) );
+				break;
+			case JozzFieldType::Vec3:
+				ReadVec3( json, tokens, objectIndex, f.key, &( obj->*f.vec3Member ) );
+				break;
+		}
+	}
+}
+
+// Root fields, split into the three segments the two nested objects
+// (wishbone, wheelEnvelope) and trailingArm fall between - same three
+// segments the old hand-written writer visited in the same order.
+using RootField = JozzFieldDesc<JozzVehicleM6Config>;
+
+// Segment A: chassisHalfExtents .. rearRigType (before the wishbone object).
+const RootField kRootFieldsA[] = {
+	{ .key = "chassisHalfExtents", .type = JozzFieldType::Vec3, .lastInObject = false, .vec3Member = &JozzVehicleM6Config::chassisHalfExtents },
+	{ .key = "chassisDensity", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::chassisDensity },
+	{ .key = "cgVerticalOffset", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::cgVerticalOffset },
+	{ .key = "axleHalfSpacing", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::axleHalfSpacing },
+	{ .key = "trackHalfWidth", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::trackHalfWidth },
+	{ .key = "restDrop", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::restDrop },
+	{ .key = "frontRigType", .type = JozzFieldType::Int, .lastInObject = false, .intMember = &JozzVehicleM6Config::frontRigType },
+	{ .key = "rearRigType", .type = JozzFieldType::Int, .lastInObject = false, .intMember = &JozzVehicleM6Config::rearRigType },
+};
+
+// Segment B: knuckleMass .. rackServoMaxSpeed (between trailingArm and wheelEnvelope).
+const RootField kRootFieldsB[] = {
+	{ .key = "knuckleMass", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::knuckleMass },
+	{ .key = "armMass", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::armMass },
+	{ .key = "rackMass", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::rackMass },
+	{ .key = "rackHalfWidth", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::rackHalfWidth },
+	{ .key = "rackServoForce", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::rackServoForce },
+	{ .key = "rackServoSpeedGain", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::rackServoSpeedGain },
+	{ .key = "rackServoMaxSpeed", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::rackServoMaxSpeed },
+};
+
+// Segment C: wheelDensity .. uprightDampingRatio (after wheelEnvelope, to the
+// end of the object - the LAST row here carries the file's final key).
+const RootField kRootFieldsC[] = {
+	{ .key = "wheelDensity", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::wheelDensity },
+	{ .key = "wheelFriction", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::wheelFriction },
+	{ .key = "wheelRollingResistance", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::wheelRollingResistance },
+	{ .key = "suspensionHertz", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::suspensionHertz },
+	{ .key = "suspensionDampingRatio", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::suspensionDampingRatio },
+	{ .key = "frontSuspensionScale", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::frontSuspensionScale },
+	{ .key = "rearSuspensionScale", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::rearSuspensionScale },
+	{ .key = "reboundTravel", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::reboundTravel },
+	{ .key = "compressionTravel", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::compressionTravel },
+	{ .key = "suspensionPreloadFront", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::suspensionPreloadFront },
+	{ .key = "suspensionPreloadRear", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::suspensionPreloadRear },
+	{ .key = "arbFrontStiffness", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::arbFrontStiffness },
+	{ .key = "arbRearStiffness", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::arbRearStiffness },
+	{ .key = "aeroDragArea", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::aeroDragArea },
+	{ .key = "maxDriveSpeed", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::maxDriveSpeed },
+	{ .key = "maxDriveTorque", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::maxDriveTorque },
+	{ .key = "driveTaperStart", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::driveTaperStart },
+	{ .key = "brakeTorque", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::brakeTorque },
+	{ .key = "coastTorque", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::coastTorque },
+	{ .key = "allWheelDrive", .type = JozzFieldType::Bool, .lastInObject = false, .boolMember = &JozzVehicleM6Config::allWheelDrive },
+	{ .key = "maxSteeringAngleDegrees", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::maxSteeringAngleDegrees },
+	{ .key = "frontToeDeg", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::frontToeDeg },
+	{ .key = "rearToeDeg", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::rearToeDeg },
+	{ .key = "steeringHertz", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::steeringHertz },
+	{ .key = "steeringDampingRatio", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::steeringDampingRatio },
+	{ .key = "maxSteeringTorque", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::maxSteeringTorque },
+	{ .key = "rackFrictionBase", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::rackFrictionBase },
+	{ .key = "rackFrictionLoadCoeff", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::rackFrictionLoadCoeff },
+	{ .key = "steeringFrictionTorque", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::steeringFrictionTorque },
+	{ .key = "steerInputDeadzone", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::steerInputDeadzone },
+	{ .key = "rackCenteringHertz", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::rackCenteringHertz },
+	{ .key = "ackermannGeometry", .type = JozzFieldType::Bool, .lastInObject = false, .boolMember = &JozzVehicleM6Config::ackermannGeometry },
+	{ .key = "strutCasterDeg", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::strutCasterDeg },
+	{ .key = "uprightAssist", .type = JozzFieldType::Bool, .lastInObject = false, .boolMember = &JozzVehicleM6Config::uprightAssist },
+	{ .key = "uprightHertz", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::uprightHertz },
+	{ .key = "uprightDampingRatio", .type = JozzFieldType::Float, .lastInObject = true, .floatMember = &JozzVehicleM6Config::uprightDampingRatio },
+};
+
+using WishboneField = JozzFieldDesc<JozzVehicleM6WishboneGeometry>;
+const WishboneField kWishboneFields[] = {
+	{ .key = "uprightHalfHeight", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6WishboneGeometry::uprightHalfHeight },
+	{ .key = "kingpinOffset", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6WishboneGeometry::kingpinOffset },
+	{ .key = "casterDeg", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6WishboneGeometry::casterDeg },
+	{ .key = "kingpinInclinationDeg", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6WishboneGeometry::kingpinInclinationDeg },
+	{ .key = "upperArmLength", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6WishboneGeometry::upperArmLength },
+	{ .key = "lowerArmLength", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6WishboneGeometry::lowerArmLength },
+	{ .key = "armHalfSpread", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6WishboneGeometry::armHalfSpread },
+	{ .key = "steeringArmBack", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6WishboneGeometry::steeringArmBack },
+	{ .key = "ackermannTrapezoid", .type = JozzFieldType::Bool, .lastInObject = false, .boolMember = &JozzVehicleM6WishboneGeometry::ackermannTrapezoid },
+	{ .key = "ackermannFraction", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6WishboneGeometry::ackermannFraction },
+	{ .key = "coiloverTopHeight", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6WishboneGeometry::coiloverTopHeight },
+	{ .key = "coiloverTopInboard", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6WishboneGeometry::coiloverTopInboard },
+	{ .key = "restArmDroopDeg", .type = JozzFieldType::Float, .lastInObject = true, .floatMember = &JozzVehicleM6WishboneGeometry::restArmDroopDeg },
+};
+
+using TrailingArmField = JozzFieldDesc<JozzVehicleM6TrailingArmGeometry>;
+const TrailingArmField kTrailingArmFields[] = {
+	{ .key = "pivotOffset", .type = JozzFieldType::Vec3, .lastInObject = false, .vec3Member = &JozzVehicleM6TrailingArmGeometry::pivotOffset },
+	{ .key = "damperArmOffset", .type = JozzFieldType::Vec3, .lastInObject = false, .vec3Member = &JozzVehicleM6TrailingArmGeometry::damperArmOffset },
+	{ .key = "damperChassisOffset", .type = JozzFieldType::Vec3, .lastInObject = false, .vec3Member = &JozzVehicleM6TrailingArmGeometry::damperChassisOffset },
+	{ .key = "armMass", .type = JozzFieldType::Float, .lastInObject = true, .floatMember = &JozzVehicleM6TrailingArmGeometry::armMass },
+};
+
+using WheelEnvelopeField = JozzFieldDesc<JozzVehicleM6WheelEnvelopeDesc>;
+const WheelEnvelopeField kWheelEnvelopeFields[] = {
+	{ .key = "mode", .type = JozzFieldType::Int, .lastInObject = false, .intMember = &JozzVehicleM6WheelEnvelopeDesc::mode },
+	{ .key = "cylinderSides", .type = JozzFieldType::Int, .lastInObject = false, .intMember = &JozzVehicleM6WheelEnvelopeDesc::cylinderSides },
+	{ .key = "unionLayerCount", .type = JozzFieldType::Int, .lastInObject = true, .intMember = &JozzVehicleM6WheelEnvelopeDesc::unionLayerCount },
+};
+
+template <typename T, size_t N>
+constexpr int ArrayCount( const T ( & )[N] )
+{
+	return (int)N;
+}
+
 } // namespace
 
 bool SaveJozzVehicleM6Config( const JozzVehicleM6Config& c, const std::string& path )
@@ -99,94 +302,23 @@ bool SaveJozzVehicleM6Config( const JozzVehicleM6Config& c, const std::string& p
 
 	std::ostringstream out;
 	out << "{\n";
-	WriteVec3( out, "  ", "chassisHalfExtents", c.chassisHalfExtents );
-	WriteFloat( out, "  ", "chassisDensity", c.chassisDensity );
-	WriteFloat( out, "  ", "cgVerticalOffset", c.cgVerticalOffset );
-	WriteFloat( out, "  ", "axleHalfSpacing", c.axleHalfSpacing );
-	WriteFloat( out, "  ", "trackHalfWidth", c.trackHalfWidth );
-	WriteFloat( out, "  ", "restDrop", c.restDrop );
-	WriteInt( out, "  ", "frontRigType", c.frontRigType );
-	WriteInt( out, "  ", "rearRigType", c.rearRigType );
+	WriteFieldTable( out, "  ", kRootFieldsA, ArrayCount( kRootFieldsA ), c );
 
 	out << "  \"wishbone\": {\n";
-	WriteFloat( out, "    ", "uprightHalfHeight", c.wishbone.uprightHalfHeight );
-	WriteFloat( out, "    ", "kingpinOffset", c.wishbone.kingpinOffset );
-	WriteFloat( out, "    ", "casterDeg", c.wishbone.casterDeg );
-	WriteFloat( out, "    ", "kingpinInclinationDeg", c.wishbone.kingpinInclinationDeg );
-	WriteFloat( out, "    ", "upperArmLength", c.wishbone.upperArmLength );
-	WriteFloat( out, "    ", "lowerArmLength", c.wishbone.lowerArmLength );
-	WriteFloat( out, "    ", "armHalfSpread", c.wishbone.armHalfSpread );
-	WriteFloat( out, "    ", "steeringArmBack", c.wishbone.steeringArmBack );
-	WriteBool( out, "    ", "ackermannTrapezoid", c.wishbone.ackermannTrapezoid );
-	WriteFloat( out, "    ", "ackermannFraction", c.wishbone.ackermannFraction );
-	WriteFloat( out, "    ", "coiloverTopHeight", c.wishbone.coiloverTopHeight );
-	WriteFloat( out, "    ", "coiloverTopInboard", c.wishbone.coiloverTopInboard );
-	WriteFloat( out, "    ", "restArmDroopDeg", c.wishbone.restArmDroopDeg, false );
+	WriteFieldTable( out, "    ", kWishboneFields, ArrayCount( kWishboneFields ), c.wishbone );
 	out << "  },\n";
 
 	out << "  \"trailingArm\": {\n";
-	WriteVec3( out, "    ", "pivotOffset", c.trailingArm.pivotOffset );
-	WriteVec3( out, "    ", "damperArmOffset", c.trailingArm.damperArmOffset );
-	WriteVec3( out, "    ", "damperChassisOffset", c.trailingArm.damperChassisOffset );
-	WriteFloat( out, "    ", "armMass", c.trailingArm.armMass, false );
+	WriteFieldTable( out, "    ", kTrailingArmFields, ArrayCount( kTrailingArmFields ), c.trailingArm );
 	out << "  },\n";
 
-	WriteFloat( out, "  ", "knuckleMass", c.knuckleMass );
-	WriteFloat( out, "  ", "armMass", c.armMass );
-	WriteFloat( out, "  ", "rackMass", c.rackMass );
-	WriteFloat( out, "  ", "rackHalfWidth", c.rackHalfWidth );
-	WriteFloat( out, "  ", "rackServoForce", c.rackServoForce );
-	WriteFloat( out, "  ", "rackServoSpeedGain", c.rackServoSpeedGain );
-	WriteFloat( out, "  ", "rackServoMaxSpeed", c.rackServoMaxSpeed );
+	WriteFieldTable( out, "  ", kRootFieldsB, ArrayCount( kRootFieldsB ), c );
 
 	out << "  \"wheelEnvelope\": {\n";
-	WriteInt( out, "    ", "mode", c.wheelEnvelope.mode );
-	WriteInt( out, "    ", "cylinderSides", c.wheelEnvelope.cylinderSides );
-	WriteInt( out, "    ", "unionLayerCount", c.wheelEnvelope.unionLayerCount, false );
+	WriteFieldTable( out, "    ", kWheelEnvelopeFields, ArrayCount( kWheelEnvelopeFields ), c.wheelEnvelope );
 	out << "  },\n";
 
-	WriteFloat( out, "  ", "wheelDensity", c.wheelDensity );
-	WriteFloat( out, "  ", "wheelFriction", c.wheelFriction );
-	WriteFloat( out, "  ", "wheelRollingResistance", c.wheelRollingResistance );
-
-	WriteFloat( out, "  ", "suspensionHertz", c.suspensionHertz );
-	WriteFloat( out, "  ", "suspensionDampingRatio", c.suspensionDampingRatio );
-	WriteFloat( out, "  ", "frontSuspensionScale", c.frontSuspensionScale );
-	WriteFloat( out, "  ", "rearSuspensionScale", c.rearSuspensionScale );
-	WriteFloat( out, "  ", "reboundTravel", c.reboundTravel );
-	WriteFloat( out, "  ", "compressionTravel", c.compressionTravel );
-	WriteFloat( out, "  ", "suspensionPreloadFront", c.suspensionPreloadFront );
-	WriteFloat( out, "  ", "suspensionPreloadRear", c.suspensionPreloadRear );
-
-	WriteFloat( out, "  ", "arbFrontStiffness", c.arbFrontStiffness );
-	WriteFloat( out, "  ", "arbRearStiffness", c.arbRearStiffness );
-
-	WriteFloat( out, "  ", "aeroDragArea", c.aeroDragArea );
-
-	WriteFloat( out, "  ", "maxDriveSpeed", c.maxDriveSpeed );
-	WriteFloat( out, "  ", "maxDriveTorque", c.maxDriveTorque );
-	WriteFloat( out, "  ", "driveTaperStart", c.driveTaperStart );
-	WriteFloat( out, "  ", "brakeTorque", c.brakeTorque );
-	WriteFloat( out, "  ", "coastTorque", c.coastTorque );
-	WriteBool( out, "  ", "allWheelDrive", c.allWheelDrive );
-
-	WriteFloat( out, "  ", "maxSteeringAngleDegrees", c.maxSteeringAngleDegrees );
-	WriteFloat( out, "  ", "frontToeDeg", c.frontToeDeg );
-	WriteFloat( out, "  ", "rearToeDeg", c.rearToeDeg );
-	WriteFloat( out, "  ", "steeringHertz", c.steeringHertz );
-	WriteFloat( out, "  ", "steeringDampingRatio", c.steeringDampingRatio );
-	WriteFloat( out, "  ", "maxSteeringTorque", c.maxSteeringTorque );
-	WriteFloat( out, "  ", "rackFrictionBase", c.rackFrictionBase );
-	WriteFloat( out, "  ", "rackFrictionLoadCoeff", c.rackFrictionLoadCoeff );
-	WriteFloat( out, "  ", "steeringFrictionTorque", c.steeringFrictionTorque );
-	WriteFloat( out, "  ", "steerInputDeadzone", c.steerInputDeadzone );
-	WriteFloat( out, "  ", "rackCenteringHertz", c.rackCenteringHertz );
-	WriteBool( out, "  ", "ackermannGeometry", c.ackermannGeometry );
-	WriteFloat( out, "  ", "strutCasterDeg", c.strutCasterDeg );
-
-	WriteBool( out, "  ", "uprightAssist", c.uprightAssist );
-	WriteFloat( out, "  ", "uprightHertz", c.uprightHertz );
-	WriteFloat( out, "  ", "uprightDampingRatio", c.uprightDampingRatio, false );
+	WriteFieldTable( out, "  ", kRootFieldsC, ArrayCount( kRootFieldsC ), c );
 	out << "}\n";
 
 	std::ofstream file( path, std::ios::binary | std::ios::trunc );
@@ -214,75 +346,39 @@ bool LoadJozzVehicleM6Config( const std::string& path, JozzVehicleM6Config* outC
 
 	int root = 0;
 	JozzVehicleM6Config& c = *outConfig;
-	ReadVec3( json, tokens, root, "chassisHalfExtents", &c.chassisHalfExtents );
-	ReadFloat( json, tokens, root, "chassisDensity", &c.chassisDensity );
-	ReadFloat( json, tokens, root, "cgVerticalOffset", &c.cgVerticalOffset );
-	ReadFloat( json, tokens, root, "axleHalfSpacing", &c.axleHalfSpacing );
-	ReadFloat( json, tokens, root, "trackHalfWidth", &c.trackHalfWidth );
-	ReadFloat( json, tokens, root, "restDrop", &c.restDrop );
-	ReadInt( json, tokens, root, "frontRigType", &c.frontRigType );
-	ReadInt( json, tokens, root, "rearRigType", &c.rearRigType );
+	ReadFieldTable( json, tokens, root, kRootFieldsA, ArrayCount( kRootFieldsA ), &c );
 
 	int wishbone = FindObjectValue( json, tokens, root, "wishbone" );
 	if ( wishbone >= 0 )
 	{
-		ReadFloat( json, tokens, wishbone, "uprightHalfHeight", &c.wishbone.uprightHalfHeight );
-		ReadFloat( json, tokens, wishbone, "kingpinOffset", &c.wishbone.kingpinOffset );
-		ReadFloat( json, tokens, wishbone, "casterDeg", &c.wishbone.casterDeg );
-		ReadFloat( json, tokens, wishbone, "kingpinInclinationDeg", &c.wishbone.kingpinInclinationDeg );
-		ReadFloat( json, tokens, wishbone, "upperArmLength", &c.wishbone.upperArmLength );
-		ReadFloat( json, tokens, wishbone, "lowerArmLength", &c.wishbone.lowerArmLength );
-		ReadFloat( json, tokens, wishbone, "armHalfSpread", &c.wishbone.armHalfSpread );
-		ReadFloat( json, tokens, wishbone, "steeringArmBack", &c.wishbone.steeringArmBack );
-		ReadBool( json, tokens, wishbone, "ackermannTrapezoid", &c.wishbone.ackermannTrapezoid );
-		ReadFloat( json, tokens, wishbone, "ackermannFraction", &c.wishbone.ackermannFraction );
-		ReadFloat( json, tokens, wishbone, "coiloverTopHeight", &c.wishbone.coiloverTopHeight );
-		ReadFloat( json, tokens, wishbone, "coiloverTopInboard", &c.wishbone.coiloverTopInboard );
-		ReadFloat( json, tokens, wishbone, "restArmDroopDeg", &c.wishbone.restArmDroopDeg );
+		ReadFieldTable( json, tokens, wishbone, kWishboneFields, ArrayCount( kWishboneFields ), &c.wishbone );
 	}
 
 	int trailingArm = FindObjectValue( json, tokens, root, "trailingArm" );
 	if ( trailingArm >= 0 )
 	{
-		ReadVec3( json, tokens, trailingArm, "pivotOffset", &c.trailingArm.pivotOffset );
-		ReadVec3( json, tokens, trailingArm, "damperArmOffset", &c.trailingArm.damperArmOffset );
-		ReadVec3( json, tokens, trailingArm, "damperChassisOffset", &c.trailingArm.damperChassisOffset );
-		ReadFloat( json, tokens, trailingArm, "armMass", &c.trailingArm.armMass );
+		ReadFieldTable( json, tokens, trailingArm, kTrailingArmFields, ArrayCount( kTrailingArmFields ),
+						 &c.trailingArm );
 	}
 
-	ReadFloat( json, tokens, root, "knuckleMass", &c.knuckleMass );
-	ReadFloat( json, tokens, root, "armMass", &c.armMass );
-	ReadFloat( json, tokens, root, "rackMass", &c.rackMass );
-	ReadFloat( json, tokens, root, "rackHalfWidth", &c.rackHalfWidth );
-	ReadFloat( json, tokens, root, "rackServoForce", &c.rackServoForce );
-	ReadFloat( json, tokens, root, "rackServoSpeedGain", &c.rackServoSpeedGain );
-	ReadFloat( json, tokens, root, "rackServoMaxSpeed", &c.rackServoMaxSpeed );
+	ReadFieldTable( json, tokens, root, kRootFieldsB, ArrayCount( kRootFieldsB ), &c );
 
 	int envelope = FindObjectValue( json, tokens, root, "wheelEnvelope" );
 	if ( envelope >= 0 )
 	{
-		ReadInt( json, tokens, envelope, "mode", &c.wheelEnvelope.mode );
-		ReadInt( json, tokens, envelope, "cylinderSides", &c.wheelEnvelope.cylinderSides );
-		ReadInt( json, tokens, envelope, "unionLayerCount", &c.wheelEnvelope.unionLayerCount );
+		ReadFieldTable( json, tokens, envelope, kWheelEnvelopeFields, ArrayCount( kWheelEnvelopeFields ),
+						 &c.wheelEnvelope );
 	}
 
-	ReadFloat( json, tokens, root, "wheelDensity", &c.wheelDensity );
-	ReadFloat( json, tokens, root, "wheelFriction", &c.wheelFriction );
-	ReadFloat( json, tokens, root, "wheelRollingResistance", &c.wheelRollingResistance );
+	ReadFieldTable( json, tokens, root, kRootFieldsC, ArrayCount( kRootFieldsC ), &c );
 
-	ReadFloat( json, tokens, root, "suspensionHertz", &c.suspensionHertz );
-	ReadFloat( json, tokens, root, "suspensionDampingRatio", &c.suspensionDampingRatio );
-	ReadFloat( json, tokens, root, "frontSuspensionScale", &c.frontSuspensionScale );
-	ReadFloat( json, tokens, root, "rearSuspensionScale", &c.rearSuspensionScale );
-	ReadFloat( json, tokens, root, "reboundTravel", &c.reboundTravel );
-	ReadFloat( json, tokens, root, "compressionTravel", &c.compressionTravel );
-	ReadFloat( json, tokens, root, "suspensionPreloadFront", &c.suspensionPreloadFront );
-	ReadFloat( json, tokens, root, "suspensionPreloadRear", &c.suspensionPreloadRear );
 	{
 		// Backward compat: pre-P3 files (session/presets saved before the
 		// front/rear split) only have a single "suspensionPreload" key, applied
 		// equally to both axles. Only takes effect if that legacy key is present
-		// - the front/rear reads above already handle new-format files.
+		// - the front/rear reads above already handle new-format files. Not
+		// table-driven on purpose: this is a 1-key-to-2-fields migration, not a
+		// field, so it stays hand-written exactly as before R2.
 		int legacyIndex = FindObjectValue( json, tokens, root, "suspensionPreload" );
 		if ( legacyIndex >= 0 )
 		{
@@ -293,26 +389,6 @@ bool LoadJozzVehicleM6Config( const std::string& path, JozzVehicleM6Config* outC
 		}
 	}
 
-	ReadFloat( json, tokens, root, "arbFrontStiffness", &c.arbFrontStiffness );
-	ReadFloat( json, tokens, root, "arbRearStiffness", &c.arbRearStiffness );
-
-	ReadFloat( json, tokens, root, "aeroDragArea", &c.aeroDragArea );
-
-	ReadFloat( json, tokens, root, "maxDriveSpeed", &c.maxDriveSpeed );
-	ReadFloat( json, tokens, root, "maxDriveTorque", &c.maxDriveTorque );
-	ReadFloat( json, tokens, root, "driveTaperStart", &c.driveTaperStart );
-	ReadFloat( json, tokens, root, "brakeTorque", &c.brakeTorque );
-	ReadFloat( json, tokens, root, "coastTorque", &c.coastTorque );
-	ReadBool( json, tokens, root, "allWheelDrive", &c.allWheelDrive );
-
-	ReadFloat( json, tokens, root, "maxSteeringAngleDegrees", &c.maxSteeringAngleDegrees );
-	ReadFloat( json, tokens, root, "frontToeDeg", &c.frontToeDeg );
-	ReadFloat( json, tokens, root, "rearToeDeg", &c.rearToeDeg );
-	ReadFloat( json, tokens, root, "steeringHertz", &c.steeringHertz );
-	ReadFloat( json, tokens, root, "steeringDampingRatio", &c.steeringDampingRatio );
-	ReadFloat( json, tokens, root, "maxSteeringTorque", &c.maxSteeringTorque );
-	ReadFloat( json, tokens, root, "rackFrictionBase", &c.rackFrictionBase );
-	ReadFloat( json, tokens, root, "rackFrictionLoadCoeff", &c.rackFrictionLoadCoeff );
 	{
 		// Legacy rack-friction keys (pre-P4 "rackFrictionForce" and the P4
 		// flat static/kinetic pair) describe a DIFFERENT model - a flat force
@@ -321,7 +397,8 @@ bool LoadJozzVehicleM6Config( const std::string& path, JozzVehicleM6Config* outC
 		// converted: files carrying only legacy keys get the current model
 		// defaults, with a printed note so nobody wonders why an old tuned
 		// value "disappeared". (Old files keep loading fine - every other key
-		// is unchanged.)
+		// is unchanged.) Not table-driven: these keys map to nothing, only to
+		// a diagnostic printf, so there is no field to put in the table.
 		const char* legacyKeys[] = { "rackFrictionForce", "rackStaticFrictionForce", "rackKineticFrictionForce" };
 		for ( const char* key : legacyKeys )
 		{
@@ -333,15 +410,6 @@ bool LoadJozzVehicleM6Config( const std::string& path, JozzVehicleM6Config* outC
 			}
 		}
 	}
-	ReadFloat( json, tokens, root, "steeringFrictionTorque", &c.steeringFrictionTorque );
-	ReadFloat( json, tokens, root, "steerInputDeadzone", &c.steerInputDeadzone );
-	ReadFloat( json, tokens, root, "rackCenteringHertz", &c.rackCenteringHertz );
-	ReadBool( json, tokens, root, "ackermannGeometry", &c.ackermannGeometry );
-	ReadFloat( json, tokens, root, "strutCasterDeg", &c.strutCasterDeg );
-
-	ReadBool( json, tokens, root, "uprightAssist", &c.uprightAssist );
-	ReadFloat( json, tokens, root, "uprightHertz", &c.uprightHertz );
-	ReadFloat( json, tokens, root, "uprightDampingRatio", &c.uprightDampingRatio );
 
 	return true;
 }

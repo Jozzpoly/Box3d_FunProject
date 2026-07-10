@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-10 · R2: config_io — tabela pól zamiast ręcznych write/read · <commit>
+- CO:     `jozz_vehicle_m6_config_io.cpp` przepisany: 71 pól (51 root + 13 wishbone + 4 trailingArm + 3 wheelEnvelope, zmierzone dokładnie) w jednej uporządkowanej, otagowanej typem tablicy (`template <typename Owner> struct JozzFieldDesc` + anonimowa unia wskaźników-do-składowej — bez makr X), napędzającej i writer, i reader. Root podzielony na 3 segmenty wokół 2 zagnieżdżonych obiektów (kolejność JSON-a mieszała typy, więc „osobne tablice per typ" złamałoby kolejność — stąd jedna tablica z tagiem, nie tablice per typ jak sugerował dosłowny zapis planu). Legacy-migracje (suspensionPreload 1→2, 3 martwe klucze rack-friction) zostały ręczne, jak w planie.
+- CZEMU:  R2 — jedyny etap „nowego kodu" w serii; usuwa klasę błędu „dodano pole do writera, zapomniano w readerze" (dwa miejsca → jedno).
+- EFEKT:  Build czysty. `-DiffBaseline`: 349 linii identyczne (w tym „ran 18 probes") — litera R2 wymaga zera różnic w SAMYM walidatorze. Poprawność tabeli zweryfikowana WYKONAWCZO, nie tylko czytaniem kodu: tymczasowa sonda z unikalną wartością na każdym z 71 pól (save→load→porównaj, lista pól wpisana ręcznie z definicji structu, NIE skopiowana z tabeli pod testem) — wszystkie 71 wróciły dokładnie, exit 0, 0 „bad". Usunięta przed commitem (na stałe złamałaby `-DiffBaseline`). `rackTravel`/`filterGroupIndex` świadomie POZA tabelą (jak w starym kodzie) — tabela zbudowana z listy write/read, nie odbiciem structu.
+- DALEJ:  R3 (rig_lab → TU per odpowiedzialność, move-only, wyższa stawka — kod shippingowy).
+
 ## 2026-07-10 · R1: podział validation.cpp na harness + sondy · <commit>
 - CO:     `jozz_vehicle_validation.cpp` (2710 l., monolit) → 7 plików: `validation/jozz_validation_helpers.{h,cpp}` (CheckTrue/CheckApprox, IsM6VehicleStateValid, M6Chassis*, CreateM6SmokeGround — zewnętrzne linkowanie, wołane z 4 plików sond), `validation/jozz_probes_{m5_m6,m7,steering,config}.cpp` (18 sond wg bucketów z planu), `jozz_vehicle_validation.cpp` zredukowany do slim main (kontrakt-checki + rejestr + deklaracje 18 sond). CMake: nowa `JOZZ_VALIDATION_FILES` obok CORE. Cięcie skryptem (dokładne zakresy linii wycięte z oryginału, nie retypowane ręcznie) — zero ryzyka literówki.
 - CZEMU:  R1 z `PLAN_WIELKI_REFACTOR` — trening podziału na kodzie nie-shippingowym przed R3-R5 (rig_lab, shippingowy kod).
