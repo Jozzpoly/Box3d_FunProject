@@ -171,8 +171,25 @@ public:
 		CreateVehicle(); // sets up the per-corner mount rig, needs the visuals loaded
 		SyncEditFromConfig();
 
-		// Env overrides so a headless --screenshot can frame a corner and hide
-		// the debug links, without any UI interaction.
+		// --- JOZZ_M6_* env registry (headless testing / --screenshot / the
+		// future rig editor's headless render) --------------------------------
+		// The complete, current set - keep this list in sync when adding/removing
+		// a hook (grep 'getenv( "JOZZ_M6' must match this comment):
+		//   DIAG      0/1  show suspension diagnostic lines
+		//   WHEEL     0/1  show the 3D wheel model
+		//   MOUNT     0/1  show the 3D suspension mount model
+		//   DUMPER    0/1  show the telescoping dampers
+		//   ARMTINT   0/1  tint arms (Top red / Bottom blue) vs the debug lines
+		//   DUMP      0/1  print corner geometry numbers on a frame (hard data)
+		//   CAM       "yaw,pitch,radius,px,py,pz"  camera pose
+		//   HERTZ     float  live suspension spring hertz
+		//   DAMP      float  live suspension damping ratio
+		//   PRELOAD   float  ride-height preload (sets BOTH axles; sliders split them)
+		//   DROOP     float  arm rest droop degrees (needs a rebuild)
+		//   TAB       0-5  force one tab open for a frame (Zaw/Nad/Nap/Kier/Świat/Debug)
+		//   PRESET    name  load a named preset on boot
+		// Throwaway regression scaffolds were removed 2026-07-09 (their bugs are
+		// fixed + guarded): JOZZ_M6_DIRTY_AT_FRAME (tab-identity), TEST_RESET_MODAL.
 		if ( const char* v = std::getenv( "JOZZ_M6_DIAG" ) )
 		{
 			m_showRigDiagnostics = atoi( v ) != 0;
@@ -239,10 +256,6 @@ public:
 		if ( const char* v = std::getenv( "JOZZ_M6_PRESET" ) )
 		{
 			LoadPresetByName( v );
-		}
-		if ( std::getenv( "JOZZ_M6_TEST_RESET_MODAL" ) )
-		{
-			m_testOpenResetModal = true;
 		}
 	}
 
@@ -1170,9 +1183,8 @@ public:
 		// fix above), an accidental click here would otherwise get silently
 		// baked in as the new "last session" the moment the app closes -
 		// exactly the kind of quiet data loss this whole pass was hunting for.
-		if ( ImGui::Button( "Przywróć wszystkie ustawienia domyślne" ) || m_testOpenResetModal )
+		if ( ImGui::Button( "Przywróć wszystkie ustawienia domyślne" ) )
 		{
-			m_testOpenResetModal = false;
 			ImGui::OpenPopup( "Potwierdz reset##ConfirmDefaults" );
 		}
 		HelpMarker( "Resetuje CAŁY pojazd do domyślnych ustawień fabrycznych - łącznie z nadwoziem (zakładka "
@@ -1753,20 +1765,6 @@ public:
 			DumpCornerGeometry();
 		}
 
-		// Regression probe for the tab-identity bug (fixed 2026-07-08): flips
-		// the dirty flag mid-run, after the tab bar has already rendered several
-		// clean frames with a tab selected - exactly the transition that broke
-		// under the old unstable "Zawieszenie"/"Zawieszenie *" tab IDs. Combine
-		// with JOZZ_M6_TAB=0 and a --frames count past the trigger to confirm
-		// the active tab stays put across the flip.
-		if ( const char* v = std::getenv( "JOZZ_M6_DIRTY_AT_FRAME" ) )
-		{
-			if ( ++m_dirtyProbeFrame == atoi( v ) )
-			{
-				m_structuralSetupDirty = true;
-			}
-		}
-
 		if ( m_showWheelVisuals && m_wheelVisual.IsLoaded() )
 		{
 			for ( int corner = 0; corner < JOZZ_M6_CORNER_COUNT; ++corner )
@@ -1940,14 +1938,12 @@ public:
 	bool m_dumpGeometry = false;
 	int m_dumpFrame = 0;
 	int m_forceTabIndex = -1; // JOZZ_M6_TAB: force a tab open once, for screenshots
-	int m_dirtyProbeFrame = 0; // JOZZ_M6_DIRTY_AT_FRAME: tab-identity regression probe
 
 	std::vector<std::string> m_availablePresets;
 	int m_selectedPresetIndex = -1;
 	char m_presetNameBuffer[64] = "";
 	std::string m_presetStatus;
 	std::string m_steeringClampStatus;
-	bool m_testOpenResetModal = false; // JOZZ_M6_TEST_RESET_MODAL: render-verify the confirm popup headless
 	b3Vec3 m_mountWheelCenterAuthored = { -0.416f, 0.175f, 0.0f };
 	b3Vec3 m_damperUpperLAuthored = { 0.0164f, 0.6453f, 0.2844f };
 	b3Vec3 m_damperUpperRAuthored = { 0.0164f, 0.6453f, -0.2844f };
