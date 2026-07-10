@@ -137,6 +137,36 @@ endif()
 add_subdirectory(shaders)
 add_subdirectory(gfx)
 
+# Jozz Vehicle headless core: the physics/contract/config-io TUs with no GUI
+# dependency. SINGLE SOURCE OF TRUTH - compiled into BOTH `samples` (below)
+# and `jozz_vehicle_validation` (further down). Add a new headless file HERE
+# once and both targets get it; previously the list was duplicated and a file
+# added to one target could silently drift from the other. A future rig-editor
+# target reuses the same variable.
+set(JOZZ_VEHICLE_CORE_FILES
+    jozz_vehicle_asset_contract.cpp
+    jozz_vehicle_asset_contract.h
+    jozz_vehicle_asset_dimensions.cpp
+    jozz_vehicle_asset_dimensions.h
+    jozz_vehicle_asset_metadata.cpp
+    jozz_vehicle_asset_metadata.h
+    jozz_vehicle_asset_paths.cpp
+    jozz_vehicle_asset_paths.h
+    jozz_vehicle_json.cpp
+    jozz_vehicle_json.h
+    jozz_vehicle_m5_vehicle.cpp
+    jozz_vehicle_m5_vehicle.h
+    jozz_vehicle_m6_config_io.cpp
+    jozz_vehicle_m6_config_io.h
+    jozz_vehicle_m6_suspension_rig.cpp
+    jozz_vehicle_m6_suspension_rig.h
+    jozz_vehicle_m7_suspension_import.cpp
+    jozz_vehicle_m7_suspension_import.h
+    jozz_vehicle_steering_suspension_contract.cpp
+    jozz_vehicle_steering_suspension_contract.h
+    jsmn.h
+)
+
 set(SAMPLE_FILES
     main.cpp
 
@@ -152,49 +182,32 @@ set(SAMPLE_FILES
     sample.h
     mesh_loader.cpp
     mesh_loader.h
-    jsmn.h
     tiny_obj_loader.h
     earcut.h
 
-    # Jozz Vehicle layer
-    jozz_vehicle_asset_contract.cpp
-    jozz_vehicle_asset_contract.h
-    jozz_vehicle_asset_dimensions.cpp
-    jozz_vehicle_asset_dimensions.h
-    jozz_vehicle_asset_metadata.cpp
-    jozz_vehicle_asset_metadata.h
-    jozz_vehicle_asset_paths.cpp
-    jozz_vehicle_asset_paths.h
+    # Jozz Vehicle layer: shared headless core (see JOZZ_VEHICLE_CORE_FILES)
+    ${JOZZ_VEHICLE_CORE_FILES}
+
+    # Jozz Vehicle layer: GUI-only (labs, benches, renderer, image decode) -
+    # samples target only, not the headless validator.
     jozz_vehicle_corner_rig.cpp
     jozz_vehicle_corner_rig.h
     jozz_vehicle_debug_preview.cpp
     jozz_vehicle_debug_preview.h
     jozz_vehicle_image_decode.cpp
     jozz_vehicle_image_decode.h
-    jozz_vehicle_json.cpp
-    jozz_vehicle_json.h
     jozz_vehicle_m5_drivable_lab.cpp
     jozz_vehicle_m5_drivable_lab.h
     jozz_vehicle_m5_test_course.cpp
     jozz_vehicle_m5_test_course.h
-    jozz_vehicle_m5_vehicle.cpp
-    jozz_vehicle_m5_vehicle.h
-    jozz_vehicle_m6_config_io.cpp
-    jozz_vehicle_m6_config_io.h
     jozz_vehicle_m6_rig_lab.cpp
     jozz_vehicle_m6_rig_lab.h
-    jozz_vehicle_m6_suspension_rig.cpp
-    jozz_vehicle_m6_suspension_rig.h
-    jozz_vehicle_m7_suspension_import.cpp
-    jozz_vehicle_m7_suspension_import.h
     jozz_vehicle_m8_rig_bench.cpp
     jozz_vehicle_m8_rig_bench.h
     jozz_vehicle_m9_steering_rig_bench.cpp
     jozz_vehicle_m9_steering_rig_bench.h
     jozz_vehicle_primitive_corner_lab.cpp
     jozz_vehicle_primitive_corner_lab.h
-    jozz_vehicle_steering_suspension_contract.cpp
-    jozz_vehicle_steering_suspension_contract.h
     jozz_vehicle_visual_asset.cpp
     jozz_vehicle_visual_asset.h
     jozz_vehicle_visual_mesh.cpp
@@ -239,27 +252,7 @@ target_compile_options(samples PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
 # Jozz: headless metadata/contract/vehicle guard, no GUI. Runs in CI-style validation.
 add_executable(jozz_vehicle_validation
     jozz_vehicle_validation.cpp
-    jozz_vehicle_asset_contract.cpp
-    jozz_vehicle_asset_contract.h
-    jozz_vehicle_asset_dimensions.cpp
-    jozz_vehicle_asset_dimensions.h
-    jozz_vehicle_m6_config_io.cpp
-    jozz_vehicle_m6_config_io.h
-    jozz_vehicle_asset_metadata.cpp
-    jozz_vehicle_asset_metadata.h
-    jozz_vehicle_asset_paths.cpp
-    jozz_vehicle_asset_paths.h
-    jozz_vehicle_json.cpp
-    jozz_vehicle_json.h
-    jozz_vehicle_m5_vehicle.cpp
-    jozz_vehicle_m5_vehicle.h
-    jozz_vehicle_m6_suspension_rig.cpp
-    jozz_vehicle_m6_suspension_rig.h
-    jozz_vehicle_m7_suspension_import.cpp
-    jozz_vehicle_m7_suspension_import.h
-    jozz_vehicle_steering_suspension_contract.cpp
-    jozz_vehicle_steering_suspension_contract.h
-    jsmn.h
+    ${JOZZ_VEHICLE_CORE_FILES}
 )
 
 if(APPLE)
