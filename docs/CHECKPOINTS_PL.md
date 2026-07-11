@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-11 · Plan przebudowy mapy: roadmapa + 6 etapów · docs
+- CO:     `PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md` + `MAPA_ETAP_1..6_*.md` — fundament terenu (płyta 400×400 z 3×3 kafli, offroad-heightfield 320×320 z 3 oktawami szumu i zakładką POD płytą), kit przeszkód + 6 lane'ów, tor+drift+stoper na sensorach, plac fizyki (shaker/taśma/most/eksplozja), spawner+stress, nawigacja+telemetria.
+- CZEMU:  Feedback Jozza 2026-07-11: mapa za mała i monotonna, offroad wystaje NAD płytę, przeszkody prymitywne, brak toru/spawnera — track wchodzi PRZED edytor rigu.
+- EFEKT:  Kompletna roadmapa z analizą stanu (screeny+kod), rozszerzeniami P1–P9 (teleporty, shaker 4-post, bramki czasowe, strefy tarcia, rolling road…), ryzykami R1–R11 i bramkami per etap; inwentarz ficzerów box3d zweryfikowany w nagłówkach silnika.
+- DALEJ:  Akceptacja Jozza (w tym rozmiary z §5 i propozycje P1–P9) → Etap 1; przy starcie E1 aktualizacja README §2.
+
 ## 2026-07-11 · Finalizacja E3: rama+rig domyślne, kolider chowany pod skinem · 1e9a3fb
 - CO:     Domyślne `bodyVisualModel="rama_rurowa"` + `frontSuspensionVisualModel="rig_kierowniczy"` (decyzje Jozza D1/D2). Kolider: bryła chassis chowa się pod nadwoziem 3D przez ISTNIEJĄCY `SetShapeHidden` (ten sam wzorzec co bryły kół; `chassisShapeId` dodany do `JozzVehicleM6`) + nowy checkbox Debug „Pokaż bryłę kolizyjną nadwozia" i env `JOZZ_M6_COLLIDER` (podgląd warstwy kolizji zawsze 1 klik). Presety built-in zostają częściowe (decyzja Jozza); sonda determinizmu: sabotaż odwrócony na „brak"/„klasyczny" (fabryka=rama/rig, inaczej asercje puste).
 - CZEMU:  Zamknięcie planu finalizacji (bc9b4c5): stan z rozgrzewki G1/G3 + rama = domyślny, spersystowany stan gry.
