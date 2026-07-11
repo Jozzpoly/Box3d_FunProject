@@ -4,9 +4,13 @@ Data: 2026-07-11. Autor: sesja Jozz Vehicle. Język: PL.
 Status: **W TOKU.** D1 = D1a (przód nowy / tył stary, decyzja Jozza). **G0 ZROBIONE**
 (żywy dokument audytu + O1). **G1 ZROBIONE** (import na przód, związany na żywe
 ciała z rozdziałem WheelCenter/ChassisMount_b; toggle `JOZZ_M6_STEERING_RIG` +
-checkbox Debug; walidator bez zmian; render obejrzany). Czeka na ręczny test
-skrętu Jozza. DALEJ: G3 (drążek→rack + dumper), potem G4 (cardan). Odkrycia
-O2–O5 w dokumencie wymagań.
+checkbox Debug; walidator bez zmian; render obejrzany). Rozdział dynamiczny
+**POTWIERDZONY przez Jozza na żywo** (skręt A/D); rozjazd „zbyt osobny" → dług #14.
+**G3 ZROBIONE** (drążek: inboard→ŚRODEK racka, L/P łączą się w centrum — reguła
+Jozza; dumper rigu: górne oko chassis / dolne ramię; walidator bez zmian; render
+obejrzany). Odkrycia O2–O7 w dokumencie wymagań. DALEJ: G4 (cardan) —
+OPCJONALNIE; bieżąca praca: podłączenie modelu nadwozia (`Nadwozie.gltf`) pod
+chassis (poza sekwencją gejtów, prośba Jozza).
 
 Powiązane: `EDYTOR_RIGU_WYMAGANIA_I_AUDYT_PL.md` (żywy dokument wymagań+audytu,
 zakładany przy G1), `SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md`, kontrakt

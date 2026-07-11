@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-11 · Edytor rigu G3: drążek kierowniczy → środek racka + dumper · <commit>
+- CO:     W `jozz_vehicle_m6_rig_lab_steering_visual.cpp` `DrawSteeringRig()`: drążek kierowniczy (node 7) rysowany `DrawPartBetween` od ŚRODKA realnego racka (`b3Body_GetWorldPoint(rackId,{0,0,0})`, inboard) do knuckla (outboard) — lewy i prawy drążek spotykają się w centrum (reguła Jozza „prawy z lewym się łączył") i przesuwają razem z maglownicą. Dumper rigu: górne oko na chassis (socket damperUpper), dolne oko niesione przez żywą pozę dolnego ramienia (`JozzVehicleComputeArmPlacement`+`MapAuthoredPoint` na socketie damperLower), rysowany `DrawTelescopingDamper`, gate `m_showDumper` (tylne dampery pomijają przód gdy rig on).
+- CZEMU:  G3 z planu rozgrzewki — drążek+dumper to najważniejsza prośba Jozza po potwierdzeniu G1. Pierwsza próba (inboard na KOŃCU racka) dała za krótki kikut (końce maglownicy siedzą przy knucklu) → poprawka na środek racka.
+- EFEKT:  build 3/3 OK, walidator OK, test PASS, smoke 0 err; walidator NIETKNIĘTY (czysto wizualnie). Render obejrzany (przód z dołu, symetria): drążek dłuższy, sięga do centrum; diff pikseli dumper on/off = pionowy amortyzator (rysuje się). Rozdział dynamiczny G1 potwierdzony przez Jozza na żywo (skręt A/D); rozjazd „zbyt osobny" → dług #14. Odkrycia O6 (kotwica na innym ciele potrzebuje SUB-pozycji: koniec vs środek) + O7 (trzeci tryb wiązania: socket niesiony przez pozę części stretch-between) w dokumencie wymagań.
+- DALEJ:  Podłączenie modelu nadwozia (`Nadwozie.gltf`) pod chassis (prośba Jozza, poza sekwencją gejtów). G4 (cardan) opcjonalnie.
+
 ## 2026-07-11 · Edytor rigu G0+G1: import steering-rig na przód labu M6 · <commit>
 - CO:     Start tracku edytora rigu (rozgrzewka=badanie+audyt). G0: żywe docy `docs/PLAN_EDYTOR_RIGU_ROZGRZEWKA_2026_07_11_PL.md` + `docs/EDYTOR_RIGU_WYMAGANIA_I_AUDYT_PL.md`. G1: nowy `jozz_vehicle_m6_rig_lab_steering_visual.cpp` (Load/Setup/Draw) importuje `OneSided_Steering_Suspension_Rig` na PRZEDNIE narożniki jeżdżącego labu M6; tył zostaje na starym mount (decyzja Jozza D1a). Za przełącznikiem `JOZZ_M6_STEERING_RIG` + checkbox Debug (domyślnie OFF).
 - CZEMU:  Fundament pod edytor rigu — wiążąc nowy model na żywe ciała realnego pojazdu na żywo wychodzą wymogi edytora (gizmos, rodzic per część, pivot). Jozz chce testować przód+tył razem.

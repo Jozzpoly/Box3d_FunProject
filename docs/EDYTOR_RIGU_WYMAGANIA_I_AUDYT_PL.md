@@ -104,16 +104,43 @@ nadpisania per model.
 **Stan weryfikacji G1:** render potwierdza — nowy rig na przedniej osi, tył =
 stary mount, symetria L/P, przyczepiony do żywych ciał, toggle przełącza tylko
 przód. Rozdział statyczny poprawny; DYNAMICZNY (WheelCenter skręca / ChassisMount_b
-stoi) wymaga potwierdzenia na żywo (skręt A/D) — headless nie wciska klawiszy.
-Walidator bez zmian (wizualnie). Pominięte świadomie: drążek (G3), dumper (G3),
-cardan (G4), per-ramię górne/dolne osobno (dziś oba końce wahaczy na `lowerArm`).
+stoi) — **POTWIERDZONY na żywo przez Jozza** (test skrętu A/D, 2026-07-11): koło +
+wewnętrzna piasta skręcają, ChassisMount_b + ramiona stoją. Uwaga: rozdział jest
+DYNAMICZNIE „zbyt osobny" — części rozjeżdżają się przy skręcie za bardzo (dług
+techniczny #14, odłożone decyzją Jozza; to kandydat na wczesny test edytora, bo
+pivot per część steruje właśnie tym rozjazdem). Walidator bez zmian (wizualnie).
+
+**O6 (G3, na żywo). Kotwica na innym ciele potrzebuje SUB-pozycji, nie tylko
+ciała.** Drążek związany z KOŃCEM racka (`{0,0,±rackHalfWidth}`) wyszedł za krótki
+— końce maglownicy M6 siedzą tuż przy knucklu, więc drążek był kikutem. Jozz:
+„prawy z lewym się łączył". Rozwiązanie: inboard obu drążków → ŚRODEK racka
+(`{0,0,0}`), więc lewy i prawy spotykają się w jednym punkcie i jadą razem z
+maglownicą. Wniosek dla edytora: tryb „kotwica na innym ciele" (O4/W2) to nie tylko
+WYBÓR ciała, ale i PUNKT na nim (koniec vs środek vs socket) — parametr sub-pozycji
+kotwicy. To samo dotyczyłoby np. dwóch końców racka jako osobnych kotwic.
+
+**O7 (G3, na żywo). Trzeci tryb wiązania: socket zwisający z części stretch-between.**
+Dolne oko dumpera nie jest ani „część na ciele", ani „stretch między ciałami" —
+to PUNKT authored zaczepiony na dolnym RAMIENIU, niesiony przez żywą pozę tego
+ramienia (`JozzVehicleComputeArmPlacement` + `JozzVehicleMapAuthoredPoint`). Górne
+oko to socket na chassis. Wniosek dla edytora: oprócz W2(a) sztywno-na-ciele i
+W2(b) stretch-between potrzebny jest tryb (d) „socket niesiony przez pozę części
+stretch-between" (interpolacja wzdłuż ramienia), inaczej dumper/przewody nie dadzą
+się związać poprawnie.
+
+**Stan weryfikacji G3:** render potwierdza — drążek rysowany od środka racka do
+knuckla (dłuższy, L/P łączą się w centrum), dumper rigu rysowany między górnym
+okiem na chassis a dolnym na ramieniu (diff pikseli on/off = pionowy amortyzator).
+Walidator bez zmian (wizualnie). Bo drążek pinuje inboard tym SAMYM punktem świata
+co linia racka w `DrawRigDiagnostics` — zbieżność z konstrukcji. Pominięte dalej:
+cardan (G4), per-ramię górne/dolne osobno.
 
 ## Część D — Otwarte pytania / decyzje
 
 - **D1 — aranżacja:** ROZSTRZYGNIĘTE (Jozz, 2026-07-11): przód = nowy rig
   sterujący, tył = obecny mount. Jeden jezdny pojazd.
-- Drążek kierowniczy: inboard → realny `rackId` (kontrakt tego wymaga), nie
-  zmyślony punkt. Do wpięcia w gejcie G3.
+- Drążek kierowniczy: ROZSTRZYGNIĘTE (G3) — inboard → ŚRODEK realnego `rackId`
+  (`{0,0,0}`), lewy i prawy łączą się w centrum (Jozz), jadą z maglownicą.
 - Cardan (`Cardan_shaft.gltf`, sockety cardanDrive/cardanHub) — nowy element,
   brak w labie; gejt G4.
 - Duplikacja socketów (fallback vs kontrakt) — docelowo jedno źródło (W5).

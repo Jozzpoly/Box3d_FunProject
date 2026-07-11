@@ -295,6 +295,29 @@ zmianę za zgodą Jozza. Mapa w `SUBSYSTEM_UI_PRESETS_PL.md §1b`.
 
 ---
 
+## 14. 🟡 Nowy rig kierowniczy — przy skręcie części zbyt mocno się rozjeżdżają (rozgrzewka edytora)
+
+**Opis (2026-07-11, potwierdzone przez Jozza na żywym teście G1):** rozdział
+WheelCenter/ChassisMount_b działa poprawnie — przy skręcie WheelCenter+koło
+obracają się, a ChassisMount_b i ramiona stoją (dokładnie tak, jak wymaga reguła
+Jozza). ALE dynamicznie rozdział jest „zbyt osobny": przy skręcie części
+przesuwają się/dislokują względem siebie ZA BARDZO i wizualnie się przemieszają
+(Jozz zaznaczył to na screenie z G1). Chodzi o wizualną spójność sąsiadujących
+części pod skrętem, nie o fizykę (fizyka jest realna i poprawna — to skóra na
+żywych ciałach).
+
+**Ryzyko:** niskie/kosmetyczne dziś (przód nowego rigu jest za przełącznikiem
+`JOZZ_M6_STEERING_RIG`, domyślnie OFF; walidator nietknięty). Ale to jest dokładnie
+klasa problemu, który edytor rigu ma rozwiązywać — pivot/punkt obrotu i zależność
+rodzica per część decydują, jak bardzo dwie części „rozjeżdżają się" pod ruchem.
+
+**Plan:** świadomie ODŁOŻONE (decyzja Jozza: „chyba nie zajmujmy się tym teraz").
+Kandydat na wczesny test przyszłego edytora — gdy będzie kontrola pivota per część,
+sprawdzić, czy da się dostroić rozdział tak, by sąsiednie części trzymały się przy
+skręcie. Powiązane odkrycia O1–O5 w `EDYTOR_RIGU_WYMAGANIA_I_AUDYT_PL.md`.
+
+---
+
 ## 13. Świadomie odłożone (roadmapa, nie „dług") — żeby nie zaskoczyło
 
 Nie są zepsute, są planowo poza zakresem v0. Wypisane, żeby nikt nie „odkrył" ich

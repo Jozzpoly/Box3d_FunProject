@@ -17,8 +17,12 @@
 //   - chassisId  : ChassisMount_a, SingleDamper_Mount (nieruchome brackety)
 //   - lowerArmId : ChassisMount_b + końce wahaczy (jeżdżą, NIE skręcają)
 //   - knuckleId  : WheelCenter (jeździ I skręca z kołem)
-// Drążek kierowniczy (node 7) świadomie pominięty tu - jego inboard musi jechać
-// na REALNYM racku (gejt G3), nie chcę go rysować źle.
+// Gejt G3 (2026-07-11): drążek kierowniczy (node 7) rysowany między ŚRODKIEM
+// realnego racka (inboard, z=0 - lewy i prawy drążek spotykają się tam) a
+// knucklem (outboard) - gdy maglownica jedzie przy skręcie, oba drążki przesuwają
+// się z nią razem (kontrakt: zawsze realny rack, nigdy zmyślony punkt). Damper
+// rigu: górne oko na chassis, dolne oko na dolnym ramieniu (mapowane przez żywą
+// pozę ramienia), ten sam asset i gate co tylne dampery.
 
 void JozzVehicleM6RigLab::LoadSteeringRig()
 	{
@@ -129,6 +133,8 @@ void JozzVehicleM6RigLab::DrawSteeringRig()
 	{
 		b3WorldTransform chassisLive = b3Body_GetTransform( m_vehicle.chassisId );
 		const Vec4 white = MakeVec4( 1.0f, 1.0f, 1.0f, 1.0f );
+		const Vec4 rodColor = MakeVec4( 0.95f, 0.75f, 0.2f, 1.0f );	 // steering rod (yellow)
+		const Vec4 damperColor = MakeVec4( 0.82f, 0.84f, 0.9f, 1.0f ); // telescoping shock
 
 		for ( int corner = 0; corner < JOZZ_M6_CORNER_COUNT; ++corner )
 		{
@@ -149,7 +155,32 @@ void JozzVehicleM6RigLab::DrawSteeringRig()
 			b3WorldTransform knuckleWorld =
 				b3MulWorldTransforms( b3Body_GetTransform( runtime.knuckleId ), m_steeringKnuckleLocal[corner] );
 
-			bool wheelNegX = CornerIsLeft( corner );
+			bool isLeft = CornerIsLeft( corner );
+			bool wheelNegX = isLeft;
+
+			// Live inboard reference for the steering rod = the REAL rack body's
+			// CENTRE (z=0). Both the left and right rods meet there (Jozz: "prawy z
+			// lewym się łączył") and slide together as the rack translates under
+			// steering. Still the real rack body (never a guessed point) - just its
+			// centre rather than its ±halfWidth ends, which sit right at the knuckle
+			// and left the rod a short stub. Front wishbone always has a rack; the
+			// guard is defensive.
+			bool haveRack = B3_IS_NON_NULL( m_vehicle.rackId );
+			b3Pos rackCenterLive = {};
+			if ( haveRack )
+			{
+				rackCenterLive = b3Body_GetWorldPoint( m_vehicle.rackId, { 0.0f, 0.0f, 0.0f } );
+			}
+
+			// Damper lower eye rides the lower arm. Filled precisely when the lower-
+			// arm part is drawn (mapped through its live placement, like the M9
+			// bench); the arm-frame transform is the fallback until then.
+			b3Vec3 damperLowerAuthored = m_steeringSockets.damperLower;
+			if ( isLeft == false )
+			{
+				damperLowerAuthored.x = -damperLowerAuthored.x;
+			}
+			b3Pos damperLowerLive = b3TransformPoint( armWorld, damperLowerAuthored );
 
 			for ( int i = 0; i < mesh.PartCount(); ++i )
 			{
@@ -161,8 +192,16 @@ void JozzVehicleM6RigLab::DrawSteeringRig()
 					// between them exactly as the physics arm swings.
 					b3Vec3 chassisEnd, wheelEnd;
 					ArmEnds( mesh.parts[i], wheelNegX, chassisEnd, wheelEnd );
-					mesh.DrawPartBetween( i, chassisEnd, wheelEnd, b3TransformPoint( chassisWorld, chassisEnd ),
-										  b3TransformPoint( armWorld, wheelEnd ), white );
+					b3Pos chassisEndLive = b3TransformPoint( chassisWorld, chassisEnd );
+					b3Pos wheelEndLive = b3TransformPoint( armWorld, wheelEnd );
+					mesh.DrawPartBetween( i, chassisEnd, wheelEnd, chassisEndLive, wheelEndLive, white );
+
+					if ( node == 5 ) // lower arm carries the damper's lower eye
+					{
+						JozzVehicleArmPlacement placement =
+							JozzVehicleComputeArmPlacement( chassisEnd, wheelEnd, chassisEndLive, wheelEndLive );
+						damperLowerLive = JozzVehicleMapAuthoredPoint( placement, damperLowerAuthored );
+					}
 				}
 				else if ( node == 8 ) // Socket_WheelCenter -> knuckle (STEERS with the wheel)
 				{
@@ -172,14 +211,34 @@ void JozzVehicleM6RigLab::DrawSteeringRig()
 				{
 					mesh.DrawPart( i, armWorld, white );
 				}
-				else if ( node == 7 ) // Socket_SteeringRod -> deferred to G3 (needs the real rack)
+				else if ( node == 7 ) // Socket_SteeringRod -> inboard on the rack centre, outboard on the knuckle
 				{
-					continue;
+					if ( haveRack )
+					{
+						b3Vec3 inboardEnd, outboardEnd;
+						ArmEnds( mesh.parts[i], wheelNegX, inboardEnd, outboardEnd );
+						b3Pos outboardLive = b3TransformPoint( knuckleWorld, outboardEnd );
+						mesh.DrawPartBetween( i, inboardEnd, outboardEnd, rackCenterLive, outboardLive, rodColor );
+					}
 				}
 				else // ChassisMount_a, SingleDamper_Mount, anything else -> chassis
 				{
 					mesh.DrawPart( i, chassisWorld, white );
 				}
+			}
+
+			// The rig's own telescoping shock: upper eye on the chassis bracket,
+			// lower eye on the lower arm. Same asset + gate (m_showDumper) as the
+			// rear mount's dampers, which skip the front while this rig is on.
+			if ( m_showDumper && m_dumper.IsLoaded() )
+			{
+				b3Vec3 damperUpperAuthored = m_steeringSockets.damperUpper;
+				if ( isLeft == false )
+				{
+					damperUpperAuthored.x = -damperUpperAuthored.x;
+				}
+				b3Pos damperTopLive = b3TransformPoint( chassisWorld, damperUpperAuthored );
+				m_dumper.DrawTelescopingDamper( damperTopLive, damperLowerLive, damperColor );
 			}
 		}
 	}
