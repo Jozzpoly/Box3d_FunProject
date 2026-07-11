@@ -17,7 +17,7 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
-## 2026-07-12 · Mapa Etap 1 doszlifowanie: offroad 400x400 + ridged/warp/roughness · [pending push]
+## 2026-07-12 · Mapa Etap 1 doszlifowanie: offroad 400x400 + ridged/warp/roughness · 783d0a3
 - CO:     Na wyraźne życzenie Jozza ("bardzo ważna sprawa, kilkadziesiąt godzin tygodniowo"): offroad 320×320→400×400 (równy kaflom płyty, siatka 257→321 pkt); `ComputeOffroadHeightLocal` przepisane — makro to teraz ridged noise (1-|szum|)², 2 oktawy, próbkowane przez domain warp (grzbiety wiją się, nie trzymają osi siatki); nowa warstwa `roughness` skaluje amplitudę mezo/mikro na podstawie kształtu makro (wysoko=szorstko, nisko=gładko), bramkowana osobnym szumem, zastępuje starą "maskę płaskości" niezależną od wysokości.
 - CZEMU:  3 konkretne uwagi Jozza ze screena i opisu: (1) offroad ma być tej samej wielkości co płyta, (2) chropowatość ma zależeć od wysokości z "odpowiednim szumem na jej występowanie", (3) teren bliżej prawdziwych gór (erozja poza zakresem, ridged+warp jako tani substytut). Pełne uzasadnienie: `MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md` §10.
 - EFEKT:  Build+walidator(18 sond)+test.exe+boot smoke M5/M6 zielone. Wydajność 1.37–1.65 ms/step (budżet 4 ms, zapas ≥2.4×) mimo +7 próbek szumu/punkt i większej siatki — koszt tylko przy budowie/regeneracji, nie w kroku fizyki. R4 nadal zamknięte: 49→49 shape'ów po 10 regeneracjach. Rendery `06_threequarter_mid`/`07_wide_threequarter`/`08_valley_vs_ridge` obejrzane: sieć organicznych grzbietów, równe kafle+szew bez uskoku, kontrast gładka dolina/szorstki grzbiet.
