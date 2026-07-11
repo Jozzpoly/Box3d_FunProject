@@ -552,6 +552,14 @@ void JozzVehicleM6RigLab::DrawDebugTab()
 		SectionHeader( "Wizualizacje" );
 		ImGui::Checkbox( "Model 3D kół", &m_showWheelVisuals );
 		ImGui::Checkbox( "Model 3D zawieszenia", &m_showMountVisuals );
+		if ( ImGui::Checkbox( "Nowy rig kierowniczy — przód (rozgrzewka)", &m_useSteeringRig ) )
+		{
+			// Re-bake so the toggle is live without a rebuild (front corners only).
+			SetupSteeringRig();
+		}
+		HelpMarker( "Przód: nowy model OneSided_Steering_Suspension_Rig zamiast starego mocowania; "
+					"tył zostaje na starym. WheelCenter skręca z kołem, ChassisMount_b jedzie na ramieniu "
+					"(nie skręca). Drążek/dumper/cardan dojdą w kolejnych gejtach." );
 		if ( ImGui::Checkbox( "Surowe kształty kolizji kół", &m_showPrimitiveWheelShapes ) )
 		{
 			UpdateWheelShapeVisibility();
@@ -567,6 +575,9 @@ void JozzVehicleM6RigLab::DrawDebugTab()
 		ImGui::TextWrapped( "koło: %s", m_wheelVisual.status.c_str() );
 		ImGui::TextWrapped( "mocowanie L: %s", m_riggedMountL.status.c_str() );
 		ImGui::TextWrapped( "mocowanie R: %s", m_riggedMountR.status.c_str() );
+		ImGui::TextWrapped( "rig kier. L: %s", m_riggedSteeringL.status.c_str() );
+		ImGui::TextWrapped( "rig kier. R: %s", m_riggedSteeringR.status.c_str() );
+		ImGui::TextWrapped( "kontrakt rig kier.: %s", m_steeringContract.status.c_str() );
 		ImGui::TextWrapped( "metadane: %s", m_assetMetadata.status.c_str() );
 
 		SectionHeader( "Telemetria na żywo (PL/PP/TL/TP)" );

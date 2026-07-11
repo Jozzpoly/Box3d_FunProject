@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-11 · Edytor rigu G0+G1: import steering-rig na przód labu M6 · <commit>
+- CO:     Start tracku edytora rigu (rozgrzewka=badanie+audyt). G0: żywe docy `docs/PLAN_EDYTOR_RIGU_ROZGRZEWKA_2026_07_11_PL.md` + `docs/EDYTOR_RIGU_WYMAGANIA_I_AUDYT_PL.md`. G1: nowy `jozz_vehicle_m6_rig_lab_steering_visual.cpp` (Load/Setup/Draw) importuje `OneSided_Steering_Suspension_Rig` na PRZEDNIE narożniki jeżdżącego labu M6; tył zostaje na starym mount (decyzja Jozza D1a). Za przełącznikiem `JOZZ_M6_STEERING_RIG` + checkbox Debug (domyślnie OFF).
+- CZEMU:  Fundament pod edytor rigu — wiążąc nowy model na żywe ciała realnego pojazdu na żywo wychodzą wymogi edytora (gizmos, rodzic per część, pivot). Jozz chce testować przód+tył razem.
+- EFEKT:  build 3/3 OK, walidator OK, test PASS, smoke 0 err; walidator NIETKNIĘTY (czysto wizualnie — te same ciała, zero nowych jointów). Render obejrzany (ON vs OFF, czoło, 3/4): 2 przednie narożniki = nowy rig, tył = stary, symetria L/P, przyczepiony, toggle przełącza tylko przód. **Rozdział O1 zaimplementowany od startu:** WheelCenter→`knuckleId` (skręca), ChassisMount_b + końce wahaczy→`lowerArmId` (jeździ, NIE skręca), brackety→`chassisId`. Odkrycia na żywo O2–O5 (bake=poza roota / kruchość magic-numberów węzłów / kotwice spoza modelu / konwencja mirror) w dokumencie wymagań.
+- DALEJ:  Ręczny test skrętu Jozza (dynamiczny rozdział — headless nie wciska A/D). Potem G3 (drążek→realny rack + dumper), G4 (cardan). Świadomie pominięte w G1: drążek/dumper/cardan, per-ramię górne/dolne osobno.
+
 ## 2026-07-11 · R5: suspension_rig — ekstrakcja czystej geometrii · <commit>
 - CO:     6 publicznych funkcji world-free (MakeWishboneHardpoints, DefaultTrailingArmGeometry, ComputeRackStroke, ComputeSteeringDeadPointDeg, SanitizeConfig, DefaultConfig — ciągły blok 154–507) przeniesione bajt-w-bajt z `jozz_vehicle_m6_suspension_rig.cpp` (1758→1404 l.) do nowego `jozz_vehicle_m6_geometry.{h,cpp}`. Dodane do `JOZZ_VEHICLE_CORE_FILES` (linkowane do samples I walidatora). `suspension_rig.h` NIETKNIĘTY (deklaracje zostają) → zero churnu w ~10 callerach.
 - CZEMU:  R5 z planu — "serce prep-u pod edytor" (edytor liczy hardpointy/martwy punkt bez tworzenia świata); zmniejszy suspension_rig przy okazji (ostatni watch-item TECH_DEBT #7).

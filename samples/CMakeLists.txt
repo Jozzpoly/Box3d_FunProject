@@ -207,6 +207,7 @@ set(SAMPLE_FILES
     jozz_vehicle_m6_rig_lab_internal.h
     jozz_vehicle_m6_rig_lab_mount_visual.cpp
     jozz_vehicle_m6_rig_lab_persistence.cpp
+    jozz_vehicle_m6_rig_lab_steering_visual.cpp
     jozz_vehicle_m6_rig_lab_ui_tabs.cpp
     jozz_vehicle_m8_rig_bench.cpp
     jozz_vehicle_m8_rig_bench.h

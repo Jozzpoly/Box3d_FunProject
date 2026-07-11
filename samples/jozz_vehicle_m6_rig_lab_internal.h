@@ -18,6 +18,7 @@
 #include "jozz_vehicle_m6_config_io.h"
 #include "jozz_vehicle_m6_suspension_rig.h"
 #include "jozz_vehicle_m7_suspension_import.h"
+#include "jozz_vehicle_steering_suspension_contract.h"
 #include "jozz_vehicle_visual_mesh.h"
 
 #include <cmath>
@@ -83,6 +84,13 @@ public:
 	static bool CornerIsLeft( int corner );
 	static void ArmEnds( const JozzVehicleRiggedPart& part, bool wheelNegX, b3Vec3& chassisEnd, b3Vec3& wheelEnd );
 	void SetupMountRig();
+	// New one-sided steering-suspension rig (front only), G1 of the rig-editor
+	// warm-up. Loads/bakes/draws OneSided_Steering_Suspension_Rig on the LIVE
+	// front-corner bodies; behind m_useSteeringRig so the default render path
+	// (old mount on all four) is untouched. See docs/PLAN_EDYTOR_RIGU_*.
+	void LoadSteeringRig();
+	void SetupSteeringRig();
+	void DrawSteeringRig();
 	float GetSpawnHeight() const;
 	void CreateVehicle();
 	void ResetWorld();
@@ -122,6 +130,16 @@ public:
 	JozzVehicleRiggedMesh m_riggedMountR; // mirrored copy (right corners)
 	JozzVehicleRiggedMesh m_dumper;		  // telescoping shock, per corner
 	bool m_showDumper = true;
+
+	// New steering-suspension rig (front-only, rig-editor warm-up G1). Loaded
+	// always; drawn only when m_useSteeringRig is on, replacing the old mount on
+	// the FRONT corners while the rear keeps the old mount (D1a). Visual-only:
+	// rides the same live bodies the physics already drives.
+	JozzVehicleAssetContract m_steeringContract;
+	JozzVehicleSteeringSuspensionSockets m_steeringSockets;
+	JozzVehicleRiggedMesh m_riggedSteeringL; // authored (left corners)
+	JozzVehicleRiggedMesh m_riggedSteeringR; // mirrored copy (right corners)
+	bool m_useSteeringRig = false;			 // JOZZ_M6_STEERING_RIG + Debug checkbox
 	bool m_armTint = false; // debug: tint wishbone arms to compare with debug lines
 	bool m_dumpGeometry = false;
 	int m_dumpFrame = 0;
@@ -140,6 +158,16 @@ public:
 	b3Transform m_bracketLocal[JOZZ_M6_CORNER_COUNT];
 	b3Transform m_hubLocal[JOZZ_M6_CORNER_COUNT];
 	bool m_cornerHasMount[JOZZ_M6_CORNER_COUNT] = {};
+
+	// Steering-rig bakes: three body-local frames of the SAME model placement,
+	// one per parent, so parts split by kinematic role (O1 in the audit doc):
+	// chassis = fixed brackets; arm (lowerArm = "carrier": travels, does NOT
+	// steer) = ChassisMount_b + wishbone wheel-ends; knuckle (travels AND steers)
+	// = WheelCenter. Front corners only; m_steeringCornerActive gates the rest.
+	b3Transform m_steeringChassisLocal[JOZZ_M6_CORNER_COUNT];
+	b3Transform m_steeringArmLocal[JOZZ_M6_CORNER_COUNT];
+	b3Transform m_steeringKnuckleLocal[JOZZ_M6_CORNER_COUNT];
+	bool m_steeringCornerActive[JOZZ_M6_CORNER_COUNT] = {};
 	JozzVehicleM7TrailingArmImport m_trailingImport;
 	JozzVehicleM6DriveInput m_lastInput = {};
 	float m_metersPerBlockbenchUnit;

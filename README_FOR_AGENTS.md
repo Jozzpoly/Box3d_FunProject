@@ -180,9 +180,10 @@ cmake --build --preset windows-debug --target test
 ```
 The lab reads env vars to pose state headless without UI clicks: `JOZZ_M6_CAM`
 ("yaw,pitch,radius,px,py,pz"), `JOZZ_M6_DIAG`, `JOZZ_M6_WHEEL`, `JOZZ_M6_DUMPER`,
-`JOZZ_M6_MOUNT`, `JOZZ_M6_TAB` (0-5 forces a UI tab open), `JOZZ_M6_PRESET`,
+`JOZZ_M6_MOUNT`, `JOZZ_M6_STEERING_RIG` (draw the new front steering rig instead of
+the old mount), `JOZZ_M6_TAB` (0-5 forces a UI tab open), `JOZZ_M6_PRESET`,
 `JOZZ_M6_HERTZ`/`DAMP`/`PRELOAD`/`DROOP`, `JOZZ_M6_DUMP` (prints corner geometry
-numbers). *(Authoritative list of all 13 hooks: the registry comment at the
+numbers). *(Authoritative list of all 14 hooks: the registry comment at the
 `getenv( "JOZZ_M6"` site in `jozz_vehicle_m6_rig_lab.cpp`.)*
 
 **⚠ The validator asserts loosely.** It PRINTS diagnostic numbers (e.g. steering
@@ -385,7 +386,13 @@ useful as history, **not** as current architecture. Trust this order:
   approves it: staged (R0–R7) big refactor — baseline-diff bar (validator
   numbers byte-identical, not just green), split of the four monoliths,
   config field-table, pure-geometry extraction (editor prep). Move-only
-  except R7; physics frozen.
+  except R7; physics frozen. **R0–R5 zrobione (2026-07-11); R6/R7 opcjonalne.**
+- `docs/PLAN_EDYTOR_RIGU_ROZGRZEWKA_2026_07_11_PL.md` — **aktywny track:** rozgrzewka
+  pod edytor rigu — import `OneSided_Steering_Suspension_Rig` na przód labu M6
+  (przód nowy / tył stary), gejtami; jednocześnie research+audyt.
+- `docs/EDYTOR_RIGU_WYMAGANIA_I_AUDYT_PL.md` — **żywy dokument:** audyt jak rig
+  działa dziś + wymagania edytora (per-część rodzic, pivot, gizmos, tryby
+  wiązania) + odkrycia na żywo (O1–O5). Read before rig-editor work.
 - `docs/PLAN_PORZADKI_FUNDAMENT_2026_07_09_PL.md` — **DONE** (stages A–G,
   2026-07-09): gate script, shared CMake list, probe registry, persistence
   map, env registry, encoded STOP-gates.
