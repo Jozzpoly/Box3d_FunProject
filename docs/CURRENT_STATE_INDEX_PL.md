@@ -294,7 +294,8 @@ Visual proof code:
 samples/jozz_vehicle_primitive_corner_lab.h
 samples/jozz_vehicle_primitive_corner_lab.cpp
 samples/jozz_vehicle_visual_mesh.h
-samples/jozz_vehicle_visual_mesh.cpp
+samples/jozz_vehicle_visual_mesh_loader.cpp
+samples/jozz_vehicle_visual_mesh_draw.cpp
 samples/jozz_vehicle_image_decode.h
 samples/jozz_vehicle_image_decode.cpp
 samples/jozz_vehicle_validation.cpp

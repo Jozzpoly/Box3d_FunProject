@@ -143,8 +143,15 @@ zostawić.
 watch-item i więcej — `rig_lab.cpp` (2003 l.) podzielony move-only na nagłówek
 wewnętrzny (klasa) + 4 TU per odpowiedzialność (main / `_ui_tabs` / `_persistence`
 / `_mount_visual`), zweryfikowany `-DiffBaseline` + quad + 6 zrzutów zakładek
-identycznych. `visual_mesh` (R4) i `suspension_rig` (R5) — kolejne etapy w
-`PLAN_WIELKI_REFACTOR_2026_07_09_PL.md`.
+identycznych.
+
+**✅ ADRESOWANE dla `visual_mesh` (R4, 2026-07-11):** `jozz_vehicle_visual_mesh.cpp`
+(1968 l.) podzielony move-only na `_loader.cpp` (1761 l.: parser glTF/skin/kości +
+`LoadStaticGltf`/`LoadSkinnedGltf`/`Destroy`/`IsLoaded`/`PartCount`) i `_draw.cpp`
+(232 l.: `Draw*`, placement (`JozzVehicleComputeArmPlacement`/`MapAuthoredPoint`),
+`DrawTelescopingDamper`, `ComputeJozzVehicleWheelVisualCorrection`). Publiczny
+nagłówek bez zmian. `-DiffBaseline` + quad IDENTYCZNE. `suspension_rig` (R5) —
+kolejny etap w `PLAN_WIELKI_REFACTOR_2026_07_09_PL.md`.
 
 ---
 

@@ -284,12 +284,13 @@ in chat*, not what gets done.
   Caveat: `-q` suppresses *progress* output, not error text — a failed command
   still prints its error and still needs full, un-quieted output for
   diagnosis.
-- **Grep/offset before full Read.** The largest files
-  (`jozz_vehicle_visual_mesh.cpp` ~1900L, `jozz_vehicle_m6_suspension_rig.cpp`
-  ~1500L — see TECH_DEBT #7) are where a targeted Grep beats reading the whole
-  file. `jozz_vehicle_m6_rig_lab` was split (R3, 2026-07-11) into `_internal.h`
-  (the class) + `.cpp` / `_ui_tabs.cpp` / `_persistence.cpp` / `_mount_visual.cpp`
-  by responsibility — grep the TU whose name matches what you need. Don't re-read a
+- **Grep/offset before full Read.** The largest remaining file
+  (`jozz_vehicle_m6_suspension_rig.cpp` ~1500L — see TECH_DEBT #7) is where a
+  targeted Grep beats reading the whole file. `jozz_vehicle_m6_rig_lab` was split
+  (R3, 2026-07-11) into `_internal.h` (the class) + `.cpp` / `_ui_tabs.cpp` /
+  `_persistence.cpp` / `_mount_visual.cpp` by responsibility; `jozz_vehicle_visual_mesh`
+  was split (R4, 2026-07-11) into `_loader.cpp` (glTF/skin parsing) / `_draw.cpp`
+  (Draw*/placement/damper) — grep the TU whose name matches what you need. Don't re-read a
   file already seen this session unless something could plausibly have
   changed it (your own edit already invalidates the "unread" assumption
   automatically; a fresh session, a compaction, or work landing on the shared

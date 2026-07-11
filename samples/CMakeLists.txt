@@ -214,8 +214,9 @@ set(SAMPLE_FILES
     jozz_vehicle_primitive_corner_lab.h
     jozz_vehicle_visual_asset.cpp
     jozz_vehicle_visual_asset.h
-    jozz_vehicle_visual_mesh.cpp
     jozz_vehicle_visual_mesh.h
+    jozz_vehicle_visual_mesh_draw.cpp
+    jozz_vehicle_visual_mesh_loader.cpp
 
     # Samples
     sample_benchmark.cpp

@@ -190,6 +190,35 @@ Kryterium: `-DiffBaseline` + quad_shot diff + zrzut każdej zakładki
 (JOZZ_M6_TAB 0–5) wizualnie identyczny z baseline.
 
 ### R4 — visual_mesh: loader vs rysowanie (move-only)
+> **Status:** ✅ WYKONANE 2026-07-11. `jozz_vehicle_visual_mesh.cpp` (1968 l.)
+> → `_loader.cpp` (1761 l.: cała anonimowa przestrzeń nazw z parserem glTF/
+> bufferView/accessor/node/material/sampler/image/skin + `LoadStaticGltf`,
+> `LoadSkinnedGltf`, `Destroy`/`IsLoaded`/`PartCount` obu structów) +
+> `_draw.cpp` (232 l.: `Draw`/`DrawAtTransform`/`DrawPart`/`DrawPartScaled`/
+> `FindPart`/`DrawPartBetween`/`DrawTelescopingDamper`,
+> `JozzVehicleComputeArmPlacement`/`JozzVehicleMapAuthoredPoint`,
+> `ComputeJozzVehicleWheelVisualCorrection`). Nagłówek publiczny
+> `jozz_vehicle_visual_mesh.h` bez zmian.
+>
+> **Prostsze niż R3, jedna nietrywialna decyzja:** w tym pliku KAŻDA metoda
+> była już zdefiniowana poza klasą (nie w klasie jak w rig_lab) — więc podział
+> to czyste cięcie tekstu na dwa pliki, zero transformacji sygnatur. Cały
+> anonimowy `namespace{}` z helperami parsera (Base64/Matrix4/Accessor/...)
+> okazał się używany WYŁĄCZNIE przez `LoadStaticGltf`/`LoadSkinnedGltf`
+> (zweryfikowane grepem każdego symbolu przed cięciem) — poszedł w całości do
+> `_loader.cpp`, dając czysty podział bez żadnego symbolu potrzebnego w obu
+> plikach. `FindPart` (query, nie load) poszedł do `_draw.cpp`, bo jest używany
+> wyłącznie wewnętrznie przez `DrawTelescopingDamper`. Oba pliki dostały
+> identyczny, niezredukowany blok include'ów z oryginału (jak nagłówek
+> wewnętrzny w R3) — świadomie bez prób „wycięcia zbędnych" per plik, żeby nie
+> ryzykować przeoczonej transitywnej zależności.
+>
+> **Weryfikacja:** cięcie skryptem z asercjami granic (26..1968, zero
+> luk/nakładek, suma bloków = dokładnie ciało oryginału); build 3/3 czysty za
+> pierwszym razem; `-DiffBaseline` walidator 349 linii IDENTYCZNE; quad render
+> IDENTYCZNY (hash) — quad_shot renderuje rig lab, który faktycznie ćwiczy
+> `visual_mesh` (mocowania/dumpery przez `JozzVehicleRiggedMesh`), więc to nie
+> jest pusta weryfikacja.
 - `jozz_vehicle_visual_mesh_loader.cpp` (glTF/skin/kości/kontrakty punktów),
 - `jozz_vehicle_visual_mesh_draw.cpp` (Draw*, placement, damper teleskopowy).
 Nagłówek publiczny bez zmian. Kryterium jak R3 (quad_shot obowiązkowy).

@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-11 · R4: visual_mesh — podział na loader + rysowanie · <commit>
+- CO:     `jozz_vehicle_visual_mesh.cpp` (1968 l.) → `_loader.cpp` (1761 l.: cały parser glTF/skin w anonimowej ns + `LoadStaticGltf`/`LoadSkinnedGltf`/`Destroy`/`IsLoaded`/`PartCount`) + `_draw.cpp` (232 l.: `Draw*`/`FindPart`/placement/`DrawTelescopingDamper`/`ComputeJozzVehicleWheelVisualCorrection`); move-only, nagłówek publiczny bez zmian.
+- CZEMU:  R4 z planu — kolejny watch-item z TECH_DEBT #7 spłacony; prostszy niż R3 (każda metoda była już poza-klasowa, zero transformacji sygnatur — czyste cięcie tekstu).
+- EFEKT:  cięcie skryptem z asercjami granic (zero luk/nakładek, 26..1968 pokryte dokładnie); build 3/3 OK za pierwszym razem; `-DiffBaseline` walidator 349 linii IDENTYCZNE; quad render IDENTYCZNY (hash — rig lab faktycznie ćwiczy `visual_mesh` przez mocowania/dumpery). Anonimowa przestrzeń nazw z parserem okazała się używana WYŁĄCZNIE przez oba `Load*` (zweryfikowane grepem) — trafiła w całości do `_loader.cpp`, dając czysty podział.
+- DALEJ:  R5 (suspension_rig: ekstrakcja czystej geometrii, „serce prep-u pod edytor") — za sygnałem Jozza. Warstwa zdolności contentu (TECH_DEBT #6/#12/#13) osobno.
+
 ## 2026-07-11 · R3: rig_lab — podział na nagłówek wewnętrzny + 4 TU · <commit>
 - CO:     `jozz_vehicle_m6_rig_lab.cpp` (2003 l.) → `_internal.h` (klasa, 42 metody) + 4 TU (main / `_ui_tabs` / `_persistence` / `_mount_visual`); move-only.
 - CZEMU:  spłata długu monolitu (TECH_DEBT #7) + tańsza nawigacja/sesje agentów przed pracą nad contentem; fundament pod R4/R5.
