@@ -17,7 +17,7 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
-## 2026-07-11 · Finalizacja E3: rama+rig domyślne, kolider chowany pod skinem · <commit>
+## 2026-07-11 · Finalizacja E3: rama+rig domyślne, kolider chowany pod skinem · 1e9a3fb
 - CO:     Domyślne `bodyVisualModel="rama_rurowa"` + `frontSuspensionVisualModel="rig_kierowniczy"` (decyzje Jozza D1/D2). Kolider: bryła chassis chowa się pod nadwoziem 3D przez ISTNIEJĄCY `SetShapeHidden` (ten sam wzorzec co bryły kół; `chassisShapeId` dodany do `JozzVehicleM6`) + nowy checkbox Debug „Pokaż bryłę kolizyjną nadwozia" i env `JOZZ_M6_COLLIDER` (podgląd warstwy kolizji zawsze 1 klik). Presety built-in zostają częściowe (decyzja Jozza); sonda determinizmu: sabotaż odwrócony na „brak"/„klasyczny" (fabryka=rama/rig, inaczej asercje puste).
 - CZEMU:  Zamknięcie planu finalizacji (bc9b4c5): stan z rozgrzewki G1/G3 + rama = domyślny, spersystowany stan gry.
 - EFEKT:  gate 3/3 OK, walidator OK (liczby fizyczne IDENTYCZNE), doc-drift czysty; quad świeżego bootu (bez env/sesji) = rama+rig+schowana bryła w 4 ujęciach; zrzut `JOZZ_M6_COLLIDER=1` = bryła wraca na wierzch. Dokument planu Etapu 3 mylił się co do wariantu A („zbadaj czy callback ma shapeId") — `SetShapeHidden` istniał i był używany przez ten sam lab dla kół.
