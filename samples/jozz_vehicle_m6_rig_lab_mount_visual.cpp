@@ -79,6 +79,51 @@ void JozzVehicleM6RigLab::LoadMountVisual()
 			readDamperSocket( "suspension.visual.damper_lower_r", { -0.2516f, 0.0109f, -0.2844f } );
 	}
 
+	// Jozz's full chassis frame (Nadwozie.gltf) as a single rigid skin over the
+	// chassis body. Unlike the suspension parts it does NOT articulate, so its
+	// placement is one constant transform in the chassis body's LOCAL frame.
+	// Blockbench authored it +Y up, length along Z (front at -Z), width along X;
+	// the car's local frame is +X forward, +Y up, +Z the car's right. Yaw -90 about
+	// Y maps the model's front (-Z) onto forward (+X). The model origin sits at the
+	// wheelbase centre (the front/rear differentials are symmetric about z=0) near
+	// ground level, so anchoring model origin -> chassis origin keeps the wheelbase
+	// and width centred; only the height is nudged to seat the frame on the box.
+void JozzVehicleM6RigLab::LoadBodyVisual()
+	{
+		m_bodyVisual.Destroy();
+
+		std::string path;
+		if ( FindJozzVehicleAssetFile( "assets/source/Nadwozie.gltf", &path ) )
+		{
+			m_bodyVisual.LoadStaticGltf( path.c_str(), m_metersPerBlockbenchUnit );
+		}
+
+		// Placement solved from measured geometry (2026-07-11): model bounds
+		// 3.28 m long (Z) x 2.73 m wide (X) x 1.23 m tall (Y), centred in X/Z with
+		// its floor near y=0; the car's wheelbase is 2.50 m (front +X), track
+		// 2.10 m, chassis origin 0.60 m above the axle line. Yaw -90 maps model +Z
+		// (rear) onto -X (rear) and model X (width) onto Z (track). Anchoring the
+		// model origin at chassis-local (0, -0.60, 0) centres the body on the
+		// wheelbase/track and drops its floor to about axle height.
+		b3Quat yaw = b3MakeQuatFromAxisAngle( b3Vec3_axisY, -0.5f * B3_PI );
+		m_bodyChassisLocal.q = yaw;
+		m_bodyChassisLocal.p = { 0.0f, -0.60f, 0.0f };
+	}
+
+	// Draws the frame rigidly on the live chassis: worldTransform = chassisLive o
+	// m_bodyChassisLocal. Whole-mesh (not per-bone) because the frame is one rigid
+	// piece. Gated by m_showBodyVisual (default off; JOZZ_M6_BODY + Debug checkbox).
+void JozzVehicleM6RigLab::DrawBodyVisual()
+	{
+		if ( m_bodyVisual.IsLoaded() == false )
+		{
+			return;
+		}
+		b3WorldTransform chassisLive = b3Body_GetTransform( m_vehicle.chassisId );
+		b3WorldTransform world = b3MulWorldTransforms( chassisLive, m_bodyChassisLocal );
+		m_bodyVisual.DrawAtTransform( world, MakeVec4( 1.0f, 1.0f, 1.0f, 1.0f ) );
+	}
+
 bool JozzVehicleM6RigLab::CornerIsLeft( int corner )
 	{
 		return corner == JOZZ_M6_FRONT_LEFT || corner == JOZZ_M6_REAR_LEFT;

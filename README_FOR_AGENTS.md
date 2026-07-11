@@ -181,9 +181,10 @@ cmake --build --preset windows-debug --target test
 The lab reads env vars to pose state headless without UI clicks: `JOZZ_M6_CAM`
 ("yaw,pitch,radius,px,py,pz"), `JOZZ_M6_DIAG`, `JOZZ_M6_WHEEL`, `JOZZ_M6_DUMPER`,
 `JOZZ_M6_MOUNT`, `JOZZ_M6_STEERING_RIG` (draw the new front steering rig instead of
-the old mount), `JOZZ_M6_TAB` (0-5 forces a UI tab open), `JOZZ_M6_PRESET`,
+the old mount), `JOZZ_M6_BODY` (draw Jozz's full chassis frame Nadwozie as a rigid
+skin), `JOZZ_M6_TAB` (0-5 forces a UI tab open), `JOZZ_M6_PRESET`,
 `JOZZ_M6_HERTZ`/`DAMP`/`PRELOAD`/`DROOP`, `JOZZ_M6_DUMP` (prints corner geometry
-numbers). *(Authoritative list of all 14 hooks: the registry comment at the
+numbers). *(Authoritative list of all 15 hooks: the registry comment at the
 `getenv( "JOZZ_M6"` site in `jozz_vehicle_m6_rig_lab.cpp`.)*
 
 **⚠ The validator asserts loosely.** It PRINTS diagnostic numbers (e.g. steering

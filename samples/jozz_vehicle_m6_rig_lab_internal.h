@@ -81,6 +81,10 @@ public:
 	void SaveCurrentAsPreset( const std::string& name );
 	void LoadWheelVisual();
 	void LoadMountVisual();
+	// Rigid chassis-frame skin (Nadwozie.gltf) fixed in the chassis body's local
+	// frame; drawn only when m_showBodyVisual is on. See docs/PLAN_EDYTOR_RIGU_*.
+	void LoadBodyVisual();
+	void DrawBodyVisual();
 	static bool CornerIsLeft( int corner );
 	static void ArmEnds( const JozzVehicleRiggedPart& part, bool wheelNegX, b3Vec3& chassisEnd, b3Vec3& wheelEnd );
 	void SetupMountRig();
@@ -140,6 +144,15 @@ public:
 	JozzVehicleRiggedMesh m_riggedSteeringL; // authored (left corners)
 	JozzVehicleRiggedMesh m_riggedSteeringR; // mirrored copy (right corners)
 	bool m_useSteeringRig = false;			 // JOZZ_M6_STEERING_RIG + Debug checkbox
+
+	// Rigid chassis-frame skin (Nadwozie.gltf), fixed in the chassis body's local
+	// frame (m_bodyChassisLocal is constant - the frame does not articulate).
+	// Drawn only when m_showBodyVisual is on (JOZZ_M6_BODY + Debug checkbox);
+	// default off so the suspension stays visible in this rig lab.
+	JozzVehicleVisualMesh m_bodyVisual;
+	b3WorldTransform m_bodyChassisLocal;
+	bool m_showBodyVisual = false;
+
 	bool m_armTint = false; // debug: tint wishbone arms to compare with debug lines
 	bool m_dumpGeometry = false;
 	int m_dumpFrame = 0;

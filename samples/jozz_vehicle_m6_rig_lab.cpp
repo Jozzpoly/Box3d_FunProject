@@ -108,6 +108,7 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		LoadWheelVisual();
 		LoadMountVisual();
 		LoadSteeringRig(); // new front rig (rig-editor warm-up G1); needed before CreateVehicle bakes it
+		LoadBodyVisual();  // Jozz's full chassis frame (Nadwozie), rigid skin on the chassis body
 		CreateVehicle(); // sets up the per-corner mount rig, needs the visuals loaded
 		SyncEditFromConfig();
 
@@ -119,6 +120,7 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		//   WHEEL     0/1  show the 3D wheel model
 		//   MOUNT     0/1  show the 3D suspension mount model
 		//   STEERING  0/1  draw the NEW front steering rig instead of the old mount (front only)
+		//   BODY      0/1  draw Jozz's full chassis frame (Nadwozie) as a rigid skin
 		//   DUMPER    0/1  show the telescoping dampers
 		//   ARMTINT   0/1  tint arms (Top red / Bottom blue) vs the debug lines
 		//   DUMP      0/1  print corner geometry numbers on a frame (hard data)
@@ -158,6 +160,10 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		if ( const char* v = std::getenv( "JOZZ_M6_STEERING_RIG" ) )
 		{
 			m_useSteeringRig = atoi( v ) != 0;
+		}
+		if ( const char* v = std::getenv( "JOZZ_M6_BODY" ) )
+		{
+			m_showBodyVisual = atoi( v ) != 0;
 		}
 		if ( const char* v = std::getenv( "JOZZ_M6_ARMTINT" ) )
 		{
@@ -219,6 +225,7 @@ JozzVehicleM6RigLab::~JozzVehicleM6RigLab()
 		m_dumper.Destroy();
 		m_riggedSteeringL.Destroy();
 		m_riggedSteeringR.Destroy();
+		m_bodyVisual.Destroy();
 		DestroyJozzVehicleM5TestCourse( &m_testCourse );
 		m_context->enableContinuous = m_savedEnableContinuous;
 	}
@@ -608,6 +615,11 @@ void JozzVehicleM6RigLab::Render()
 				m_dumper.DrawTelescopingDamper( b3TransformPoint( bracketWorld, upperR ),
 												 b3TransformPoint( hubWorld, lowerR ), damperColor );
 			}
+		}
+
+		if ( m_showBodyVisual )
+		{
+			DrawBodyVisual();
 		}
 
 		if ( m_showRigDiagnostics )

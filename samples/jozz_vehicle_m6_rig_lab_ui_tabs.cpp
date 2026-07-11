@@ -559,7 +559,11 @@ void JozzVehicleM6RigLab::DrawDebugTab()
 		}
 		HelpMarker( "Przód: nowy model OneSided_Steering_Suspension_Rig zamiast starego mocowania; "
 					"tył zostaje na starym. WheelCenter skręca z kołem, ChassisMount_b jedzie na ramieniu "
-					"(nie skręca). Drążek/dumper/cardan dojdą w kolejnych gejtach." );
+					"(nie skręca). Drążek (inboard→środek racka, L/P łączą się) i dumper: G3 zrobione. "
+					"Cardan: G4." );
+		ImGui::Checkbox( "Nadwozie 3D (rama Jozza) na chassis", &m_showBodyVisual );
+		HelpMarker( "Pełna rama nadwozia (Nadwozie.gltf) jako sztywna skóra na ciele chassis. "
+					"Domyślnie wył. — w tym labie zasłania zawieszenie; włącz, by zobaczyć cały pojazd." );
 		if ( ImGui::Checkbox( "Surowe kształty kolizji kół", &m_showPrimitiveWheelShapes ) )
 		{
 			UpdateWheelShapeVisibility();
