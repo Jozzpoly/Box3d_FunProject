@@ -478,6 +478,14 @@ procedural damper/cardan/chassis visual parts
 
 ## 11. Next pass
 
+**2026-07-11 — aktywny plan: `PLAN_FINALIZACJA_NADWOZIA_I_RIGU_2026_07_11_PL.md`**
+(finalizacja nadwozia `Nadwozie.gltf` + przedniego rigu kierowniczego jako
+domyślnego stanu gry: wybór modelu nadwozia w zakładce Nadwozie, offset
+pozycji, persystencja przez R/presety/auto-sesję, kolider chassis; 3 etapy z
+dokumentami `FINALIZACJA_ETAP_{1,2,3}_*_PL.md`). Rozgrzewka edytora rigu
+(G1+G3) zrobiona i potwierdzona; odkrycia O1–O7 w
+`EDYTOR_RIGU_WYMAGANIA_I_AUDYT_PL.md`.
+
 ```text
 2026-07-06 (later): M7 Real Forces Foundation implemented after Jozz's M6
   drive feedback ("suspension breaks on the jump", "slide self-align feels

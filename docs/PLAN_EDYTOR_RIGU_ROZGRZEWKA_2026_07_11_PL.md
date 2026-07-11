@@ -8,9 +8,12 @@ checkbox Debug; walidator bez zmian; render obejrzany). Rozdział dynamiczny
 **POTWIERDZONY przez Jozza na żywo** (skręt A/D); rozjazd „zbyt osobny" → dług #14.
 **G3 ZROBIONE** (drążek: inboard→ŚRODEK racka, L/P łączą się w centrum — reguła
 Jozza; dumper rigu: górne oko chassis / dolne ramię; walidator bez zmian; render
-obejrzany). Odkrycia O2–O7 w dokumencie wymagań. DALEJ: G4 (cardan) —
-OPCJONALNIE; bieżąca praca: podłączenie modelu nadwozia (`Nadwozie.gltf`) pod
-chassis (poza sekwencją gejtów, prośba Jozza).
+obejrzany). Odkrycia O2–O7 w dokumencie wymagań. Nadwozie (`Nadwozie.gltf`)
+podłączone sztywno pod chassis (a275947, poza sekwencją gejtów, prośba Jozza).
+DALEJ: rozgrzewka pauzuje — **aktywny track przejmuje
+`PLAN_FINALIZACJA_NADWOZIA_I_RIGU_2026_07_11_PL.md`** (pełna integracja
+rigu+nadwozia do gry: wybór modelu, persystencja R/presety, domyślne ON).
+G4 (cardan) zostaje opcjonalny po finalizacji.
 
 Powiązane: `EDYTOR_RIGU_WYMAGANIA_I_AUDYT_PL.md` (żywy dokument wymagań+audytu,
 zakładany przy G1), `SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md`, kontrakt

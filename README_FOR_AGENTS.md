@@ -388,9 +388,14 @@ useful as history, **not** as current architecture. Trust this order:
   numbers byte-identical, not just green), split of the four monoliths,
   config field-table, pure-geometry extraction (editor prep). Move-only
   except R7; physics frozen. **R0–R5 zrobione (2026-07-11); R6/R7 opcjonalne.**
-- `docs/PLAN_EDYTOR_RIGU_ROZGRZEWKA_2026_07_11_PL.md` — **aktywny track:** rozgrzewka
-  pod edytor rigu — import `OneSided_Steering_Suspension_Rig` na przód labu M6
-  (przód nowy / tył stary), gejtami; jednocześnie research+audyt.
+- `docs/PLAN_FINALIZACJA_NADWOZIA_I_RIGU_2026_07_11_PL.md` — **aktywny track:**
+  finalizacja nadwozia + przedniego rigu jako domyślnego stanu gry — wybór
+  modelu nadwozia w zakładce Nadwozie, persystencja (R/presety/auto-sesja),
+  kolider. 3 etapy, każdy ma własny doc `FINALIZACJA_ETAP_*_PL.md`.
+- `docs/PLAN_EDYTOR_RIGU_ROZGRZEWKA_2026_07_11_PL.md` — rozgrzewka pod edytor
+  rigu: **G0/G1/G3 ZROBIONE** (import na przód + drążek do środka racka +
+  dumper; potwierdzone przez Jozza), G4 (cardan) opcjonalny. Wyniki wchłania
+  plan finalizacji wyżej; odkrycia O1–O7 w dokumencie wymagań.
 - `docs/EDYTOR_RIGU_WYMAGANIA_I_AUDYT_PL.md` — **żywy dokument:** audyt jak rig
   działa dziś + wymagania edytora (per-część rodzic, pivot, gizmos, tryby
   wiązania) + odkrycia na żywo (O1–O5). Read before rig-editor work.
