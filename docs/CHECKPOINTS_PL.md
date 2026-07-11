@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-11 · R5: suspension_rig — ekstrakcja czystej geometrii · <commit>
+- CO:     6 publicznych funkcji world-free (MakeWishboneHardpoints, DefaultTrailingArmGeometry, ComputeRackStroke, ComputeSteeringDeadPointDeg, SanitizeConfig, DefaultConfig — ciągły blok 154–507) przeniesione bajt-w-bajt z `jozz_vehicle_m6_suspension_rig.cpp` (1758→1404 l.) do nowego `jozz_vehicle_m6_geometry.{h,cpp}`. Dodane do `JOZZ_VEHICLE_CORE_FILES` (linkowane do samples I walidatora). `suspension_rig.h` NIETKNIĘTY (deklaracje zostają) → zero churnu w ~10 callerach.
+- CZEMU:  R5 z planu — "serce prep-u pod edytor" (edytor liczy hardpointy/martwy punkt bez tworzenia świata); zmniejszy suspension_rig przy okazji (ostatni watch-item TECH_DEBT #7).
+- EFEKT:  build 3/3 OK (walidator linkuje geometry.cpp — placement w CORE_FILES potwierdzony); `-DiffBaseline` walidator 349 linii IDENTYCZNE (mocny dowód: geometria KARMI kotwice jointów, więc dryf FP pokazałby się w liczbach); quad IDENTYCZNY (hash); diff suspension_rig = czysto move (1 include +, 355 −); ciało geometry.cpp = usunięte linie bajt-w-bajt. **Zakres zawężony za zgodą Jozza (STOP-gate):** wyciągnięto 6 z 9 funkcji planu; 3 helpery wewnętrzne (HingeSwingLimit/SteeringLinkDroopLift/SteeringArmWithToe) ZOSTAŁY — to `static` impl-detale fizyki, SteeringArmWithToe kaskaduje zależność od IsFrontCorner/IsLeftCorner; wyciąganie = ryzyko za zero wartości edytora (§2.2/2.3/2.4).
+- DALEJ:  Seria R1–R5 zamknięta. R6 (struktura katalogów) i R7 (solver kontaktu — jedyny zmieniający zachowanie) OPCJONALNE, każdy za osobną zgodą Jozza. Warstwa zdolności contentu (TECH_DEBT #6/#12/#13) — osobny track.
+
 ## 2026-07-11 · R4: visual_mesh — podział na loader + rysowanie · <commit>
 - CO:     `jozz_vehicle_visual_mesh.cpp` (1968 l.) → `_loader.cpp` (1761 l.: cały parser glTF/skin w anonimowej ns + `LoadStaticGltf`/`LoadSkinnedGltf`/`Destroy`/`IsLoaded`/`PartCount`) + `_draw.cpp` (232 l.: `Draw*`/`FindPart`/placement/`DrawTelescopingDamper`/`ComputeJozzVehicleWheelVisualCorrection`); move-only, nagłówek publiczny bez zmian.
 - CZEMU:  R4 z planu — kolejny watch-item z TECH_DEBT #7 spłacony; prostszy niż R3 (każda metoda była już poza-klasowa, zero transformacji sygnatur — czyste cięcie tekstu).

@@ -224,6 +224,45 @@ Kryterium: `-DiffBaseline` + quad_shot diff + zrzut każdej zakładki
 Nagłówek publiczny bez zmian. Kryterium jak R3 (quad_shot obowiązkowy).
 
 ### R5 — suspension_rig: ekstrakcja czystej geometrii (NAJOSTROŻNIEJSZY)
+> **Status:** ✅ WYKONANE 2026-07-11 (zakres zawężony za zgodą Jozza — patrz
+> niżej). 6 publicznych funkcji world-free (`MakeWishboneHardpoints`,
+> `DefaultTrailingArmGeometry`, `ComputeRackStroke`, `ComputeSteeringDeadPointDeg`,
+> `SanitizeConfig`, `DefaultConfig` — ciągły blok 154–507) przeniesione
+> bajt-w-bajt z `suspension_rig.cpp` (1758→1404 l.) do nowego
+> `jozz_vehicle_m6_geometry.cpp`. Nowy nagłówek `jozz_vehicle_m6_geometry.h`
+> (włącza `suspension_rig.h` dla współdzielonych structów, re-deklaruje 6
+> funkcji jako udokumentowany kontrakt geometrii). Pliki dodane do
+> `JOZZ_VEHICLE_CORE_FILES` (linkowane do OBU targetów: `samples` **i
+> walidatora**).
+>
+> **Krytyczna korekta zakresu (STOP-gate, decyzja Jozza):** plan wymieniał
+> 9 funkcji. Wyciągnięto TYLKO 6 publicznych. 3 helpery wewnętrzne
+> (`HingeSwingLimit`, `SteeringLinkDroopLift`, `SteeringArmWithToe`) świadomie
+> ZOSTAŁY w `suspension_rig.cpp`, bo:
+> 1. są `static` (anonimowa ns) — szczegóły implementacyjne buildowania ciał,
+>    nie kontrakt "policz geometrię bez świata";
+> 2. `SteeringArmWithToe` zależy od `IsFrontCorner`/`IsLeftCorner` (helpery po
+>    stronie fizyki) — wyciągnięcie kaskadowo ciągnęłoby je do geometrii
+>    (eksplozja include'ów, §2.3);
+> 3. to 3 niesąsiadujące cięcia ze środka bloku fizyki + zmiana linkowania
+>    internal→external + wepchnięcie impl-helperów do edytorowego nagłówka
+>    (anty-cel §2.4/§5). Ryzyko realne, wartość dla edytora zerowa.
+> Ten sam typ świadomej, udokumentowanej korekty co „nie rozbiłem Render()" w R3.
+>
+> **Świadomie NIE zrobione (nie na zapas pod edytor, §2.4):** `geometry.h` NIE
+> jest jeszcze lekki/world-free — włącza `suspension_rig.h` po structy. Zrobienie
+> go samodzielnym wymagałoby przeniesienia definicji structów (Config i pochodne),
+> co jest poza zakresem „6 funkcji" i spekulacyjne. Stała `DEGREES_TO_RADIANS`
+> zduplikowana (1 linia) po stronie geometrii zamiast dzielona przez nagłówek —
+> minimalny blast radius, bez dotykania strony fizyki.
+>
+> **Weryfikacja (mocniejsza niż litera — bo geometria KARMI kotwice jointów):**
+> build 3/3 czysty (walidator linkuje geometry.cpp — placement w CORE_FILES OK);
+> `-DiffBaseline` walidator 349 linii IDENTYCZNE co do bajta (dowód że matematyka
+> FP daje identyczne kotwice → identyczny solver → identyczne liczby); quad render
+> IDENTYCZNY (hash); diff `suspension_rig.cpp` = czysto przenosiny (1 linia
+> include dodana, 355 usuniętych); ciało `geometry.cpp` = usunięte linie
+> bajt-w-bajt (potwierdzone diffem po normalizacji CRLF).
 Czysta matematyka (MakeWishboneHardpoints, ComputeRackStroke,
 ComputeSteeringDeadPointDeg, SteeringArmWithToe, HingeSwingLimit,
 SteeringLinkDroopLift, DefaultConfig/DefaultTrailingArmGeometry, Sanitize) →

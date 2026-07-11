@@ -32,7 +32,9 @@ Sample:   M6 Suspension Rig Lab      <- multi-body zawieszenie na fundamencie M7
                                         (UI w zakładkach; tył = trailing arm
                                         z modelu Jozza, przód = wishbone)
 Source:   samples/jozz_vehicle_m6_rig_lab*.cpp (R3: main+_ui_tabs+_persistence+_mount_visual, klasa=_internal.h)
-          + samples/jozz_vehicle_m6_suspension_rig.cpp + samples/jozz_vehicle_m7_suspension_import.cpp
+          + samples/jozz_vehicle_m6_suspension_rig.cpp (fizyka: ciała/jointy/drive/telemetria)
+          + samples/jozz_vehicle_m6_geometry.{h,cpp} (R5: world-free geometria — hardpointy/rack-stroke/dead-point/DefaultConfig/Sanitize)
+          + samples/jozz_vehicle_m7_suspension_import.cpp
 
 Sample:   M5 First Drivable          <- pierwszy jeżdżący pojazd, baseline strut
 Source:   samples/jozz_vehicle_m5_drivable_lab.cpp + samples/jozz_vehicle_m5_vehicle.cpp

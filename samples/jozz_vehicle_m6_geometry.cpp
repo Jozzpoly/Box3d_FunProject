@@ -1,0 +1,373 @@
+// SPDX-FileCopyrightText: 2026 Jozz Vehicle contributors
+// SPDX-License-Identifier: MIT
+
+#include "jozz_vehicle_m6_geometry.h"
+
+#include <cmath>
+#include <cstdio>
+
+namespace
+{
+
+// Same one-line constant as the physics side keeps in its own anonymous
+// namespace (jozz_vehicle_m6_suspension_rig.cpp); duplicated here rather than
+// shared through the header so neither TU's local use has to change. Two
+// internal-linkage copies, no ODR concern.
+constexpr float DEGREES_TO_RADIANS = B3_PI / 180.0f;
+
+} // namespace
+
+JozzVehicleM6WishboneHardpoints JozzVehicleM6MakeWishboneHardpoints( const JozzVehicleM6WishboneGeometry& geometry,
+																	 b3Vec3 restWheelCenter, bool isLeft, float wheelbase,
+																	 float track )
+{
+	JozzVehicleM6WishboneHardpoints points = {};
+
+	// "Inboard" points from the wheel toward the chassis centerline. The left
+	// wheel sits at negative Z, so its inboard direction is +Z.
+	float in = isLeft ? 1.0f : -1.0f;
+
+	float casterTangent = std::tan( geometry.casterDeg * DEGREES_TO_RADIANS );
+	float kpiTangent = std::tan( geometry.kingpinInclinationDeg * DEGREES_TO_RADIANS );
+	float h = geometry.uprightHalfHeight;
+
+	// Ball joints rotated around the wheel center: caster tilts the kingpin
+	// top rearward (mechanical trail -> physical self-aligning torque),
+	// kingpin inclination tilts the top inboard (smaller scrub radius).
+	points.upperBallJoint = b3Add( restWheelCenter, { -casterTangent * h, h, in * ( geometry.kingpinOffset + kpiTangent * h ) } );
+	points.lowerBallJoint = b3Add( restWheelCenter, { casterTangent * h, -h, in * ( geometry.kingpinOffset - kpiTangent * h ) } );
+
+	// Control-arm chassis mounts: inboard of the ball joints, split fore/aft so
+	// each triangular arm becomes two rods sharing the ball joint. The rest droop
+	// angle raises the mounts above the ball joints so the arm slopes DOWN to the
+	// wheel at the design pose - the wheels hang on drooping arms instead of the
+	// arms folding up. The raise is purely vertical (inboard reach stays
+	// armLength), so the horizontal kinematics - track, steering-linkage geometry
+	// - are unchanged and no toe/camber is induced; only the arm angle changes.
+	float droopTan = std::tan( geometry.restArmDroopDeg * DEGREES_TO_RADIANS );
+	b3Vec3 upperInboard =
+		b3Add( points.upperBallJoint, { 0.0f, geometry.upperArmLength * droopTan, in * geometry.upperArmLength } );
+	b3Vec3 lowerInboard =
+		b3Add( points.lowerBallJoint, { 0.0f, geometry.lowerArmLength * droopTan, in * geometry.lowerArmLength } );
+	points.upperFrontChassis = b3Add( upperInboard, { geometry.armHalfSpread, 0.0f, 0.0f } );
+	points.upperRearChassis = b3Add( upperInboard, { -geometry.armHalfSpread, 0.0f, 0.0f } );
+	points.lowerFrontChassis = b3Add( lowerInboard, { geometry.armHalfSpread, 0.0f, 0.0f } );
+	points.lowerRearChassis = b3Add( lowerInboard, { -geometry.armHalfSpread, 0.0f, 0.0f } );
+
+	// Steering arm reaches rearward from the kingpin line. The Ackermann
+	// trapezoid angles it inboard so the tie-rod lines converge toward the
+	// rear axle, making the inner wheel steer tighter purely mechanically.
+	// The fraction backs the trapezoid off from full geometric Ackermann,
+	// which at this scale drives the linkage into its over-center dead point
+	// near full lock.
+	float armInboard = geometry.kingpinOffset;
+	if ( geometry.ackermannTrapezoid && wheelbase > 0.01f )
+	{
+		armInboard += geometry.ackermannFraction * geometry.steeringArmBack * ( track / wheelbase );
+	}
+	points.steeringArm = b3Add( restWheelCenter, { -geometry.steeringArmBack, 0.0f, in * armInboard } );
+
+	// Coilover: chassis eye up and inboard, knuckle eye at the lower ball
+	// joint (motion ratio ~1, the simplest honest starting point).
+	points.coiloverChassis = b3Add( restWheelCenter, { 0.0f, geometry.coiloverTopHeight, in * geometry.coiloverTopInboard } );
+	points.coiloverKnuckle = points.lowerBallJoint;
+
+	return points;
+}
+
+JozzVehicleM6TrailingArmGeometry JozzVehicleM6DefaultTrailingArmGeometry()
+{
+	// Built-in fallback when no asset contract fills the struct: a plain
+	// rear trailing arm with the pivot ahead of the wheel and a near-vertical
+	// coilover. Offsets are chassis-local from the rest wheel center, authored
+	// for the LEFT corner (Z mirrored on the right).
+	JozzVehicleM6TrailingArmGeometry geometry = {};
+	geometry.pivotOffset = { 0.55f, 0.10f, 0.0f };
+	geometry.damperArmOffset = { -0.02f, 0.08f, 0.0f };
+	geometry.damperChassisOffset = { 0.0f, 0.52f, 0.04f };
+	geometry.armMass = 14.0f;
+	geometry.loadedFromContract = false;
+	return geometry;
+}
+
+float ComputeJozzVehicleM6RackStroke( const JozzVehicleM6WishboneGeometry& geometry, float wheelbase, float track,
+									  float rackHalfWidth, float steerAngle )
+{
+	// Horizontal-plane linkage of the LEFT (inner-when-steering-left) wheel,
+	// mirrored by symmetry for the other side. All coordinates relative to
+	// the front axle X.
+	float s = geometry.steeringArmBack;
+	float ackermann =
+		geometry.ackermannTrapezoid && wheelbase > 0.01f ? geometry.ackermannFraction * s * ( track / wheelbase ) : 0.0f;
+
+	// Kingpin base and steering-arm end at rest (x, z), left wheel at -track.
+	float kingpinZ = -track + geometry.kingpinOffset;
+	b3Vec3 arm = { -s, 0.0f, ackermann }; // arm end relative to the kingpin base
+
+	// Rotate the arm about +Y by the steer angle (+ = left, +X toward -Z).
+	float sinAngle = std::sin( steerAngle );
+	float cosAngle = std::cos( steerAngle );
+	float armX = arm.x * cosAngle + arm.z * sinAngle;
+	float armZ = -arm.x * sinAngle + arm.z * cosAngle;
+
+	// Tie rod runs from the arm end to the rack end at fixed x = -s; its
+	// length comes from the rest pose where the rack end sits at -rackHalfWidth.
+	float restArmZ = kingpinZ + ackermann;
+	float tieRodLength = std::fabs( ( -rackHalfWidth ) - restArmZ );
+
+	// Solve the rack end Z that keeps the tie rod length: closed form since
+	// the rack end only moves along Z. Clamp keeps a degenerate geometry from
+	// producing NaN; the result is then simply the maximum reachable stroke.
+	float deltaX = armX + s;
+	float reach = std::sqrt( b3MaxFloat( tieRodLength * tieRodLength - deltaX * deltaX, 1.0e-6f ) );
+	float rackEndZ = ( kingpinZ + armZ ) + reach;
+	return rackEndZ - ( -rackHalfWidth );
+}
+
+float ComputeJozzVehicleM6SteeringDeadPointDeg( const JozzVehicleM6WishboneGeometry& geometry, float wheelbase,
+												 float track, float rackHalfWidth )
+{
+	float deadPointDeg = 90.0f;
+	float prevStroke = ComputeJozzVehicleM6RackStroke( geometry, wheelbase, track, rackHalfWidth, 1.0f * DEGREES_TO_RADIANS );
+	for ( float deg = 1.5f; deg < 89.0f; deg += 0.5f )
+	{
+		float stroke = ComputeJozzVehicleM6RackStroke( geometry, wheelbase, track, rackHalfWidth, deg * DEGREES_TO_RADIANS );
+		if ( stroke <= prevStroke )
+		{
+			deadPointDeg = deg;
+			break;
+		}
+		prevStroke = stroke;
+	}
+	return deadPointDeg;
+}
+
+bool SanitizeJozzVehicleM6Config( JozzVehicleM6Config* config )
+{
+	bool changed = false;
+
+	// One clamp with one printed warning per field. Bounds are deliberately
+	// WIDE - this is a "don't hand the solver a NaN or a singular constraint"
+	// net for hand-edited files, not a tuning opinion (the UI sliders already
+	// express those). A non-finite value clamps to the LOWER bound.
+	auto clampField = [&changed]( float* field, const char* name, float lo, float hi ) {
+		float value = *field;
+		if ( std::isfinite( value ) == false )
+		{
+			value = lo;
+		}
+		value = b3ClampFloat( value, lo, hi );
+		if ( value != *field )
+		{
+			std::printf( "jozz m6 WARNING: config sanitized: %s %.4f -> %.4f\n", name, (double)*field, (double)value );
+			*field = value;
+			changed = true;
+		}
+	};
+
+	// Structural lengths: zero or negative here means a zero-length arm/link
+	// or a degenerate hull - singular joint frames, NaN normals.
+	clampField( &config->chassisHalfExtents.x, "chassisHalfExtents.x", 0.10f, 10.0f );
+	clampField( &config->chassisHalfExtents.y, "chassisHalfExtents.y", 0.05f, 5.0f );
+	clampField( &config->chassisHalfExtents.z, "chassisHalfExtents.z", 0.10f, 5.0f );
+	clampField( &config->axleHalfSpacing, "axleHalfSpacing", 0.30f, 6.0f );
+	clampField( &config->trackHalfWidth, "trackHalfWidth", 0.30f, 4.0f );
+	clampField( &config->restDrop, "restDrop", 0.05f, 3.0f );
+	clampField( &config->wishbone.uprightHalfHeight, "uprightHalfHeight", 0.05f, 1.0f );
+	clampField( &config->wishbone.upperArmLength, "upperArmLength", 0.10f, 2.0f );
+	clampField( &config->wishbone.lowerArmLength, "lowerArmLength", 0.10f, 2.0f );
+	clampField( &config->wishbone.armHalfSpread, "armHalfSpread", 0.05f, 1.0f );
+	clampField( &config->wishbone.steeringArmBack, "steeringArmBack", 0.05f, 1.0f );
+	clampField( &config->wishbone.kingpinOffset, "kingpinOffset", 0.01f, 0.5f );
+	clampField( &config->wishbone.ackermannFraction, "ackermannFraction", 0.0f, 1.0f );
+	// Measured over-center ceiling for droop is 16 deg (M8 pose work); past it
+	// the steering trapezoid goes non-deterministic. The UI slider already
+	// stops at 16 - this catches the file/env path.
+	clampField( &config->wishbone.restArmDroopDeg, "restArmDroopDeg", 0.0f, 16.0f );
+	// A rack as wide as the track means zero-length tie rods.
+	clampField( &config->rackHalfWidth, "rackHalfWidth", 0.05f, b3MaxFloat( 0.06f, config->trackHalfWidth - 0.10f ) );
+
+	// Masses and densities: zero mass = infinite inverse mass in the solver.
+	clampField( &config->chassisDensity, "chassisDensity", 10.0f, 5000.0f );
+	clampField( &config->wheelDensity, "wheelDensity", 5.0f, 2000.0f );
+	clampField( &config->knuckleMass, "knuckleMass", 1.0f, 500.0f );
+	clampField( &config->armMass, "armMass", 0.5f, 200.0f );
+	clampField( &config->rackMass, "rackMass", 0.5f, 200.0f );
+	clampField( &config->trailingArm.armMass, "trailingArm.armMass", 1.0f, 500.0f );
+
+	// Suspension: non-positive travel inverts the coilover length limits.
+	clampField( &config->compressionTravel, "compressionTravel", 0.02f, 2.0f );
+	clampField( &config->reboundTravel, "reboundTravel", 0.02f, 2.0f );
+	clampField( &config->suspensionHertz, "suspensionHertz", 0.2f, 60.0f );
+	clampField( &config->suspensionDampingRatio, "suspensionDampingRatio", 0.0f, 20.0f );
+	clampField( &config->frontSuspensionScale, "frontSuspensionScale", 0.05f, 10.0f );
+	clampField( &config->rearSuspensionScale, "rearSuspensionScale", 0.05f, 10.0f );
+	clampField( &config->suspensionPreloadFront, "suspensionPreloadFront", -0.30f, 0.50f );
+	clampField( &config->suspensionPreloadRear, "suspensionPreloadRear", -0.30f, 0.50f );
+
+	// Steering: toe far past the UI range makes the virtual turnbuckle bend
+	// the linkage into geometries the dead-point math never sees.
+	clampField( &config->frontToeDeg, "frontToeDeg", -5.0f, 5.0f );
+	clampField( &config->rearToeDeg, "rearToeDeg", -5.0f, 5.0f );
+	clampField( &config->steeringHertz, "steeringHertz", 0.5f, 60.0f );
+	clampField( &config->steeringDampingRatio, "steeringDampingRatio", 0.0f, 20.0f );
+	// P4b load-dependent rack friction: negative values would ADD energy
+	// (anti-friction); a coeff past 1.0 means more friction than the load
+	// itself - both nonsensical, not tuning.
+	clampField( &config->rackFrictionBase, "rackFrictionBase", 0.0f, 1000.0f );
+	clampField( &config->rackFrictionLoadCoeff, "rackFrictionLoadCoeff", 0.0f, 1.0f );
+
+	// The P5 dead-point clamp, applied AFTER the geometry fields above so it
+	// evaluates the sanitized geometry. Mirrors ApplyPendingStructuralSetup's
+	// UI clamp (fence margin 10 + 3 deg clearance); without this a hand-edited
+	// preset bypassed the fence entirely.
+	{
+		float wheelbase = 2.0f * config->axleHalfSpacing;
+		float deadPointDeg = ComputeJozzVehicleM6SteeringDeadPointDeg( config->wishbone, wheelbase,
+																	   config->trackHalfWidth, config->rackHalfWidth );
+		float safeMax = b3MaxFloat( 15.0f, deadPointDeg - 13.0f );
+		clampField( &config->maxSteeringAngleDegrees, "maxSteeringAngleDegrees", 5.0f, safeMax );
+	}
+
+	return changed;
+}
+
+JozzVehicleM6Config JozzVehicleM6DefaultConfig( float wheelRadius, float wheelWidth, float suspensionTravelHint )
+{
+	JozzVehicleM6Config config = {};
+
+	// Chassis identical to the validated M5 defaults.
+	config.chassisHalfExtents = { 1.55f, 0.35f, 0.55f };
+	config.chassisDensity = 200.0f;
+	config.cgVerticalOffset = 0.15f;
+	config.axleHalfSpacing = 1.25f;
+	config.trackHalfWidth = 1.05f;
+	config.restDrop = 0.55f;
+
+	// The M6 lab exists to exercise the multi-body rig, so both axles default
+	// to it; INTEGRATED_STRUT stays selectable as the cheap/validated option.
+	config.frontRigType = JOZZ_M6_RIG_DOUBLE_WISHBONE;
+	config.rearRigType = JOZZ_M6_RIG_DOUBLE_WISHBONE;
+
+	config.wishbone.uprightHalfHeight = 0.18f;
+	config.wishbone.kingpinOffset = 0.14f;
+	config.wishbone.casterDeg = 5.0f;
+	config.wishbone.kingpinInclinationDeg = 7.0f;
+	config.wishbone.upperArmLength = 0.34f;
+	config.wishbone.lowerArmLength = 0.46f;
+	config.wishbone.armHalfSpread = 0.24f;
+	config.wishbone.steeringArmBack = 0.17f;
+	config.wishbone.ackermannTrapezoid = true;
+	config.wishbone.ackermannFraction = 0.6f;
+	config.wishbone.coiloverTopHeight = 0.42f;
+	config.wishbone.coiloverTopInboard = 0.12f;
+	config.wishbone.restArmDroopDeg = 15.0f; // wheels hang on drooping arms at rest
+
+	config.trailingArm = JozzVehicleM6DefaultTrailingArmGeometry();
+
+	// Real-world upright + hub + brake sits around 20-35 kg. Keeping the
+	// knuckle reasonably heavy also keeps the constraint mass ratio against
+	// the ~700 kg chassis inside what the iterative solver likes.
+	config.knuckleMass = 28.0f;
+	config.armMass = 5.0f;
+	config.rackMass = 5.0f;
+	config.rackHalfWidth = 0.45f;
+
+	// Full steering stroke solved from the actual linkage geometry, so the
+	// rack limit IS the steering-angle limit for the inner wheel.
+	float maxAngleRadians = 32.0f * DEGREES_TO_RADIANS;
+	config.rackTravel = ComputeJozzVehicleM6RackStroke( config.wishbone, 2.0f * config.axleHalfSpacing,
+														config.trackHalfWidth, config.rackHalfWidth, maxAngleRadians );
+
+	// Power-steering servo sizing: stationary loaded tires need ~700 N*m per
+	// kingpin (the measured M5.1 parking-torque number); through the 0.17 m
+	// steering arms on two wheels that is ~8.2 kN at the rack, plus headroom.
+	config.rackServoForce = 12000.0f;
+	config.rackServoSpeedGain = 12.0f;
+	config.rackServoMaxSpeed = 1.2f;
+
+	// Split envelope is the M6 default: smooth sphere for rolling on terrain,
+	// true-width cylinder for props/walls/curbs. The 2026-07-05 probe killed
+	// the phased-union idea (contact hops between layered hulls lose the
+	// solver warm start; it rolled worse than one cylinder), and the plain
+	// sphere keeps the ~0.29 m lateral bulge. Requires terrain tagged with
+	// terrainCategoryBits; the builder falls back to a sphere when it is 0.
+	config.wheelEnvelope.mode = JOZZ_M6_ENVELOPE_SPLIT_SPHERE_SIDEWALL;
+	config.wheelEnvelope.cylinderSides = 32;
+	config.wheelEnvelope.unionLayerCount = 4;
+	config.wheelEnvelope.radius = wheelRadius;
+	config.wheelEnvelope.width = wheelWidth;
+	config.wheelEnvelope.terrainCategoryBits = JOZZ_M6_TERRAIN_CATEGORY;
+	config.wheelDensity = 80.0f;
+	config.wheelFriction = 1.25f;
+	config.wheelRollingResistance = 0.02f;
+
+	// Same reasoning as M5: the joint spring stiffness follows the constraint's
+	// effective mass (dominated by the light unsprung side), so the hertz sits
+	// above a real car's body frequency.
+	config.suspensionHertz = 6.0f;
+	config.suspensionDampingRatio = 0.7f;
+	config.frontSuspensionScale = 1.0f;
+	config.rearSuspensionScale = 1.0f;
+
+	float travel = suspensionTravelHint > 0.05f ? suspensionTravelHint : 0.70f;
+	config.reboundTravel = 0.4f * travel;
+	config.compressionTravel = 0.6f * travel;
+	config.suspensionPreloadFront = 0.07f; // holds the drooped design pose under static weight (toe ~0)
+	config.suspensionPreloadRear = 0.07f;
+
+	// Anti-roll bars replace the upright-assist crutch. Sizing sanity: ~0.8 g
+	// lateral on this chassis transfers ~1.5 kN across an axle; a 0.1 m travel
+	// split at these numbers contributes a comparable couple.
+	config.arbFrontStiffness = 16000.0f;
+	config.arbRearStiffness = 10000.0f;
+
+	// Cd*A of a boxy off-roader. Makes top speed a drag-vs-torque balance.
+	config.aeroDragArea = 0.9f;
+
+	// Torque-based drive: the motor targets the rev limit and the throttle
+	// scales available torque (taper above 60% revs). 320 N*m per wheel does
+	// NOT break these tires loose (that takes ~1.2 kN*m at this load) - the
+	// lab slider goes far enough for burnouts on purpose.
+	config.maxDriveSpeed = 40.0f;
+	config.maxDriveTorque = 320.0f;
+	config.driveTaperStart = 0.6f;
+	config.brakeTorque = 650.0f;
+	config.coastTorque = 8.0f;
+	config.allWheelDrive = true;
+
+	config.maxSteeringAngleDegrees = 32.0f;
+	config.frontToeDeg = 0.0f;
+	config.rearToeDeg = 0.0f;
+	config.steeringHertz = 14.0f;
+	config.steeringDampingRatio = 1.0f;
+	config.maxSteeringTorque = 700.0f;
+	// Hands-off resistance: load-dependent since P4b (see the header field
+	// comment for the model and why it replaced the flat static/kinetic
+	// pair). Historical context kept for the record: the flat model needed
+	// kinetic >= ~200 N to keep the 3.5 m landing stable (sharp cliff below
+	// ~140 N: tie-rod branch-snap camber, plus a separate yaw-drift threshold
+	// ~200 N), and that same floor parked the rack ~1 mm off-center in
+	// ordinary driving (the diagnosed left-pull). The load-proportional term
+	// resolves that tension physically: a landing loads the tie rods with kN
+	// so friction spikes right when stability needs it, while near-straight
+	// cruising leaves the rack nearly free. Defaults re-validated against the
+	// same landing probe (see RunP4SteeringReturnProbe's comment).
+	config.rackFrictionBase = 40.0f;
+	config.rackFrictionLoadCoeff = 0.10f;
+	config.steeringFrictionTorque = 40.0f;
+	config.steerInputDeadzone = 0.02f;
+	config.rackCenteringHertz = 0.0f; // OFF = realistic (no self-centering at rest); opt-in arcade assist
+	config.ackermannGeometry = true;
+	config.strutCasterDeg = 0.0f; // 0 = exact M5 strut behavior
+
+	// M7: the honest mechanisms (ARB + geometry) carry the car; the world-
+	// anchored upright spring stays available as a rescue toggle only.
+	config.uprightAssist = false;
+	config.uprightHertz = 0.4f;
+	config.uprightDampingRatio = 1.0f;
+
+	config.filterGroupIndex = -19;
+
+	return config;
+}

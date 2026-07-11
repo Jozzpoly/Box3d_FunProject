@@ -158,6 +158,8 @@ set(JOZZ_VEHICLE_CORE_FILES
     jozz_vehicle_m5_vehicle.h
     jozz_vehicle_m6_config_io.cpp
     jozz_vehicle_m6_config_io.h
+    jozz_vehicle_m6_geometry.cpp
+    jozz_vehicle_m6_geometry.h
     jozz_vehicle_m6_suspension_rig.cpp
     jozz_vehicle_m6_suspension_rig.h
     jozz_vehicle_m7_suspension_import.cpp

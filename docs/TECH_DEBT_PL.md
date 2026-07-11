@@ -150,8 +150,17 @@ identycznych.
 `LoadStaticGltf`/`LoadSkinnedGltf`/`Destroy`/`IsLoaded`/`PartCount`) i `_draw.cpp`
 (232 l.: `Draw*`, placement (`JozzVehicleComputeArmPlacement`/`MapAuthoredPoint`),
 `DrawTelescopingDamper`, `ComputeJozzVehicleWheelVisualCorrection`). Publiczny
-nagłówek bez zmian. `-DiffBaseline` + quad IDENTYCZNE. `suspension_rig` (R5) —
-kolejny etap w `PLAN_WIELKI_REFACTOR_2026_07_09_PL.md`.
+nagłówek bez zmian. `-DiffBaseline` + quad IDENTYCZNE.
+
+**✅ ADRESOWANE dla `suspension_rig` (R5, 2026-07-11):** 6 publicznych funkcji
+world-free (hardpointy/rack-stroke/dead-point/DefaultConfig/TrailingArm/Sanitize)
+wyciągnięte move-only z `suspension_rig.cpp` (1758→1404 l.) do nowego
+`jozz_vehicle_m6_geometry.{h,cpp}` (w `JOZZ_VEHICLE_CORE_FILES` — linkowane do
+samples I walidatora). `-DiffBaseline` walidator 349 linii IDENTYCZNE + quad
+IDENTYCZNY. Zakres świadomie zawężony (zgoda Jozza): 3 helpery wewnętrzne
+`static` zostały jako impl-detale fizyki (patrz status R5 w planie). **Cała seria
+strukturalna R1–R5 zamknięta**; pozostają opcjonalne R6 (katalogi) / R7 (solver
+kontaktu, #12) za osobną zgodą.
 
 ---
 
