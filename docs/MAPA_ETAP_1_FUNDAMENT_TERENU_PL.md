@@ -1,7 +1,10 @@
 # Mapa — Etap 1: fundament terenu
 
-**Status: ZAMKNIĘTY 2026-07-11** (build+walidator+test+boot smoke zielone,
-rendery obejrzane, wydajność zmierzona — patrz §6/§7). Następny: Etap 2.
+**Status: ZAMKNIĘTY 2026-07-11, DOSZLIFOWANY 2026-07-12** (build+walidator+
+test+boot smoke zielone, rendery obejrzane, wydajność zmierzona — patrz
+§6/§7). Doszlifowanie na życzenie Jozza (offroad = 400×400, rzeźba grzbietowa
+z domain warpem, chropowatość zależna od wysokości) opisane w §10. Następny:
+Etap 2.
 
 Część planu `PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md`. Czytaj najpierw roadmapę
 (layout §5, ryzyka §8). Ten etap NIE dodaje przeszkód ani toru — tylko ziemię.
@@ -9,10 +12,11 @@ Część planu `PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md`. Czytaj najpierw roadmap�
 ## 1. Cel
 
 Po tym etapie świat ma docelowy kształt: płyta 400×400 m (3×3 kafle, top y=0),
-obok niej chunk offroad 320×320 m z trzyskalowym szumem, wychodzący **spod**
-płyty (zakładka), z seedem i przyciskiem regeneracji, plus minimalny teleport,
-żeby dało się to wszystko w ogóle objechać. Stary wave-patch znika. Wydajność
-zmierzona i zapisana.
+obok niej chunk offroad **400×400 m** (od 2026-07-12: te same wymiary co
+płyta — "dwa kafle mapy równej wielkości", patrz §10) z wielowarstwowym
+szumem, wychodzący **spod** płyty (zakładka), z seedem i przyciskiem
+regeneracji, plus minimalny teleport, żeby dało się to wszystko w ogóle
+objechać. Stary wave-patch znika. Wydajność zmierzona i zapisana.
 
 ## 2. Zakres
 
@@ -54,18 +58,32 @@ na kaflu centralnym — nie przeszkadzają bramce tego etapu).
 
 ## 4. Generator terenu (serce etapu)
 
-Deterministyczny value-noise 2D (hash z seeda; np. iq-style hash na parze
-intów, wygładzanie quintic), FBM z TRZECH oktaw + dwie mapy sterujące:
+> **Od 2026-07-12 przepisany na wersję z §10** (ridged + domain warp +
+> chropowatość zależna od wysokości). Tabela i wzór niżej to wersja
+> AKTUALNA; oryginalna wersja z 2026-07-11 (proste FBM + maska płaskości
+> niezależna od wysokości) jest opisana jako punkt wyjścia w §10.1.
 
-| Warstwa | Długość fali λ | Amplituda maks. | Rola |
+Deterministyczny value-noise 2D (hash z seeda; iq-style hash na parze intów,
+wygładzanie quintic). Warstwa makro to **ridged noise, 2 oktawy**, próbkowana
+przez **domain warp** (przesunięcie punktu próbki inną warstwą szumu) —
+zamiast gładkich pagórków daje sieć wijących się grzbietów i dolin. Ten sam
+kształt makro (`elevationShape`, [0,1]) napędza **chropowatość**: ile z
+amplitudy mezo/mikro faktycznie się pojawia w danym punkcie, zbramkowane
+własną warstwą szumu (patrz §10.2).
+
+| Warstwa | Długość fali λ | Amplituda / zakres | Rola |
 |---|---|---|---|
-| makro | ~90 m | 8.0 m | wzgórza/grzbiety („wysoki" teren) |
-| mezo | ~16 m | 1.2 m | pofalowanie, muldy naturalne |
-| mikro | ~2.8 m | 0.22 m | kamienista faktura (twardy offroad) |
-| maska płaskości | ~140 m | mnożnik 0..1 | smoothstep → **polany kontra masywy** („miejscami gładko i płasko") |
+| domain warp (x, z) | ~60 m | przesunięcie ±22 m | wygina grzbiety, łamie wyrównanie do siatki szumu |
+| makro, oktawa 1 (ridged) | ~90 m | do ±8.0 m | główny kształt grzbietów/dolin |
+| makro, oktawa 2 (ridged) | ~40.5 m | waga 0.3 w blendzie z oktawą 1 | drobniejszy detal na tych samych grzbietach |
+| mezo | ~16 m | 1.2 m × chropowatość | pofalowanie, muldy naturalne |
+| mikro | ~2.8 m | 0.22 m × chropowatość | kamienista faktura (twardy offroad) |
+| szum chropowatości | ~30 m | bramkuje mezo/mikro względem `elevationShape` | „nisko = gładziej, wysoko = szorstko", ale nie mechanicznie (§10.2) |
 | gradient trudności | — | mnożnik 0..1 | 0 przy styku z płytą → 1 od ~60 m w głąb; skala z odległości od zachodniej krawędzi chunku |
 
-`height(x,z) = zakładka(x) + trudność(x) * [ maska * (makro + mezo) + mikro * lerp(0.35, 1, trudność) ]`
+`elevationShape = lerp(ridged(makro1), ridged(makro2), 0.3)` (obie próbkowane po domain warpie)
+`roughness = clamp01(elevationShape * lerp(0.4, 1.3, szumChropowatości))`
+`height(x,z) = zakładka(x) + trudność(x) * [ makro + mezo*lerp(0.2,1,roughness) + mikro*lerp(0.1,1,roughness) ]`
 
 - **Pas zakładki (wymaganie Jozza wprost):** pierwsze ~4 kolumny od strony
   płyty: liniowy ramp od **−0.12 m do wartości szumu**; szum przy styku i tak
@@ -73,8 +91,13 @@ intów, wygładzanie quintic), FBM z TRZECH oktaw + dwie mapy sterujące:
   się na x=198, płyta kończy na x=200), koło zjeżdża z płyty na powierzchnię
   będącą ≤5 cm niżej — R3 z roadmapy: w pasie zakładki wysokość ≤ −0.05 m,
   więc na płycie NIE ma podwójnego kontaktu.
-- Siatka: **cell 1.25 m, 257×257 punktów** (256 komórek × 1.25 = 320 m).
-  Mikro-oktawa λ 2.8 m > 2×cell — bez aliasingu.
+- Siatka: **cell 1.25 m, 321×321 punktów** (320 komórek × 1.25 = 400 m, od
+  2026-07-12 — patrz §10.3 o rozmiarze). Mikro-oktawa λ 2.8 m > 2×cell —
+  bez aliasingu.
+- Defensywny `Clamp(height, globalMin+0.5, globalMax-0.5)` na końcu funkcji:
+  suma warstw (makro ≤8, mezo ≤1.2, mikro ≤0.22) mieści się w ±~9.5 m z dużym
+  zapasem do ±12/+14, klamra to tylko zabezpieczenie przed przyszłym
+  strojeniem parametrów, nie aktywna w obecnej konfiguracji.
 - `globalMinimumHeight/globalMaximumHeight`: stałe **−12 / +14** (zapas; jeśli
   kiedyś dojdzie drugi chunk, oba MUSZĄ mieć te same wartości — po to istnieją,
   `types.h:2237-2242`). Kwantyzacja 16-bit przy 26 m zakresu = 0.4 mm — pomijalna.
@@ -171,6 +194,25 @@ tej wielkości sceny — koszt kroku zdominowany przez rig zawieszenia (50 ciał
 to głównie kości/koła/wahacze pojazdu, nie teren). Fallback z kroku 7 planu
 (cell 1.6 m) **niepotrzebny** — zapas ~3× nawet bez niego.
 
+**Po doszlifowaniu 2026-07-12** (siatka 321×321 ≈ 103k pkt, +7 próbek szumu
+na punkt do budowy — patrz §10): zmierzone ponownie, wyłącznie koszt
+BUDOWY terenu rośnie (jednorazowy, przy starcie/regeneracji), koszt KROKU
+fizyki nieznacznie:
+
+| Scenariusz | ms/step | fps (solver) | Uwagi |
+|---|---|---|---|
+| płyta, Start | 1.652 | 605 | wciąż ≥2.4× zapasu do budżetu 4 ms |
+| offroad, „wjazd" (x≈240) | 1.543 | 648 | |
+| offroad, „głęboko" (x≈560, nowa pozycja kotwicy) | 1.374 | 728 | |
+| po „Przebuduj teren" ×10 | — | — | shapes: 49 → 49, **R4 nadal zamknięte** |
+
+Wzrost ~0.2–0.4 ms/step względem tabeli wyżej (kontakty bez zmian: 20-21) —
+najpewniej marginalny koszt broad-phase na większej siatce (321² vs 257²
+komórek), nie zmierzony osobno co do przyczyny, bo budżet i tak zostaje
+bezpieczny (≥2.4× zapasu). Budowa/regeneracja terenu (więcej próbek szumu na
+punkt) to koszt jednorazowy przy starcie/„Przebuduj teren", nie w pętli
+kroku — R4 (shapes 49→49) potwierdza brak przecieku przy tym koszcie.
+
 ## 8. Ryzyka etapu
 
 R1–R4, R6, R10, R11 z roadmapy + dwie lokalne pułapki: konwencja originu
@@ -214,3 +256,119 @@ Wszystkie cztery są opisane w komentarzu-rejestrze w konstruktorze
 zgadzać z komentarzem"). Żadna nie zmienia domyślnego zachowania (wszystkie
 `false`/wyłączone, gdy zmienna nieustawiona) — zero ryzyka dla normalnej pracy
 w UI.
+
+## 10. Doszlifowanie (2026-07-12) — na wyraźne życzenie Jozza
+
+Jozz zatrzymał się na tym etapie celowo: *"to jest bardzo ważna sprawa, będę
+na tej mapie spędzał kilkadziesiąt godzin tygodniowo w najbliższym czasie,
+potrzebujemy to dopieścić i przemyśleć lepiej"*. Trzy konkretne uwagi ze
+screena i opisu, każda z osobnym rozwiązaniem niżej.
+
+### 10.1 Punkt wyjścia (wersja 2026-07-11, dla kontrastu)
+
+Oryginalny generator z §4 (przed doszlifowaniem): trzy niezależne oktawy
+zwykłego (nie ridged) value-noise dodawane do siebie (makro+mezo+mikro),
+przemnożone przez **maskę płaskości** — osobną, NIEZALEŻNĄ od wysokości
+warstwę szumu (smoothstep w [0.3,0.7], λ 140 m) sterującą "polany kontra
+masywy". Efekt wizualny: łagodne, zaokrąglone pagórki (jak wydmy), bez
+wyraźnych grzbietów, z losowo rozrzuconymi płaskimi kieszeniami niezależnie
+od tego, czy dany obszar był akurat wysoki czy niski. Offroad 320×320 m,
+mniejszy niż płyta 400×400 m.
+
+### 10.2 Uwaga 1: rozmiar — offroad = płyta (400×400)
+
+Ze screena Jozza: pomarańczowe strzałki pokazują, że pas offroadu powinien
+mieć tę samą rozpiętość co płyta, "traktując to jako dwa jednakowej wielkości
+tile mapy". Zmiana czysto parametryczna w `jozz_vehicle_world_layout.h`:
+`kOffroadSize` 320→400, siatka 257→321 punktów (cell 1.25 m bez zmian),
+`kOffroadOriginZ` przeliczony tak, by offroad był wyśrodkowany symetrycznie
+do płyty w Z (−200 zamiast −160). Efekt widoczny na zrzucie
+`07_wide_threequarter` (patrz §10.4) — szew ciągnie się przez całą szerokość
+kadru bez żadnej "brakującej" krawędzi.
+
+Anchor „Offroad — głęboko" przesunięty z x=460 na x=560 (bliżej nowej
+dalekiej krawędzi x=598, żeby nadal oznaczał realnie "głęboko w terenie", nie
+tylko środek chunku).
+
+### 10.3 Uwaga 2: chropowatość zależna od wysokości, bramkowana własnym szumem
+
+Jozz: *"tam gdzie teren jest niżej było mniej małych ostrych nierówności,
+mapa powinna być gładka, a im wyższy teren tym więcej takim nierówności, z
+odpowiednim szumem na występowanie tego szumu"*.
+
+Stara "maska płaskości" (§10.1) była ślepa na wysokość — płaskie kieszenie
+mogły trafić się zarówno w dolinie, jak i na szczycie. Nowe rozwiązanie:
+
+1. `elevationShape` (kształt warstwy makro, patrz §10.4 niżej) w [0,1] jest
+   **bezpośrednim sygnałem wysokości** — 0 = dolina, 1 = grzbiet.
+2. Osobna warstwa szumu (`kRoughnessWavelength` ≈ 30 m) **bramkuje** ten
+   sygnał: `roughness = clamp01(elevationShape * lerp(0.4, 1.3, szum))`.
+   Przy niskim szumie roughness spada do ~40% wartości "czystej" wysokości
+   (gładki fragment nawet wysoko — skała wygładzona wiatrem), przy wysokim
+   szumie rośnie do 130% i obcina się przy 1 (odsłonięty, poszarpany kamień
+   nawet niżej). To dosłownie realizuje "z odpowiednim szumem na
+   występowanie tego szumu" — chropowatość to TREND od wysokości, nie
+   sztywna reguła.
+3. `roughness` skaluje amplitudę WYŁĄCZNIE mezo i mikro (`lerp(0.2,1,r)` i
+   `lerp(0.1,1,r)`) — nigdy makro. Makro to "kształt góry", roughness to
+   "faktura powierzchni"; rozdzielenie tych dwóch trosk było celowe, żeby
+   dolina i tak miała trochę drobnicy (nie idealnie bilardowa gładkość — Jozz
+   pisał "mniej", nie "zero"), a szczyt mógł miejscami być gładki.
+
+### 10.4 Uwaga 3: bliżej prawdziwych gór — ridged noise + domain warp
+
+Jozz: wysokość jest "całkiem spoko", ale prosił o coś bliższego prawdziwym
+górom, przy świadomości że erozja/skały/wąwozy to za duży zakres na ten
+etap. Dwie tanie, standardowe techniki z proceduralnej generacji terenu,
+zamiast erozji:
+
+- **Domain warp**: przed próbkowaniem warstwy makro, punkt (x,z) jest
+  przesuwany o osobną warstwę szumu (λ 60 m, do ±22 m). Bez tego grzbiety
+  układałyby się wzdłuż osi siatki szumu (widoczna sztuczność); z warpem
+  wiją się i rozgałęziają organicznie — dokładnie to widać na zrzucie
+  `06_threequarter_mid`.
+- **Ridged, 2 oktawy**: `1 - |szum|`, podniesione do kwadratu dla ostrzejszych
+  grani. Zamiast symetrycznych, zaokrąglonych pagórków (stary generator)
+  powstaje sieć POŁĄCZONYCH grzbietów oddzielonych szerszymi dolinami —
+  charakterystyczny wygląd górski, nie wydmowy. Druga oktawa (waga 0.3,
+  ~2.2× wyższa częstotliwość) dokłada drobniejszy detal na tych samych
+  grzbietach zamiast tworzyć nowe, niepowiązane kształty.
+
+Koszt obu technik to wyłącznie dodatkowe próbki szumu **przy budowie
+terenu** (raz na start/regenerację), zero wpływu na krok fizyki — stąd
+można było dodać 2 dodatkowe warstwy (warp x, warp z) plus drugą oktawę
+makro plus warstwę chropowatości bez obaw o budżet 4 ms (potwierdzone w
+§7: nadal ≥2.4× zapasu).
+
+**Rezygnacja z alternatyw rozważonych i odrzuconych:** erozja hydrauliczna
+(symulacja spływu wody rzeźbiąca kaniony) i teselacja skalna (twarde,
+kanciaste fasety) obie dają bardziej przekonujący wynik, ale wymagają albo
+symulacji iteracyjnej (koszt budowy dużo wyższy, złożoność kodu nieadekwatna
+do jednego etapu), albo osobnego systemu materiałów per-trójkąt (to już
+zakres E3). Ridged + warp to najlepszy stosunek jakości do kosztu na tym
+etapie; erozja może wrócić jako pomysł na później, jeśli po grze na mapie
+Jozz uzna że wciąż brakuje "prawdziwości".
+
+### 10.5 Zrzuty (doszlifowanie)
+
+Zapisane w scratchpadzie sesji, obejrzane narzędziem Read przed uznaniem
+zmiany za gotową:
+
+- `06_threequarter_mid` — perspektywa 3/4 nad środkiem offroadu: wyraźnie
+  widoczna sieć wijących się, rozgałęziających grzbietów (efekt domain
+  warpu), różnica faktury dolina/grzbiet.
+- `07_wide_threequarter` — szerszy kąt obejmujący płytę i offroad razem:
+  potwierdza równe rozmiary kafli i czysty szew (bez uskoku) na całej
+  szerokości styku.
+- `08_valley_vs_ridge` — bliski kontrast: gładszy teren nisko, bardziej
+  poszarpana faktura wyżej — wizualne potwierdzenie chropowatości zależnej
+  od wysokości z §10.3.
+
+Próby bardzo bliskich ujęć szwu pod małym kątem (promień ~35-45 m, pitch
+15-35°) dawały mylący obraz — kamera patrzy niemal WZDŁUŻ granicy
+płyta/offroad, więc w kadrze dominuje spłaszczona perspektywicznie
+pojedyncza powierzchnia (płyta albo początkowy stok offroadu), co z daleka
+wygląda jak jedna wielka rampa. To artefakt kąta kamery przy tej geometrii,
+nie usterka terenu — `07_wide_threequarter` z większego dystansu i przy
+większym yaw pokazuje ten sam obszar poprawnie, bez dwuznaczności. Odnotowane
+tu, żeby przyszłe sesje nie traciły czasu na tę samą pułapkę.

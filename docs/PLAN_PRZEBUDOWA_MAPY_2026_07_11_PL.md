@@ -95,9 +95,10 @@ pułapki i dokładne miejsca w kodzie):
 ## 5. Docelowy layout świata
 
 Wszystko w jednym świecie fizyki. Płyta: **400×400 m** (2.8× obecnej
-powierzchni), top y=0, siatka 3×3 kafli. Offroad: **320×320 m** heightfield
-(55× obecnej powierzchni patcha, ~7.4× wymiaru liniowego), przyklejony do
-wschodniej krawędzi płyty z 2-metrową zakładką POD płytą.
+powierzchni), top y=0, siatka 3×3 kafli. Offroad: **400×400 m** heightfield
+(od doszlifowania 2026-07-12 — te same wymiary co płyta, "dwa równe kafle
+mapy", patrz `MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md` §10.2; pierwotnie 320×320),
+przyklejony do wschodniej krawędzi płyty z 2-metrową zakładką POD płytą.
 
 ```
 z+ (północ)
@@ -105,10 +106,10 @@ z+ (północ)
 │  TOR WYŚCIGOWY (pętla, E3)      │ POLIGO-│
 │  x:-190..140, z:60..190         │ NY     │   OFFROAD (E1)
 ├─────────────────────────────────┤ ZAWIE- │   heightfield
-│        bufor / dojazdy          │ SZEŃ   │   x: 198..518
-│    CENTRUM: spawn, strojenie    │ (E2)   │   z: -160..160
-│    czysty plac Ø~80 m @ (0,0)   │ 6 lane │   3 oktawy szumu
-├───────────────┬─────────────────┤ x:150..│   + maska płaskości
+│        bufor / dojazdy          │ SZEŃ   │   x: 198..598
+│    CENTRUM: spawn, strojenie    │ (E2)   │   z: -200..200
+│    czysty plac Ø~80 m @ (0,0)   │ 6 lane │   ridged+warp+roughness
+├───────────────┬─────────────────┤ x:150..│   (patrz E1 §10)
 │ DRIFT (E3)    │ PLAC FIZYKI (E4)│    195 │   + gradient trudności
 │ skid pad,     │ shaker, most,   │ z:-60..│   (łagodny→dziki im
 │ ósemka, LÓD   │ taśmociąg, ...  │     60 │    dalej na wschód)
@@ -120,11 +121,12 @@ z+ (północ)
 
 Liczby kluczowe (do potwierdzenia bramką wydajności E1):
 
-- Offroad: cell 1.25 m → 257×257 punktów = ~131k trójkątów fizyki i renderu
+- Offroad: cell 1.25 m → 321×321 punktów = ~205k trójkątów fizyki i renderu
   (renderer buduje mesh RAZ i cache'uje po hashu — `gfx/debug_shapes.c:832`).
-- Wysokości: makro-oktawa λ≈90 m amp do 8 m; mezo λ≈16 m amp do 1.2 m; mikro
-  λ≈2.8 m amp do 0.22 m; maska płaskości λ≈140 m (polany ↔ masywy); gradient
-  0→1 na pierwszych ~60 m od styku.
+- Wysokości (od doszlifowania 2026-07-12, pełny opis w E1 §10): makro ridged
+  2 oktawy (λ≈90/40 m, amp do 8 m) przez domain warp (λ≈60 m, ±22 m); mezo
+  λ≈16 m amp do 1.2 m i mikro λ≈2.8 m amp do 0.22 m skalowane chropowatością
+  zależną od wysokości (gradient 0→1 na pierwszych ~60 m od styku).
 - Pas zakładki: pierwsze ~4 kolumny heightfielda liniowo od −0.12 m do wartości
   szumu — teren wychodzi SPOD płyty (wymaganie Jozza wprost).
 
@@ -158,7 +160,7 @@ doki w tym samym commicie.
 
 | Etap | Nazwa | Deliverable | Rozszerzenia |
 |---|---|---|---|
-| 1 ✅ | Fundament terenu | płyta 400×400 (3×3 kafle), offroad 320×320 FBM z zakładką POD płytą, seed+regeneracja, teleport minimalny, pomiar wydajności | P1(min), P7 + 4 nowe env `JOZZ_M6_TELEPORT/AUTODRIVE/PERF_DUMP/REGEN_COUNT` (headless testing, patrz Etap 1 §9) |
+| 1 ✅ | Fundament terenu | płyta 400×400 (3×3 kafle), offroad **400×400** (od 2026-07-12) ridged+warp+roughness z zakładką POD płytą, seed+regeneracja, teleport minimalny, pomiar wydajności | P1(min), P7 + 4 nowe env `JOZZ_M6_TELEPORT/AUTODRIVE/PERF_DUMP/REGEN_COUNT` (headless testing, patrz Etap 1 §9) + doszlifowanie na życzenie Jozza (Etap 1 §10) |
 | 2 | Przeszkody i poligony | parametryczny obstacle kit (~15 generatorów, ostre↔zaokrąglone), 6 lane'ów progresji, demontaż starych ramp | P8 |
 | 3 | Tor i drift | pętla toru z krawężnikami/bandami/oponami, bramki czasowe + HUD stopera, skid pad + ósemka + lodowisko | P3, P4 |
 | 4 | Plac fizyki | shaker 4-post, rolling road, obrotnica, most z desek, see-saw, wrecking ball, stosy/domino/kręgle, eksplozja | P2, P5, P9 |

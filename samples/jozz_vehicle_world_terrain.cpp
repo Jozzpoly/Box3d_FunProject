@@ -52,6 +52,11 @@ float Clamp01( float t )
 	return t < 0.0f ? 0.0f : ( t > 1.0f ? 1.0f : t );
 }
 
+float Clamp( float t, float lo, float hi )
+{
+	return t < lo ? lo : ( t > hi ? hi : t );
+}
+
 // Smoothstep on an arbitrary [edge0, edge1] range.
 float Smoothstep( float edge0, float edge1, float x )
 {
@@ -89,14 +94,26 @@ float SignedNoise2D( uint32_t seed, float x, float z, float wavelength )
 	return ValueNoise2D( seed, x, z, wavelength ) * 2.0f - 1.0f;
 }
 
-// Distinct seed offsets per layer so the macro/meso/micro/mask octaves are
-// decorrelated even though they share the same base seed.
+// Distinct seed offsets per layer so the octaves are decorrelated even
+// though they share the same base seed.
 constexpr uint32_t kMacroSeedOffset = 0x1u;
 constexpr uint32_t kMesoSeedOffset = 0x2u;
 constexpr uint32_t kMicroSeedOffset = 0x3u;
-constexpr uint32_t kMaskSeedOffset = 0x4u;
+constexpr uint32_t kMacroOctave2SeedOffset = 0x4u;
+constexpr uint32_t kWarpSeedOffsetX = 0x5u;
+constexpr uint32_t kWarpSeedOffsetZ = 0x6u;
+constexpr uint32_t kRoughnessSeedOffset = 0x7u;
 
-// height(x, z) = zakladka(x) + trudnosc(x) * [ maska*(makro+mezo) + mikro*lerp(0.35,1,trudnosc) ]
+// Classic ridged-noise remap: 1-|noise| turns smooth symmetric bumps into a
+// connected network of ridges (near the noise's zero crossings) separated by
+// broad valley floors. Squaring sharpens the crests further. Result in [0,1].
+float Ridged( float signedNoiseValue )
+{
+	float r = 1.0f - std::fabs( signedNoiseValue );
+	return r * r;
+}
+
+// height(x, z) = zakladka(x) + trudnosc(x) * [ makro(warp, ridged x2) + mezo*roughness + mikro*roughness ]
 // (x, z) here are LOCAL to the offroad chunk: x in [0, kOffroadSize], x=0 is
 // the seam against the plate. Continuous in both x and z, so it can be
 // sampled at arbitrary points (teleport height), not just grid vertices.
@@ -104,13 +121,36 @@ float ComputeOffroadHeightLocal( uint32_t seed, float localX, float localZ )
 {
 	float difficulty = Smoothstep( 0.0f, kDifficultyGradientDistance, localX );
 
-	float macro = SignedNoise2D( seed + kMacroSeedOffset, localX, localZ, kMacroWavelength ) * kMacroAmplitude;
-	float meso = SignedNoise2D( seed + kMesoSeedOffset, localX, localZ, kMesoWavelength ) * kMesoAmplitude;
-	float micro = SignedNoise2D( seed + kMicroSeedOffset, localX, localZ, kMicroWavelength ) * kMicroAmplitude;
-	float mask = Smoothstep( 0.3f, 0.7f, ValueNoise2D( seed + kMaskSeedOffset, localX, localZ, kFlatnessMaskWavelength ) );
+	// Domain warp: displace the sample point fed into the macro layer so
+	// ridgelines curve and branch instead of following the noise lattice's
+	// axes (Jozz: "blizej prawdziwych gor"). Cost is two extra noise taps at
+	// terrain-build time only - never touches the physics step.
+	float warpX = SignedNoise2D( seed + kWarpSeedOffsetX, localX, localZ, kWarpWavelength ) * kWarpStrength;
+	float warpZ = SignedNoise2D( seed + kWarpSeedOffsetZ, localX, localZ, kWarpWavelength ) * kWarpStrength;
+	float warpedX = localX + warpX;
+	float warpedZ = localZ + warpZ;
 
-	float microScale = Lerp( 0.35f, 1.0f, difficulty );
-	float noiseCombined = mask * ( macro + meso ) + micro * microScale;
+	// Ridged macro, 2 octaves. elevationShape in [0,1] is both "the mountain
+	// shape" and (reused below) the "how exposed is this point" signal.
+	float ridge1 = Ridged( SignedNoise2D( seed + kMacroSeedOffset, warpedX, warpedZ, kMacroWavelength ) );
+	float ridge2 = Ridged( SignedNoise2D( seed + kMacroOctave2SeedOffset, warpedX, warpedZ,
+										   kMacroWavelength * kMacroOctave2WavelengthScale ) );
+	float elevationShape = Lerp( ridge1, ridge2, kMacroOctave2Weight );
+	float macro = ( elevationShape * 2.0f - 1.0f ) * kMacroAmplitude;
+
+	// Roughness: elevation-driven (higher == rockier) but gated by its own
+	// noise layer so it is a trend, not a mechanical rule (Jozz: "z
+	// odpowiednim szumem na wystepowanie tego szumu") - some low ground gets
+	// exposed rock, some high ground stays smooth.
+	float roughnessNoise = ValueNoise2D( seed + kRoughnessSeedOffset, localX, localZ, kRoughnessWavelength );
+	float roughness = Clamp01( elevationShape * Lerp( kRoughnessNoiseLerpLow, kRoughnessNoiseLerpHigh, roughnessNoise ) );
+
+	float meso = SignedNoise2D( seed + kMesoSeedOffset, localX, localZ, kMesoWavelength ) * kMesoAmplitude *
+				 Lerp( kRoughnessMesoFloor, 1.0f, roughness );
+	float micro = SignedNoise2D( seed + kMicroSeedOffset, localX, localZ, kMicroWavelength ) * kMicroAmplitude *
+				  Lerp( kRoughnessMicroFloor, 1.0f, roughness );
+
+	float noiseCombined = macro + meso + micro;
 
 	// Seam overlap strip: ramps from kSeamOverlapDepth (below the plate top)
 	// up to ~0 over the first ~4 columns. Noise itself is already ~0 there
@@ -118,7 +158,8 @@ float ComputeOffroadHeightLocal( uint32_t seed, float localX, float localZ )
 	// carries the surface from "under the plate" to "into the terrain".
 	float seamRamp = kSeamOverlapDepth * ( 1.0f - Smoothstep( 0.0f, kSeamOverlapRunLocalX, localX ) );
 
-	return seamRamp + difficulty * noiseCombined;
+	float height = seamRamp + difficulty * noiseCombined;
+	return Clamp( height, kOffroadGlobalMinHeight + 0.5f, kOffroadGlobalMaxHeight - 0.5f );
 }
 
 // Builds one static body carrying the 3x3 tile plate. Tiles share the same Y

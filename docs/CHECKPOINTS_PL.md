@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-12 · Mapa Etap 1 doszlifowanie: offroad 400x400 + ridged/warp/roughness · [pending push]
+- CO:     Na wyraźne życzenie Jozza ("bardzo ważna sprawa, kilkadziesiąt godzin tygodniowo"): offroad 320×320→400×400 (równy kaflom płyty, siatka 257→321 pkt); `ComputeOffroadHeightLocal` przepisane — makro to teraz ridged noise (1-|szum|)², 2 oktawy, próbkowane przez domain warp (grzbiety wiją się, nie trzymają osi siatki); nowa warstwa `roughness` skaluje amplitudę mezo/mikro na podstawie kształtu makro (wysoko=szorstko, nisko=gładko), bramkowana osobnym szumem, zastępuje starą "maskę płaskości" niezależną od wysokości.
+- CZEMU:  3 konkretne uwagi Jozza ze screena i opisu: (1) offroad ma być tej samej wielkości co płyta, (2) chropowatość ma zależeć od wysokości z "odpowiednim szumem na jej występowanie", (3) teren bliżej prawdziwych gór (erozja poza zakresem, ridged+warp jako tani substytut). Pełne uzasadnienie: `MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md` §10.
+- EFEKT:  Build+walidator(18 sond)+test.exe+boot smoke M5/M6 zielone. Wydajność 1.37–1.65 ms/step (budżet 4 ms, zapas ≥2.4×) mimo +7 próbek szumu/punkt i większej siatki — koszt tylko przy budowie/regeneracji, nie w kroku fizyki. R4 nadal zamknięte: 49→49 shape'ów po 10 regeneracjach. Rendery `06_threequarter_mid`/`07_wide_threequarter`/`08_valley_vs_ridge` obejrzane: sieć organicznych grzbietów, równe kafle+szew bez uskoku, kontrast gładka dolina/szorstki grzbiet.
+- DALEJ:  Etap 2 (kit przeszkód) po akceptacji Jozza.
+
 ## 2026-07-11 · Mapa Etap 1: fundament terenu (płyta 3x3 + offroad FBM) · 44170d4
 - CO:     `jozz_vehicle_world_layout.h` + `jozz_vehicle_world_terrain.{h,cpp}` — płyta 400×400 (3×3 kafle, 1 ciało/9 shape'ów), offroad 320×320 z własnym generatorem FBM (3 oktawy + maska płaskości + gradient trudności), zakładka 2 m POD płytą, seed+„Przebuduj teren" w UI, teleport minimalny (Start/wjazd/głęboko); stary `b3CreateWave`-patch (wystawał NAD płytę) usunięty z `jozz_vehicle_m5_test_course`. Dodatkowo 4 nowe env (`JOZZ_M6_TELEPORT/AUTODRIVE/PERF_DUMP/REGEN_COUNT`) do headless testów mapy bez klawiatury.
 - CZEMU:  Feedback Jozza (mapa za mała, offroad wystaje nad płytę, jeden rodzaj szumu) + akceptacja planu 2026-07-11; ten track wchodzi przed edytorem rigu.
