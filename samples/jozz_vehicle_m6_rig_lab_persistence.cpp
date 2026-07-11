@@ -28,6 +28,9 @@ void JozzVehicleM6RigLab::SaveDebugViewState()
 		// Whether the body mesh is drawn at all - a pure view toggle. WHICH body
 		// is selected is m_config.bodyVisualModel (vehicle identity, Etap 2).
 		file << "showBodyVisual=" << ( m_showBodyVisual ? 1 : 0 ) << "\n";
+		// Collision-layer preview (Etap 3 D3): force the chassis collision box
+		// visible on top of the body skin.
+		file << "showChassisCollider=" << ( m_showChassisCollider ? 1 : 0 ) << "\n";
 	}
 
 void JozzVehicleM6RigLab::LoadDebugViewState()
@@ -75,6 +78,10 @@ void JozzVehicleM6RigLab::LoadDebugViewState()
 			else if ( key == "showBodyVisual" )
 			{
 				m_showBodyVisual = value;
+			}
+			else if ( key == "showChassisCollider" )
+			{
+				m_showChassisCollider = value;
 			}
 		}
 	}

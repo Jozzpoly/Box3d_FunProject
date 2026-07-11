@@ -143,7 +143,58 @@ defaults) i NIC nie robisz.
 
 ## Wynik (wypełnia agent wykonujący)
 
-- Decyzje Jozza: D1 … / D2 … / D3 … / presety …
-- Commity: …
-- Rendery: …
-- Rozbieżności: …
+- **Decyzje Jozza (STOP-gate, 2026-07-11, z renderami porównawczymi C/B/A):**
+  - **D1: TAK** — `frontSuspensionVisualModel="rig_kierowniczy"` domyślnie.
+  - **D2: TAK** — `bodyVisualModel="rama_rurowa"` domyślnie.
+  - **D3: własna odpowiedź Jozza, szersza niż warianty** — (a) warstwa kolizji
+    ma być zawsze przełączalna do podglądu; (b) docelowo import modelu z
+    Blockbench jako CIAŁO KOLIZYJNE (szybka podmiana/test koliderów);
+    (c) importer in-game konieczny pod edytor rigu („tam będziemy rigować
+    wszystko"). W zakresie Etapu 3 zrealizowano (a) mechaniką wariantu A +
+    jawny checkbox; (b)+(c) zapisane jako wymaganie **O8** w
+    `EDYTOR_RIGU_WYMAGANIA_I_AUDYT_PL.md` (to fizyka/nowy podsystem — wymaga
+    własnego planu i osobnej zgody, nie mieściło się w tym etapie).
+  - **Presety built-in: NIE** — zostają częściowe, dziedziczą nowe defaults
+    (zero edycji JSON-ów presetów).
+- **Implementacja kolidera (mechanika wariantu A + przełącznik):** bryła
+  chassis chowa się pod nadwoziem przez **istniejący** `SetShapeHidden`
+  adaptera sampli (ten sam wzorzec, którym lab chowa bryły kolizyjne KÓŁ pod
+  modelem 3D koła); `chassisShapeId` dodany do `JozzVehicleM6`;
+  `UpdateChassisShapeVisibility()` wołany z CreateVehicle/DestroyVehicle
+  (odkrycie na powrót), lejka `ApplyBodyVisualFromConfig()` i obu przełączników
+  widoku. Nowy checkbox Debug „Pokaż bryłę kolizyjną nadwozia"
+  (`m_showChassisCollider`, view-state w debug-session) + env
+  `JOZZ_M6_COLLIDER` (rejestr: 17 hooków) wymusza bryłę NA WIERZCHU — podgląd
+  warstwy kolizji jednym kliknięciem, dokładnie wg (a). Przy modelu „Brak" albo
+  wyłączonym „Pokaż nadwozie 3D" bryła wraca sama (inaczej auto nie miałoby
+  żadnego chassis na ekranie).
+- **Sonda determinizmu dostosowana świadomie:** sabotaż pól visual odwrócony na
+  „brak"/„klasyczny" — po zmianie fabryki na rama/rig stare wartości sabotażu
+  ZRÓWNAŁYBY się z fabryką i asercje „unlisted → factory" stałyby się puste.
+- **Commity:** kod+docs w jednym commicie (hash w CHECKPOINTS uzupełniony
+  drobnym commitem dokumentacyjnym tuż po — wpis nie może znać własnego hasha).
+- **Rendery (wszystkie obejrzane):** porównanie C/B/A
+  (`build/e3_porownanie_kolider_CBA.png`, pokazane Jozzowi przy pytaniach);
+  prototyp B w ciemnym graficie ODRZUCONY własnym renderem (ciemna bryła +
+  ciemna rama = czarny klocek), jasny grafit czytelny ale dolne partie ramy
+  nadal zakryte; quad świeżego bootu bez env/sesji (`e3_default_quad.png`) =
+  rama+rig+schowana bryła w 4 ujęciach — DOWÓD nowych defaults; zrzut
+  `JOZZ_M6_COLLIDER=1` (`e3_collider_preview.png`) = bryła wraca na wierzch.
+- **Gate:** build 3/3 OK, walidator OK (18 sond; liczby fizyczne IDENTYCZNE:
+  m7 landing 0.6°/0.1°/0.008 m, p1 32.5°, p5 40.5°), test PASS, smoke 0 err;
+  doc-drift czysty.
+- **Rozbieżności ze stanem zastanym:**
+  1. §2 tego dokumentu mylił się co do wariantu A: zakładał badanie „czy
+     callback dostaje shapeId" i ostrzegał przed kolor-sentinelem — tymczasem
+     `SetShapeHidden(b3ShapeId, bool)` ISTNIAŁ w `samples/gfx/debug_adapter.c`
+     (z rejestrem hiddenShapes) i był używany przez TEN SAM lab dla kół.
+     Wariant A okazał się najtańszy i najlepszy wizualnie — żadnych zmian w
+     adapterze, zero dotykania core.
+  2. §1 wskazywał `JozzVehicleM6DefaultConfig` w `suspension_rig.cpp` — od R5
+     żyje w `jozz_vehicle_m6_geometry.cpp` (ta sama rozbieżność co w Etapach
+     1-2).
+- **Uwaga dla Jozza (z §1 tego dokumentu):** stary plik sesji
+  (`build/jozz_vehicle_m6_session.json`) WYGRYWA z nowymi defaults (in-place
+  load) — żeby zobaczyć nowy domyślny stan, skasuj plik sesji albo po prostu
+  wybierz ramę/rig raz ręcznie. Pliki sesji agenta zostały wyczyszczone po
+  testach, więc na tej maszynie pierwszy boot pokaże nowe defaults.

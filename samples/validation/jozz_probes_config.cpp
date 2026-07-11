@@ -393,10 +393,13 @@ bool RunPresetDeterminismProbe( const JozzVehiclePrimitiveDefaults& defaults )
 	fiddled.suspensionHertz = 11.0f;
 	// Etap 2 (persystencja, 2026-07-11): visual identity is now config, not
 	// UI-only state - offroad.json doesn't define these either, so they must
-	// return to factory the same as any other unlisted field.
-	std::snprintf( fiddled.bodyVisualModel, sizeof( fiddled.bodyVisualModel ), "rama_rurowa" );
+	// return to factory the same as any other unlisted field. The fiddled
+	// values MUST differ from JozzVehicleM6DefaultConfig or the checks below
+	// are vacuous - since Etap 3 the factory is rama_rurowa/rig_kierowniczy
+	// (decyzje D1/D2), so the sabotage is "brak"/"klasyczny".
+	std::snprintf( fiddled.bodyVisualModel, sizeof( fiddled.bodyVisualModel ), "brak" );
 	fiddled.bodyVisualOffset = { 0.11f, 0.22f, 0.33f };
-	std::snprintf( fiddled.frontSuspensionVisualModel, sizeof( fiddled.frontSuspensionVisualModel ), "rig_kierowniczy" );
+	std::snprintf( fiddled.frontSuspensionVisualModel, sizeof( fiddled.frontSuspensionVisualModel ), "klasyczny" );
 
 	std::string presetPath;
 	bool found = FindJozzVehicleAssetFile( "assets/vehicle_presets/offroad.json", &presetPath );

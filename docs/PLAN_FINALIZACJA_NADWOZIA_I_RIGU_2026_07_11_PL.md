@@ -194,4 +194,7 @@ sygnał) — ma się zatrzymać i opisać rozbieżność, nie improwizować.
 - [x] Etap 2 — persystencja R/sesja/presety (Sonnet 5 high; szczegóły "Wynik" w
       `FINALIZACJA_ETAP_2_PERSYSTENCJA_PL.md`; sonda rozszerzona, render/quad
       obejrzany, gate zielony)
-- [ ] Etap 3 — stan zwalidowany + kolider + docs (commit: …)
+- [x] Etap 3 — stan zwalidowany + kolider + docs (Fable 5; decyzje D1/D2 TAK,
+      D3 = podgląd kolizji teraz + wymóg O8 importer/collision-body do planu
+      edytora, presety zostają częściowe; szczegóły "Wynik" w
+      `FINALIZACJA_ETAP_3_STAN_ZWALIDOWANY_PL.md`; PLAN ZAMKNIĘTY)

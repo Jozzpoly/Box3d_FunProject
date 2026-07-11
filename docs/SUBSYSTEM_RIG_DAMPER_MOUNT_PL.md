@@ -14,6 +14,15 @@ Wizualne amortyzatory są **dekoracją odłączoną od fizyki** — wyglądają 
 podążają za żywą geometrią, ale nie są tą samą sprężyną, która niesie auto.
 To świadomy stan v0; polish tej warstwy jest odłożony.
 
+**Status od Etapu 3 finalizacji (2026-07-11, decyzja D1 Jozza):** na PRZEDNIEJ
+osi domyślnym wizualem jest nowy rig kierowniczy
+(`OneSided_Steering_Suspension_Rig`, `jozz_vehicle_m6_rig_lab_steering_visual.cpp`,
+G1+G3 rozgrzewki edytora) — `frontSuspensionVisualModel="rig_kierowniczy"` w
+fabrycznym configu; stary mount z tego dokumentu zostaje na TYLE osi i jako
+opcja `"klasyczny"` (Debug checkbox / config). Rama nadwozia (`Nadwozie.gltf`)
+jest też domyślnie ON, a bryła kolizyjna chassis chowa się pod nią
+(`SetShapeHidden`, podgląd: Debug → „Pokaż bryłę kolizyjną nadwozia").
+
 ## 2. Kto czym jest (rozdział odpowiedzialności)
 
 | Warstwa | Gdzie | Co robi |

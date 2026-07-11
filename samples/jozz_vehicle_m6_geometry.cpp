@@ -413,11 +413,13 @@ JozzVehicleM6Config JozzVehicleM6DefaultConfig( float wheelRadius, float wheelWi
 	config.uprightHertz = 0.4f;
 	config.uprightDampingRatio = 1.0f;
 
-	// Visual identity defaults - Etap 1 keeps today's look (no body skin,
-	// classic mount visuals); Etap 3 flips these to the validated defaults.
-	std::snprintf( config.bodyVisualModel, sizeof( config.bodyVisualModel ), "brak" );
+	// Visual identity defaults - the validated game state (Etap 3, decyzje
+	// Jozza D1/D2 2026-07-11): Jozz's tube frame on the chassis and the new
+	// steering rig on the front axle. "brak"/"klasyczny" stay selectable in
+	// the Nadwozie tab / Debug checkbox for bare-suspension work.
+	std::snprintf( config.bodyVisualModel, sizeof( config.bodyVisualModel ), "rama_rurowa" );
 	config.bodyVisualOffset = { 0.0f, 0.0f, 0.0f };
-	std::snprintf( config.frontSuspensionVisualModel, sizeof( config.frontSuspensionVisualModel ), "klasyczny" );
+	std::snprintf( config.frontSuspensionVisualModel, sizeof( config.frontSuspensionVisualModel ), "rig_kierowniczy" );
 
 	config.filterGroupIndex = -19;
 

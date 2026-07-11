@@ -122,6 +122,7 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		//   STEERING  0/1  draw the NEW front steering rig instead of the old mount (front only)
 		//   BODY      0/1  draw the selected body skin as a rigid skin (view toggle)
 		//   BODY_MODEL key  select the body skin by registry key (e.g. rama_rurowa)
+		//   COLLIDER  0/1  force the chassis collision box visible on top of the skin
 		//   DUMPER    0/1  show the telescoping dampers
 		//   ARMTINT   0/1  tint arms (Top red / Bottom blue) vs the debug lines
 		//   DUMP      0/1  print corner geometry numbers on a frame (hard data)
@@ -167,11 +168,17 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		if ( const char* v = std::getenv( "JOZZ_M6_BODY" ) )
 		{
 			m_showBodyVisual = atoi( v ) != 0;
+			UpdateChassisShapeVisibility();
 		}
 		if ( const char* v = std::getenv( "JOZZ_M6_BODY_MODEL" ) )
 		{
 			std::snprintf( m_config.bodyVisualModel, sizeof( m_config.bodyVisualModel ), "%s", v );
 			ApplyBodyVisualFromConfig();
+		}
+		if ( const char* v = std::getenv( "JOZZ_M6_COLLIDER" ) )
+		{
+			m_showChassisCollider = atoi( v ) != 0;
+			UpdateChassisShapeVisibility();
 		}
 		if ( const char* v = std::getenv( "JOZZ_M6_ARMTINT" ) )
 		{
@@ -262,6 +269,7 @@ void JozzVehicleM6RigLab::CreateVehicle()
 		DestroyVehicle();
 		m_vehicle = CreateJozzVehicleM6( m_worldId, m_groundId, m_config, { 0.0f, GetSpawnHeight(), 0.0f } );
 		UpdateWheelShapeVisibility();
+		UpdateChassisShapeVisibility();
 		SetupMountRig();
 		SetupSteeringRig();
 	}
@@ -294,6 +302,7 @@ void JozzVehicleM6RigLab::DestroyVehicle()
 					SetShapeHidden( runtime.wheelShapeIds[i], false );
 				}
 			}
+			SetShapeHidden( m_vehicle.chassisShapeId, false );
 		}
 
 		DestroyJozzVehicleM6( &m_vehicle );
@@ -314,6 +323,21 @@ void JozzVehicleM6RigLab::UpdateWheelShapeVisibility()
 				SetShapeHidden( runtime.wheelShapeIds[i], m_showPrimitiveWheelShapes == false );
 			}
 		}
+	}
+
+	// The collision box is the ONLY thing the debug draw shows for the chassis,
+	// so unlike the wheels there is no extra "surowe kształty" toggle: box
+	// visibility simply inverts body-skin visibility. With the skin hidden (or
+	// "brak" selected) the box must come back, or the car has no chassis on
+	// screen at all.
+void JozzVehicleM6RigLab::UpdateChassisShapeVisibility()
+	{
+		if ( m_vehicle.valid == false )
+		{
+			return;
+		}
+		bool skinCoversBox = m_showBodyVisual && m_bodyVisual.IsLoaded();
+		SetShapeHidden( m_vehicle.chassisShapeId, skinCoversBox && m_showChassisCollider == false );
 	}
 
 void JozzVehicleM6RigLab::ApplySuspensionTuning()

@@ -748,7 +748,7 @@ JozzVehicleM6 CreateJozzVehicleM6( b3WorldId worldId, b3BodyId groundBodyId, con
 
 		b3BoxHull box = b3MakeOffsetBoxHull( config.chassisHalfExtents.x, config.chassisHalfExtents.y,
 											 config.chassisHalfExtents.z, { 0.0f, -config.cgVerticalOffset, 0.0f } );
-		b3CreateHullShape( vehicle.chassisId, &shapeDef, &box.base );
+		vehicle.chassisShapeId = b3CreateHullShape( vehicle.chassisId, &shapeDef, &box.base );
 	}
 
 	// Physical steering rack, only when the front axle is multi-body. The rack

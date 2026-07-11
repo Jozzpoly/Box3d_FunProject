@@ -188,9 +188,10 @@ The lab reads env vars to pose state headless without UI clicks: `JOZZ_M6_CAM`
 `JOZZ_M6_MOUNT`, `JOZZ_M6_STEERING_RIG` (draw the new front steering rig instead of
 the old mount), `JOZZ_M6_BODY` (view toggle: draw the selected body skin as a rigid
 skin), `JOZZ_M6_BODY_MODEL` (select the body skin by registry key, e.g.
-`rama_rurowa`), `JOZZ_M6_TAB` (0-5 forces a UI tab open), `JOZZ_M6_PRESET`,
+`rama_rurowa`), `JOZZ_M6_COLLIDER` (force the chassis collision box visible on
+top of the body skin), `JOZZ_M6_TAB` (0-5 forces a UI tab open), `JOZZ_M6_PRESET`,
 `JOZZ_M6_HERTZ`/`DAMP`/`PRELOAD`/`DROOP`, `JOZZ_M6_DUMP` (prints corner geometry
-numbers). *(Authoritative list of all 16 hooks: the registry comment at the
+numbers). *(Authoritative list of all 17 hooks: the registry comment at the
 `getenv( "JOZZ_M6"` site in `jozz_vehicle_m6_rig_lab.cpp`.)*
 
 **⚠ The validator asserts loosely.** It PRINTS diagnostic numbers (e.g. steering
@@ -394,17 +395,22 @@ useful as history, **not** as current architecture. Trust this order:
   numbers byte-identical, not just green), split of the four monoliths,
   config field-table, pure-geometry extraction (editor prep). Move-only
   except R7; physics frozen. **R0–R5 zrobione (2026-07-11); R6/R7 opcjonalne.**
-- `docs/PLAN_FINALIZACJA_NADWOZIA_I_RIGU_2026_07_11_PL.md` — **aktywny track:**
-  finalizacja nadwozia + przedniego rigu jako domyślnego stanu gry — wybór
-  modelu nadwozia w zakładce Nadwozie, persystencja (R/presety/auto-sesja),
-  kolider. 3 etapy, każdy ma własny doc `FINALIZACJA_ETAP_*_PL.md`.
+- `docs/PLAN_FINALIZACJA_NADWOZIA_I_RIGU_2026_07_11_PL.md` — **ZAMKNIĘTY
+  (Etapy 1-3 zrobione 2026-07-11):** rama rurowa + przedni rig kierowniczy są
+  DOMYŚLNYM stanem gry, pola visual w configu persystują (R/presety/auto-sesja),
+  kolider chassis chowa się pod nadwoziem (podgląd: Debug checkbox /
+  `JOZZ_M6_COLLIDER`). Szczegóły w docach `FINALIZACJA_ETAP_*_PL.md` (sekcje
+  „Wynik"). Następny track: edytor rigu (wymagania O1-O8 w dokumencie niżej;
+  O8 = importer in-game + collision body z Blockbench, wymaga własnego planu).
 - `docs/PLAN_EDYTOR_RIGU_ROZGRZEWKA_2026_07_11_PL.md` — rozgrzewka pod edytor
   rigu: **G0/G1/G3 ZROBIONE** (import na przód + drążek do środka racka +
-  dumper; potwierdzone przez Jozza), G4 (cardan) opcjonalny. Wyniki wchłania
-  plan finalizacji wyżej; odkrycia O1–O7 w dokumencie wymagań.
+  dumper; potwierdzone przez Jozza), G4 (cardan) opcjonalny. Wyniki weszły do
+  gry jako domyślny stan (plan finalizacji wyżej); odkrycia O1–O8 w dokumencie
+  wymagań.
 - `docs/EDYTOR_RIGU_WYMAGANIA_I_AUDYT_PL.md` — **żywy dokument:** audyt jak rig
   działa dziś + wymagania edytora (per-część rodzic, pivot, gizmos, tryby
-  wiązania) + odkrycia na żywo (O1–O5). Read before rig-editor work.
+  wiązania, importer in-game/collision body) + odkrycia na żywo (O1–O8). Read
+  before rig-editor work.
 - `docs/PLAN_PORZADKI_FUNDAMENT_2026_07_09_PL.md` — **DONE** (stages A–G,
   2026-07-09): gate script, shared CMake list, probe registry, persistence
   map, env registry, encoded STOP-gates.

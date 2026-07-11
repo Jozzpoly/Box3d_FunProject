@@ -10,10 +10,14 @@ checkbox Debug; walidator bez zmian; render obejrzany). Rozdział dynamiczny
 Jozza; dumper rigu: górne oko chassis / dolne ramię; walidator bez zmian; render
 obejrzany). Odkrycia O2–O7 w dokumencie wymagań. Nadwozie (`Nadwozie.gltf`)
 podłączone sztywno pod chassis (a275947, poza sekwencją gejtów, prośba Jozza).
-DALEJ: rozgrzewka pauzuje — **aktywny track przejmuje
-`PLAN_FINALIZACJA_NADWOZIA_I_RIGU_2026_07_11_PL.md`** (pełna integracja
-rigu+nadwozia do gry: wybór modelu, persystencja R/presety, domyślne ON).
-G4 (cardan) zostaje opcjonalny po finalizacji.
+**FINALIZACJA ZAMKNIĘTA (2026-07-11, Etapy 1-3
+`PLAN_FINALIZACJA_NADWOZIA_I_RIGU_2026_07_11_PL.md`):** stan rozgrzewki wszedł
+do gry jako DOMYŚLNY — rama rurowa + rig kierowniczy na przodzie są fabrycznym
+configiem, przeżywają R/presety, kolider chassis chowa się pod ramą (szczegóły
+tam, ten plan tylko wskazuje). G4 (cardan) zostaje opcjonalny. Nowe twarde
+wymaganie z decyzji D3: **O8 — importer in-game + model z Blockbench jako
+collision body** (dokument wymagań, część C) — kandydat na pierwszy plan
+właściwego edytora.
 
 Powiązane: `EDYTOR_RIGU_WYMAGANIA_I_AUDYT_PL.md` (żywy dokument wymagań+audytu,
 zakładany przy G1), `SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md`, kontrakt

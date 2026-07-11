@@ -56,6 +56,22 @@ Jozz Vehicle / Lab M1 Smoke
 
 ## 2. Current validated state
 
+**2026-07-11 — finalizacja nadwozia i rigu (plan `PLAN_FINALIZACJA_NADWOZIA_I_RIGU_2026_07_11_PL.md`, Etapy 1-3 zamknięte):**
+
+```text
+Domyślny stan gry (fabryczne defaults): rama rurowa Jozza (Nadwozie.gltf) jako
+  sztywna skóra na chassis + nowy rig kierowniczy na przedniej osi
+  (bodyVisualModel="rama_rurowa", frontSuspensionVisualModel="rig_kierowniczy"
+  w JozzVehicleM6DefaultConfig; decyzje Jozza D1/D2 2026-07-11)
+Wybór nadwozia: zakładka Nadwozie, kurowany rejestr modeli
+  (samples/jozz_vehicle_body_registry.{h,cpp}) + suwaki offsetu pozycji (live)
+Persystencja: pola visual w JozzVehicleM6Config -> config_io (typ pola String),
+  przeżywają R/restart, wchodzą do presetów; zwalidowane przez Jozza 2026-07-11
+Kolider chassis chowa się pod nadwoziem 3D (SetShapeHidden, wzorzec brył kół);
+  podgląd warstwy kolizji: Debug > "Pokaż bryłę kolizyjną nadwozia" / JOZZ_M6_COLLIDER
+Presety built-in (uliczny/drift/offroad) celowo częściowe - dziedziczą defaults
+```
+
 Validated by Jozz:
 
 ```text

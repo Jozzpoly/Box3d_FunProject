@@ -135,6 +135,21 @@ Walidator bez zmian (wizualnie). Bo drążek pinuje inboard tym SAMYM punktem ś
 co linia racka w `DrawRigDiagnostics` — zbieżność z konstrukcji. Pominięte dalej:
 cardan (G4), per-ramię górne/dolne osobno.
 
+**O8 (Etap 3 finalizacji, decyzja D3 Jozza 2026-07-11). Importer in-game +
+model z Blockbench jako CIAŁO KOLIZYJNE.** Przy pytaniu o artefakt kolidera
+chassis Jozz rozszerzył wymaganie poza rysowanie: (a) warstwa kolizji ma być
+zawsze przełączalna do podglądu (ZROBIONE w Etapie 3: `SetShapeHidden` na bryle
+chassis + checkbox Debug „Pokaż bryłę kolizyjną nadwozia" + `JOZZ_M6_COLLIDER`);
+(b) docelowo ma dać się IMPORTOWAĆ model z Blockbench, który ROBI ZA collision
+body — szybkie podmienianie i testowanie innych koliderów; (c) importer
+in-game jest konieczny dla edytora rigu w ogóle: „tam będziemy rigować
+wszystko" — modele zawieszeń, body, cardan shaft. Wniosek dla edytora: obok
+warstwy WIZUALNEJ (rejestr nadwozi, Etap 1) potrzebna jest warstwa KOLIZYJNA
+zasilana importem (mesh → hull(e) fizyki, zapewne przez istniejący pipeline
+kontraktów assetów) + UI importu w aplikacji, nie tylko pliki wrzucane ręcznie.
+To jest FIZYKA (tworzenie shape'ów), nie rysowanie — wymaga własnego planu i
+osobnej zgody na start; nie mieściło się w zakresie Etapu 3 (defaults+draw).
+
 ## Część D — Otwarte pytania / decyzje
 
 - **D1 — aranżacja:** ROZSTRZYGNIĘTE (Jozz, 2026-07-11): przód = nowy rig

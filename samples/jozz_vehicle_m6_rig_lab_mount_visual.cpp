@@ -96,6 +96,8 @@ void JozzVehicleM6RigLab::ApplyBodyVisualFromConfig()
 		const JozzVehicleBodyModelDef* def = FindJozzVehicleBodyModelByKey( m_config.bodyVisualModel );
 		if ( def == nullptr || def->assetPath == nullptr )
 		{
+			// "brak" (or an unknown key): no skin, so the collision box must show.
+			UpdateChassisShapeVisibility();
 			return;
 		}
 
@@ -114,6 +116,11 @@ void JozzVehicleM6RigLab::ApplyBodyVisualFromConfig()
 		b3Quat yaw = b3MakeQuatFromAxisAngle( b3Vec3_axisY, def->baseYawDeg * B3_PI / 180.0f );
 		m_bodyChassisLocal.q = yaw;
 		m_bodyChassisLocal.p = def->basePos;
+
+		// The chassis collision box hides behind the skin that just loaded (and
+		// reappears if the load failed) - same SetShapeHidden pattern as the
+		// wheel shapes, see UpdateChassisShapeVisibility.
+		UpdateChassisShapeVisibility();
 	}
 
 	// Draws the frame rigidly on the live chassis: worldTransform = chassisLive o

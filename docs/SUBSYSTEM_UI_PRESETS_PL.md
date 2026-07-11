@@ -122,9 +122,12 @@ zyskał czwarty typ pola, `JozzFieldType::String` (obok Float/Int/Bool/Vec3) —
 `char[JOZZ_M6_MODEL_KEY_CAP]`, żadnego JSON-escapingu (klucze rejestru to
 `[a-z0-9_]` z konstrukcji, egzekwowane przez `SanitizeJozzVehicleM6Config`).
 3 committed presety (uliczny/drift/offroad) NIE definiują tych kluczy — po
-wczytaniu dostają fabryczne „brak"/„klasyczny" (poprawne, przejściowe; Etap 3
-decyduje, czy je wzbogacić). Strażnik: `RunPresetDeterminismProbe` rozszerzony
-o powrót do fabryki tych 3 pól + osobny round-trip save/load (pilnuje pułapki
+wczytaniu dostają fabryczne wartości. Od Etapu 3 (decyzje Jozza D1/D2 + bonus,
+2026-07-11) fabryka to `rama_rurowa`/`rig_kierowniczy`, a presety CELOWO
+zostają częściowe (dziedziczą defaults — decyzja Jozza, spójna z semantyką
+§2a „tylko to, co odróżnia setup"). Strażnik: `RunPresetDeterminismProbe`
+rozszerzony o powrót do fabryki tych 3 pól (sabotaż = „brak"/„klasyczny", musi
+RÓŻNIĆ się od fabryki) + osobny round-trip save/load (pilnuje pułapki
 `lastInObject` — zepsuty przecinek na końcu obiektu psuje cały plik JSON).
 
 ## 4. Gdzie szukać w kodzie

@@ -113,6 +113,12 @@ public:
 	void ResetWorld();
 	void DestroyVehicle();
 	void UpdateWheelShapeVisibility();
+	// Same pattern as the wheels: the chassis collision box hides behind the
+	// body skin when one is loaded AND shown, so the frame is not painted over
+	// by the opaque box (Etap 3, kolider wariant A). Call after anything that
+	// rebuilds the vehicle (new shape id), swaps the body model, or toggles
+	// m_showBodyVisual.
+	void UpdateChassisShapeVisibility();
 	void ApplySuspensionTuning();
 	void ApplySteeringTuning();
 	void ApplyWheelFriction();
@@ -175,6 +181,11 @@ public:
 	JozzVehicleVisualMesh m_bodyVisual;
 	b3WorldTransform m_bodyChassisLocal;
 	bool m_showBodyVisual = true;
+	// Collision-layer preview (Jozz, D3 2026-07-11): the chassis collision box
+	// normally hides under the body skin (UpdateChassisShapeVisibility), but the
+	// collision layer must always be ONE CLICK away for inspection - this forces
+	// the box visible on top of the skin. View state, default OFF.
+	bool m_showChassisCollider = false;
 
 	bool m_armTint = false; // debug: tint wishbone arms to compare with debug lines
 	bool m_dumpGeometry = false;

@@ -500,6 +500,7 @@ struct JozzVehicleM6
 	bool valid;
 	JozzVehicleM6Config config;
 	b3BodyId chassisId;
+	b3ShapeId chassisShapeId; // the single chassis collision box; exposed so labs can hide its debug draw under a body skin
 	JozzVehicleM6CornerRuntime corners[JOZZ_M6_CORNER_COUNT];
 	b3BodyId rackId;	  // null unless the front axle is a wishbone rig
 	b3JointId rackJointId;

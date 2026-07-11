@@ -431,8 +431,9 @@ void JozzVehicleM6RigLab::DrawChassisTab()
 				ImGui::EndCombo();
 			}
 			HelpMarker( "Wygląd nadwozia - czysto wizualna skóra na bryle fizycznej. Nie zmienia fizyki: "
-						"bryła kolizyjna i jej wymiary (sekcje niżej) działają jak dotąd. "
-						"Wybór wejdzie do presetów i przeżyje R (Etap 2)." );
+						"bryła kolizyjna i jej wymiary (sekcje niżej) działają jak dotąd (bryła chowa się "
+						"pod nadwoziem - podgląd: Debug > 'Pokaż bryłę kolizyjną nadwozia'). "
+						"Wybór wchodzi do presetów i przeżywa R." );
 
 			ImGui::SliderFloat( "Przesunięcie przód/tył", &m_config.bodyVisualOffset.x, -0.50f, 0.50f, "%.2f m" );
 			ImGui::SliderFloat( "Przesunięcie góra/dół", &m_config.bodyVisualOffset.y, -0.50f, 0.50f, "%.2f m" );
@@ -611,9 +612,19 @@ void JozzVehicleM6RigLab::DrawDebugTab()
 					"tył zostaje na starym. WheelCenter skręca z kołem, ChassisMount_b jedzie na ramieniu "
 					"(nie skręca). Drążek (inboard→środek racka, L/P łączą się) i dumper: G3 zrobione. "
 					"Cardan: G4." );
-		ImGui::Checkbox( "Pokaż nadwozie 3D", &m_showBodyVisual );
+		if ( ImGui::Checkbox( "Pokaż nadwozie 3D", &m_showBodyVisual ) )
+		{
+			// The chassis collision box swaps with the skin (wariant A, Etap 3).
+			UpdateChassisShapeVisibility();
+		}
 		HelpMarker( "Przełącznik WIDOKU - który model jest wybrany, ustawia zakładka Nadwozie. "
-					"Wyłącz, by w tym labie zobaczyć samo zawieszenie bez zasłaniającej ramy." );
+					"Wyłącz, by w tym labie zobaczyć samo zawieszenie (i bryłę kolizyjną) bez ramy." );
+		if ( ImGui::Checkbox( "Pokaż bryłę kolizyjną nadwozia", &m_showChassisCollider ) )
+		{
+			UpdateChassisShapeVisibility();
+		}
+		HelpMarker( "Podgląd WARSTWY KOLIZJI: wymusza rysowanie bryły kolizyjnej chassis nawet pod ramą. "
+					"Normalnie bryła chowa się pod nadwoziem 3D (i wraca sama przy modelu 'Brak')." );
 		if ( ImGui::Checkbox( "Surowe kształty kolizji kół", &m_showPrimitiveWheelShapes ) )
 		{
 			UpdateWheelShapeVisibility();
