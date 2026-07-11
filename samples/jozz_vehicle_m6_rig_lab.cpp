@@ -22,22 +22,16 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		m_savedEnableContinuous = context->enableContinuous;
 		context->enableContinuous = false;
 
-		// Same footprint as AddGroundBox(120), but tagged with the terrain
-		// category so the split wheel envelope can separate rolling contact
-		// (sphere vs terrain) from side contact (true-width cylinder vs the
-		// rest). Ramps/washboard/heightfield get the same tag; props do not.
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.name = "ground";
-			bodyDef.position = { 0.0f, -1.0f, 0.0f };
-			m_groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			shapeDef.filter.categoryBits = JOZZ_M6_TERRAIN_CATEGORY;
-			b3BoxHull hull = b3MakeBoxHull( 120.0f, 1.0f, 120.0f );
-			b3ShapeId shapeId = b3CreateHullShape( m_groundId, &shapeDef, &hull.base );
-			SetGroundShape( shapeId );
-		}
+		// Mapa Etap 1 (docs/MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md): a 400x400 m,
+		// 3x3-tile plate plus a 320x320 m offroad FBM heightfield chunk that
+		// dips under its east edge. Tagged with the terrain category so the
+		// split wheel envelope can separate rolling contact (sphere vs
+		// terrain) from side contact (true-width cylinder vs the rest).
+		// Ramps/washboard/props from the test course get the same tag; props
+		// do not.
+		m_worldGround = CreateJozzWorldGround( m_worldId, JOZZ_M6_TERRAIN_CATEGORY );
+		m_groundId = m_worldGround.plateBodyId;
+		m_worldSeedInput = (int)m_worldGround.seed;
 		m_testCourse = CreateJozzVehicleM5TestCourse( m_worldId, 0.0f, JOZZ_M6_TERRAIN_CATEGORY );
 
 		m_assetMetadata = LoadJozzVehicleAuditMetadata();
@@ -133,6 +127,19 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		//   DROOP     float  arm rest droop degrees (needs a rebuild)
 		//   TAB       0-5  force one tab open for a frame (Zaw/Nad/Nap/Kier/Świat/Debug)
 		//   PRESET    name  load a named preset on boot
+		//   TELEPORT  name  move the spawn anchor to a named world anchor on boot
+		//             (jozz_vehicle_world_layout.h kWorldAnchors, exact match, e.g. "Start")
+		//   AUTODRIVE 0/1  force full-throttle straight-line drive every Step - headless
+		//             drive-through testing (map seam/tile-join gates) with no human at
+		//             the keyboard; see docs/MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md
+		//   PERF_DUMP step  printf one averaged step_ms/fps/counters line to stdout once
+		//             m_stepCount reaches this value (headless performance measurement)
+		//   REGEN_SEED int  rebuild the offroad chunk with this seed right after boot
+		//             (headless verification that the "Przebuduj teren" code path works
+		//             and the seam stays correct with a different terrain)
+		//   REGEN_COUNT n  regenerate the offroad chunk n times with varying seeds right
+		//             after boot and printf the debug mesh registry count before/after
+		//             (headless R4 check: regeneration must not leak meshes)
 		// Throwaway regression scaffolds were removed 2026-07-09 (their bugs are
 		// fixed + guarded): JOZZ_M6_DIRTY_AT_FRAME (tab-identity), TEST_RESET_MODAL.
 		if ( const char* v = std::getenv( "JOZZ_M6_DIAG" ) )
@@ -223,6 +230,40 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		{
 			LoadPresetByName( v );
 		}
+		if ( const char* v = std::getenv( "JOZZ_M6_TELEPORT" ) )
+		{
+			for ( int i = 0; i < JozzWorldLayout::kWorldAnchorCount; ++i )
+			{
+				const JozzWorldLayout::JozzWorldAnchor& anchor = JozzWorldLayout::kWorldAnchors[i];
+				if ( std::strcmp( v, anchor.name ) == 0 )
+				{
+					TeleportTo( anchor.x, anchor.z );
+					break;
+				}
+			}
+		}
+		if ( const char* v = std::getenv( "JOZZ_M6_AUTODRIVE" ) )
+		{
+			m_autoDrive = atoi( v ) != 0;
+		}
+		if ( const char* v = std::getenv( "JOZZ_M6_PERF_DUMP" ) )
+		{
+			m_perfDumpAtStep = atoi( v );
+		}
+		if ( const char* v = std::getenv( "JOZZ_M6_REGEN_SEED" ) )
+		{
+			m_worldSeedInput = atoi( v );
+			RegenerateTerrain();
+		}
+		if ( const char* v = std::getenv( "JOZZ_M6_REGEN_COUNT" ) )
+		{
+			// Deferred to Step() (m_regenCheckAtStep), not run here: the debug
+			// renderer's mesh pool is populated lazily by Render(), which has not
+			// run yet this early in the constructor - checking GetDebugShapeCount()
+			// right now would read 0 before and after regardless of any leak.
+			m_regenCheckCount = atoi( v );
+			m_regenCheckAtStep = 30;
+		}
 	}
 
 JozzVehicleM6RigLab::~JozzVehicleM6RigLab()
@@ -242,6 +283,7 @@ JozzVehicleM6RigLab::~JozzVehicleM6RigLab()
 		m_riggedSteeringR.Destroy();
 		m_bodyVisual.Destroy();
 		DestroyJozzVehicleM5TestCourse( &m_testCourse );
+		DestroyJozzWorldGround( &m_worldGround );
 		m_context->enableContinuous = m_savedEnableContinuous;
 	}
 
@@ -264,10 +306,29 @@ float JozzVehicleM6RigLab::GetSpawnHeight() const
 		return m_config.restDrop + m_config.wheelEnvelope.radius + 0.05f;
 	}
 
+float JozzVehicleM6RigLab::GetGroundHeightAt( float x, float z ) const
+	{
+		return SampleJozzWorldGroundHeight( m_worldGround, x, z );
+	}
+
+void JozzVehicleM6RigLab::TeleportTo( float x, float z )
+	{
+		m_spawnAnchorX = x;
+		m_spawnAnchorZ = z;
+		CreateVehicle();
+	}
+
+void JozzVehicleM6RigLab::RegenerateTerrain()
+	{
+		RegenerateJozzWorldOffroad( &m_worldGround, JOZZ_M6_TERRAIN_CATEGORY, (uint32_t)m_worldSeedInput );
+	}
+
 void JozzVehicleM6RigLab::CreateVehicle()
 	{
 		DestroyVehicle();
-		m_vehicle = CreateJozzVehicleM6( m_worldId, m_groundId, m_config, { 0.0f, GetSpawnHeight(), 0.0f } );
+		float groundY = GetGroundHeightAt( m_spawnAnchorX, m_spawnAnchorZ );
+		m_vehicle = CreateJozzVehicleM6( m_worldId, m_groundId, m_config,
+										  { m_spawnAnchorX, groundY + GetSpawnHeight(), m_spawnAnchorZ } );
 		UpdateWheelShapeVisibility();
 		UpdateChassisShapeVisibility();
 		SetupMountRig();
@@ -474,6 +535,15 @@ void JozzVehicleM6RigLab::Step()
 		}
 		input.brake = IsKeyDown( KEY_SPACE );
 
+		if ( m_autoDrive )
+		{
+			// Headless drive-through testing aid (JOZZ_M6_AUTODRIVE) - straight
+			// line, full throttle, no human at the keyboard. See the env registry
+			// comment in the constructor.
+			input.drive = 1.0f;
+			input.brake = false;
+		}
+
 		if ( m_invertSteering )
 		{
 			input.steer = -input.steer;
@@ -494,6 +564,29 @@ void JozzVehicleM6RigLab::Step()
 		if ( m_vehicle.valid )
 		{
 			SampleTelemetry();
+		}
+
+		if ( m_regenCheckCount > 0 && m_stepCount == m_regenCheckAtStep )
+		{
+			// Baseline: by this step, Render() has drawn every shape at least
+			// once, so the mesh pool already reflects steady state.
+			int shapesBefore = GetDebugShapeCount();
+			for ( int i = 0; i < m_regenCheckCount; ++i )
+			{
+				m_worldSeedInput = (int)m_worldGround.seed + 1000 + i;
+				RegenerateTerrain();
+			}
+			std::printf( "JOZZ_M6_REGEN_CHECK count=%d shapes_before=%d\n", m_regenCheckCount, shapesBefore );
+			// The final regenerated shape has not been drawn yet this frame, so
+			// the pool count right now would under-count by one. Wait a couple
+			// of frames for Render() to settle before reading it again.
+			m_regenCheckAtStep = m_stepCount + 3;
+			m_regenCheckCount = -1; // next hit: print settled count only
+		}
+		else if ( m_regenCheckCount < 0 && m_stepCount == m_regenCheckAtStep )
+		{
+			std::printf( "JOZZ_M6_REGEN_CHECK shapes_settled=%d\n", GetDebugShapeCount() );
+			m_regenCheckCount = 0; // done
 		}
 	}
 
@@ -688,6 +781,24 @@ void JozzVehicleM6RigLab::Render()
 					  frontRight.groundContact ? "T" : "-",
 					  GetJozzVehicleM6WheelTelemetry( m_vehicle, JOZZ_M6_REAR_LEFT ).groundContact ? "T" : "-",
 					  GetJozzVehicleM6WheelTelemetry( m_vehicle, JOZZ_M6_REAR_RIGHT ).groundContact ? "T" : "-" );
+
+		if ( m_perfDumpAtStep > 0 && m_stepCount >= m_perfDumpAtStep )
+		{
+			int available = m_profileWriteIndex - m_profileReadIndex;
+			int count = available < 60 ? available : 60;
+			float totalStepMs = 0.0f;
+			for ( int i = 0; i < count; ++i )
+			{
+				int idx = ( m_profileWriteIndex - 1 - i ) & ( m_profileCapacity - 1 );
+				totalStepMs += m_profiles[idx].step;
+			}
+			float avgStepMs = count > 0 ? totalStepMs / (float)count : 0.0f;
+			b3Counters counters = b3World_GetCounters( m_worldId );
+			std::printf( "JOZZ_M6_PERF step_ms=%.4f fps=%.1f bodies=%d shapes=%d contacts=%d anchor=(%.1f,%.1f)\n",
+						 avgStepMs, avgStepMs > 0.0f ? 1000.0f / avgStepMs : 0.0f, counters.bodyCount, counters.shapeCount,
+						 counters.contactCount, m_spawnAnchorX, m_spawnAnchorZ );
+			m_perfDumpAtStep = -1; // print exactly once
+		}
 	}
 
 Sample* JozzVehicleM6RigLab::Create( SampleContext* context )

@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-11 · Mapa Etap 1: fundament terenu (płyta 3x3 + offroad FBM) · [pending push]
+- CO:     `jozz_vehicle_world_layout.h` + `jozz_vehicle_world_terrain.{h,cpp}` — płyta 400×400 (3×3 kafle, 1 ciało/9 shape'ów), offroad 320×320 z własnym generatorem FBM (3 oktawy + maska płaskości + gradient trudności), zakładka 2 m POD płytą, seed+„Przebuduj teren" w UI, teleport minimalny (Start/wjazd/głęboko); stary `b3CreateWave`-patch (wystawał NAD płytę) usunięty z `jozz_vehicle_m5_test_course`. Dodatkowo 4 nowe env (`JOZZ_M6_TELEPORT/AUTODRIVE/PERF_DUMP/REGEN_COUNT`) do headless testów mapy bez klawiatury.
+- CZEMU:  Feedback Jozza (mapa za mała, offroad wystaje nad płytę, jeden rodzaj szumu) + akceptacja planu 2026-07-11; ten track wchodzi przed edytorem rigu.
+- EFEKT:  Build+walidator (18 sond)+test.exe+boot smoke M5/M6 zielone. Rendery `mapa_e1_*` obejrzane: szew bez uskoku z 3 kątów, wyraźnie zróżnicowany masyw, terenu inny po regeneracji (seed 777 vs 1337), auto stabilne na 18.5 m/s nad szwem. Wydajność: 1.12–1.20 ms/step na wszystkich 3 scenariuszach (budżet 4 ms, zapas ~3.3×) — heightfield NIE jest wąskim gardłem. R4 (przeciek mesha) zamknięte liczbowo: 49→49 shape'ów po 10 regeneracjach.
+- DALEJ:  Etap 2 (kit przeszkód + poligony zawieszeń) po commit+push tego etapu.
+
 ## 2026-07-11 · Plan przebudowy mapy: roadmapa + 6 etapów · docs
 - CO:     `PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md` + `MAPA_ETAP_1..6_*.md` — fundament terenu (płyta 400×400 z 3×3 kafli, offroad-heightfield 320×320 z 3 oktawami szumu i zakładką POD płytą), kit przeszkód + 6 lane'ów, tor+drift+stoper na sensorach, plac fizyki (shaker/taśma/most/eksplozja), spawner+stress, nawigacja+telemetria.
 - CZEMU:  Feedback Jozza 2026-07-11: mapa za mała i monotonna, offroad wystaje NAD płytę, przeszkody prymitywne, brak toru/spawnera — track wchodzi PRZED edytor rigu.

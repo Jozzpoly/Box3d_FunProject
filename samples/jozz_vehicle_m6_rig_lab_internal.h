@@ -22,6 +22,8 @@
 #include "jozz_vehicle_m7_suspension_import.h"
 #include "jozz_vehicle_steering_suspension_contract.h"
 #include "jozz_vehicle_visual_mesh.h"
+#include "jozz_vehicle_world_layout.h"
+#include "jozz_vehicle_world_terrain.h"
 
 #include <cmath>
 #include <cstdio>
@@ -109,6 +111,17 @@ public:
 	void SetupSteeringRig();
 	void DrawSteeringRig();
 	float GetSpawnHeight() const;
+	// Height of the drivable surface at world (x, z) - 0 on the plate, sampled
+	// FBM on the offroad chunk (jozz_vehicle_world_terrain). CreateVehicle adds
+	// GetSpawnHeight() on top of this so the car drops onto whatever terrain is
+	// under the current spawn anchor, not always onto a flat y=0.
+	float GetGroundHeightAt( float x, float z ) const;
+	// Moves the spawn anchor and rebuilds the vehicle there (Etap 1 minimal
+	// teleport, P1). Full named registry + hotkeys land in Etap 6.
+	void TeleportTo( float x, float z );
+	// Destroys and rebuilds only the offroad heightfield chunk with the seed
+	// currently in m_worldSeedInput; the plate is untouched.
+	void RegenerateTerrain();
 	void CreateVehicle();
 	void ResetWorld();
 	void DestroyVehicle();
@@ -140,7 +153,27 @@ public:
 	void Render() override;
 	static Sample* Create( SampleContext* context );
 
-	b3BodyId m_groundId;
+	b3BodyId m_groundId; // == m_worldGround.plateBodyId; kept for the upright-assist joint anchor
+	JozzVehicleWorldGround m_worldGround;
+	int m_worldSeedInput = (int)JozzWorldLayout::kOffroadDefaultSeed; // UI-edited; applied by RegenerateTerrain()
+	float m_spawnAnchorX = 0.0f; // current teleport anchor (world x/z); Start == origin
+	float m_spawnAnchorZ = 0.0f;
+	// JOZZ_M6_AUTODRIVE: headless drive-through testing aid (Etap 1) - forces
+	// full-throttle straight-line drive every Step so map gates (seam/tile
+	// joins at speed) can be verified without a human at the keyboard. See
+	// docs/MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md.
+	bool m_autoDrive = false;
+	// JOZZ_M6_PERF_DUMP: step number at which to printf one line of averaged
+	// step-cost profiler numbers to stdout (headless performance measurement -
+	// the perf table in docs/MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md was filled this
+	// way, no GUI graph-reading needed). -1 == disabled / already printed.
+	int m_perfDumpAtStep = -1;
+	// JOZZ_M6_REGEN_COUNT: same idea, but regenerates the offroad chunk N times
+	// back-to-back at m_regenCheckAtStep and printfs the debug mesh registry
+	// count immediately before and after (headless R4 check: regeneration must
+	// not leak meshes). 0 == disabled / already run.
+	int m_regenCheckCount = 0;
+	int m_regenCheckAtStep = -1;
 	JozzVehicleM5TestCourse m_testCourse;
 	JozzVehicleM6 m_vehicle;
 	JozzVehicleM6Config m_config;

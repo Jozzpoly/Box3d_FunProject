@@ -572,6 +572,33 @@ void JozzVehicleM6RigLab::DrawWorldTab()
 			ApplyContactTuning();
 		}
 
+		SectionHeader( "Mapa" );
+		ImGui::SetNextItemWidth( 8.0f * ImGui::GetFontSize() );
+		ImGui::InputInt( "Seed terenu offroad", &m_worldSeedInput );
+		ImGui::SameLine();
+		if ( ImGui::Button( "Przebuduj teren" ) )
+		{
+			RegenerateTerrain();
+		}
+		HelpMarker( "Teren offroad (Etap 1) jest w pełni deterministyczny - ten sam seed zawsze daje ten sam układ "
+					"wzgórz i polan. Wpisz inną liczbę i przebuduj, żeby wylosować nowy wariant; płyta i przeszkody "
+					"zostają bez zmian." );
+		ImGui::TextUnformatted( "Teleport" );
+		for ( int i = 0; i < JozzWorldLayout::kWorldAnchorCount; ++i )
+		{
+			const JozzWorldLayout::JozzWorldAnchor& anchor = JozzWorldLayout::kWorldAnchors[i];
+			if ( i > 0 )
+			{
+				ImGui::SameLine();
+			}
+			if ( ImGui::Button( anchor.name ) )
+			{
+				TeleportTo( anchor.x, anchor.z );
+			}
+		}
+		HelpMarker( "Przenosi auto (zerowa prędkość, telemetria od zera) w wybrane miejsce mapy - przydatne przy "
+					"dużym świecie, żeby nie dojeżdżać na piechotę do strefy testowej." );
+
 		SectionHeader( "Reset" );
 		if ( ImGui::Button( "Zresetuj swiat" ) )
 		{

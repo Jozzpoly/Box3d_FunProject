@@ -14,6 +14,8 @@
 #include "jozz_vehicle_m5_test_course.h"
 #include "jozz_vehicle_m5_vehicle.h"
 #include "jozz_vehicle_visual_mesh.h"
+#include "jozz_vehicle_world_layout.h"
+#include "jozz_vehicle_world_terrain.h"
 
 #include "box3d/box3d.h"
 
@@ -40,11 +42,14 @@ public:
 			m_camera->SetView( -135.0f, 14.0f, 13.0f, { 0.0f, 1.2f, 0.0f } );
 		}
 
-		// 2x the prior half-extent (60 -> 120) per playtest feedback wanting more
-		// room to build speed.
-		m_groundId = AddGroundBox( 120.0f );
-		// AddGroundBox always places the box at y=-1 with half-height 1, so the
-		// top surface is at y=0 regardless of the extent argument.
+		// Mapa Etap 1 (docs/MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md): the same 3x3-tile
+		// plate + offroad FBM chunk the M6 lab uses, built with the engine
+		// default category (1) since this lab's single-sphere wheel model has
+		// no split envelope to key on JOZZ_M6_TERRAIN_CATEGORY. Replaces the old
+		// AddGroundBox(120) - the plate's center tile keeps the same top-at-y=0,
+		// zero-behavior-change footprint the test course positions assume.
+		m_worldGround = CreateJozzWorldGround( m_worldId, 1 );
+		m_groundId = m_worldGround.plateBodyId;
 		m_testCourse = CreateJozzVehicleM5TestCourse( m_worldId, 0.0f );
 
 		m_assetMetadata = LoadJozzVehicleAuditMetadata();
@@ -77,6 +82,7 @@ public:
 		DestroyVehicle();
 		m_wheelVisual.Destroy();
 		DestroyJozzVehicleM5TestCourse( &m_testCourse );
+		DestroyJozzWorldGround( &m_worldGround );
 	}
 
 	void SyncEditFromConfig()
@@ -597,7 +603,8 @@ public:
 		return new JozzVehicleM5FirstDrivable( context );
 	}
 
-	b3BodyId m_groundId;
+	b3BodyId m_groundId; // == m_worldGround.plateBodyId
+	JozzVehicleWorldGround m_worldGround;
 	JozzVehicleM5TestCourse m_testCourse;
 	JozzVehicleM5 m_vehicle;
 	JozzVehicleM5Config m_config;

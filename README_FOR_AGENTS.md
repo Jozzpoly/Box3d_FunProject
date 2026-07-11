@@ -114,6 +114,19 @@ Jozz Vehicle / Lab M1 Smoke            <- oldest smoke sample (kept)
   world without touching the keyboard.
 - **Screenshot tooling** (`samples/host/screenshot.cpp`, `--screenshot`): D3D11
   backbuffer → PNG. This is how you SEE your own visual work headless.
+- **World/map foundation** (`jozz_vehicle_world_layout.h` / `jozz_vehicle_world_terrain.{h,cpp}`,
+  Mapa Etap 1, 2026-07-11): both labs now build a 400×400 m, 3×3-tile flat plate
+  (top y=0; only the CENTER tile gets the procedural ground-grid texture via
+  `SetGroundShape` — that hook is a single shape id, not a list, R10) plus a
+  320×320 m offroad heightfield chunk with a from-scratch deterministic 3-octave
+  FBM generator (NOT `b3CreateWave`, which is one frequency) that dips 2 m
+  UNDER the plate's east edge instead of the old wave-patch's step-up-above
+  defect. Seed + "Przebuduj teren" live in the M6 lab's Świat tab. See
+  `docs/MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md` for the full noise formula, the
+  performance table, and four new headless-testing env vars
+  (`JOZZ_M6_TELEPORT`/`AUTODRIVE`/`PERF_DUMP`/`REGEN_COUNT`) added to the
+  existing `JOZZ_M6_*` registry for driving/measuring the map without a human
+  at the keyboard.
 - **Dual damper visual, socket-driven** (2026-07-08): the telescoping shock
   mesh (`Asset_Dumper.gltf`) is drawn TWICE per corner, pinned to the model's
   own `Socket_DamperUpper_L/R` and `Socket_DamperLower_L/R` markers from the

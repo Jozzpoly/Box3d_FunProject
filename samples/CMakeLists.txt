@@ -222,6 +222,9 @@ set(SAMPLE_FILES
     jozz_vehicle_visual_mesh.h
     jozz_vehicle_visual_mesh_draw.cpp
     jozz_vehicle_visual_mesh_loader.cpp
+    jozz_vehicle_world_layout.h
+    jozz_vehicle_world_terrain.cpp
+    jozz_vehicle_world_terrain.h
 
     # Samples
     sample_benchmark.cpp

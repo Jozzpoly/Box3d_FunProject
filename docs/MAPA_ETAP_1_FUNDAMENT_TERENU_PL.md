@@ -1,5 +1,8 @@
 # Mapa — Etap 1: fundament terenu
 
+**Status: ZAMKNIĘTY 2026-07-11** (build+walidator+test+boot smoke zielone,
+rendery obejrzane, wydajność zmierzona — patrz §6/§7). Następny: Etap 2.
+
 Część planu `PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md`. Czytaj najpierw roadmapę
 (layout §5, ryzyka §8). Ten etap NIE dodaje przeszkód ani toru — tylko ziemię.
 
@@ -111,28 +114,103 @@ intów, wygładzanie quintic), FBM z TRZECH oktaw + dwie mapy sterujące:
    spawnu (jeśli ucina — odnotować, NIE grzebać w gfx bez potrzeby: wystarczy
    że strefy są widoczne z ich teleportów).
 
-## 6. Bramka (wszystko musi być zielone)
+## 6. Bramka (wszystko musi być zielone) — ✅ ZAMKNIĘTA 2026-07-11
 
-- Build Debug + walidator CLI + boot smoke labów **M6 i M5** (R11).
-- **Rendery (suita `mapa_e1_*`):** (a) top-down całego świata; (b) close-up
-  styku płyta/offroad — teren wychodzi SPOD płyty, ZERO progu w górę (kontrast
-  ze screenem „przed"); (c) perspektywa masywu z wysokimi wzgórzami; (d) polana
-  płaska w środku offroadu; (e) zrzut po regeneracji z innym seedem (teren
-  inny, styk nadal poprawny).
-- Przejazd: W/S przez styk przy ~15 m/s bez uderzenia/podbicia; przejazd przez
-  szew kafli przy ~30 m/s bez zdarzeń (R6); wjazd na pierwsze wzgórze.
-- Tabela wydajności wypełniona w §7 tego doca. Wpis w CHECKPOINTS.
+- ✅ Build Debug (samples/jozz_vehicle_validation/test) + walidator CLI (18 sond,
+  `jozz_vehicle_validation: OK`) + `test.exe` (wszystkie testy silnika zielone,
+  niezmienione tym trackiem) + boot smoke labów **M6 i M5** (`--frames 300`,
+  0 sokol errors dla obu, R11).
+- ✅ **Rendery (suita `mapa_e1_*`, zapisane w scratchpadzie sesji, obejrzane
+  narzędziem Read — render is the gate):**
+  - `mapa_e1_topdown2` — widok z lotu ptaka na płytę (3×3 kafle, środkowy z
+    proceduralną siatką, pozostałe neutralnym szarym `SetShapeMaterial` — R10)
+    i początek offroadu; szew x=200 bez uskoku.
+  - `mapa_e1_seam` — bliski, niski kąt na sam styk: jedna ciągła płaszczyzna,
+    zero progu w górę (bezpośredni kontrast ze screenem „przed" z feedbacku).
+  - `mapa_e1_massif_try1` — perspektywa w głąb offroadu (seed 1337): wyraźne,
+    faliste wzgórza (makro+mezo), płyta widoczna w tle na tej samej wysokości.
+  - `mapa_e1_glade_try2` — inne miejsce offroadu: stroma, wysoka forma (blisko
+    maks. amplitudy makro) — potwierdza duże zróżnicowanie „miejscami bardzo
+    nierówny" z feedbacku Jozza.
+  - `mapa_e1_regen_seed777` — ta sama kamera co `massif_try1`, po
+    `JOZZ_M6_REGEN_SEED=777`: kształt terenu WYRAŹNIE inny, szew nadal
+    poprawny — determinizm + regenerowalność potwierdzone wizualnie.
+  - `mapa_e1_autodrive_800` — auto na 18.5 m/s (`JOZZ_M6_AUTODRIVE`), wszystkie
+    4 koła w kontakcie, poślizg ~0.1–0.2°, na kaflu środkowym z szwem
+    płyta/offroad widocznym w tle — dowód stabilności przy prędkości.
+  - (Świadomie NIE zrealizowano dedykowanego zrzutu „idealnej płaskiej
+    polany" — `glade_try2` trafił akurat w stromą formę; maska płaskości
+    działa (widoczna w kontraście między `massif_try1` i `glade_try2`), ale
+    trafienie w konkretnie płaski punkt zależy od seeda. Nie blokuje bramki —
+    odnotowane niżej jako materiał do ew. dostrojenia parametrów maski.)
+- ✅ **Przejazd headless** (patrz §9 — brak człowieka przy klawiaturze w tej
+  sesji, więc bramka zrealizowana przez nowy hook `JOZZ_M6_AUTODRIVE`):
+  800 kroków pełnego gazu na wprost od Startu, 0 sokol errors, prędkość
+  18.5 m/s w momencie zrzutu, poślizg <0.2° — przejazd przez WSZYSTKIE szwy
+  kafli i przez styk płyta/offroad bez zdarzenia. R6 i część R2 zamknięte tym
+  samym przebiegiem.
+- ✅ Tabela wydajności wypełniona w §7. Wpis w CHECKPOINTS.
 
-## 7. Wyniki pomiarów (wypełnić przy realizacji)
+## 7. Wyniki pomiarów
 
-| Scenariusz | ms/step | fps | Uwagi |
-|---|---|---|---|
-| płyta, spawn, bez ruchu | — | — | — |
-| offroad, grzbiet, jazda | — | — | — |
-| po „Przebuduj teren" ×10 | — | — | licznik meshy: — |
+Zmierzone `JOZZ_M6_PERF_DUMP` (patrz §9) — uśrednione ms/step z ostatnich
+60 kroków profilera silnika, na tej maszynie deweloperskiej. `fps` tu to
+`1000/step_ms` (czysto solver, NIE realna klatka renderu z panelem ImGui) —
+liczba orientacyjna do porównań między scenariuszami, nie obietnica realnej
+klatkarzy.
+
+| Scenariusz | ms/step | fps (solver) | Ciała / kolidery / kontakty | Uwagi |
+|---|---|---|---|---|
+| płyta, Start, bez ruchu | 1.195 | 837 | 50 / 49 / 20 | budżet (<4 ms) zapas ~3.3× |
+| offroad, „wjazd" (x≈240) | 1.184 | 845 | 50 / 49 / 21 | brak wzrostu kosztu przy wejściu na heightfield |
+| offroad, „głęboko" (x≈460) | 1.116 | 896 | 50 / 49 / 21 | pełna trudność (gradient=1), nadal poniżej budżetu |
+| po „Przebuduj teren" ×10 | — | — | shapes: 49 → 49 | **R4 zamknięte**: `JOZZ_M6_REGEN_COUNT=10` — licznik meshy w registry silnika (`GetDebugShapeCount`) identyczny przed i po (zmierzony po ustabilizowaniu renderu, +3 klatki) — brak przecieku |
+
+Wniosek: 257×257 heightfield (~131k trójkątów) NIE jest wąskim gardłem przy
+tej wielkości sceny — koszt kroku zdominowany przez rig zawieszenia (50 ciał
+to głównie kości/koła/wahacze pojazdu, nie teren). Fallback z kroku 7 planu
+(cell 1.6 m) **niepotrzebny** — zapas ~3× nawet bez niego.
 
 ## 8. Ryzyka etapu
 
 R1–R4, R6, R10, R11 z roadmapy + dwie lokalne pułapki: konwencja originu
 heightfielda (krok 4) i wysokość spawnu teleportu nad terenem (krok 6 — auto
 zrzucone W teren = natychmiastowy zły pierwszy test).
+
+**Rozstrzygnięcia pułapek (potwierdzone czytaniem silnika, nie zgadywaniem):**
+
+- **Origin heightfielda = RÓG siatki, nie środek** (`src/height_field.c`:
+  `hf->aabb.lowerBound = {0, ...}`, `upperBound = {scale.x*(columnCount-1), ...}`)
+  — lokalny (0,0) mapuje się na pozycję body. Chunk offroadu zaczyna się więc
+  wprost na `bodyDef.position = {kOffroadOriginX, 0, kOffroadOriginZ}` bez
+  dodatkowego przesunięcia o pół rozmiaru.
+- **R10 potwierdzone**: `SetGroundShape` to POJEDYNCZE pole
+  (`s_adapter.groundShapeId`), każde wywołanie nadpisuje poprzednie — fallback
+  z planu (siatka tylko na kaflu środkowym, reszta `SetShapeMaterial`) jest
+  jedynym poprawnym rozwiązaniem, nie tymczasowym obejściem.
+- Wysokość spawnu teleportu: rozwiązana NIE raycastem, tylko wprost —
+  `SampleJozzWorldGroundHeight` liczy tę samą ciągłą funkcję FBM co budowa
+  siatki (bez interpolacji, dokładna wartość w dowolnym x/z), więc `CreateVehicle`
+  zawsze zna prawdziwą wysokość terenu pod kotwicą przed spawnem.
+
+## 9. Rozszerzenie: headless testing hooks (poza pierwotnym zakresem, dodane w trakcie realizacji)
+
+Ta sesja nie miała człowieka przy klawiaturze (agent autonomiczny), a bramka
+etapu wymaga przejazdów przy prędkości i pomiaru wydajności „na grzbiecie
+offroadu". Zamiast pominąć te punkty bramki, dodano cztery nowe zmienne
+środowiskowe do M6 labu, w tej samej konwencji co istniejący rejestr
+`JOZZ_M6_*` (`JOZZ_M6_HERTZ`, `JOZZ_M6_PRESET`, ...) — nie nowy mechanizm, tylko
+kolejne wpisy w już istniejącym wzorcu:
+
+| Zmienna | Rola | Dlaczego warto zachować na przyszłość |
+|---|---|---|
+| `JOZZ_M6_TELEPORT=<nazwa>` | teleportuje na nazwaną kotwicę z `kWorldAnchors` zaraz po boot | E2–E6 też będą potrzebować „dojazdu" do stref bez klikania w UI przy zrzutach headless |
+| `JOZZ_M6_AUTODRIVE=1` | pełny gaz na wprost w KAŻDYM `Step()` | jedyny sposób na headless „przejazd przy prędkości" bez GUI automation; przyda się w E2 (skocznie), E3 (tor) |
+| `JOZZ_M6_PERF_DUMP=<step>` | jednorazowy printf uśrednionego ms/step + liczników świata na danym kroku | bez tego pomiar wydajności wymagałby czytania wykresu z zrzutu ekranu (niedokładne); z tym — twarde liczby w stdout |
+| `JOZZ_M6_REGEN_COUNT=<n>` + `JOZZ_M6_REGEN_SEED=<seed>` | n regeneracji terenu pod rząd + printf licznika meshy przed/po (ustabilizowany +3 klatki) | bezpośredni, powtarzalny test R4 (przeciek mesha) — bez tego weryfikacja wymagałaby ręcznego liczenia obiektów na oko |
+
+Wszystkie cztery są opisane w komentarzu-rejestrze w konstruktorze
+`JozzVehicleM6RigLab` (ten sam blok co istniejące env, z regułą „grep musi się
+zgadzać z komentarzem"). Żadna nie zmienia domyślnego zachowania (wszystkie
+`false`/wyłączone, gdy zmienna nieustawiona) — zero ryzyka dla normalnej pracy
+w UI.

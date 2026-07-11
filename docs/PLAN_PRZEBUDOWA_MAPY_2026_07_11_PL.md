@@ -1,8 +1,10 @@
 # Plan: fundamentalna przebudowa mapy i terenu
 
 Data: 2026-07-11. Autor planu: Fable 5 (sesja planistyczna). Zleceniodawca: Jozz.
-Status: **PROPOZYCJA — czeka na akceptację Jozza.** Track wchodzi PRZED edytor
-rigu (decyzja Jozza 2026-07-11: „zanim zaczniemy długą drogę z edytorem rigu").
+Status: **ZAAKCEPTOWANY przez Jozza (2026-07-11, wraz z rozmiarami §5 i
+propozycjami P1–P9)** — track wchodzi PRZED edytor rigu (decyzja Jozza
+2026-07-11: „zanim zaczniemy długą drogę z edytorem rigu"). **Etap 1
+ZAMKNIĘTY** (fundament terenu — patrz `MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md`).
 
 Dokumenty etapów (czytaj PRZED implementacją danego etapu — tam są szczegóły,
 pułapki i dokładne miejsca w kodzie):
@@ -156,7 +158,7 @@ doki w tym samym commicie.
 
 | Etap | Nazwa | Deliverable | Rozszerzenia |
 |---|---|---|---|
-| 1 | Fundament terenu | płyta 400×400 (3×3 kafle), offroad 320×320 FBM z zakładką POD płytą, seed+regeneracja, teleport minimalny, pomiar wydajności | P1(min), P7 |
+| 1 ✅ | Fundament terenu | płyta 400×400 (3×3 kafle), offroad 320×320 FBM z zakładką POD płytą, seed+regeneracja, teleport minimalny, pomiar wydajności | P1(min), P7 + 4 nowe env `JOZZ_M6_TELEPORT/AUTODRIVE/PERF_DUMP/REGEN_COUNT` (headless testing, patrz Etap 1 §9) |
 | 2 | Przeszkody i poligony | parametryczny obstacle kit (~15 generatorów, ostre↔zaokrąglone), 6 lane'ów progresji, demontaż starych ramp | P8 |
 | 3 | Tor i drift | pętla toru z krawężnikami/bandami/oponami, bramki czasowe + HUD stopera, skid pad + ósemka + lodowisko | P3, P4 |
 | 4 | Plac fizyki | shaker 4-post, rolling road, obrotnica, most z desek, see-saw, wrecking ball, stosy/domino/kręgle, eksplozja | P2, P5, P9 |

@@ -3,9 +3,13 @@
 
 #pragma once
 
-// M5 test playground: ramps, a washboard lane, a rough-terrain heightfield
-// zone, and a scatter of dynamic props. Pure content/course building, kept
-// out of jozz_vehicle_m5_drivable_lab.cpp so that file stays focused on
+// M5 test playground: ramps, a washboard lane, and a scatter of dynamic
+// props. The rough-terrain heightfield patch that used to live here was
+// replaced by the offroad chunk in jozz_vehicle_world_terrain (Mapa Etap 1,
+// docs/MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md) - it stuck up above the flat
+// ground instead of tucking under it, which is exactly the seam defect that
+// track fixes. Pure content/course building, kept out of
+// jozz_vehicle_m5_drivable_lab.cpp so that file stays focused on
 // input/camera/tuning UI (the same "don't let the sample file get overloaded"
 // lesson from PROJECT_STABILIZATION_AUDIT_2026_07_03_PL.md, Problem A).
 //
@@ -25,7 +29,6 @@ struct JozzVehicleM5TestCourseProp
 
 struct JozzVehicleM5TestCourse
 {
-	b3HeightFieldData* roughTerrainField = nullptr;
 	std::vector<JozzVehicleM5TestCourseProp> props;
 };
 
@@ -42,10 +45,8 @@ struct JozzVehicleM5TestCourse
 JozzVehicleM5TestCourse CreateJozzVehicleM5TestCourse( b3WorldId worldId, float groundTopY,
 													   uint64_t terrainCategoryBits = 1 );
 
-// Frees the height field data (not owned by b3DestroyWorld; box3d only holds
-// a reference to it, per b3CreateHeightFieldShape's contract). Prop/ramp/
-// washboard bodies are freed by the world teardown like the rest of the
-// sample, matching the existing course code's convention.
+// Prop/ramp/washboard bodies are freed by the world teardown like the rest of
+// the sample; this only clears the prop bookkeeping vector.
 void DestroyJozzVehicleM5TestCourse( JozzVehicleM5TestCourse* course );
 
 // Teleports every prop back to its spawn transform and zeroes its velocity,

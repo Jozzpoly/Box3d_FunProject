@@ -119,22 +119,6 @@ JozzVehicleM5TestCourse CreateJozzVehicleM5TestCourse( b3WorldId worldId, float 
 	AddWashboardLane( worldId, { -6.0f, groundTopY, 8.0f }, { -3.0f, 0.0f, 0.0f }, 6, terrainCategoryBits );
 	AddWashboardLane( worldId, { 6.0f, groundTopY, -18.0f }, { 2.2f, 0.0f, 0.0f }, 6, terrainCategoryBits );
 
-	// Rough-terrain heightfield zone, offset well above the flat ground so the
-	// two surfaces never double-contact the same area (a car driving onto this
-	// zone rides the wave surface; the flat box sits harmlessly underneath).
-	{
-		b3BodyDef bodyDef = b3DefaultBodyDef();
-		bodyDef.position = { -40.0f, groundTopY + 0.35f, 40.0f };
-		bodyDef.name = "m5_rough_terrain";
-		b3BodyId hfBodyId = b3CreateBody( worldId, &bodyDef );
-
-		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		shapeDef.baseMaterial.friction = 0.85f;
-		shapeDef.filter.categoryBits = terrainCategoryBits;
-		course.roughTerrainField = b3CreateWave( 28, 28, { 1.6f, 0.30f, 1.6f }, 0.07f, 0.10f, false );
-		b3CreateHeightFieldShape( hfBodyId, &shapeDef, course.roughTerrainField );
-	}
-
 	// Scattered dynamic props.
 	course.props.reserve( sizeof( kPropSpecs ) / sizeof( kPropSpecs[0] ) );
 	for ( const PropSpec& spec : kPropSpecs )
@@ -155,12 +139,6 @@ JozzVehicleM5TestCourse CreateJozzVehicleM5TestCourse( b3WorldId worldId, float 
 
 void DestroyJozzVehicleM5TestCourse( JozzVehicleM5TestCourse* course )
 {
-	if ( course->roughTerrainField != nullptr )
-	{
-		b3DestroyHeightField( course->roughTerrainField );
-		course->roughTerrainField = nullptr;
-	}
-
 	course->props.clear();
 }
 
