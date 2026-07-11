@@ -192,6 +192,8 @@ set(SAMPLE_FILES
 
     # Jozz Vehicle layer: GUI-only (labs, benches, renderer, image decode) -
     # samples target only, not the headless validator.
+    jozz_vehicle_body_registry.cpp
+    jozz_vehicle_body_registry.h
     jozz_vehicle_corner_rig.cpp
     jozz_vehicle_corner_rig.h
     jozz_vehicle_debug_preview.cpp

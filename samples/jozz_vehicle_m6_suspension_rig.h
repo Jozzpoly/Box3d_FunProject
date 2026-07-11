@@ -97,6 +97,11 @@ enum JozzVehicleM6RigType
 #define JOZZ_M6_TERRAIN_CATEGORY 0x2ull
 #define JOZZ_M6_OBJECT_CATEGORY 0x1ull
 
+// Cap for visual-model registry keys stored inline in the config (ASCII,
+// NUL-terminated). 32 is comfortably above the longest key and keeps the
+// config a plain aggregate (char[], not std::string - see bodyVisualModel).
+#define JOZZ_M6_MODEL_KEY_CAP 32
+
 // Breakaway ratio of the hands-off rack friction (P4b): while the rack is
 // near-stationary the friction cap is this factor above the sliding value -
 // classic stiction. A fixed engineering constant, not a tuning dial (the
@@ -422,6 +427,17 @@ struct JozzVehicleM6Config
 	bool uprightAssist;
 	float uprightHertz;
 	float uprightDampingRatio;
+
+	// --- Visual identity (lab-only; the physics rig ignores these) ----------
+	// Which body skin and which front-suspension visual model this vehicle
+	// wears. Part of the config ON PURPOSE (Jozz, 2026-07-11): a preset
+	// describes the WHOLE car (BeamNG pattern), so swapping presets swaps the
+	// look too. Kept as fixed char buffers, not std::string, so the config
+	// stays trivially copyable (probes copy it by value; see
+	// jozz_probes_config.cpp). Serialized in Etap 2.
+	char bodyVisualModel[JOZZ_M6_MODEL_KEY_CAP]; // registry key, e.g. "brak", "rama_rurowa"
+	b3Vec3 bodyVisualOffset;					  // meters, chassis-local axes, added to the registry base position
+	char frontSuspensionVisualModel[JOZZ_M6_MODEL_KEY_CAP]; // "klasyczny" | "rig_kierowniczy"
 
 	int filterGroupIndex;
 };

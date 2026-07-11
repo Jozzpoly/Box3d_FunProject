@@ -79,48 +79,58 @@ void JozzVehicleM6RigLab::LoadMountVisual()
 			readDamperSocket( "suspension.visual.damper_lower_r", { -0.2516f, 0.0109f, -0.2844f } );
 	}
 
-	// Jozz's full chassis frame (Nadwozie.gltf) as a single rigid skin over the
-	// chassis body. Unlike the suspension parts it does NOT articulate, so its
-	// placement is one constant transform in the chassis body's LOCAL frame.
-	// Blockbench authored it +Y up, length along Z (front at -Z), width along X;
-	// the car's local frame is +X forward, +Y up, +Z the car's right. Yaw -90 about
-	// Y maps the model's front (-Z) onto forward (+X). The model origin sits at the
-	// wheelbase centre (the front/rear differentials are symmetric about z=0) near
-	// ground level, so anchoring model origin -> chassis origin keeps the wheelbase
-	// and width centred; only the height is nudged to seat the frame on the box.
-void JozzVehicleM6RigLab::LoadBodyVisual()
+	// Loads (or clears) the body skin the CONFIG names. The ONLY function allowed
+	// to (re)load m_bodyVisual - every path that can change
+	// m_config.bodyVisualModel (constructor after session load, preset load, the
+	// Nadwozie-tab combo, factory reset, env overrides) must funnel through here,
+	// or the mesh on screen silently diverges from the config (plan risk R4,
+	// docs/FINALIZACJA_ETAP_1_MODEL_I_UI_PL.md §3). Unlike the suspension parts
+	// the frame does NOT articulate, so its placement is one constant transform
+	// in the chassis body's LOCAL frame - m_bodyVisualOffset (see DrawBodyVisual)
+	// is applied at draw time instead of baked in here, so the offset sliders
+	// work live without a reload.
+void JozzVehicleM6RigLab::ApplyBodyVisualFromConfig()
 	{
 		m_bodyVisual.Destroy();
 
+		const JozzVehicleBodyModelDef* def = FindJozzVehicleBodyModelByKey( m_config.bodyVisualModel );
+		if ( def == nullptr || def->assetPath == nullptr )
+		{
+			return;
+		}
+
 		std::string path;
-		if ( FindJozzVehicleAssetFile( "assets/source/Nadwozie.gltf", &path ) )
+		if ( FindJozzVehicleAssetFile( def->assetPath, &path ) )
 		{
 			m_bodyVisual.LoadStaticGltf( path.c_str(), m_metersPerBlockbenchUnit );
 		}
 
-		// Placement solved from measured geometry (2026-07-11): model bounds
+		// Base pose from the registry row (measured geometry, see
+		// jozz_vehicle_body_registry.cpp): e.g. for "rama_rurowa", model bounds
 		// 3.28 m long (Z) x 2.73 m wide (X) x 1.23 m tall (Y), centred in X/Z with
 		// its floor near y=0; the car's wheelbase is 2.50 m (front +X), track
 		// 2.10 m, chassis origin 0.60 m above the axle line. Yaw -90 maps model +Z
-		// (rear) onto -X (rear) and model X (width) onto Z (track). Anchoring the
-		// model origin at chassis-local (0, -0.60, 0) centres the body on the
-		// wheelbase/track and drops its floor to about axle height.
-		b3Quat yaw = b3MakeQuatFromAxisAngle( b3Vec3_axisY, -0.5f * B3_PI );
+		// (rear) onto -X (rear) and model X (width) onto Z (track).
+		b3Quat yaw = b3MakeQuatFromAxisAngle( b3Vec3_axisY, def->baseYawDeg * B3_PI / 180.0f );
 		m_bodyChassisLocal.q = yaw;
-		m_bodyChassisLocal.p = { 0.0f, -0.60f, 0.0f };
+		m_bodyChassisLocal.p = def->basePos;
 	}
 
 	// Draws the frame rigidly on the live chassis: worldTransform = chassisLive o
-	// m_bodyChassisLocal. Whole-mesh (not per-bone) because the frame is one rigid
-	// piece. Gated by m_showBodyVisual (default off; JOZZ_M6_BODY + Debug checkbox).
+	// (m_bodyChassisLocal + live offset slider). Whole-mesh (not per-bone)
+	// because the frame is one rigid piece. Gated by m_showBodyVisual (JOZZ_M6_BODY
+	// + Debug checkbox "Pokaż nadwozie 3D" - a view toggle, independent of WHICH
+	// body is selected).
 void JozzVehicleM6RigLab::DrawBodyVisual()
 	{
 		if ( m_bodyVisual.IsLoaded() == false )
 		{
 			return;
 		}
+		b3WorldTransform local = m_bodyChassisLocal;
+		local.p = b3Add( local.p, m_config.bodyVisualOffset );
 		b3WorldTransform chassisLive = b3Body_GetTransform( m_vehicle.chassisId );
-		b3WorldTransform world = b3MulWorldTransforms( chassisLive, m_bodyChassisLocal );
+		b3WorldTransform world = b3MulWorldTransforms( chassisLive, local );
 		m_bodyVisual.DrawAtTransform( world, MakeVec4( 1.0f, 1.0f, 1.0f, 1.0f ) );
 	}
 

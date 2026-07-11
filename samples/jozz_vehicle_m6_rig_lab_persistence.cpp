@@ -25,6 +25,9 @@ void JozzVehicleM6RigLab::SaveDebugViewState()
 		// is NOT vehicle config, so it belongs here (survives "R", never leaks
 		// into a preset). See SUBSYSTEM_UI_PRESETS_PL.md §1b (TECH_DEBT #12).
 		file << "invertSteering=" << ( m_invertSteering ? 1 : 0 ) << "\n";
+		// Whether the body mesh is drawn at all - a pure view toggle. WHICH body
+		// is selected is m_config.bodyVisualModel (vehicle identity, Etap 2).
+		file << "showBodyVisual=" << ( m_showBodyVisual ? 1 : 0 ) << "\n";
 	}
 
 void JozzVehicleM6RigLab::LoadDebugViewState()
@@ -68,6 +71,10 @@ void JozzVehicleM6RigLab::LoadDebugViewState()
 			else if ( key == "invertSteering" )
 			{
 				m_invertSteering = value;
+			}
+			else if ( key == "showBodyVisual" )
+			{
+				m_showBodyVisual = value;
 			}
 		}
 	}
@@ -207,6 +214,11 @@ void JozzVehicleM6RigLab::LoadPresetByName( const std::string& name )
 		bool sanitized = SanitizeJozzVehicleM6Config( &m_config );
 		RecomputeRackTravel();
 		CreateVehicle();
+		// Visual identity fields (body skin, offset, front rig model) are part of
+		// the config now too (2026-07-11 doctrine); CreateVehicle() re-bakes the
+		// rig geometry but not the body mesh, so that funnels through here (plan
+		// risk R4 - every config-replacing path must call this).
+		ApplyBodyVisualFromConfig();
 		SyncEditFromConfig();
 		m_presetStatus = sanitized ? "Wczytano preset: " + name +
 										 " (część wartości poza bezpiecznym zakresem - przycięte, szczegóły w konsoli)"

@@ -107,8 +107,8 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		m_vehicle = {};
 		LoadWheelVisual();
 		LoadMountVisual();
-		LoadSteeringRig(); // new front rig (rig-editor warm-up G1); needed before CreateVehicle bakes it
-		LoadBodyVisual();  // Jozz's full chassis frame (Nadwozie), rigid skin on the chassis body
+		LoadSteeringRig();		   // new front rig (rig-editor warm-up G1); needed before CreateVehicle bakes it
+		ApplyBodyVisualFromConfig(); // body skin named by m_config.bodyVisualModel (already loaded/sanitized above)
 		CreateVehicle(); // sets up the per-corner mount rig, needs the visuals loaded
 		SyncEditFromConfig();
 
@@ -120,7 +120,8 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		//   WHEEL     0/1  show the 3D wheel model
 		//   MOUNT     0/1  show the 3D suspension mount model
 		//   STEERING  0/1  draw the NEW front steering rig instead of the old mount (front only)
-		//   BODY      0/1  draw Jozz's full chassis frame (Nadwozie) as a rigid skin
+		//   BODY      0/1  draw the selected body skin as a rigid skin (view toggle)
+		//   BODY_MODEL key  select the body skin by registry key (e.g. rama_rurowa)
 		//   DUMPER    0/1  show the telescoping dampers
 		//   ARMTINT   0/1  tint arms (Top red / Bottom blue) vs the debug lines
 		//   DUMP      0/1  print corner geometry numbers on a frame (hard data)
@@ -159,11 +160,18 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		}
 		if ( const char* v = std::getenv( "JOZZ_M6_STEERING_RIG" ) )
 		{
-			m_useSteeringRig = atoi( v ) != 0;
+			std::snprintf( m_config.frontSuspensionVisualModel, sizeof( m_config.frontSuspensionVisualModel ),
+							atoi( v ) != 0 ? "rig_kierowniczy" : "klasyczny" );
+			SetupSteeringRig(); // this hook runs AFTER CreateVehicle's own bake - re-bake needed
 		}
 		if ( const char* v = std::getenv( "JOZZ_M6_BODY" ) )
 		{
 			m_showBodyVisual = atoi( v ) != 0;
+		}
+		if ( const char* v = std::getenv( "JOZZ_M6_BODY_MODEL" ) )
+		{
+			std::snprintf( m_config.bodyVisualModel, sizeof( m_config.bodyVisualModel ), "%s", v );
+			ApplyBodyVisualFromConfig();
 		}
 		if ( const char* v = std::getenv( "JOZZ_M6_ARMTINT" ) )
 		{
@@ -506,7 +514,7 @@ void JozzVehicleM6RigLab::Render()
 				// when the toggle is on (rig-editor warm-up G1); rear keeps the old
 				// mount, so you see both suspensions at once (decision D1a).
 				bool isFront = corner == JOZZ_M6_FRONT_LEFT || corner == JOZZ_M6_FRONT_RIGHT;
-				if ( m_useSteeringRig && isFront )
+				if ( UseSteeringRig() && isFront )
 				{
 					continue;
 				}
@@ -558,7 +566,7 @@ void JozzVehicleM6RigLab::Render()
 		// New front steering rig (rig-editor warm-up G1): each part on the live
 		// body its kinematic role demands (chassis / lower arm / knuckle). Drawn
 		// only for the FRONT corners; the rear keeps the old mount above.
-		if ( m_showMountVisuals && m_useSteeringRig )
+		if ( m_showMountVisuals && UseSteeringRig() )
 		{
 			DrawSteeringRig();
 		}
@@ -589,7 +597,7 @@ void JozzVehicleM6RigLab::Render()
 				// Front dampers belong to the old mount; when the steering rig is
 				// on, the front's dampers come with it (its own damper is gejt G3).
 				bool isFront = corner == JOZZ_M6_FRONT_LEFT || corner == JOZZ_M6_FRONT_RIGHT;
-				if ( m_useSteeringRig && isFront )
+				if ( UseSteeringRig() && isFront )
 				{
 					continue;
 				}

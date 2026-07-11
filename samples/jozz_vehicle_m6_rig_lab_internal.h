@@ -5,6 +5,8 @@
 
 #include "jozz_vehicle_m6_rig_lab.h"
 
+#include "jozz_vehicle_body_registry.h"
+
 #include "gfx/debug_adapter.h"
 #include "gfx/draw.h"
 #include "gfx/keycodes.h"
@@ -24,6 +26,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -62,6 +65,14 @@ static const char* kPresetDirectory = "assets/vehicle_presets";
 // Jozz had turned them off. Small standalone key=value file, same
 // build/-is-gitignored auto-save idea as kSessionFilePath, just a separate
 // file so it stays out of the config JSON format entirely.
+//
+// Boundary redrawn 2026-07-11 (Jozz): bodyVisualModel/bodyVisualOffset and
+// frontSuspensionVisualModel are NOT view toggles - they are vehicle IDENTITY
+// (BeamNG pattern: a preset describes the whole car), so they live IN
+// JozzVehicleM6Config and DO travel with presets/sessions/R (see
+// docs/PLAN_FINALIZACJA_NADWOZIA_I_RIGU_2026_07_11_PL.md §2.2). This file
+// keeps only true view state: whether the body mesh is drawn at all
+// (m_showBodyVisual), diagnostic lines, arm tint, mesh visibility.
 static const char* kDebugSessionFilePath = "build/jozz_vehicle_m6_debug_session.txt";
 
 class JozzVehicleM6RigLab : public Sample
@@ -81,16 +92,18 @@ public:
 	void SaveCurrentAsPreset( const std::string& name );
 	void LoadWheelVisual();
 	void LoadMountVisual();
-	// Rigid chassis-frame skin (Nadwozie.gltf) fixed in the chassis body's local
-	// frame; drawn only when m_showBodyVisual is on. See docs/PLAN_EDYTOR_RIGU_*.
-	void LoadBodyVisual();
+	// Rigid chassis-frame skin, fixed in the chassis body's local frame; which
+	// skin (or none) is m_config.bodyVisualModel, a registry key (see
+	// jozz_vehicle_body_registry.h). Drawn only when m_showBodyVisual is on. See
+	// docs/FINALIZACJA_ETAP_1_MODEL_I_UI_PL.md.
+	void ApplyBodyVisualFromConfig();
 	void DrawBodyVisual();
 	static bool CornerIsLeft( int corner );
 	static void ArmEnds( const JozzVehicleRiggedPart& part, bool wheelNegX, b3Vec3& chassisEnd, b3Vec3& wheelEnd );
 	void SetupMountRig();
 	// New one-sided steering-suspension rig (front only), G1 of the rig-editor
 	// warm-up. Loads/bakes/draws OneSided_Steering_Suspension_Rig on the LIVE
-	// front-corner bodies; behind m_useSteeringRig so the default render path
+	// front-corner bodies; behind UseSteeringRig() so the default render path
 	// (old mount on all four) is untouched. See docs/PLAN_EDYTOR_RIGU_*.
 	void LoadSteeringRig();
 	void SetupSteeringRig();
@@ -136,22 +149,32 @@ public:
 	bool m_showDumper = true;
 
 	// New steering-suspension rig (front-only, rig-editor warm-up G1). Loaded
-	// always; drawn only when m_useSteeringRig is on, replacing the old mount on
+	// always; drawn only when UseSteeringRig() is on, replacing the old mount on
 	// the FRONT corners while the rear keeps the old mount (D1a). Visual-only:
 	// rides the same live bodies the physics already drives.
 	JozzVehicleAssetContract m_steeringContract;
 	JozzVehicleSteeringSuspensionSockets m_steeringSockets;
 	JozzVehicleRiggedMesh m_riggedSteeringL; // authored (left corners)
 	JozzVehicleRiggedMesh m_riggedSteeringR; // mirrored copy (right corners)
-	bool m_useSteeringRig = false;			 // JOZZ_M6_STEERING_RIG + Debug checkbox
 
-	// Rigid chassis-frame skin (Nadwozie.gltf), fixed in the chassis body's local
-	// frame (m_bodyChassisLocal is constant - the frame does not articulate).
-	// Drawn only when m_showBodyVisual is on (JOZZ_M6_BODY + Debug checkbox);
-	// default off so the suspension stays visible in this rig lab.
+	// Which front-suspension visual model this car wears is vehicle IDENTITY
+	// (Jozz, 2026-07-11), so it lives in the config, not a member bool - see
+	// docs/FINALIZACJA_ETAP_1_MODEL_I_UI_PL.md §4. JOZZ_M6_STEERING_RIG env and
+	// the Debug checkbox both just snprintf into m_config.frontSuspensionVisualModel.
+	bool UseSteeringRig() const
+	{
+		return std::strcmp( m_config.frontSuspensionVisualModel, "rig_kierowniczy" ) == 0;
+	}
+
+	// Rigid chassis-frame skin (whichever m_config.bodyVisualModel names, see
+	// jozz_vehicle_body_registry.h), fixed in the chassis body's local frame
+	// (m_bodyChassisLocal + the live offset slider - the frame does not
+	// articulate). Drawn only when m_showBodyVisual is on (JOZZ_M6_BODY + Debug
+	// "Pokaż nadwozie 3D" checkbox) - a pure view toggle, default ON since
+	// Etap 1; WHICH body shows is the config's job.
 	JozzVehicleVisualMesh m_bodyVisual;
 	b3WorldTransform m_bodyChassisLocal;
-	bool m_showBodyVisual = false;
+	bool m_showBodyVisual = true;
 
 	bool m_armTint = false; // debug: tint wishbone arms to compare with debug lines
 	bool m_dumpGeometry = false;

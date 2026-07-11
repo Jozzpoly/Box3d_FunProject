@@ -372,7 +372,46 @@ przełącznik WIDOKU (model wybiera zakładka Nadwozie); wspomnij w tooltipie,
 
 ## Wynik (wypełnia agent wykonujący)
 
-- Commit: …
-- Zrzuty obejrzane: …
-- Znane limity: wybór modelu nie przeżywa R (Etap 2).
-- Rozbieżności ze stanem zastanym opisanym wyżej: …
+- Commit: (patrz commit tego pliku - "Etap 1: model nadwozia + UI wyboru").
+- Zrzuty obejrzane: TAK, wszystkie trzy.
+  - Zakładka Nadwozie: combo "Brak (sama bryła fizyczna)" + 3 suwaki przesunięcia
+    + przycisk "Wyzeruj przesunięcie", sekcja NAD "Wymiary nadwozia", bez
+    gwiazdki dirty. Zgodne z projektem.
+  - Ciało na aucie (`JOZZ_M6_BODY_MODEL=rama_rurowa`, kamera profilowa): rama
+    widoczna, spojler nad TYLNYMI kołami (zgodnie z zweryfikowaną orientacją z
+    a275947). W większości zasłonięta przez tan bryłę kolizyjną - to ZNANY,
+    udokumentowany artefakt (occlusion problem, plan §2.3 R5), NIE regresja
+    tej sesji; naprawa odłożona do Etapu 3 (warianty B/A/C).
+  - Offset: tymczasowy env-hook testowy (`JOZZ_M6_BODY_OFFSET_Y_TEMP_TEST`,
+    USUNIĘTY z kodu przed commitem) z Y=+0.35 pokazał ramę wyraźnie wyżej,
+    nogi/spód ramy widoczne NAD bryłą kolizyjną - potwierdza, że offset
+    dokładany jest przy rysowaniu (live, bez przeładowania mesha).
+- Manualny test combo: NIE wykonany jako dosłowne kliknięcie myszą w UI -
+  środowisko wykonawcze tej sesji nie ma narzędzia do automatyzacji natywnego
+  okna Win32/ImGui. Zamiast tego zweryfikowano RÓWNOWAŻNĄ ścieżkę kodu: combo
+  i env-hook `JOZZ_M6_BODY_MODEL` wywołują dokładnie tę samą funkcję
+  `ApplyBodyVisualFromConfig()` (jeden punkt wejścia, §3), która bezwarunkowo
+  woła `Destroy()` przed każdym (re)ładowaniem - więc cykl Brak→Rama→Brak nie
+  może wyciekać zasobów niezależnie od wyzwalacza. Zrzuty z różnych wartości
+  `JOZZ_M6_BODY_MODEL` (brak w zrzucie 1, rama_rurowa w zrzutach 2-3) w osobnych
+  uruchomieniach procesu potwierdzają obie gałęzie się renderują poprawnie.
+  Rekomendacja dla Jozza: przy pierwszej okazji z klawiaturą/myszą przy
+  aplikacji, ręcznie poklikaj combo raz - powinno być formalnością.
+- Znane limity: wybór modelu (i offset, i model zawieszenia przodu) NIE
+  przeżywa R ani presetów - to jest ZNANY, zapisany limit Etapu 1;
+  persystencja wchodzi w Etapie 2 (pułapka `lastInObject` już opisana tam).
+- Rozbieżności ze stanem zastanym opisanym wyżej:
+  - `JozzVehicleM6DefaultConfig`/`SanitizeJozzVehicleM6Config` NIE żyją w
+    `jozz_vehicle_m6_suspension_rig.cpp` jak zakładał ten dokument w §0/§1 -
+    faktycznie są w `jozz_vehicle_m6_geometry.cpp` (zweryfikowane grepem przed
+    edycją). Edycje poszły tam; zachowanie i miejsce w strukturze pliku bez
+    zmian.
+  - Walidacja klucza `frontSuspensionVisualModel` w `SanitizeJozzVehicleM6Config`
+    NIE wymagała przenoszenia do laba (§1 przewidywał taką możliwość) - to pole
+    ma tylko dwie literalne wartości (brak osobnego rejestru), więc pełna
+    walidacja z fallbackiem "klasyczny" siedzi bezpiecznie w tej samej funkcji
+    co reszta sanitize, bez zależności do rejestru nadwozi. `bodyVisualModel`
+    poszedł zgodnie z planem: tylko filtr znaków w sanitize, pełna walidacja
+    klucza (z fallbackiem "brak") w `ApplyBodyVisualFromConfig()` w labie.
+  - Wszystkie pozostałe założenia §0 (linie, sygnatury, wzorce) potwierdzone
+    zgodne ze stanem faktycznym.

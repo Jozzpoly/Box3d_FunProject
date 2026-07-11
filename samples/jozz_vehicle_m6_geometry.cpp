@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 
 namespace
 {
@@ -229,6 +230,51 @@ bool SanitizeJozzVehicleM6Config( JozzVehicleM6Config* config )
 		clampField( &config->maxSteeringAngleDegrees, "maxSteeringAngleDegrees", 5.0f, safeMax );
 	}
 
+	// Visual identity strings: this TU (JOZZ_VEHICLE_CORE_FILES) is shared with
+	// the headless validator, which must NOT gain a dependency on the lab-only
+	// body registry - so bodyVisualModel only gets a structural guard here
+	// (NUL-terminated, [a-z0-9_] only); an unknown-but-well-formed key (e.g. one
+	// that no longer exists in the registry) is the lab's job in
+	// ApplyBodyVisualFromConfig, which DOES see the registry. There is no
+	// separate registry for frontSuspensionVisualModel (only these two literal
+	// values), so it is fully validated right here.
+	auto sanitizeKeyChars = [&changed]( char* buf, size_t cap, const char* name ) {
+		buf[cap - 1] = '\0';
+		bool bad = false;
+		size_t len = std::strlen( buf );
+		for ( size_t i = 0; i < len; ++i )
+		{
+			char c = buf[i];
+			bool ok = ( c >= 'a' && c <= 'z' ) || ( c >= '0' && c <= '9' ) || c == '_';
+			if ( ok == false )
+			{
+				bad = true;
+				break;
+			}
+		}
+		if ( bad || len == 0 )
+		{
+			std::printf( "jozz m6 WARNING: config sanitized: %s '%s' -> 'brak' (not a valid registry key)\n", name, buf );
+			std::snprintf( buf, cap, "brak" );
+			changed = true;
+		}
+	};
+	sanitizeKeyChars( config->bodyVisualModel, sizeof( config->bodyVisualModel ), "bodyVisualModel" );
+
+	config->frontSuspensionVisualModel[sizeof( config->frontSuspensionVisualModel ) - 1] = '\0';
+	if ( std::strcmp( config->frontSuspensionVisualModel, "klasyczny" ) != 0 &&
+		 std::strcmp( config->frontSuspensionVisualModel, "rig_kierowniczy" ) != 0 )
+	{
+		std::printf( "jozz m6 WARNING: config sanitized: frontSuspensionVisualModel '%s' -> 'klasyczny'\n",
+					 config->frontSuspensionVisualModel );
+		std::snprintf( config->frontSuspensionVisualModel, sizeof( config->frontSuspensionVisualModel ), "klasyczny" );
+		changed = true;
+	}
+
+	clampField( &config->bodyVisualOffset.x, "bodyVisualOffset.x", -2.0f, 2.0f );
+	clampField( &config->bodyVisualOffset.y, "bodyVisualOffset.y", -2.0f, 2.0f );
+	clampField( &config->bodyVisualOffset.z, "bodyVisualOffset.z", -2.0f, 2.0f );
+
 	return changed;
 }
 
@@ -366,6 +412,12 @@ JozzVehicleM6Config JozzVehicleM6DefaultConfig( float wheelRadius, float wheelWi
 	config.uprightAssist = false;
 	config.uprightHertz = 0.4f;
 	config.uprightDampingRatio = 1.0f;
+
+	// Visual identity defaults - Etap 1 keeps today's look (no body skin,
+	// classic mount visuals); Etap 3 flips these to the validated defaults.
+	std::snprintf( config.bodyVisualModel, sizeof( config.bodyVisualModel ), "brak" );
+	config.bodyVisualOffset = { 0.0f, 0.0f, 0.0f };
+	std::snprintf( config.frontSuspensionVisualModel, sizeof( config.frontSuspensionVisualModel ), "klasyczny" );
 
 	config.filterGroupIndex = -19;
 

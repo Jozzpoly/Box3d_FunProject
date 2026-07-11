@@ -380,6 +380,7 @@ void JozzVehicleM6RigLab::DrawSuspensionTab()
 				m_config = m_factoryConfig;
 				RecomputeRackTravel();
 				CreateVehicle();
+				ApplyBodyVisualFromConfig(); // R4: config-replacing paths must re-sync the body mesh too
 				SyncEditFromConfig();
 				ImGui::CloseCurrentPopup();
 			}
@@ -398,6 +399,52 @@ void JozzVehicleM6RigLab::DrawSuspensionTab()
 void JozzVehicleM6RigLab::DrawChassisTab()
 	{
 		bool edited = false;
+
+		// Body skin choice + position offset: LIVE, no rebuild needed, so this
+		// stays OUTSIDE the edited|=/m_structuralSetupDirty flow below on purpose -
+		// otherwise picking a skin would falsely flag "Nadwozie *" and demand an
+		// Apply it doesn't need (and would retrigger the tab-identity bug the
+		// "###TabChassis" suffix guards against - see DrawControls below).
+		SectionHeader( "Model nadwozia (wygląd)" );
+		{
+			int count = 0;
+			const JozzVehicleBodyModelDef* models = GetJozzVehicleBodyModels( &count );
+			int current = 0; // fallback to "brak" when the key is unknown
+			for ( int i = 0; i < count; ++i )
+			{
+				if ( std::strcmp( models[i].key, m_config.bodyVisualModel ) == 0 )
+				{
+					current = i;
+				}
+			}
+			ImGui::SetNextItemWidth( 14.0f * ImGui::GetFontSize() );
+			if ( ImGui::BeginCombo( "##BodyModelSelect", models[current].label ) )
+			{
+				for ( int i = 0; i < count; ++i )
+				{
+					if ( ImGui::Selectable( models[i].label, i == current ) && i != current )
+					{
+						std::snprintf( m_config.bodyVisualModel, sizeof( m_config.bodyVisualModel ), "%s", models[i].key );
+						ApplyBodyVisualFromConfig();
+					}
+				}
+				ImGui::EndCombo();
+			}
+			HelpMarker( "Wygląd nadwozia - czysto wizualna skóra na bryle fizycznej. Nie zmienia fizyki: "
+						"bryła kolizyjna i jej wymiary (sekcje niżej) działają jak dotąd. "
+						"Wybór wejdzie do presetów i przeżyje R (Etap 2)." );
+
+			ImGui::SliderFloat( "Przesunięcie przód/tył", &m_config.bodyVisualOffset.x, -0.50f, 0.50f, "%.2f m" );
+			ImGui::SliderFloat( "Przesunięcie góra/dół", &m_config.bodyVisualOffset.y, -0.50f, 0.50f, "%.2f m" );
+			ImGui::SliderFloat( "Przesunięcie lewo/prawo", &m_config.bodyVisualOffset.z, -0.50f, 0.50f, "%.2f m" );
+			HelpMarker( "Dostrojenie pozycji modelu względem bryły fizycznej, w osiach nadwozia "
+						"(X przód, Y góra, Z lewo). Baza per model siedzi w rejestrze - to jest korekta." );
+			if ( ImGui::Button( "Wyzeruj przesunięcie" ) )
+			{
+				m_config.bodyVisualOffset = { 0.0f, 0.0f, 0.0f };
+			}
+		}
+		ImGui::Separator();
 
 		SectionHeader( "Wymiary nadwozia" );
 		edited |= ImGui::SliderFloat( "Połowa długości", &m_editChassisHalfExtents.x, 0.8f, 2.5f, "%.2f m" );
@@ -552,8 +599,11 @@ void JozzVehicleM6RigLab::DrawDebugTab()
 		SectionHeader( "Wizualizacje" );
 		ImGui::Checkbox( "Model 3D kół", &m_showWheelVisuals );
 		ImGui::Checkbox( "Model 3D zawieszenia", &m_showMountVisuals );
-		if ( ImGui::Checkbox( "Nowy rig kierowniczy — przód (rozgrzewka)", &m_useSteeringRig ) )
+		bool useSteeringRig = UseSteeringRig();
+		if ( ImGui::Checkbox( "Nowy rig kierowniczy — przód (rozgrzewka)", &useSteeringRig ) )
 		{
+			std::snprintf( m_config.frontSuspensionVisualModel, sizeof( m_config.frontSuspensionVisualModel ),
+							useSteeringRig ? "rig_kierowniczy" : "klasyczny" );
 			// Re-bake so the toggle is live without a rebuild (front corners only).
 			SetupSteeringRig();
 		}
@@ -561,9 +611,9 @@ void JozzVehicleM6RigLab::DrawDebugTab()
 					"tył zostaje na starym. WheelCenter skręca z kołem, ChassisMount_b jedzie na ramieniu "
 					"(nie skręca). Drążek (inboard→środek racka, L/P łączą się) i dumper: G3 zrobione. "
 					"Cardan: G4." );
-		ImGui::Checkbox( "Nadwozie 3D (rama Jozza) na chassis", &m_showBodyVisual );
-		HelpMarker( "Pełna rama nadwozia (Nadwozie.gltf) jako sztywna skóra na ciele chassis. "
-					"Domyślnie wył. — w tym labie zasłania zawieszenie; włącz, by zobaczyć cały pojazd." );
+		ImGui::Checkbox( "Pokaż nadwozie 3D", &m_showBodyVisual );
+		HelpMarker( "Przełącznik WIDOKU - który model jest wybrany, ustawia zakładka Nadwozie. "
+					"Wyłącz, by w tym labie zobaczyć samo zawieszenie bez zasłaniającej ramy." );
 		if ( ImGui::Checkbox( "Surowe kształty kolizji kół", &m_showPrimitiveWheelShapes ) )
 		{
 			UpdateWheelShapeVisibility();
