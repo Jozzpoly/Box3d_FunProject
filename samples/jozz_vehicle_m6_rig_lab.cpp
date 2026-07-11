@@ -23,10 +23,11 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		context->enableContinuous = false;
 
 		// Mapa Etap 1 (docs/MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md): a 400x400 m,
-		// 3x3-tile plate plus a 320x320 m offroad FBM heightfield chunk that
-		// dips under its east edge. Tagged with the terrain category so the
-		// split wheel envelope can separate rolling contact (sphere vs
-		// terrain) from side contact (true-width cylinder vs the rest).
+		// 3x3-tile plate plus a 400x400 m offroad heightfield chunk (ridged/warp
+		// noise + a central mountain) that dips under its east edge. Tagged with
+		// the terrain category so the split wheel envelope can separate rolling
+		// contact (sphere vs terrain) from side contact (true-width cylinder vs
+		// the rest).
 		// Ramps/washboard/props from the test course get the same tag; props
 		// do not.
 		m_worldGround = CreateJozzWorldGround( m_worldId, JOZZ_M6_TERRAIN_CATEGORY );
@@ -140,6 +141,9 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		//   REGEN_COUNT n  regenerate the offroad chunk n times with varying seeds right
 		//             after boot and printf the debug mesh registry count before/after
 		//             (headless R4 check: regeneration must not leak meshes)
+		//   TERRAIN_DUMP 0/1  printf the offroad summit (central mountain) world pos
+		//             + height each time the chunk is built - camera-framing aid for
+		//             the mountain --screenshot runs (jozz_vehicle_world_terrain.cpp)
 		// Throwaway regression scaffolds were removed 2026-07-09 (their bugs are
 		// fixed + guarded): JOZZ_M6_DIRTY_AT_FRAME (tab-identity), TEST_RESET_MODAL.
 		if ( const char* v = std::getenv( "JOZZ_M6_DIAG" ) )

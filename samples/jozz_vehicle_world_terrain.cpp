@@ -6,6 +6,8 @@
 #include "gfx/debug_adapter.h"
 
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <vector>
 
 using namespace JozzWorldLayout;
@@ -103,6 +105,13 @@ constexpr uint32_t kMacroOctave2SeedOffset = 0x4u;
 constexpr uint32_t kWarpSeedOffsetX = 0x5u;
 constexpr uint32_t kWarpSeedOffsetZ = 0x6u;
 constexpr uint32_t kRoughnessSeedOffset = 0x7u;
+// Central mountain layers (E1 final polish).
+constexpr uint32_t kMountainCenterSeedX = 0x8u;
+constexpr uint32_t kMountainCenterSeedZ = 0x9u;
+constexpr uint32_t kMountainWarpSeedX = 0xAu;
+constexpr uint32_t kMountainWarpSeedZ = 0xBu;
+constexpr uint32_t kMountainSpurSeed = 0xCu;
+constexpr uint32_t kMountainSurfaceSeed = 0xDu;
 
 // Classic ridged-noise remap: 1-|noise| turns smooth symmetric bumps into a
 // connected network of ridges (near the noise's zero crossings) separated by
@@ -111,6 +120,80 @@ float Ridged( float signedNoiseValue )
 {
 	float r = 1.0f - std::fabs( signedNoiseValue );
 	return r * r;
+}
+
+// One deterministic [0,1] draw from a seed layer (no spatial component) - used
+// to jitter the mountain center so "Przebuduj teren" re-rolls where it grows.
+float SeedUnitFloat( uint32_t seed )
+{
+	return HashToUnitFloat( HashLattice( seed, 0, 0 ) );
+}
+
+// Ridged multifractal: several ridged octaves (each half the wavelength, half
+// the weight of the last) summed and normalized to [0,1]. This is the "new
+// realistic noise" for the mountain - large ridges + medium + fine crags in
+// one field (Jozz: "wieksze i mniejsze nierownosci"). Build-time only.
+float RidgedFbm( uint32_t seed, float x, float z, float baseWavelength, int octaves )
+{
+	float sum = 0.0f;
+	float amp = 1.0f;
+	float norm = 0.0f;
+	float wavelength = baseWavelength;
+	uint32_t layer = seed;
+	for ( int i = 0; i < octaves; ++i )
+	{
+		sum += Ridged( SignedNoise2D( layer, x, z, wavelength ) ) * amp;
+		norm += amp;
+		amp *= 0.5f;
+		wavelength *= 0.5f;
+		layer += 0x100u * (uint32_t)( i + 1 ); // decorrelate octaves
+	}
+	return sum / norm;
+}
+
+// The central mountain contribution. Returns its added height in meters and
+// (via outMass) the [0,1] radial mass used by the caller to suppress the base
+// terrain underneath, so the mountain replaces the local rolling ground rather
+// than stacking on top of a random bump. See world_layout.h for the mechanism
+// list; all sampling here is terrain-build/teleport time only, never the step.
+float ComputeMountain( uint32_t seed, float localX, float localZ, float* outMass )
+{
+	// (1) Seed-jittered center, kept near the middle of the chunk.
+	float centerX = kMountainCenterLocal + ( SeedUnitFloat( seed + kMountainCenterSeedX ) * 2.0f - 1.0f ) * kMountainJitter;
+	float centerZ = kMountainCenterLocal + ( SeedUnitFloat( seed + kMountainCenterSeedZ ) * 2.0f - 1.0f ) * kMountainJitter;
+
+	// (3) Domain-warp the sample point so the footprint outline is not a circle.
+	float warpX = SignedNoise2D( seed + kMountainWarpSeedX, localX, localZ, kMountainWarpWavelength ) * kMountainWarpStrength;
+	float warpZ = SignedNoise2D( seed + kMountainWarpSeedZ, localX, localZ, kMountainWarpWavelength ) * kMountainWarpStrength;
+	float dx = ( localX + warpX ) - centerX;
+	float dz = ( localZ + warpZ ) - centerZ;
+	float dist = std::sqrt( dx * dx + dz * dz );
+
+	// (4) Angular spur modulation: vary the effective radius by compass angle so
+	// ridges/gullies radiate from the summit (mountain, not a volcano cone).
+	float angle = std::atan2( dz, dx );
+	float spur = SignedNoise2D( seed + kMountainSpurSeed, std::cos( angle ) * kMountainSpurRingRadius,
+								std::sin( angle ) * kMountainSpurRingRadius, kMountainSpurWavelength );
+	float effectiveRadius = kMountainRadius * ( 1.0f + spur * kMountainSpurAmount );
+
+	// (2) Smoothstep radial mass: 1 at the summit, easing to 0 at the foot (flat
+	// tangents at both ends -> no needle tip, no hard crease into the terrain).
+	float t = Clamp01( 1.0f - dist / effectiveRadius );
+	float mass = t * t * ( 3.0f - 2.0f * t );
+	*outMass = mass;
+	if ( mass <= 0.0f )
+	{
+		return 0.0f;
+	}
+
+	// (5) Craggy summit relief from the dedicated ridged FBM, biased near its
+	// mean so it both raises crests and carves gullies, and faded by the mass.
+	float surface = ( RidgedFbm( seed + kMountainSurfaceSeed, localX, localZ, kMountainSurfaceWavelength,
+								 kMountainSurfaceOctaves ) -
+					  kMountainSurfaceBias ) *
+					kMountainSurfaceAmp;
+
+	return mass * kMountainPeakHeight + surface * mass;
 }
 
 // height(x, z) = zakladka(x) + trudnosc(x) * [ makro(warp, ridged x2) + mezo*roughness + mikro*roughness ]
@@ -150,7 +233,14 @@ float ComputeOffroadHeightLocal( uint32_t seed, float localX, float localZ )
 	float micro = SignedNoise2D( seed + kMicroSeedOffset, localX, localZ, kMicroWavelength ) * kMicroAmplitude *
 				  Lerp( kRoughnessMicroFloor, 1.0f, roughness );
 
-	float noiseCombined = macro + meso + micro;
+	// Central mountain: its radial mass suppresses the base terrain underneath
+	// (so the mountain REPLACES local rolling ground, not doubles on top of it)
+	// and adds its own summit mass + craggy relief.
+	float mountainMass = 0.0f;
+	float mountain = ComputeMountain( seed, localX, localZ, &mountainMass );
+	float baseScale = 1.0f - mountainMass * kMountainBaseSuppress;
+
+	float noiseCombined = ( macro + meso + micro ) * baseScale + mountain;
 
 	// Seam overlap strip: ramps from kSeamOverlapDepth (below the plate top)
 	// up to ~0 over the first ~4 columns. Noise itself is already ~0 there
@@ -212,15 +302,34 @@ void BuildOffroadShape( b3BodyId offroadBodyId, uint64_t terrainCategoryBits, ui
 						 b3HeightFieldData** outField, b3ShapeId* outShapeId )
 {
 	std::vector<float> heights( (size_t)kOffroadGridPoints * (size_t)kOffroadGridPoints );
+	float peakHeight = -1e9f;
+	float peakLocalX = 0.0f;
+	float peakLocalZ = 0.0f;
 	for ( int row = 0; row < kOffroadGridPoints; ++row )
 	{
 		float localZ = (float)row * kOffroadCellSize;
 		for ( int col = 0; col < kOffroadGridPoints; ++col )
 		{
 			float localX = (float)col * kOffroadCellSize;
-			heights[(size_t)row * (size_t)kOffroadGridPoints + (size_t)col] =
-				ComputeOffroadHeightLocal( seed, localX, localZ );
+			float h = ComputeOffroadHeightLocal( seed, localX, localZ );
+			heights[(size_t)row * (size_t)kOffroadGridPoints + (size_t)col] = h;
+			if ( h > peakHeight )
+			{
+				peakHeight = h;
+				peakLocalX = localX;
+				peakLocalZ = localZ;
+			}
 		}
+	}
+
+	// Headless framing aid: print the highest grid vertex (the mountain summit)
+	// in world coordinates so a --screenshot run can aim the camera at it. Off
+	// unless JOZZ_M6_TERRAIN_DUMP is set - see the env registry in the rig lab.
+	if ( std::getenv( "JOZZ_M6_TERRAIN_DUMP" ) != nullptr )
+	{
+		std::printf( "[terrain] seed=%u summit world=(%.1f, %.1f) h=%.2f\n", seed,
+					 kOffroadOriginX + peakLocalX, kOffroadOriginZ + peakLocalZ, peakHeight );
+		std::fflush( stdout );
 	}
 
 	b3HeightFieldDef def = {};

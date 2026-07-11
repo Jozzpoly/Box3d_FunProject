@@ -47,7 +47,9 @@ constexpr float kOffroadOverlap = 2.0f; // how far the chunk reaches under the p
 constexpr float kOffroadOriginX = kPlateHalfExtent - kOffroadOverlap; // 198.0
 constexpr float kOffroadOriginZ = -kOffroadSize * 0.5f;			   // -200.0
 constexpr float kOffroadGlobalMinHeight = -12.0f;
-constexpr float kOffroadGlobalMaxHeight = 14.0f;
+// Raised 14->22 (E1 final polish 2026-07-12) to give headroom for the central
+// mountain summit, which stands ~1.5x higher than the ~8 m base terrain peaks.
+constexpr float kOffroadGlobalMaxHeight = 22.0f;
 constexpr uint32_t kOffroadDefaultSeed = 1337u;
 
 // Noise layers (local x measured from the seam at local x=0 == world x=198).
@@ -84,6 +86,33 @@ constexpr float kDifficultyGradientDistance = 60.0f; // 0 at the seam, 1 by this
 constexpr float kSeamOverlapRunLocalX = 4.0f * kOffroadCellSize; // ~5 m ramp-in
 constexpr float kSeamOverlapDepth = -0.12f;					   // height at local x=0
 
+// --- Central mountain (E1 final polish, 2026-07-12) ------------------------
+// Jozz's ask: the terrain lacked a focal point - grow ONE natural mountain
+// somewhere near the middle, summit ~1.5x higher than the standard ~8 m base
+// peaks, with its own realistic multi-scale noise. Built from five stacked
+// mechanisms (see world_terrain.cpp ComputeMountain): (1) seed-jittered center
+// so "Przebuduj teren" re-rolls its position; (2) a smoothstep radial mass -
+// the gradient that lifts the summit and blends into the base at the foot;
+// (3) a domain warp on the distance field so the footprint is not a circle;
+// (4) an angular spur modulation (radiating ridges/gullies, not a volcano
+// cone); (5) a dedicated 4-octave ridged FBM for craggy summit relief that
+// fades toward the base. The base terrain is suppressed under the mass so the
+// mountain REPLACES the local rolling ground instead of doubling on top of it.
+constexpr float kMountainCenterLocal = kOffroadSize * 0.5f; // 200 m nominal center
+constexpr float kMountainJitter = 45.0f;				   // seed-driven offset from center
+constexpr float kMountainRadius = 95.0f;				   // base radius (footprint ~190 m across)
+constexpr float kMountainPeakHeight = 12.5f;			   // additive summit mass (~1.5x base peak)
+constexpr float kMountainWarpWavelength = 70.0f;		   // outline-warp lattice
+constexpr float kMountainWarpStrength = 30.0f;			   // +-30 m footprint wander
+constexpr float kMountainSpurRingRadius = 2.5f;			   // spur COUNT ~ 2*pi*r / wavelength
+constexpr float kMountainSpurWavelength = 1.0f;
+constexpr float kMountainSpurAmount = 0.22f;			   // +-22% radius wobble -> radiating spurs
+constexpr float kMountainSurfaceWavelength = 34.0f;		   // coarsest summit-noise octave
+constexpr int kMountainSurfaceOctaves = 4;				   // 34 / 17 / 8.5 / 4.25 m detail
+constexpr float kMountainSurfaceAmp = 5.0f;				   // craggy relief amplitude at summit
+constexpr float kMountainSurfaceBias = 0.35f;			   // ~mean of ridged FBM; centers crest/gully
+constexpr float kMountainBaseSuppress = 0.55f;			   // base-terrain fade under the mass
+
 // --- Teleporty minimalne (P1, pelny rejestr dopiero w Etapie 6) ------------
 struct JozzWorldAnchor
 {
@@ -95,6 +124,7 @@ struct JozzWorldAnchor
 constexpr JozzWorldAnchor kWorldAnchors[] = {
 	{ "Start", 0.0f, 0.0f },
 	{ "Offroad - wjazd", 240.0f, 0.0f },
+	{ "Offroad - gora", kOffroadOriginX + kMountainCenterLocal - 70.0f, kOffroadOriginZ + kMountainCenterLocal },
 	{ "Offroad - gleboko", 560.0f, 0.0f },
 };
 constexpr int kWorldAnchorCount = sizeof( kWorldAnchors ) / sizeof( kWorldAnchors[0] );

@@ -127,6 +127,11 @@ Liczby kluczowe (do potwierdzenia bramką wydajności E1):
   2 oktawy (λ≈90/40 m, amp do 8 m) przez domain warp (λ≈60 m, ±22 m); mezo
   λ≈16 m amp do 1.2 m i mikro λ≈2.8 m amp do 0.22 m skalowane chropowatością
   zależną od wysokości (gradient 0→1 na pierwszych ~60 m od styku).
+- Góra centralna (final polish 2026-07-12, pełny opis E1 §11): jedna naturalna
+  góra koło środka offroadu (centrum jitterowane seedem), masa radialna
+  `smoothstep` + domain warp obrysu + promieniste granie (modulacja kątowa) +
+  4-oktawowy ridged FBM szczytu; szczyty 13.8–17.9 m (~1.5–1.9× standardu),
+  sufit heightfielda podniesiony 14→22 m.
 - Pas zakładki: pierwsze ~4 kolumny heightfielda liniowo od −0.12 m do wartości
   szumu — teren wychodzi SPOD płyty (wymaganie Jozza wprost).
 
@@ -160,7 +165,7 @@ doki w tym samym commicie.
 
 | Etap | Nazwa | Deliverable | Rozszerzenia |
 |---|---|---|---|
-| 1 ✅ | Fundament terenu | płyta 400×400 (3×3 kafle), offroad **400×400** (od 2026-07-12) ridged+warp+roughness z zakładką POD płytą, seed+regeneracja, teleport minimalny, pomiar wydajności | P1(min), P7 + 4 nowe env `JOZZ_M6_TELEPORT/AUTODRIVE/PERF_DUMP/REGEN_COUNT` (headless testing, patrz Etap 1 §9) + doszlifowanie na życzenie Jozza (Etap 1 §10) |
+| 1 ✅ | Fundament terenu | płyta 400×400 (3×3 kafle), offroad **400×400** (od 2026-07-12) ridged+warp+roughness **+ centralna góra** (E1 §11) z zakładką POD płytą, seed+regeneracja, teleport minimalny, pomiar wydajności | P1(min), P7 + 4 nowe env `JOZZ_M6_TELEPORT/AUTODRIVE/PERF_DUMP/REGEN_COUNT` (headless testing, patrz Etap 1 §9) + doszlifowanie i final polish na życzenie Jozza (Etap 1 §10–§11) |
 | 2 | Przeszkody i poligony | parametryczny obstacle kit (~15 generatorów, ostre↔zaokrąglone), 6 lane'ów progresji, demontaż starych ramp | P8 |
 | 3 | Tor i drift | pętla toru z krawężnikami/bandami/oponami, bramki czasowe + HUD stopera, skid pad + ósemka + lodowisko | P3, P4 |
 | 4 | Plac fizyki | shaker 4-post, rolling road, obrotnica, most z desek, see-saw, wrecking ball, stosy/domino/kręgle, eksplozja | P2, P5, P9 |

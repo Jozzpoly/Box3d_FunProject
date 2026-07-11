@@ -372,3 +372,88 @@ wygląda jak jedna wielka rampa. To artefakt kąta kamery przy tej geometrii,
 nie usterka terenu — `07_wide_threequarter` z większego dystansu i przy
 większym yaw pokazuje ten sam obszar poprawnie, bez dwuznaczności. Odnotowane
 tu, żeby przyszłe sesje nie traciły czasu na tę samą pułapkę.
+
+## 11. Góra centralna (final polish, 2026-07-12) — na wyraźne życzenie Jozza
+
+**Status: ZAMKNIĘTY.** Po doszlifowaniu z §10 terenowi brakowało jednego —
+**centralnego punktu fokusu**. Jozz: gdzieś losowo koło środka ma wyrastać
+jedna naturalna góra ze szczytem "o połowę wyższym od standardowej wysokości",
+zbudowana zupełnie nowym realistycznym szumem z "większymi i mniejszymi
+nierównościami"; poza tym prośba o krytyczne, kreatywne podejście i własne
+propozycje.
+
+### 11.1 Pięć złożonych mechanizmów zamiast jednego kopca
+
+Zwykły radialny stożek (jedna funkcja odległości → wysokość) wygląda jak
+sztuczny nasyp/wulkan. Prawdziwa góra to asymetryczna masa z rozchodzącymi
+się graniami i żlebami oraz wielo-skalową poszarpaną rzeźbą. Góra powstaje
+więc ze **złożenia pięciu niezależnych mechanizmów** (`ComputeMountain` w
+`jozz_vehicle_world_terrain.cpp`), każdy odpowiada za inną cechę:
+
+1. **Losowe położenie koło środka** — centrum jitterowane seedem o ±45 m od
+   geometrycznego środka offroadu (`kMountainJitter`). "Przebuduj teren"
+   przenosi górę w nowe miejsce, tak jak re-rolluje resztę terenu.
+2. **Masa radialna (gradient)** — `smoothstep(0,1, 1 - dist/R)`: 1 na szczycie,
+   0 u podnóża. Płaskie styczne na obu końcach → brak iglicy na szczycie i
+   brak twardego załamania przy wtapianiu w teren. To jest ten "nałożony
+   gradient", o którym pisał Jozz.
+3. **Nieregularny obrys (domain warp)** — pozycja jest przesuwana osobną
+   warstwą szumu (λ 70 m, ±30 m) ZANIM policzymy odległość, więc podstawa
+   nie jest kołem, tylko falującym, organicznym kształtem.
+4. **Promieniste granie/żleby (spurs)** — efektywny promień jest modulowany
+   szumem próbkowanym po kącie (`atan2` + próbka na okręgu jednostkowym),
+   ±22%. To daje rozchodzące się z wierzchołka grzbiety i doliny — cecha,
+   która najmocniej odróżnia górę od kopca-wulkanu.
+5. **Zupełnie nowy szum szczytu — 4-oktawowy ridged FBM** (`RidgedFbm`): cztery
+   oktawy ridged (każda λ i waga o połowę mniejsza od poprzedniej: 34 / 17 /
+   8.5 / 4.25 m), znormalizowane do [0,1]. Jedno pole daje jednocześnie duże
+   granie, średnie i drobne skały — dokładnie "większe i mniejsze
+   nierówności". Detal jest wygaszany masą (silny przy szczycie, zanika u
+   podnóża) i biasowany blisko średniej, żeby zarówno podnosił granie, jak i
+   wycinał żleby.
+
+Dodatkowo teren bazowy jest **tłumiony pod masą** (`kMountainBaseSuppress`
+0.55): góra ZASTĘPUJE lokalne pofalowanie zamiast dublować się na losowym
+pagórku — dzięki temu wysokość szczytu jest kontrolowana, a nie sumą dwóch
+przypadkowych wartości.
+
+### 11.2 Wysokość i budżet 16-bit
+
+Sufit heightfielda podniesiono **14 → 22 m** (`kOffroadGlobalMaxHeight`), żeby
+szczyt miał zapas i nie obcinał się na płasko. Standardowe grzbiety terenu
+sięgają ~8–9 m; zmierzone szczyty góry (7 seedów) mieszczą się w **13.8–17.9 m**
+— czyli ~1.5–1.9× standardowej wysokości (życzenie "o połowę wyższy"
+spełnione z zapasem), zawsze poniżej klampa 21.5 m (żaden seed nie daje
+płaskiego wierzchołka). Kwantyzacja 16-bit na zakresie 34 m to ~0.0005 m/krok
+— bez znaczenia dla jazdy.
+
+### 11.3 Koszt i weryfikacja (render is the gate)
+
+Cały szum góry (jitter + warp + spurs + 4-oktawowy FBM) liczony jest **tylko
+przy budowie/regeneracji chunku**, nigdy w kroku fizyki — dlatego per-step
+koszt się nie zmienił: **1.15 ms/step, 871 fps** (budżet 4 ms, zapas >3×).
+R4 (przeciek mesha przy regeneracji) na nowej geometrii: **49 → 49** shape'ów
+po 10 regeneracjach. Build (samples+validation+test) czysty, boot-smoke M5/M6
+0 błędów sokol.
+
+> **Uwaga o walidatorze:** probe `preset determinism: listed suspensionHertz`
+> jest CZERWONY, ale to regres **zastany** w ścieżce presetów (`offroad.json`
+> ma 3.5, merge zwraca 3.4) — potwierdzony jako identyczny na czystym HEAD
+> przez `git stash` + przebudowę walidatora, całkowicie niezależny od terenu.
+> Do naprawy osobno, nie blokuje tego etapu.
+
+Zrzuty (scratchpad `mapa_e1c`, obejrzane przed zamknięciem):
+
+- `11_mountain_aerial` — widok z góry pod kątem ~54°: cały masyw z
+  promieniistymi graniami i zdefiniowanym szczytem wyrastający ponad
+  pofalowany teren, nieregularny obrys (domain warp).
+- `12_mountain_silhouette` — niski profil: sylweta szczytu na tle nieba,
+  wielo-skalowa poszarpana rzeźba (duże + średnie + drobne), żleb prowadzący
+  pod górę na pierwszym planie. Najlepszy dowód "prawdziwej góry".
+
+### 11.4 Teleport
+
+Dodano kotwicę `Offroad - gora` (`kWorldAnchors`) na zachodnim podejściu pod
+górę (world ~328, 0) — spawn u podnóża, żeby móc podjechać na szczyt. Nowy
+env `JOZZ_M6_TERRAIN_DUMP=1` drukuje pozycję szczytu w świecie przy każdym
+budowaniu chunku (pomoc do kadrowania kamery pod zrzuty).
