@@ -113,6 +113,20 @@ presety wczytują się bez błędu.
 3 committed presety (`uliczny`/`drift`/`offroad`) zmigrowane na nowe klucze
 P3/P4 bezpośrednio (nie polegają na fallbacku) - patrz `assets/vehicle_presets/*.json`.
 
+## 3b. Tożsamość wizualna pojazdu w configu (Etap 2 finalizacji, 2026-07-11)
+
+`bodyVisualModel`, `bodyVisualOffset`, `frontSuspensionVisualModel` (dodane do
+`JozzVehicleM6Config` w Etapie 1) trafiły do `config_io` na końcu segmentu C —
+łapie je reguła §1b bez zmian w tej tabeli. Jedyna nowość MASZYNOWA: `config_io`
+zyskał czwarty typ pola, `JozzFieldType::String` (obok Float/Int/Bool/Vec3) —
+`char[JOZZ_M6_MODEL_KEY_CAP]`, żadnego JSON-escapingu (klucze rejestru to
+`[a-z0-9_]` z konstrukcji, egzekwowane przez `SanitizeJozzVehicleM6Config`).
+3 committed presety (uliczny/drift/offroad) NIE definiują tych kluczy — po
+wczytaniu dostają fabryczne „brak"/„klasyczny" (poprawne, przejściowe; Etap 3
+decyduje, czy je wzbogacić). Strażnik: `RunPresetDeterminismProbe` rozszerzony
+o powrót do fabryki tych 3 pól + osobny round-trip save/load (pilnuje pułapki
+`lastInObject` — zepsuty przecinek na końcu obiektu psuje cały plik JSON).
+
 ## 4. Gdzie szukać w kodzie
 
 `jozz_vehicle_m6_config_io.h/.cpp` (save/load/list); po podziale R3:

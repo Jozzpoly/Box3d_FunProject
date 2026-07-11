@@ -14,6 +14,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <limits>
 #include <string>
 
@@ -390,6 +391,12 @@ bool RunPresetDeterminismProbe( const JozzVehiclePrimitiveDefaults& defaults )
 	fiddled.frontToeDeg = 3.0f;
 	// ...and one it DOES define (must come back as the preset's value).
 	fiddled.suspensionHertz = 11.0f;
+	// Etap 2 (persystencja, 2026-07-11): visual identity is now config, not
+	// UI-only state - offroad.json doesn't define these either, so they must
+	// return to factory the same as any other unlisted field.
+	std::snprintf( fiddled.bodyVisualModel, sizeof( fiddled.bodyVisualModel ), "rama_rurowa" );
+	fiddled.bodyVisualOffset = { 0.11f, 0.22f, 0.33f };
+	std::snprintf( fiddled.frontSuspensionVisualModel, sizeof( fiddled.frontSuspensionVisualModel ), "rig_kierowniczy" );
 
 	std::string presetPath;
 	bool found = FindJozzVehicleAssetFile( "assets/vehicle_presets/offroad.json", &presetPath );
@@ -403,6 +410,12 @@ bool RunPresetDeterminismProbe( const JozzVehiclePrimitiveDefaults& defaults )
 					 "frontToeDeg %.1f (factory %.1f), suspensionHertz %.1f (preset 3.5)\n",
 					 loaded.rackFrictionBase, factory.rackFrictionBase, loaded.brakeTorque, factory.brakeTorque,
 					 loaded.frontToeDeg, factory.frontToeDeg, loaded.suspensionHertz );
+		std::printf( "  after load: bodyVisualModel '%s' (factory '%s'), bodyVisualOffset [%.2f %.2f %.2f] "
+					 "(factory [%.2f %.2f %.2f]), frontSuspensionVisualModel '%s' (factory '%s')\n",
+					 loaded.bodyVisualModel, factory.bodyVisualModel, loaded.bodyVisualOffset.x,
+					 loaded.bodyVisualOffset.y, loaded.bodyVisualOffset.z, factory.bodyVisualOffset.x,
+					 factory.bodyVisualOffset.y, factory.bodyVisualOffset.z, loaded.frontSuspensionVisualModel,
+					 factory.frontSuspensionVisualModel );
 		ok &= CheckTrue( "preset determinism: unlisted rackFrictionBase returns to factory",
 						 loaded.rackFrictionBase == factory.rackFrictionBase );
 		ok &= CheckTrue( "preset determinism: unlisted brakeTorque returns to factory",
@@ -411,6 +424,41 @@ bool RunPresetDeterminismProbe( const JozzVehiclePrimitiveDefaults& defaults )
 						 loaded.frontToeDeg == factory.frontToeDeg );
 		ok &= CheckTrue( "preset determinism: listed suspensionHertz takes the preset value",
 						 std::fabs( loaded.suspensionHertz - 3.5f ) < 1.0e-4f );
+		ok &= CheckTrue( "preset determinism: unlisted bodyVisualModel returns to factory",
+						 std::strcmp( loaded.bodyVisualModel, factory.bodyVisualModel ) == 0 );
+		ok &= CheckTrue( "preset determinism: unlisted bodyVisualOffset returns to factory",
+						 loaded.bodyVisualOffset.x == factory.bodyVisualOffset.x &&
+							 loaded.bodyVisualOffset.y == factory.bodyVisualOffset.y &&
+							 loaded.bodyVisualOffset.z == factory.bodyVisualOffset.z );
+		ok &= CheckTrue( "preset determinism: unlisted frontSuspensionVisualModel returns to factory",
+						 std::strcmp( loaded.frontSuspensionVisualModel, factory.frontSuspensionVisualModel ) == 0 );
+	}
+
+	// Round-trip save/load (Etap 2 §4.3): guards the lastInObject trap from
+	// config_io.cpp's field table directly - a broken trailing comma makes the
+	// whole file fail jsmn parsing, which LoadJozzVehicleM6Config reports as
+	// false / leaves outConfig untouched, so this would go red immediately.
+	{
+		const char* roundtripPath = "build/jozz_vehicle_probe_roundtrip.json";
+		ok &= CheckTrue( "preset determinism: round-trip save", SaveJozzVehicleM6Config( fiddled, roundtripPath ) );
+
+		JozzVehicleM6Config reloaded =
+			JozzVehicleM6DefaultConfig( defaults.wheelRadius, defaults.wheelWidth, defaults.assetSuspensionTravelHint );
+		ok &= CheckTrue( "preset determinism: round-trip load", LoadJozzVehicleM6Config( roundtripPath, &reloaded ) );
+		std::printf( "  round-trip: bodyVisualModel '%s', bodyVisualOffset [%.2f %.2f %.2f], "
+					 "frontSuspensionVisualModel '%s', suspensionHertz %.1f\n",
+					 reloaded.bodyVisualModel, reloaded.bodyVisualOffset.x, reloaded.bodyVisualOffset.y,
+					 reloaded.bodyVisualOffset.z, reloaded.frontSuspensionVisualModel, reloaded.suspensionHertz );
+		ok &= CheckTrue( "preset determinism: round-trip bodyVisualModel",
+						 std::strcmp( reloaded.bodyVisualModel, fiddled.bodyVisualModel ) == 0 );
+		ok &= CheckTrue( "preset determinism: round-trip bodyVisualOffset",
+						 reloaded.bodyVisualOffset.x == fiddled.bodyVisualOffset.x &&
+							 reloaded.bodyVisualOffset.y == fiddled.bodyVisualOffset.y &&
+							 reloaded.bodyVisualOffset.z == fiddled.bodyVisualOffset.z );
+		ok &= CheckTrue( "preset determinism: round-trip frontSuspensionVisualModel",
+						 std::strcmp( reloaded.frontSuspensionVisualModel, fiddled.frontSuspensionVisualModel ) == 0 );
+		ok &= CheckTrue( "preset determinism: round-trip suspensionHertz (control field, unrelated segment)",
+						 std::fabs( reloaded.suspensionHertz - fiddled.suspensionHertz ) < 1.0e-4f );
 	}
 
 	std::printf( "preset determinism probe: %s\n", ok ? "ok" : "FAILED" );

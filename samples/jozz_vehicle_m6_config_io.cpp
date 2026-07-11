@@ -41,6 +41,14 @@ void WriteVec3( std::ostringstream& out, const char* indent, const char* key, b3
 	out << indent << "\"" << key << "\": [" << v.x << ", " << v.y << ", " << v.z << "]" << ( comma ? ",\n" : "\n" );
 }
 
+void WriteString( std::ostringstream& out, const char* indent, const char* key, const char* value, bool comma = true )
+{
+	// Registry keys are [a-z0-9_] by construction (SanitizeJozzVehicleM6Config
+	// enforces it), so no JSON escaping is needed - assert the assumption
+	// instead of half-implementing an escaper.
+	out << indent << "\"" << key << "\": \"" << value << "\"" << ( comma ? ",\n" : "\n" );
+}
+
 // --- reader helpers ----------------------------------------------------
 // Every read is best-effort: a missing or malformed key leaves *outValue
 // untouched, so loading an older preset that predates a field just keeps
@@ -90,6 +98,17 @@ void ReadVec3( std::string_view json, const std::vector<jsmntok_t>& tokens, int 
 	}
 }
 
+void ReadString( std::string_view json, const std::vector<jsmntok_t>& tokens, int objectIndex, const char* key,
+				  char* out, int cap )
+{
+	int valueIndex = FindObjectValue( json, tokens, objectIndex, key );
+	if ( valueIndex >= 0 && tokens[valueIndex].type == JSMN_STRING )
+	{
+		std::string value = TokenString( json, tokens[valueIndex] );
+		std::snprintf( out, (size_t)cap, "%s", value.c_str() );
+	}
+}
+
 // --- R2: field table -------------------------------------------------------
 // One row = one field, driving BOTH the writer and the reader, so a new
 // tunable is one entry instead of two hand-kept call sites that can drift
@@ -118,6 +137,7 @@ enum class JozzFieldType
 	Int,
 	Bool,
 	Vec3,
+	String,
 };
 
 template <typename Owner>
@@ -132,6 +152,11 @@ struct JozzFieldDesc
 		int Owner::*intMember;
 		bool Owner::*boolMember;
 		b3Vec3 Owner::*vec3Member;
+		// Fixed-size buffer, not std::string, to keep JozzVehicleM6Config a
+		// plain aggregate (probes copy it by value). JOZZ_M6_MODEL_KEY_CAP is
+		// shared by every string field of the config today; a field with a
+		// different cap would need a second union member here.
+		char ( Owner::*stringMember )[JOZZ_M6_MODEL_KEY_CAP];
 	};
 };
 
@@ -157,6 +182,9 @@ void WriteFieldTable( std::ostringstream& out, const char* indent, const JozzFie
 			case JozzFieldType::Vec3:
 				WriteVec3( out, indent, f.key, obj.*f.vec3Member, comma );
 				break;
+			case JozzFieldType::String:
+				WriteString( out, indent, f.key, obj.*f.stringMember, comma );
+				break;
 		}
 	}
 }
@@ -181,6 +209,9 @@ void ReadFieldTable( std::string_view json, const std::vector<jsmntok_t>& tokens
 				break;
 			case JozzFieldType::Vec3:
 				ReadVec3( json, tokens, objectIndex, f.key, &( obj->*f.vec3Member ) );
+				break;
+			case JozzFieldType::String:
+				ReadString( json, tokens, objectIndex, f.key, obj->*f.stringMember, JOZZ_M6_MODEL_KEY_CAP );
 				break;
 		}
 	}
@@ -252,7 +283,12 @@ const RootField kRootFieldsC[] = {
 	{ .key = "strutCasterDeg", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::strutCasterDeg },
 	{ .key = "uprightAssist", .type = JozzFieldType::Bool, .lastInObject = false, .boolMember = &JozzVehicleM6Config::uprightAssist },
 	{ .key = "uprightHertz", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::uprightHertz },
-	{ .key = "uprightDampingRatio", .type = JozzFieldType::Float, .lastInObject = true, .floatMember = &JozzVehicleM6Config::uprightDampingRatio },
+	{ .key = "uprightDampingRatio", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6Config::uprightDampingRatio },
+	// Visual identity (plan finalizacji 2026-07-11): part of the config on
+	// purpose - a preset describes the whole car, look included.
+	{ .key = "bodyVisualModel", .type = JozzFieldType::String, .lastInObject = false, .stringMember = &JozzVehicleM6Config::bodyVisualModel },
+	{ .key = "bodyVisualOffset", .type = JozzFieldType::Vec3, .lastInObject = false, .vec3Member = &JozzVehicleM6Config::bodyVisualOffset },
+	{ .key = "frontSuspensionVisualModel", .type = JozzFieldType::String, .lastInObject = true, .stringMember = &JozzVehicleM6Config::frontSuspensionVisualModel },
 };
 
 using WishboneField = JozzFieldDesc<JozzVehicleM6WishboneGeometry>;

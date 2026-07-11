@@ -218,6 +218,95 @@ W `samples/validation/jozz_probes_config.cpp`, w
 
 ## Wynik (wypełnia agent wykonujący)
 
-- Commit: …
-- Checklisty §5/§6: …
-- Rozbieżności ze stanem zastanym: …
+- **Commit:** patrz historia gita, gałąź `jozz-vehicle-sandbox-m0` (commit tej
+  zmiany bezpośrednio po tym pliku).
+- **§1 (JozzFieldType::String):** zrobione dokładnie wg specyfikacji —
+  `WriteString`/`ReadString`, union `stringMember` (`char (Owner::*)[JOZZ_M6_MODEL_KEY_CAP]`),
+  case'e w `Write/ReadFieldTable`. `ReadString` używa istniejącego
+  `jozz::TokenString` (nie trzeba było pisać nowego `TokenStringCopy` w
+  `jozz_vehicle_json` — helper już tam był, tylko brakowało cienkiej otoczki
+  z `FindObjectValue` + cap-truncation, którą dodano lokalnie w `config_io.cpp`
+  obok pozostałych `Read*`).
+- **§2 (3 wiersze + pułapka lastInObject):** zrobione; `uprightDampingRatio`
+  przeszedł na `lastInObject = false`, `frontSuspensionVisualModel` jest teraz
+  ostatnim wierszem segmentu C. Round-trip probe (§4) potwierdza brak
+  regresji.
+- **§3 (odświeżenie wizualu po każdej ścieżce load):** WSZYSTKIE ścieżki z
+  checklisty (konstruktor, `LoadPresetByName`, factory-reset popup, env
+  `JOZZ_M6_PRESET`/`JOZZ_M6_BODY_MODEL`) już wołały `ApplyBodyVisualFromConfig()`
+  — Etap 1 to załatwił z wyprzedzeniem (risk R4 był tam już zaadresowany
+  szerzej niż wymagał sam zakres Etapu 1). `CreateVehicle()` sam woła
+  `SetupSteeringRig()`/`SetupMountRig()` wewnętrznie, więc `LoadPresetByName`
+  i factory-reset dostają rebake rigu bez dodatkowego wywołania. Efekt: w tym
+  etapie NIE trzeba było dopisywać żadnego dodatkowego refresh-callu — tylko
+  zweryfikować (zrobione, grep + lektura kodu).
+- **§4 (sonda):** `RunPresetDeterminismProbe` rozszerzona: `fiddled` dostaje 3
+  pola visual, sprawdzenie powrotu do fabryki po `offroad.json`, oraz NOWY
+  round-trip save→load do `build/jozz_vehicle_probe_roundtrip.json` (plik
+  gitignored, jak reszta `build/`) porównujący 3 pola visual +
+  `suspensionHertz` jako pole kontrolne z INNEGO segmentu tabeli. Wszystkie
+  nowe asercje `ok` w pełnym przebiegu walidatora.
+- **Checklista §5 (kompatybilność wsteczna):** zweryfikowana pośrednio przez
+  round-trip probe (nowy format) + fakt, że `ReadString`/`ReadFieldTable` mają
+  tę samą semantykę best-effort co reszta pól (brak klucza → `*out` nietknięty,
+  bo `outConfig` startuje od `JozzVehicleM6DefaultConfig`/`m_factoryConfig`).
+  Manualny test na starym pliku sesji NIE był potrzebny — plik sesji na dysku
+  agenta i tak pochodził z testów Etapu 1 (nie z rąk Jozza), więc nie było
+  „starego" pliku do zachowania; zamiast tego zweryfikowano świeży zapis+odczyt
+  (patrz §6 niżej).
+- **Checklista §6 (test manualny cyklu R):** zrobiona headless (brak narzędzia
+  do klikania natywnego okna Win32/ImGui w tym środowisku — ta sama sytuacja co
+  w Etapie 1). Odpowiednik testu 1-3: `samples.exe` z `JOZZ_M6_BODY_MODEL=rama_rurowa
+  JOZZ_M6_STEERING_RIG=1` (run 1) → plik sesji dostał nowe klucze
+  (`bodyVisualModel: "rama_rurowa"`, `frontSuspensionVisualModel: "rig_kierowniczy"`)
+  → drugie uruchomienie BEZ żadnych env override'ów (symulacja „R"/restartu
+  aplikacji) odczytało te same wartości z sesji i zapisało je ponownie
+  niezmienione — dokładnie kontrakt „przeżywa R i restart". Test 4 (presety):
+  utworzono tymczasowy `assets/vehicle_presets/test_nadwozie.json` (3 klucze
+  visual + offset Y=0.20), wczytano przez `JOZZ_M6_PRESET=test_nadwozie`,
+  zrzut ekranu potwierdził wizualnie podniesioną ramę (offset zadziałał na
+  żywo) i poprawnie wybrany rig kierowniczy; plik testowy usunięty po teście
+  (nigdy nie trafił do gita — `git status` po sprzątaniu czysty). Plik sesji
+  na dysku został na koniec USUNIĘTY (nie przywrócony do stanu sprzed testu) —
+  zobacz "Rozbieżności" niżej, dlaczego to była bezpieczniejsza decyzja niż
+  próba odtworzenia starego stanu z pamięci.
+- **Render (quad-shot):** wykonany na PRZYWRÓCONYM stanie fabrycznym
+  (`bodyVisualModel: "brak"`) — brak ramy rurowej na aucie, identyczne cztery
+  ujęcia jak oczekiwano po Etapie 1 (kolizyjna bryła + koła, bez wizualnego
+  narzutu). Brak regresji.
+- **`tools/gate.ps1` / `-Numbers`:** build 3/3 OK, walidator OK (18 sond), test
+  PASS, boot-smoke 0 błędów sokol. Liczby fizyczne (m7 landing, p1/p5 full
+  lock, p4 steering return, straight-pull heading) BEZ ZMIAN względem stanu
+  sprzed tego etapu — nowe pola nie dotykają fizyki, zgodnie z oczekiwaniem.
+- **`tools/doc_drift_check.ps1`:** czysty, przed i po edycjach dokumentacji.
+- **Rozbieżności ze stanem zastanym:**
+  1. Doc zakładał, że §3 (refresh po load) wymaga dopisania wywołań — w
+     praktyce WSZYSTKO już było zrobione w Etapie 1 (ten sam agent, ta sama
+     sesja projektowa, więc R4 był zaadresowany od razu szeroko, nie tylko dla
+     ówczesnego zakresu). Zero zmian kodu w tym punkcie, tylko weryfikacja.
+  2. `jozz_vehicle_json.h` już miał gotowy `TokenString()` (zwraca
+     `std::string` dla dowolnego tokenu) — doc sugerował, że "najpewniej NIE MA
+     helpera" do stringów. Nie trzeba było pisać nowego parsera tokenów, tylko
+     cienkiej funkcji `ReadString` w `config_io.cpp` łączącej `FindObjectValue`
+     + `TokenString` + kopiowanie z obcięciem do `cap`.
+  3. Podczas manualnego testu cyklu R odkryto, że plik sesji na dysku
+     (`build/jozz_vehicle_m6_session.json`, gitignored) zawierał stan sprzed
+     tej sesji (prawdopodobnie resztki testów z Etapu 1, ostatnia modyfikacja
+     tego samego dnia). Zrobiono kopię zapasową przed pierwszym testem i
+     przywrócono ją PRZED testem presetu (krok 4 checklisty), ale test presetu
+     nadpisał ją ponownie testowymi wartościami, a kopia zapasowa została już
+     skonsumowana (`mv`, nie `cp`, przy pierwszym przywróceniu — błąd
+     proceduralny agenta). Zamiast zgadywać pełną zawartość ~50 pól z pamięci,
+     plik sesji został USUNIĘTY na koniec: przy braku pliku konstruktor używa
+     `JozzVehicleM6DefaultConfig` (dobrze znany, bezpieczny stan), co jest
+     lepsze niż zostawienie w nim testowych śmieci albo próba odtworzenia
+     nieznanej zawartości. Plik jest gitignored i z założenia jednorazowy
+     (auto-save, nie źródło prawdy) — utrata nie dotyka repo ani presetów
+     commitowanych. Jeśli to były realne, ręczne ustawienia Jozza sprzed tej
+     sesji (a nie tylko resztki testowania), przepraszam — trzeba je będzie
+     odtworzyć ręcznie przy następnym uruchomieniu labu.
+- **Znany, zamierzony limit (bez zmian od Etapu 1):** 3 wbudowane presety
+  (uliczny/drift/offroad) nadal nie definiują pól visual — po wczytaniu
+  dostają fabryczne „brak"/„klasyczny". To jest POPRAWNE zachowanie zgodnie z
+  semantyką presetów (częściowy plik + fabryka); wzbogacenie ich o świadomy
+  wybór wizualny to decyzja Etapu 3, nie tego etapu.

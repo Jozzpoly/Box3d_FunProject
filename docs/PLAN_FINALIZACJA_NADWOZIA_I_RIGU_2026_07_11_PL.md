@@ -191,5 +191,7 @@ sygnał) — ma się zatrzymać i opisać rozbieżność, nie improwizować.
 
 - [x] Etap 1 — model danych + rejestr + UI (Sonnet 5 high; szczegóły "Wynik" w
       `FINALIZACJA_ETAP_1_MODEL_I_UI_PL.md`; render obejrzany, gate zielony)
-- [ ] Etap 2 — persystencja R/sesja/presety (commit: …)
+- [x] Etap 2 — persystencja R/sesja/presety (Sonnet 5 high; szczegóły "Wynik" w
+      `FINALIZACJA_ETAP_2_PERSYSTENCJA_PL.md`; sonda rozszerzona, render/quad
+      obejrzany, gate zielony)
 - [ ] Etap 3 — stan zwalidowany + kolider + docs (commit: …)

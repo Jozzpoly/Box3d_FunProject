@@ -98,7 +98,12 @@ Jozz Vehicle / Lab M1 Smoke            <- oldest smoke sample (kept)
   session loads IN PLACE; a preset is a PARTIAL file loaded as
   factory-defaults + its own keys (`LoadJozzVehicleM6PresetConfig`) so it is a
   deterministic restore, not an overlay on leftover experiments. Guarded by
-  `RunPresetDeterminismProbe`.
+  `RunPresetDeterminismProbe`. Vehicle-identity fields (`bodyVisualModel`,
+  `bodyVisualOffset`, `frontSuspensionVisualModel`) are ordinary config fields
+  since Etap 2 of the body/rig finalization (2026-07-11) - they save/load/
+  survive "R" and presets like every other tunable, via a new
+  `JozzFieldType::String` row type in `config_io` (`SUBSYSTEM_UI_PRESETS_PL.md
+  §3b`).
   Debug-tab view toggles (rig diagnostic lines, wheel/mount visuals, arm tint)
   are a SEPARATE auto-save, `build/jozz_vehicle_m6_debug_session.txt` — they are
   view state, not vehicle tuning, so they must never leak into a preset or get
