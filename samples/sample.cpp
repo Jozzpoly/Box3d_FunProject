@@ -285,7 +285,16 @@ Sample::Sample( SampleContext* context )
 	m_context = context;
 	m_camera = &m_context->camera;
 
-	if ( m_camera->m_thirdPerson )
+	// Only drop third-person when switching to a genuinely DIFFERENT sample:
+	// the body it was locked onto no longer exists once that sample is torn
+	// down. A same-sample "R" restart rebuilds an equivalent follow target
+	// almost immediately (derived constructors create their body/vehicle
+	// before the first Step()/Render()), so keep the mode across a restart
+	// instead of dropping a chase camera back to a static orbit view every
+	// time - same "read restart only while constructing" pattern already
+	// used to keep the camera pose itself across a restart (Jozz: "R
+	// restartuje kamere" while driving with the T chase cam).
+	if ( m_camera->m_thirdPerson && context->restart == false )
 	{
 		sapp_lock_mouse( false );
 		m_camera->m_thirdPerson = false;

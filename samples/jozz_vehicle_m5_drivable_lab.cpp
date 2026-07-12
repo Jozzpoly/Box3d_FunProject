@@ -36,9 +36,12 @@ public:
 		// jozz_vehicle_m5_vehicle.cpp in M5.2 and asserted with a signed check
 		// in the validation smoke. The chase view stays because it is the
 		// better default regardless; m_invertSteering remains as a preference.
-		m_camera->m_thirdPerson = false;
+		// Fresh boot only: on "R" restart leave both alone so the T chase cam
+		// (if it was on) survives instead of dropping to a static orbit view
+		// (same fix as the M6 rig lab; Jozz's feedback: "R restartuje kamere").
 		if ( context->restart == false )
 		{
+			m_camera->m_thirdPerson = false;
 			m_camera->SetView( -135.0f, 14.0f, 13.0f, { 0.0f, 1.2f, 0.0f } );
 		}
 

@@ -6,9 +6,13 @@
 JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		: Sample( context )
 	{
-		m_camera->m_thirdPerson = false;
+		// Fresh boot only: force the default free-orbit framing. On "R" restart
+		// leave both alone - the T chase cam (if it was on) should survive the
+		// restart instead of dropping back to a static orbit (Jozz's feedback:
+		// pressing R while driving with T made the camera look "reset").
 		if ( context->restart == false )
 		{
+			m_camera->m_thirdPerson = false;
 			m_camera->SetView( -135.0f, 14.0f, 13.0f, { 0.0f, 1.2f, 0.0f } );
 		}
 
