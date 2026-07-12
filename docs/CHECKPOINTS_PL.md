@@ -17,7 +17,7 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
-## 2026-07-12 · Fix: "R" zabierał kamerę z trybu trzeciej osoby (T) · [pending push]
+## 2026-07-12 · Fix: "R" zabierał kamerę z trybu trzeciej osoby (T) · e4c80ca
 - CO:     `Sample::Sample` (sample.cpp) oraz konstruktory M5/M6 wyłączały `m_camera->m_thirdPerson` BEZWARUNKOWO przy każdej konstrukcji, nawet przy "R" restart — teraz to samo zabezpieczenie co przy `SetView` (`if (context->restart == false)`), więc restart tej samej próbki NIE zdejmuje trybu jazdy za autem (T).
 - CZEMU:  Jozz: "R restartuje kamerę [z trybu T]" — jeździł w trybie trzeciej osoby, po R kamera zamrażała się w wolnej orbicie, bo tryb T był zdejmowany bez powodu (target odtwarza się od razu w tym samym konstruktorze, więc nic nie stało na przeszkodzie zachowaniu trybu).
 - EFEKT:  Build+test.exe+walidator(18 sond, z roota)+boot-smoke M5/M6 zielone. Weryfikacja interaktywna (Windows-MCP) przerwana po jednym niecelnym kliknięciu — zaobserwowano NIEPOWIĄZANE okno z osobną sesją agenta na tym samym repo (nie dotykane); fix pozostawiony na weryfikację przez Jozza w realnej jeździe.
