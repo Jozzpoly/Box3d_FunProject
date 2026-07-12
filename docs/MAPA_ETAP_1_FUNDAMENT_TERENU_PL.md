@@ -457,3 +457,51 @@ Dodano kotwicę `Offroad - gora` (`kWorldAnchors`) na zachodnim podejściu pod
 górę (world ~328, 0) — spawn u podnóża, żeby móc podjechać na szczyt. Nowy
 env `JOZZ_M6_TERRAIN_DUMP=1` drukuje pozycję szczytu w świecie przy każdym
 budowaniu chunku (pomoc do kadrowania kamery pod zrzuty).
+
+## 12. PLAN: ostatni polishing terenu — masyw z węzłami górskimi
+
+**Status: DO AKCEPTACJI (2026-07-12).** Feedback Jozza po jeździe: góra ma
+być wyższa, "węzły górskie" mają agresywnie schodzić od głównej góry, zanikać
+na krawędziach i nieść na sobie mniejsze góry/szczyty.
+
+### 12.1 Krytyczna diagnoza obecnego stanu
+
+1. **Spurs (§11 mech. 4) to nie są węzły górskie** — modulują tylko promień
+   góry ±22%. Nie wychodzą poza stopę (R=95 m), nie mają własnej linii
+   grzbietu ani szczytów. Falują obrys, nie budują masywu.
+2. **Brak dyscypliny krawędzi** — jitter ±45 + R95 + warp ±30 + spur 22%
+   daje zasięg do ~190 m od centrum przy krawędzi w 200 m: pechowy seed
+   tnie masyw na brzegu mapy na płasko.
+3. **Chropowatość (§10.3) ślepa na górę** — `roughness` czyta tylko
+   elevationShape terenu bazowego; stoki/granie masywu nie łapią skał.
+4. **Szczyt 13.8–17.9 m** — za nisko względem ambicji "centralny fokus".
+
+### 12.2 Mechanizmy (5 zmian, wszystkie build-time)
+
+- **A. Wyższa góra:** `kMountainPeakHeight` 12.5→17, `kMountainRadius`
+  95→110 (średni stok zostaje przejezdny), sufit `kOffroadGlobalMaxHeight`
+  22→28, FBM szczytu amp 5→5.5. Oczekiwane szczyty ~18–24 m (2–2.5×
+  standardowych grani).
+- **B. Węzły górskie (serce planu):** nowe pole ramion — kątowy ridged szum
+  wyostrzony potęgą (4–6 dominujących ramion), żyjący w pierścieniu
+  0.35R→2.0R od centrum. Wysokość grzbietu ramienia = wysokość góry ×
+  siła kątowa × radialny zanik (smoothstep 1→0 po pierścieniu) — czyli
+  agresywne schodzenie. Wzdłuż ramienia mnożnik `0.55+0.45×Ridged(szum po
+  dystansie)` = łańcuszek malejących sub-szczytów ("mniejsze góry na
+  węzłach"). Ramiona dzielą domain warp z górą (spójne wicie) i tak samo
+  tłumią teren bazowy pod sobą.
+- **C. Edge fade:** obwiednia smoothstep 1→0 na ostatnich ~35 m przed
+  krawędziami z=±200 i x=598 (szew ma już swój gradient) — góra+ramiona
+  do zera, teren bazowy łagodniej do ~70%. Załatwia też ucięte masywy z
+  diagnozy 12.1.2.
+- **D. Chropowatość czyta masyw:** sygnał wysokości dla roughness =
+  `max(elevationShape, 0.8×(masaGóry+masaRamion))` — granie ramion i stoki
+  łapią mezo/mikro skały, doliny między ramionami zostają gładkie.
+- **E. Koszt:** +2–3 próbki szumu na punkt heightfielda, tylko przy
+  budowie/regeneracji — per-step bez zmian (potwierdzić pomiarem).
+
+### 12.3 Bramki zamknięcia
+
+Szczyty ≥7 seedów w 18–24 m bez klampa (max <27.5); rendery: aerial masywu
+z ramionami, sylweta, wzdłuż ramienia (sub-szczyty), krawędź mapy (fade);
+PERF_DUMP ≤1.3 ms/step; R4 49→49; przejazd AUTODRIVE przez ramię.
