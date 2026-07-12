@@ -500,8 +500,41 @@ na krawędziach i nieść na sobie mniejsze góry/szczyty.
 - **E. Koszt:** +2–3 próbki szumu na punkt heightfielda, tylko przy
   budowie/regeneracji — per-step bez zmian (potwierdzić pomiarem).
 
-### 12.3 Bramki zamknięcia
+### 12.3 Bramki zamknięcia — WYKONANE (2026-07-12)
 
-Szczyty ≥7 seedów w 18–24 m bez klampa (max <27.5); rendery: aerial masywu
-z ramionami, sylweta, wzdłuż ramienia (sub-szczyty), krawędź mapy (fade);
-PERF_DUMP ≤1.3 ms/step; R4 49→49; przejazd AUTODRIVE przez ramię.
+**Status: ZAMKNIĘTY.** Wdrożone dokładnie wg 12.2 (A–E), zweryfikowane liczbowo
+i wizualnie:
+
+- **Szczyty (7 seedów):** 19.67 / 20.92 / 22.54 / 21.54 / 22.20 / 21.47 / 22.01 m
+  — mieszczą się w celu 18–24 m, żaden nie dotyka klampa 27.5 m. Zauważalnie
+  wyżej niż poprzedni zakres 13.8–17.9 m (Jozz: "zwiększyć wysokość głównej
+  góry" spełnione).
+- **Perf:** 1.21–1.22 ms/step / ~820 fps (teleport na górę, i AUTODRIVE 420
+  klatek przez teren z ramionami) — budżet 4 ms, zapas >3×, bez zmiany
+  względem stanu przed §12 (koszt ramion to nadal wyłącznie budowa/regen).
+- **R4:** 49→49 shape'ów po 10 regeneracjach — brak przecieku na nowej
+  geometrii.
+- **AUTODRIVE 420 klatek przez teren z ramionami:** 0 błędów sokol, brak
+  niestabilności.
+- **Rendery** (scratchpad `mapa_e1e`, obejrzane przed zamknięciem):
+  - `30_aerial_arms` — widok z góry: kilka (4–5) DOMINUJĄCYCH grzbiet-ramion
+    rozchodzących się od masywu, oddzielonych wyraźnymi dolinami — nie ciągła
+    falująca kryza jak stary mechanizm spurs.
+  - `31_silhouette` — profil: masyw ze zróżnicowaną, poszarpaną sylwetką,
+    widoczne lokalne wybrzuszenia na grani (sub-szczyty).
+  - `32_wide_edges` — szeroki widok obejmujący masyw ORAZ krawędzie mapy:
+    ramiona wyraźnie widoczne, żadne nie ucięte płasko na granicy (edge fade
+    działa), teren przechodzi płynnie w niższe wzgórza przy brzegu.
+  - `33_edge_zoom` — zbliżenie na obszar bliski krawędzi: łagodne faliste
+    wzgórza, nie martwy płaski pas (kEdgeFadeBaseFloor=0.7 zachowuje teksturę).
+  - `34_along_arm` — nisko nad jednym ramieniem: WYRAŹNE osobne wybrzuszenia
+    wzdłuż grani (addytywne sub-szczyty, nie tylko modulacja tłumiąca) —
+    bezpośredni dowód na "węzły górskie tworzą na sobie mniejsze góry".
+- **Build+test.exe+walidator (18 sond, uruchomiony z ROOTA repo)+boot-smoke
+  M5/M6:** wszystko zielone.
+
+**Projektowa decyzja warta odnotowania:** sub-szczyty na ramionach są
+ADDYTYWNE (`armMass * (kMountainPeakHeight*kArmHeightScale + subPeak*kArmSubPeakAmp)`),
+nie multiplikatywnym tłumieniem jak we wcześniejszym szkicu planu — dosłowne
+czytanie "węzły górskie powinny TWORZYĆ na sobie mniejsze góry" wymaga realnie
+WYŻSZYCH punktów na grani, nie tylko rzadszych dołków.

@@ -47,9 +47,10 @@ constexpr float kOffroadOverlap = 2.0f; // how far the chunk reaches under the p
 constexpr float kOffroadOriginX = kPlateHalfExtent - kOffroadOverlap; // 198.0
 constexpr float kOffroadOriginZ = -kOffroadSize * 0.5f;			   // -200.0
 constexpr float kOffroadGlobalMinHeight = -12.0f;
-// Raised 14->22 (E1 final polish 2026-07-12) to give headroom for the central
-// mountain summit, which stands ~1.5x higher than the ~8 m base terrain peaks.
-constexpr float kOffroadGlobalMaxHeight = 22.0f;
+// Raised 14->22->28 (E1 final polish 2026-07-12, second pass after Jozz drove
+// the mountain and asked for it taller + real ridges) for headroom above the
+// taller summit and its arms.
+constexpr float kOffroadGlobalMaxHeight = 28.0f;
 constexpr uint32_t kOffroadDefaultSeed = 1337u;
 
 // Noise layers (local x measured from the seam at local x=0 == world x=198).
@@ -100,18 +101,51 @@ constexpr float kSeamOverlapDepth = -0.12f;					   // height at local x=0
 // mountain REPLACES the local rolling ground instead of doubling on top of it.
 constexpr float kMountainCenterLocal = kOffroadSize * 0.5f; // 200 m nominal center
 constexpr float kMountainJitter = 45.0f;				   // seed-driven offset from center
-constexpr float kMountainRadius = 95.0f;				   // base radius (footprint ~190 m across)
-constexpr float kMountainPeakHeight = 12.5f;			   // additive summit mass (~1.5x base peak)
+// Etap 1 second final polish (2026-07-12, Jozz drove the first pass): taller
+// summit (12.5->17), wider base to keep the flank driveable at the new height
+// (95->110), craggier relief (5.0->5.5).
+constexpr float kMountainRadius = 110.0f;				   // base radius (footprint ~220 m across)
+constexpr float kMountainPeakHeight = 17.0f;			   // additive summit mass
 constexpr float kMountainWarpWavelength = 70.0f;		   // outline-warp lattice
 constexpr float kMountainWarpStrength = 30.0f;			   // +-30 m footprint wander
 constexpr float kMountainSpurRingRadius = 2.5f;			   // spur COUNT ~ 2*pi*r / wavelength
 constexpr float kMountainSpurWavelength = 1.0f;
-constexpr float kMountainSpurAmount = 0.22f;			   // +-22% radius wobble -> radiating spurs
+constexpr float kMountainSpurAmount = 0.22f;			   // +-22% radius wobble -> footprint outline only
 constexpr float kMountainSurfaceWavelength = 34.0f;		   // coarsest summit-noise octave
 constexpr int kMountainSurfaceOctaves = 4;				   // 34 / 17 / 8.5 / 4.25 m detail
-constexpr float kMountainSurfaceAmp = 5.0f;				   // craggy relief amplitude at summit
+constexpr float kMountainSurfaceAmp = 5.5f;				   // craggy relief amplitude at summit
 constexpr float kMountainSurfaceBias = 0.35f;			   // ~mean of ridged FBM; centers crest/gully
 constexpr float kMountainBaseSuppress = 0.55f;			   // base-terrain fade under the mass
+
+// --- Mountain arms / "wezly gorskie" (second final polish, 2026-07-12) -----
+// Jozz drove the first-pass mountain and asked for real ridges: the old
+// kMountainSpur* above only wobbles the SUMMIT'S OWN footprint outline +-22%
+// - it never grows relief of its own, so it can't read as "arms". This is a
+// separate mechanism: a handful of dominant ridges radiating from the flank,
+// living in a ring around the mountain's own base (still overlapping its
+// lower slope on the inside, gone well past it on the outside), each one
+// carrying additive sub-peaks along its own crest ("wezly gorskie powinny
+// tworzyc na sobie mniejsze gory"). See ComputeMountain in world_terrain.cpp.
+constexpr float kArmRingWavelength = 1.35f; // angular sample wavelength on a unit circle -> ~4-6 dominant lobes
+constexpr float kArmRingRadius = 1.0f;		 // unit-circle sampling radius for the angular field
+constexpr float kArmSharpness = 2.2f;		 // power curve on the ridged angular field: higher = narrower, more dominant spokes
+constexpr float kArmInnerRadiusScale = 0.35f;	// arms start fading IN at this fraction of kMountainRadius (still on the flank)
+constexpr float kArmMidRadiusScale = 0.55f;	// ...fully grown by here
+constexpr float kArmOuterStartScale = 0.85f;	// aggressive falloff starts just past the mountain's own foot
+constexpr float kArmOuterEndScale = 1.7f;		// ...and is fully gone by here
+constexpr float kArmHeightScale = 0.5f;		// baseline arm ridge height, as a fraction of kMountainPeakHeight
+constexpr float kArmSubPeakWavelength = 22.0f; // smaller peaks riding along each arm's crest
+constexpr float kArmSubPeakAmp = 4.0f;			// additive bump amplitude at those sub-peak crests
+
+// --- Edge fade (second final polish) ----------------------------------------
+// A pechowy seed can otherwise grow the massif right up against the map's
+// far/side boundaries and cut it off flat. The mountain+arms fade fully to 0
+// in the last kEdgeFadeDistance meters before z=+-200 or the far edge x=598;
+// the near edge (local x=0) is the seam and already has the difficulty
+// gradient, so it needs no extra fade. Base rolling terrain only eases down
+// to kEdgeFadeBaseFloor, not to zero - the boundary keeps modest texture.
+constexpr float kEdgeFadeDistance = 35.0f;
+constexpr float kEdgeFadeBaseFloor = 0.7f;
 
 // --- Teleporty minimalne (P1, pelny rejestr dopiero w Etapie 6) ------------
 struct JozzWorldAnchor

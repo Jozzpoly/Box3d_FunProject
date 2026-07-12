@@ -112,6 +112,9 @@ constexpr uint32_t kMountainWarpSeedX = 0xAu;
 constexpr uint32_t kMountainWarpSeedZ = 0xBu;
 constexpr uint32_t kMountainSpurSeed = 0xCu;
 constexpr uint32_t kMountainSurfaceSeed = 0xDu;
+// Mountain arms ("wezly gorskie", second final polish).
+constexpr uint32_t kMountainArmAngularSeed = 0xEu;
+constexpr uint32_t kMountainArmSubPeakSeed = 0xFu;
 
 // Classic ridged-noise remap: 1-|noise| turns smooth symmetric bumps into a
 // connected network of ridges (near the noise's zero crossings) separated by
@@ -151,27 +154,33 @@ float RidgedFbm( uint32_t seed, float x, float z, float baseWavelength, int octa
 	return sum / norm;
 }
 
-// The central mountain contribution. Returns its added height in meters and
-// (via outMass) the [0,1] radial mass used by the caller to suppress the base
-// terrain underneath, so the mountain replaces the local rolling ground rather
-// than stacking on top of a random bump. See world_layout.h for the mechanism
-// list; all sampling here is terrain-build/teleport time only, never the step.
+// The central mountain body + its radiating arms ("wezly gorskie", second
+// final polish 2026-07-12). Returns the combined added height in meters and
+// (via outMass) the combined [0,1] mass used by the caller to suppress the
+// base terrain underneath and to feed roughness on the massif's flanks. See
+// world_layout.h for the full mechanism list; all sampling here is
+// terrain-build/teleport time only, never the physics step.
 float ComputeMountain( uint32_t seed, float localX, float localZ, float* outMass )
 {
 	// (1) Seed-jittered center, kept near the middle of the chunk.
 	float centerX = kMountainCenterLocal + ( SeedUnitFloat( seed + kMountainCenterSeedX ) * 2.0f - 1.0f ) * kMountainJitter;
 	float centerZ = kMountainCenterLocal + ( SeedUnitFloat( seed + kMountainCenterSeedZ ) * 2.0f - 1.0f ) * kMountainJitter;
 
-	// (3) Domain-warp the sample point so the footprint outline is not a circle.
+	// (3) Domain-warp the sample point so the footprint outline is not a
+	// circle. Shared by the mountain body AND its arms below, so the arms
+	// wander with the same organic curvature instead of pointing in
+	// mechanically straight compass directions.
 	float warpX = SignedNoise2D( seed + kMountainWarpSeedX, localX, localZ, kMountainWarpWavelength ) * kMountainWarpStrength;
 	float warpZ = SignedNoise2D( seed + kMountainWarpSeedZ, localX, localZ, kMountainWarpWavelength ) * kMountainWarpStrength;
 	float dx = ( localX + warpX ) - centerX;
 	float dz = ( localZ + warpZ ) - centerZ;
 	float dist = std::sqrt( dx * dx + dz * dz );
-
-	// (4) Angular spur modulation: vary the effective radius by compass angle so
-	// ridges/gullies radiate from the summit (mountain, not a volcano cone).
 	float angle = std::atan2( dz, dx );
+
+	// (4) Angular spur modulation: vary the mountain's OWN footprint radius by
+	// compass angle so its outline isn't a perfect circle (separate from the
+	// arms below, which grow their own relief rather than just wobbling this
+	// outline).
 	float spur = SignedNoise2D( seed + kMountainSpurSeed, std::cos( angle ) * kMountainSpurRingRadius,
 								std::sin( angle ) * kMountainSpurRingRadius, kMountainSpurWavelength );
 	float effectiveRadius = kMountainRadius * ( 1.0f + spur * kMountainSpurAmount );
@@ -179,21 +188,56 @@ float ComputeMountain( uint32_t seed, float localX, float localZ, float* outMass
 	// (2) Smoothstep radial mass: 1 at the summit, easing to 0 at the foot (flat
 	// tangents at both ends -> no needle tip, no hard crease into the terrain).
 	float t = Clamp01( 1.0f - dist / effectiveRadius );
-	float mass = t * t * ( 3.0f - 2.0f * t );
-	*outMass = mass;
-	if ( mass <= 0.0f )
+	float mountainMass = t * t * ( 3.0f - 2.0f * t );
+
+	float mountainHeight = 0.0f;
+	if ( mountainMass > 0.0f )
 	{
-		return 0.0f;
+		// (5) Craggy summit relief from the dedicated ridged FBM, biased near
+		// its mean so it both raises crests and carves gullies, faded by mass.
+		float surface = ( RidgedFbm( seed + kMountainSurfaceSeed, localX, localZ, kMountainSurfaceWavelength,
+									 kMountainSurfaceOctaves ) -
+						  kMountainSurfaceBias ) *
+						kMountainSurfaceAmp;
+		mountainHeight = mountainMass * kMountainPeakHeight + surface * mountainMass;
 	}
 
-	// (5) Craggy summit relief from the dedicated ridged FBM, biased near its
-	// mean so it both raises crests and carves gullies, and faded by the mass.
-	float surface = ( RidgedFbm( seed + kMountainSurfaceSeed, localX, localZ, kMountainSurfaceWavelength,
-								 kMountainSurfaceOctaves ) -
-					  kMountainSurfaceBias ) *
-					kMountainSurfaceAmp;
+	// Mountain arms: a handful of DOMINANT ridges radiating from the flank,
+	// picked out by sampling a noise field on a small fixed ring in angle-
+	// space and sharpening it - Ridged() turns the smooth wobble into narrow
+	// crests, then raising it to a power narrows them further into a few
+	// distinct spokes instead of a continuous rippled collar (Jozz: "wezly
+	// gorskie potrzebuja solidnej rozbudowy", not another wobble).
+	float armAngularRaw = SignedNoise2D( seed + kMountainArmAngularSeed, std::cos( angle ) * kArmRingRadius,
+										 std::sin( angle ) * kArmRingRadius, kArmRingWavelength );
+	float armAngular = std::pow( Ridged( armAngularRaw ), kArmSharpness );
 
-	return mass * kMountainPeakHeight + surface * mass;
+	// Radial envelope: arms fade IN starting still on the mountain's own
+	// slope (kArmInnerRadiusScale) so they read as part of it, are fully
+	// grown by kArmMidRadiusScale, then fall away AGGRESSIVELY - the entire
+	// drop from full strength to zero happens within a narrow band just past
+	// the mountain's own foot (kArmOuterStartScale..kArmOuterEndScale), per
+	// Jozz's "powinny agresywniej schodzic od glownej gory".
+	float armInner = Smoothstep( kArmInnerRadiusScale * kMountainRadius, kArmMidRadiusScale * kMountainRadius, dist );
+	float armOuter = 1.0f - Smoothstep( kArmOuterStartScale * kMountainRadius, kArmOuterEndScale * kMountainRadius, dist );
+	float armMass = armInner * armOuter * armAngular;
+
+	float armHeight = 0.0f;
+	if ( armMass > 0.0f )
+	{
+		// Sub-peaks riding along each arm's crest ("wezly gorskie powinny
+		// tworzyc na sobie mniejsze gory, mniejsze szczyty") - an ADDITIVE
+		// medium-wavelength ridged bump, not an attenuating multiplier, so
+		// the crest genuinely gets TALLER at these points (a real mini-
+		// summit) instead of just dipping less elsewhere. Gated by armMass
+		// so bumps only appear where an arm actually is, never in the empty
+		// valleys between arms.
+		float subPeak = Ridged( SignedNoise2D( seed + kMountainArmSubPeakSeed, localX, localZ, kArmSubPeakWavelength ) );
+		armHeight = armMass * ( kMountainPeakHeight * kArmHeightScale + subPeak * kArmSubPeakAmp );
+	}
+
+	*outMass = Clamp01( mountainMass + armMass );
+	return mountainHeight + armHeight;
 }
 
 // height(x, z) = zakladka(x) + trudnosc(x) * [ makro(warp, ridged x2) + mezo*roughness + mikro*roughness ]
@@ -213,32 +257,54 @@ float ComputeOffroadHeightLocal( uint32_t seed, float localX, float localZ )
 	float warpedX = localX + warpX;
 	float warpedZ = localZ + warpZ;
 
-	// Ridged macro, 2 octaves. elevationShape in [0,1] is both "the mountain
-	// shape" and (reused below) the "how exposed is this point" signal.
+	// Ridged macro, 2 octaves. elevationShape in [0,1] is both "the base
+	// terrain's own shape" and (reused below) part of the "how exposed is
+	// this point" signal that drives roughness.
 	float ridge1 = Ridged( SignedNoise2D( seed + kMacroSeedOffset, warpedX, warpedZ, kMacroWavelength ) );
 	float ridge2 = Ridged( SignedNoise2D( seed + kMacroOctave2SeedOffset, warpedX, warpedZ,
 										   kMacroWavelength * kMacroOctave2WavelengthScale ) );
 	float elevationShape = Lerp( ridge1, ridge2, kMacroOctave2Weight );
 	float macro = ( elevationShape * 2.0f - 1.0f ) * kMacroAmplitude;
 
-	// Roughness: elevation-driven (higher == rockier) but gated by its own
-	// noise layer so it is a trend, not a mechanical rule (Jozz: "z
-	// odpowiednim szumem na wystepowanie tego szumu") - some low ground gets
-	// exposed rock, some high ground stays smooth.
+	// Central mountain + its arms: combined added height plus a [0,1] mass
+	// signal used below to suppress the base terrain underneath the massif
+	// and to feed roughness on its flanks (ridges/slopes read rockier than
+	// the plain valleys, second final polish D).
+	float mountainMass = 0.0f;
+	float mountain = ComputeMountain( seed, localX, localZ, &mountainMass );
+
+	// Edge fade (second final polish): a pechowy seed could otherwise grow
+	// the massif right up against the map's far/side boundaries and cut it
+	// off flat. Only the far edges need this - the near edge (localX=0) is
+	// the seam, already handled by the difficulty gradient below. The massif
+	// fades fully to 0; the base terrain only eases down to
+	// kEdgeFadeBaseFloor so the boundary keeps modest texture, not a dead
+	// flat strip.
+	float edgeDist = std::fmin( std::fmin( localZ, kOffroadSize - localZ ), kOffroadSize - localX );
+	float edgeFadeMassif = Smoothstep( 0.0f, kEdgeFadeDistance, edgeDist );
+	float edgeFadeBase = Lerp( kEdgeFadeBaseFloor, 1.0f, edgeFadeMassif );
+	mountain *= edgeFadeMassif;
+	mountainMass *= edgeFadeMassif;
+
+	// Roughness: elevation-driven (higher/rockier == rougher) but gated by
+	// its own noise layer so it is a trend, not a mechanical rule (Jozz: "z
+	// odpowiednim szumem na wystepowanie tego szumu"). Reads whichever
+	// signal is stronger here - the base terrain's own ridged shape, or the
+	// massif's mass - so the mountain's flanks and ridge crests get exposed
+	// rock even where the base terrain underneath would otherwise be smooth.
 	float roughnessNoise = ValueNoise2D( seed + kRoughnessSeedOffset, localX, localZ, kRoughnessWavelength );
-	float roughness = Clamp01( elevationShape * Lerp( kRoughnessNoiseLerpLow, kRoughnessNoiseLerpHigh, roughnessNoise ) );
+	float roughnessElevationSignal = std::fmax( elevationShape, 0.8f * mountainMass );
+	float roughness = Clamp01( roughnessElevationSignal * Lerp( kRoughnessNoiseLerpLow, kRoughnessNoiseLerpHigh, roughnessNoise ) );
 
 	float meso = SignedNoise2D( seed + kMesoSeedOffset, localX, localZ, kMesoWavelength ) * kMesoAmplitude *
 				 Lerp( kRoughnessMesoFloor, 1.0f, roughness );
 	float micro = SignedNoise2D( seed + kMicroSeedOffset, localX, localZ, kMicroWavelength ) * kMicroAmplitude *
 				  Lerp( kRoughnessMicroFloor, 1.0f, roughness );
 
-	// Central mountain: its radial mass suppresses the base terrain underneath
-	// (so the mountain REPLACES local rolling ground, not doubles on top of it)
-	// and adds its own summit mass + craggy relief.
-	float mountainMass = 0.0f;
-	float mountain = ComputeMountain( seed, localX, localZ, &mountainMass );
-	float baseScale = 1.0f - mountainMass * kMountainBaseSuppress;
+	// The massif's mass suppresses the base terrain underneath (so it
+	// REPLACES local rolling ground instead of doubling on top of it); the
+	// edge fade eases the base terrain's own amplitude near the boundary.
+	float baseScale = ( 1.0f - mountainMass * kMountainBaseSuppress ) * edgeFadeBase;
 
 	float noiseCombined = ( macro + meso + micro ) * baseScale + mountain;
 

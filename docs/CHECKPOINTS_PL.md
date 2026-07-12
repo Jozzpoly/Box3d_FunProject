@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-12 · Etap 1 §12: masyw z wezlami gorskimi (druga tura polishingu) · [pending push]
+- CO:     Po jeździe po pierwszej wersji góry Jozz poprosił o: wyższy szczyt, prawdziwe "węzły górskie" (nie tylko falę obrysu) agresywnie schodzące od głównej góry i zanikające na krawędziach, z mniejszymi górami na sobie. Zrealizowane wg planu §12 (5 mechanizmów): A) peak 12.5→17, promień 95→110, sufit 22→28; B) nowy mechanizm `ComputeMountain` — kątowy ridged szum wyostrzony potęgą (4-6 dominujących ramion) w pierścieniu 0.35R→2.0R od centrum, ADDYTYWNE sub-szczyty na grani ramienia; C) edge fade — masyw→0 w ostatnich 35 m przed krawędziami mapy, baza→70%; D) roughness czyta max(elevationShape, 0.8×masaMasywu) — granie i stoki masywu łapią skały.
+- CZEMU:  Konkretny feedback Jozza po realnej jeździe (nie spekulacja) + jego własna diagnoza że stary mechanizm spurs to nie węzły. Pełne uzasadnienie: `MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md` §12.
+- EFEKT:  Szczyty 7 seedów: 19.67-22.54 m (cel 18-24, bez klampa 27.5). Perf 1.21-1.22 ms/step (budżet 4ms, bez zmiany vs przed §12 — koszt tylko build-time). R4 49→49. AUTODRIVE 420 klatek przez teren z ramionami: 0 błędów. Rendery `30_aerial_arms`/`31_silhouette`/`32_wide_edges`/`33_edge_zoom`/`34_along_arm` obejrzane: wyraźne dominujące ramiona z dolinami, sub-szczyty na grani, brak ucięcia na krawędzi. Build+test.exe+walidator(18 sond, z roota)+boot-smoke M5/M6 zielone.
+- DALEJ:  Etap 2 (kit przeszkód) — czeka na sygnał Jozza; teren offroad uznany za gotowy.
+
 ## 2026-07-12 · Walidacja mapy: spawn po footprincie + checkpoint dla "R" · 73ece06
 - CO:     Feedback Jozza z jazdy: (1) spawn teleportu próbkuje teren pod WSZYSTKIMI 4 kołami (max z 5 punktów + 0.25 m zapasu) zamiast 1 punktu z 0.05 m — koniec z kołami wbitymi w stok; (2) "R" restart odtwarza CHECKPOINT: ostatnia kotwica teleportu + seed terenu persystowane w debug-session (`spawnAnchorX/Z`, `worldSeed`), teren regenerowany PRZED spawnem pojazdu.
 - CZEMU:  Teleport na górę/stok zostawiał koła pod ziemią (1-punktowe próbkowanie na pochyłości); "R" cofał na Start i PODMIENIAŁ wyregenerowany teren na domyślny seed.
