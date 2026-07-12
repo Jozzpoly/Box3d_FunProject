@@ -166,7 +166,7 @@ doki w tym samym commicie.
 | Etap | Nazwa | Deliverable | Rozszerzenia |
 |---|---|---|---|
 | 1 ✅ | Fundament terenu | płyta 400×400 (3×3 kafle), offroad **400×400** (od 2026-07-12) ridged+warp+roughness **+ centralna góra** (E1 §11) z zakładką POD płytą, seed+regeneracja, teleport minimalny, pomiar wydajności | P1(min), P7 + 4 nowe env `JOZZ_M6_TELEPORT/AUTODRIVE/PERF_DUMP/REGEN_COUNT` (headless testing, patrz Etap 1 §9) + doszlifowanie i final polish na życzenie Jozza (Etap 1 §10–§11) |
-| 2 | Przeszkody i poligony | parametryczny obstacle kit (~15 generatorów, ostre↔zaokrąglone), 6 lane'ów progresji, demontaż starych ramp | P8 |
+| 2 ✅ | Przeszkody i poligony | `jozz_vehicle_obstacle_kit.{h,cpp}` (15 generatorów, ostre↔zaokrąglone, `customColorHex` per-shape), 6-lane'owy poligon w `jozz_vehicle_m5_test_course.cpp` (kolory trudności zielony/żółty/czerwony, etykiety `DrawString3D` distance-cull 80 m), stare `AddRamp`×4/`AddWashboardLane`×2 zdemontowane, propy odsunięte na skraj placu fizyki | P8 + nowy env `JOZZ_M6_TELEPORT_XZ` (dowolne x,z, headless testing) |
 | 3 | Tor i drift | pętla toru z krawężnikami/bandami/oponami, bramki czasowe + HUD stopera, skid pad + ósemka + lodowisko | P3, P4 |
 | 4 | Plac fizyki | shaker 4-post, rolling road, obrotnica, most z desek, see-saw, wrecking ball, stosy/domino/kręgle, eksplozja | P2, P5, P9 |
 | 5 | Spawner i stress | zakładka Spawner (kształt/rozmiar/materiał/wzorzec/ilość), liczniki + profil, protokół stress z tabelą wyników | — |

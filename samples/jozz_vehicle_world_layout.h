@@ -147,6 +147,61 @@ constexpr float kArmSubPeakAmp = 4.0f;			// additive bump amplitude at those sub
 constexpr float kEdgeFadeDistance = 35.0f;
 constexpr float kEdgeFadeBaseFloor = 0.7f;
 
+// --- Poligon zawieszen (Etap 2, docs/MAPA_ETAP_2_PRZESZKODY_I_POLIGONY_PL.md) -
+// A 45x120 m strip sitting on the plate (east side, west of the offroad
+// seam) holding 6 progression lanes. Cars enter from the west edge (local
+// x=0, world x=kPoligonOriginX) and drive east; lanes are stacked along Z,
+// one per ~20 m band. Single source of truth so the obstacle-kit course
+// builder and any future UI/label code never re-derive these numbers.
+constexpr float kPoligonOriginX = 150.0f;			// world x where a lane's stations start
+constexpr float kPoligonLaneLength = 45.0f;		// world x: 150..195
+constexpr float kPoligonOriginZ = -60.0f;			// world z: -60..60
+constexpr float kPoligonExtentZ = 120.0f;
+constexpr int kLaneCount = 6;
+constexpr float kLaneBandWidth = kPoligonExtentZ / (float)kLaneCount; // 20 m per lane band
+constexpr float kPoligonStationSpacing = 8.0f;		// nominal gap between stations along a lane (E2 doc §4)
+constexpr float kPoligonStationMargin = 5.0f;		// first station's offset from kPoligonOriginX
+
+// Difficulty tiers drive both the station label color (P8) and, loosely, how
+// harsh each lane's obstacle parameters are. Kept as a plain enum (not a
+// box3d color) so this header stays free of engine color types; the course
+// builder maps tier -> b3HexColor.
+enum JozzLaneDifficulty
+{
+	kLaneDifficultyEasy = 0,
+	kLaneDifficultyMedium = 1,
+	kLaneDifficultyHard = 2,
+};
+
+struct JozzLaneSpec
+{
+	const char* name;
+	float zCenter;
+	JozzLaneDifficulty difficulty;
+};
+
+// L1..L6, south to north (increasing Z), per the E2 doc's progression table.
+constexpr JozzLaneSpec kLanes[kLaneCount] = {
+	{ "L1 Komfort", kPoligonOriginZ + kLaneBandWidth * 0.5f, kLaneDifficultyEasy },
+	{ "L2 Szuter", kPoligonOriginZ + kLaneBandWidth * 1.5f, kLaneDifficultyEasy },
+	{ "L3 Rajd", kPoligonOriginZ + kLaneBandWidth * 2.5f, kLaneDifficultyMedium },
+	{ "L4 Kamien", kPoligonOriginZ + kLaneBandWidth * 3.5f, kLaneDifficultyMedium },
+	{ "L5 Ekstrema", kPoligonOriginZ + kLaneBandWidth * 4.5f, kLaneDifficultyHard },
+	{ "L6 Skocznie", kPoligonOriginZ + kLaneBandWidth * 5.5f, kLaneDifficultyHard },
+};
+
+// --- Plac fizyki skraj (E2 doc pkt. 2.4: propy odsuniete z osi jazdy) ------
+// The M5 test-course prop scatter used to sit on the driving axis around
+// (0,0); Etap 2 moves it to the near edge of the future Etap 4 "plac fizyki"
+// zone (x:10..140, z:-190..-60 per the master plan §5) so the centre stays
+// clear and E4 can still claim the rest of that rectangle later.
+// The scatter's own spread is about +-24 m in both axes (see kPropSpecs in
+// jozz_vehicle_m5_test_course.cpp); origins are offset in from the plac-
+// fizyki rectangle's x:10..140, z:-190..-60 so every prop lands inside it,
+// biased toward its near (north, small-|z|) edge rather than its far end.
+constexpr float kPropZoneOriginX = 40.0f;
+constexpr float kPropZoneOriginZ = -95.0f;
+
 // --- Teleporty minimalne (P1, pelny rejestr dopiero w Etapie 6) ------------
 struct JozzWorldAnchor
 {
@@ -160,6 +215,7 @@ constexpr JozzWorldAnchor kWorldAnchors[] = {
 	{ "Offroad - wjazd", 240.0f, 0.0f },
 	{ "Offroad - gora", kOffroadOriginX + kMountainCenterLocal - 70.0f, kOffroadOriginZ + kMountainCenterLocal },
 	{ "Offroad - gleboko", 560.0f, 0.0f },
+	{ "Poligon zawieszen", kPoligonOriginX - 5.0f, 0.0f },
 };
 constexpr int kWorldAnchorCount = sizeof( kWorldAnchors ) / sizeof( kWorldAnchors[0] );
 

@@ -257,6 +257,17 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 				}
 			}
 		}
+		if ( const char* v = std::getenv( "JOZZ_M6_TELEPORT_XZ" ) )
+		{
+			// Arbitrary-coordinate escape hatch for headless testing (e.g. driving
+			// each Etap 2 lane individually) - the named-anchor hook above only
+			// covers the small curated registry (P1, full set in Etap 6).
+			float x = 0.0f, z = 0.0f;
+			if ( std::sscanf( v, "%f,%f", &x, &z ) == 2 )
+			{
+				TeleportTo( x, z );
+			}
+		}
 		if ( const char* v = std::getenv( "JOZZ_M6_AUTODRIVE" ) )
 		{
 			m_autoDrive = atoi( v ) != 0;
@@ -810,6 +821,25 @@ void JozzVehicleM6RigLab::Render()
 					  frontRight.groundContact ? "T" : "-",
 					  GetJozzVehicleM6WheelTelemetry( m_vehicle, JOZZ_M6_REAR_LEFT ).groundContact ? "T" : "-",
 					  GetJozzVehicleM6WheelTelemetry( m_vehicle, JOZZ_M6_REAR_RIGHT ).groundContact ? "T" : "-" );
+
+		// Etap 2 obstacle-kit station labels (docs/MAPA_ETAP_2_PRZESZKODY_I_POLIGONY_PL.md
+		// §5): collected once at course-build time, distance-culled here so a
+		// distant camera doesn't drown the HUD in text (§7 risk).
+		{
+			constexpr float kLabelCullDistance = 80.0f;
+			b3Pos eye = m_camera->m_worldEye;
+			for ( const JozzCourseLabel& label : m_testCourse.labels )
+			{
+				float dx = (float)( label.position.x - eye.x );
+				float dy = (float)( label.position.y - eye.y );
+				float dz = (float)( label.position.z - eye.z );
+				if ( dx * dx + dy * dy + dz * dz > kLabelCullDistance * kLabelCullDistance )
+				{
+					continue;
+				}
+				DrawString3D( label.position, MakeColor( (b3HexColor)label.colorHex ), "%s", label.text.c_str() );
+			}
+		}
 
 		if ( m_perfDumpAtStep > 0 && m_stepCount >= m_perfDumpAtStep )
 		{

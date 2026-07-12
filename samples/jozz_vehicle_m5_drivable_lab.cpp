@@ -582,6 +582,25 @@ public:
 			}
 		}
 
+		// Etap 2 obstacle-kit station labels (docs/MAPA_ETAP_2_PRZESZKODY_I_POLIGONY_PL.md
+		// §5/R11 - both labs share the course); distance-culled against the
+		// camera so a far-off view doesn't drown the HUD in text.
+		{
+			constexpr float kLabelCullDistance = 80.0f;
+			b3Pos eye = m_camera->m_worldEye;
+			for ( const JozzCourseLabel& label : m_testCourse.labels )
+			{
+				float dx = (float)( label.position.x - eye.x );
+				float dy = (float)( label.position.y - eye.y );
+				float dz = (float)( label.position.z - eye.z );
+				if ( dx * dx + dy * dy + dz * dz > kLabelCullDistance * kLabelCullDistance )
+				{
+					continue;
+				}
+				DrawString3D( label.position, MakeColor( (b3HexColor)label.colorHex ), "%s", label.text.c_str() );
+			}
+		}
+
 		float steeringLeft = b3WheelJoint_GetSteeringAngle( m_vehicle.wheelJointIds[JOZZ_M5_FRONT_LEFT] );
 		float steeringRight = b3WheelJoint_GetSteeringAngle( m_vehicle.wheelJointIds[JOZZ_M5_FRONT_RIGHT] );
 
