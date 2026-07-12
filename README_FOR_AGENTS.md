@@ -118,8 +118,9 @@ Jozz Vehicle / Lab M1 Smoke            <- oldest smoke sample (kept)
   Mapa Etap 1, 2026-07-11): both labs now build a 400×400 m, 3×3-tile flat plate
   (top y=0; only the CENTER tile gets the procedural ground-grid texture via
   `SetGroundShape` — that hook is a single shape id, not a list, R10) plus a
-  320×320 m offroad heightfield chunk with a from-scratch deterministic 3-octave
-  FBM generator (NOT `b3CreateWave`, which is one frequency) that dips 2 m
+  400×400 m offroad heightfield chunk with a from-scratch deterministic
+  multi-scale FBM generator (NOT `b3CreateWave`, which is one frequency) that
+  dips 2 m
   UNDER the plate's east edge instead of the old wave-patch's step-up-above
   defect. Seed + "Przebuduj teren" live in the M6 lab's Świat tab. See
   `docs/MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md` for the full noise formula, the
@@ -127,6 +128,15 @@ Jozz Vehicle / Lab M1 Smoke            <- oldest smoke sample (kept)
   (`JOZZ_M6_TELEPORT`/`AUTODRIVE`/`PERF_DUMP`/`REGEN_COUNT`) added to the
   existing `JOZZ_M6_*` registry for driving/measuring the map without a human
   at the keyboard.
+- **Map-track decision (2026-07-12): Etap 2 is REOPENED.** Commit `b8afab9`
+  built a technically valid obstacle kit, but Jozz rejected its 6-lane layout:
+  it moved the activity to `x=150..195` and left the technical center tile
+  almost empty. The code is still present as recovery material, not an accepted
+  map baseline. Do not start Etap 3. The active source of truth is
+  `docs/PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md` plus the rewritten
+  `docs/MAPA_ETAP_2_PRZESZKODY_I_POLIGONY_PL.md`: recover the kit, replace
+  the far-east lanes with a central test campus on the full grid tile, and
+  obtain Jozz's visual/drive sign-off before marking Etap 2 complete.
 - **Dual damper visual, socket-driven** (2026-07-08): the telescoping shock
   mesh (`Asset_Dumper.gltf`) is drawn TWICE per corner, pinned to the model's
   own `Socket_DamperUpper_L/R` and `Socket_DamperLower_L/R` markers from the

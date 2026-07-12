@@ -1,108 +1,135 @@
-# Mapa — Etap 3: tor wyścigowy i strefa driftu
+# Mapa — Etap 3: pierścień prowadzenia, tor, drift i duże lądowania
 
-Część planu `PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md`. Wymaga Etapu 1 (layout,
-kafle płyty) i Etapu 2 (kit: `AddBerm`, krawężniki dojdą tu do kitu).
+Część planu `PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md`.
+Status: **ZABLOKOWANY do akceptacji Etapu 2R.**
 
 ## 1. Cel
 
-Płaska część mapy przestaje być nudną szarą płytą (feedback pkt 6): powstaje
-**pętla toru** z krawężnikami, bandą i barierami z opon + **stoper okrążeń
-na sensorach** (P3), oraz **strefa driftu**: skid pad, ósemka i lodowisko
-o obniżonym tarciu (P4).
+Rozwinąć centralny kampus w większy system jazdy bez utraty fokusu. Tor i drift
+mają otaczać centrum od zachodu i północy, mieć wejścia skierowane do kampusu i
+wracać do niego. Etap przejmuje też duże przeszkody powietrzne, które nie
+mieszczą się bezpiecznie na środkowym kaflu.
 
-## 2. Zakres
+## 2. Kafle i role
 
-1. Tor w strefie `x∈[-190,140], z∈[60,190]` (stałe z `world_layout.h`).
-2. Nowe generatory w kicie: `AddCurb` (krawężnik), `AddConeSlalom` (pachołki),
-   `AddTireBarrier` (stos opon).
-3. Moduł `samples/jozz_vehicle_lap_timer.{h,cpp}`: bramki sensorowe + stan
-   stopera + linia HUD.
-4. Strefa driftu w kwadrancie `x∈[-190,-30], z∈[-190,-60]`.
-5. Lodowisko: wymiana kafla SW płyty na 4 mniejsze kafle, z których jeden
-   (50×50 m, róg `x∈[-190,-140], z∈[-190,-140]`) ma `friction≈0.35` +
-   `customColor` lodowy. Architektura kafli z E1 istnieje dokładnie po to.
-
-**Poza zakresem:** ruchome elementy (E4), telemetria nawierzchni w HUD (E6 —
-tu tylko stoper), AI/duchy/przeciwnicy (poza projektem).
-
-## 3. Geometria toru — ramy + STOP-gate
-
-Dokładny kształt pętli NIE jest przybijany w tym docu. Ramy obowiązkowe:
-
-- pętla zamknięta, szerokość jezdni **12 m**;
-- prosta główna ≥ 250 m (start/meta, pomiar Vmax) wzdłuż z≈80;
-- prosta powrotna z **szykaną** (przesunięcie ±6 m);
-- **hairpin** R≈30 m na wschodnim końcu;
-- jeden łuk z **bandą** (`AddBerm` z E2, kąt ~12–15°) na rogu NW;
-- 2 bramki splitów + bramka start/meta na prostej głównej.
-
-**STOP-gate:** najpierw budujemy sam SZKIELET (krawężniki wewn./zewn., linia
-startu), render top-down + 2 ujęcia z maski drogi → **akceptacja layoutu przez
-Jozza** → dopiero potem bariery, pachołki, opony, bandy. To ogranicza koszt
-poprawki „przesuńmy hairpin" do jednej tabeli punktów w `world_layout.h`.
-
-## 4. Elementy fizyczne
-
-| Element | Realizacja | Kategoria |
+| Kafel | Rola | Relacja z centrum |
 |---|---|---|
-| Krawężnik (`AddCurb`) | skośny box wys. ~3 cm, segmenty 2 m, naprzemiennie czerwony/biały `customColor`; ciąg po łuku = segmenty co ~2 m | **TEREN (R5!)** — po krawężniku się jeździ |
-| Linia start/meta | cienki box 2–3 mm (lip niewyczuwalny przy kole Ø~0.7 m), biały | teren |
-| Banda | `AddBerm` z E2 | teren |
-| Pachołki | mały hull-klin ~0.3 m, dynamiczne, gęstość ~80 (lekkie, przewracalne), pomarańczowy kolor | 0x1 (prop) |
-| Bariera z opon | `b3CreateTorusMesh` (`collision.h:319`) + `b3CreateMeshShape` (`box3d.h:809`) — **mesh = tylko static**; stos 3–4 opon, na zewnętrznych łukach | 0x1 (nie jeździmy po nich zamierzenie) |
-| Lodowisko | kafel 50×50, `friction 0.35`, `restitution 0`, kolor lodowy; top y=0 równy z resztą (zero progu) | **TEREN** |
-| Skid pad | okrąg Ø40 m ze znaczników (krawężniki co 15° + pachołki), środek (−120,−120) | znaczniki: teren/prop wg typu |
-| Ósemka | 2 okręgi Ø~28 m styczne, wschodnia część kwadrantu | jw. |
+| W | drift, skid pad, ósemka | brama zachodnia z kampusu |
+| NW | wolne zakręty techniczne, szykana | łączy W z N |
+| N | prosta główna, start/meta, Vmax | widoczna z bramy północnej |
+| NE | hairpin/banked corner, łącznik E | zamyka pętlę |
+| E | brama offroadu, rozbieg i neutralny wybieg | przedłużenie osi wschodniej |
+| SE | duży tabletop/gap jump i strefa lądowania | wjazd z E, powrót do S/C |
 
-Budżet trójkątów opon: torus 16×8 ≈ 256 tri × 4 opony × ~20 stosów ≈ 20k tri —
-mieści się bez dyskusji (offroad ma 131k).
+Żadna z tych stref nie wchodzi na centralny tile poza płaską, niekolizyjną
+bramą/oznaczeniem na jego krawędzi.
 
-## 5. Stoper (lap timer) na sensorach
+## 3. Kolejność — najpierw topologia
 
-- Bramka = niewidzialny sensor-box nad jezdnią (szer. 12 × wys. 3 × grub. 0.5):
-  `shapeDef.isSensor = true` + `enableSensorEvents = true`
-  (`types.h:487-490`), body statyczne, bez koloru (albo delikatny słup boczny
-  wizualny po obu stronach jezdni).
-- Odczyt: `b3World_GetSensorEvents` (`box3d.h:66`) co krok w `Step()` labu;
-  event niesie visitor shape → **filtrować po body chassis** (porównanie
-  z `bodyId` chassis pojazdu; koła/propy/pachołki IGNOROWAĆ).
-- Stan: `lastCrossTime`, `currentLap`, `bestLap`, `split1/2` względem startu
-  okrążenia; debounce 2 s (auto stojące na linii nie nabija okrążeń).
-- HUD: jedna linia w istniejącym overlayu labu (obok prędkości/poślizgu):
-  `okrążenie 0:00.0 | best 0:00.0 | S1 +0.0 | S2 -0.3`. Reset stopera przy
-  „Zresetuj świat"/„Zresetuj pojazd" i teleportach.
+### E3.0 — plan linii i footprintów
 
-## 6. Miejsca w kodzie
+- dane centerline toru, promienie, szerokość i run-off;
+- footprint driftu i strefy dużych lądowań;
+- walidator granic kafli oraz przecięć z kampusem;
+- zero barier i dekoracji.
 
-- Kafel SW: budowa kafli z E1 w `world_layout.h` — wymiana 1 wpisu na 4;
-  ŻADNEJ zmiany w silniku.
-- HUD labu: nagłówek tekstowy rysowany w labie M6 (istniejące linie prędkości/
-  poślizgu) — dopisać linię stopera tam, gdzie reszta (spójna czcionka).
-- Pachołki i opony wchodzą do PropRegistry dopiero w E4/E5 — w E3 reset pachołków
-  przez istniejący wzorzec `ResetJozzVehicleM5TestCourseProps` (rozszerzyć listę).
+### E3.1 — skeleton
 
-## 7. Bramka
+- neutralne znaczniki krawędzi i linia centerline;
+- przejezdna pętla o szerokości 10–12 m;
+- bramy W/N/E widoczne z centrum;
+- render top-down całej płyty i widok z Central Core.
 
-- Build + walidator + boot M5/M6.
-- **STOP-gate szkieletu** (§3) ZALICZONY przed dobudową barier.
-- **Rendery `mapa_e3_*`:** top-down całego toru; hairpin close-up; banda;
-  krawężnik close-up (czerwono-białe segmenty); skid pad; lodowisko (granica
-  kolorów kafli widoczna).
-- Jazda: pełne okrążenie → HUD pokazuje czas, drugie okrążenie → best się
-  aktualizuje, splity liczą; przejazd po krawężniku przy ~20 m/s (podbicie
-  czytelne, bez utraty kontroli integralności rigu); drift na lodowisku —
-  poślizg w HUD wyraźnie większy niż na asfalcie przy tym samym manewrze.
-- Przejazd przez granicę lód/asfalt: zero progu (top y=0 po obu stronach).
-- Checklista R5 (krawężniki! banda! lód!). Wpis CHECKPOINTS.
+**STOP: Jozz akceptuje topologię przed krawężnikami, oponami i sensorami.**
 
-## 8. Ryzyka etapu
+### E3.2 — nawierzchnie i bezpieczeństwo
 
-- **Sensor łapie koła zamiast chassis** → filtr po bodyId (§5); test: przejazd
-  bokiem/poślizgiem przez bramkę liczy się raz.
-- **Podwójny kontakt na styku kafli lód/asfalt** — topy równe, ściany pionowe
-  stykają się; test przejazdu w bramce. Fallback: 1 mm fazka na krawędzi kafla.
-- **Pachołki w liczbie** (~60–100 dynamicznych) — śpią do potrącenia
-  (sleep default), koszt pomijalny; policzyć w CHECKPOINTS.
-- Debounce stopera przy driftowaniu przez linię (przejazd tyłem) — okrążenie
-  liczone tylko przy przekroczeniu w dobrym kierunku (znak prędkości wzdłuż
-  osi bramki).
+- krawężniki tylko tam, gdzie mają funkcję;
+- zewnętrzne bariery z bezpiecznym offsetem;
+- strefy tarcia drift/lód;
+- run-off bez twardej ściany na osi możliwego wypadnięcia.
+
+### E3.3 — pomiar i duże przeszkody
+
+- lap timer na sensorach;
+- splity;
+- duży tabletop i gap jump w E/SE z realnym rozbiegiem i lądowaniem;
+- telemetria airtime może być przygotowana, ale finalnie domyka ją Etap 6.
+
+## 4. Kontrakt toru
+
+- pętla zamknięta, ale nie musi być symetryczna;
+- szerokość 10–12 m;
+- prosta N minimum 220 m używalnego rozbiegu;
+- co najmniej: hairpin, łuk szybki, szykana i łuk o stałym promieniu;
+- wejście startowe z bramy N nie przecina linii pomiarowej w złym kierunku;
+- powrót do centrum nie wymaga jazdy pod prąd;
+- centerline i bariery są danymi osobnymi: zmiana linii nie wymaga edycji
+  dziesiątek wywołań `Add*`;
+- minimalny run-off na zewnętrznych szybkich łukach: 12 m lub jawnie
+  uzasadniona bariera energochłonna.
+
+## 5. Drift na kaflu W
+
+- skid pad Ø40–50 m;
+- ósemka z dwóch stycznych okręgów;
+- płaska strefa o obniżonym tarciu, bez fizycznego progu na granicy materiału;
+- wejście od wschodu, czyli od kampusu;
+- strefa nie zajmuje SW — ten kafel pozostaje dla placu fizyki;
+- pachołki dynamiczne i resetowalne, ale nie tworzą ściany śmieci widocznej z C.
+
+## 6. Duże lądowania E/SE
+
+Z obstacle kitu można użyć `AddTabletop`, `AddGapJump`, `AddKicker` i
+`AddWedgeRamp`, ale pełna stacja ma osobny spec:
+
+- prosty rozbieg minimum 45 m;
+- marker zalecanej prędkości;
+- żadnej przeszkody w strefie awaryjnego hamowania;
+- lądowanie o długości minimum 35 m;
+- boczny powrót do centrum/offroadu;
+- wariant łatwy tabletop przed twardym gap jump;
+- oba kierunki jazdy tylko jeśli geometria i run-off to wspierają.
+
+## 7. Elementy techniczne
+
+- `jozz_vehicle_track_layout.{h,cpp}`: centerline, footprinty, generowanie
+  krawędzi i bram;
+- `jozz_vehicle_lap_timer.{h,cpp}`: sensory i stan stopera;
+- obstacle kit pozostaje biblioteką geometrii;
+- materiały per sub-shape, bez dzielenia całego bazowego kafla na nachodzące
+  płyty; jeśli potrzebna jest strefa tarcia, podział tile'a zachowuje top y=0;
+- sensor liczy chassis, ignoruje koła i propy;
+- teleport/reset zeruje bieżące okrążenie, nie fałszuje best lap.
+
+## 8. Bramka
+
+### Techniczna
+
+- pełny gate M5/M6;
+- walidator centerline, granic tile'ów, szerokości i run-off;
+- kategorie: nawierzchnia/krawężnik/banka = teren, propy/bariera = `0x1`;
+- przejazd po wszystkich szwach bez uskoku;
+- dwa pełne okrążenia, splity i debounce działają;
+- duży skok nie kończy się poza płytą ani rozpadem rigu.
+
+### Produktowa
+
+- ten sam top-down całej płyty przed i po skeletonie;
+- kadr z Central Core pokazuje czytelne bramy W/N/E, ale centrum nadal
+  dominuje;
+- osobne widoki z maski drogi: wejście na tor, szykana, hairpin, powrót;
+- drift czyta się jako jeden plac, nie zbiór pachołków;
+- **akceptacja skeletonu przez Jozza przed E3.2** i akceptacja finalnej jazdy
+  przed zamknięciem Etapu 3.
+
+## 9. Ryzyka
+
+- tor może wizualnie otoczyć i „udusić” centrum — bramy oraz bariery zaczynają
+  się dopiero za granicą C, a widok z rdzenia jest bramką;
+- długi prosty shape może przeciąć granice tile'ów — centerline może je
+  przekraczać, lecz materiały i shape'y muszą mieć jawny podział na szwie;
+- gap jump kusi do ustawienia na osi offroadu — zachować boczny, bezkolizyjny
+  wjazd na heightfield;
+- stoper przy driftowaniu przez bramkę — kierunek i filtr chassis są
+  obowiązkowe.

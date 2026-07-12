@@ -1,95 +1,168 @@
-# Mapa — Etap 6: nawigacja, pomiar, polish
+# Mapa — Etap 6: nawigacja od centrum, telemetria i finalny sign-off
 
-Część planu `PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md`. Etap ZAMYKAJĄCY — wymaga
-wszystkich poprzednich (spina strefy w całość i domyka dokumentację tracku).
+Część planu `PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md`.
+Status: **ZABLOKOWANY do zamknięcia Etapów 2R–5.**
 
 ## 1. Cel
 
-Duża mapa ma być NARZĘDZIEM, nie przestrzenią do błądzenia: pełna nawigacja
-teleportami (P1), czytelne oznaczenia stref (P8), telemetria nawierzchni,
-skoków i lądowań (P6) oraz finalny polish + aktualizacja dokumentacji repo.
+Spinać mapę jako jeden system: centralny kampus, satelity kaflowe i offroad.
+Nawigacja ma wynikać z relacji do centrum, telemetria ma nazywać nawierzchnię
+i wynik próby, a finalne rendery mają wykrywać utratę fokusu — błąd, którego
+poprzednia walidacja Etapu 2 nie wykryła.
 
-## 2. Zakres
+## 2. Nawigacja
 
-1. **Pełny rejestr teleportów** w `world_layout.h` (nazwa PL, pozycja, yaw):
-   Start · Tor — start/meta · Drift — skid pad · Lodowisko · Poligon L1 ·
-   Poligon L4 · Poligon L6 · Plac fizyki · Most · Offroad — wjazd ·
-   Offroad — środek · Offroad — głęboko.
-2. UI: combo + przycisk „Teleportuj" w zakładce Świat (rozbudowa minimalnej
-   wersji z E1) + **hotkeye** — PRZED przydziałem przejrzeć
-   `docs/HOTKEY_AUDIT_PL.md` (propozycja: Shift+1..9, ale audyt decyduje).
-   Teleport = `CreateVehicle(kotwica)` (mechanizm z E1), wysokość z próbki
-   terenu + zapas.
-3. **Bramy stref**: 2 słupki + belka w kolorze strefy przy każdym wjeździe;
-   spójna paleta (tabela §4); etykiety `DrawString3D` z cutoffem ~80 m (E2).
-4. **Telemetria** (linie w istniejącym HUD labu):
-   - „nawierzchnia: asfalt/lód/offroad/krawężnik/platforma" — z
-     `userMaterialId` materiałów (`types.h:414-416`), nadanych strefom w E1/E3/E4,
-     odczyt z kontaktów kół (istniejąca pętla kontaktowa telemetrii labu);
-   - **airtime**: 4 koła bez kontaktu → stoper; po lądowaniu HUD trzyma 5 s:
-     „skok: 1.24 s · 14.2 m";
-   - **kompresja lądowania**: maks. dobicie zawieszenia w pierwszych 0.5 s po
-     kontakcie (dane per-corner JUŻ SĄ w telemetrii rigu — tylko zatrzask max).
-5. **Polish**: przegląd kolorów całej mapy na renderach; korekty rozstawienia
-   po doświadczeniach E2–E5; domyślna kamera startowa obejmująca centrum +
-   wjazdy stref.
-6. **Dokumentacja repo** (zamknięcie tracku):
-   - `README_FOR_AGENTS.md` §1/§2 — mapa jako nowy stan zwalidowany;
-   - `CURRENT_STATE_INDEX_PL.md` — wpis kamienia „Mapa 2.0";
-   - `TECH_DEBT_PL.md` — wszystko, co świadomie odłożone/zaobserwowane
-     (np. tunelowanie żwiru z E5, import heightmapy PNG z horyzontu);
-   - CHECKPOINTS — wpis końcowy.
+### 2.1 Rejestr kotwic
 
-**Poza zakresem:** minimapa, zapis „stanu mapy" do presetów pojazdu (teren to
-świat, nie pojazd — doktryna z E1), nowe strefy.
+Każda kotwica ma:
 
-## 3. Szczegóły techniczne
+- stabilne ID i polską nazwę;
+- tile/strefę;
+- pozycję, yaw i bezpieczną wysokość;
+- kierunek „do atrakcji”;
+- exclusion check po zbudowaniu świata.
 
-- `userMaterialId`: nadać stałe (enum w `world_layout.h`): 1=asfalt, 2=lód,
-  3=offroad, 4=krawężnik, 5=platforma, 0=nieznane. Uzupełnić WSTECZ materiały
-  stref z E1/E3/E4 (kilka linii per moduł — dlatego ten punkt jest w E6,
-  po powstaniu wszystkich powierzchni).
-- Odczyt nawierzchni: przy istniejącym zbieraniu kontaktów kół (telemetria
-  per-corner) dopisać odczyt materiału z drugiej strony kontaktu; pokazywać
-  materiał większości kół (2+ koła = ta nawierzchnia).
-- Airtime/lądowanie korzysta z już liczonych flag kontaktu per koło (HUD ma
-  dziś „kontakt PL:T PP:T TL:T TP:T" — to samo źródło).
-- Teleporty a stoper okrążeń (E3): teleport resetuje bieżące okrążenie
-  (bez kasowania best) — inaczej „teleport na metę" nabija fałszywy czas.
+Minimalny rejestr:
 
-## 4. Paleta stref (finalna — do użycia wstecz w E2–E5, jeśli odbiegały)
+- Centrum — rdzeń;
+- Centrum — Komfort N;
+- Centrum — Artykulacja W;
+- Centrum — Teren punktowy E;
+- Centrum — Impact S;
+- Drift W;
+- Tor — start N;
+- Tor — hairpin NE;
+- Duże lądowania SE;
+- Plac fizyki SW;
+- Stress yard S;
+- Offroad — brama E;
+- Offroad — góra;
+- Offroad — głęboko.
 
-| Strefa | Kolor (hex) | Użycie |
+### 2.2 UI
+
+- combo grupowane: Centrum / Tor i drift / Fizyka i stress / Offroad;
+- przycisk Teleportuj;
+- opis kierunku i zastosowania kotwicy;
+- hotkeye dopiero po audycie `HOTKEY_AUDIT_PL.md`;
+- teleport resetuje bieżący pomiar stanowiska/lap, ale nie usuwa bestów, jeśli
+  dany moduł jawnie je zachowuje.
+
+### 2.3 Wayfinding w świecie
+
+- cztery bramy centralnego kafla N/W/E/S;
+- w satelitach małe znaczniki powrotu „CENTRUM”;
+- kolor identyfikuje rodzinę strefy tylko jako akcent;
+- etykiety z distance cullingiem, bez ściany tekstu widocznej z rdzenia;
+- brak pełnej minimapy w tym tracku.
+
+## 3. Telemetria
+
+### Nawierzchnia
+
+`userMaterialId` jest stałym kontraktem, nie lokalną liczbą modułu:
+
+| ID | Nawierzchnia |
+|---:|---|
+| 0 | nieznana |
+| 1 | grid/płyta |
+| 2 | offroad |
+| 3 | obstacle techniczny |
+| 4 | tor |
+| 5 | drift/lód |
+| 6 | platforma ruchoma |
+| 7 | most |
+
+HUD pokazuje materiał większości kół i stan mieszany na szwie.
+
+### Wynik próby
+
+- airtime i dystans skoku;
+- maksymalna kompresja 0.5 s po lądowaniu;
+- min/max travel na stanowisku;
+- utrata kontaktu per koło;
+- czas przejazdu stanowiska, jeśli ma sensory;
+- lap/splity na torze;
+- aktywny station ID, żeby wynik miał kontekst.
+
+Telemetria korzysta z istniejących kontaktów i danych rigu. Nie tworzy
+równoległego modelu fizyki.
+
+## 4. Język wizualny finalny
+
+| Rodzina | Baza | Akcent |
 |---|---|---|
-| Centrum / neutralne | 0x9AA0A6 (szary) | kafle płyty, słupki neutralne |
-| Tor | 0x2F6FED (niebieski) + krawężniki 0xD5453C/0xFFFFFF | bramy, linie |
-| Drift/lód | 0x7EC8E3 (lodowy) | kafel lodu, brama driftu |
-| Poligony | zielony 0x3FA34D / żółty 0xE0A62E / czerwony 0xD5453C | trudność stacji (z E2) |
-| Plac fizyki | 0x8E5BD1 (fiolet) | bramy, platformy ruchome |
-| Offroad | 0x8B6B4A (brąz) | słupki wjazdu, tyczki trasy |
+| Centralny kampus | proceduralny techniczny grid | biały/cyjan + mały green/amber/red difficulty |
+| Tor | neutralna ciemniejsza nawierzchnia | niebieskie bramy, czerwono-białe krawężniki |
+| Drift/lód | neutralna płyta | lodowy błękit |
+| Plac fizyki | stal/szarość | fiolet na bramie/aktywnym stanowisku |
+| Stress | neutralny tile | pomarańczowe ostrzeżenia |
+| Offroad | kolor materiału/heightfielda | brązowe tyczki |
 
-(Wartości orientacyjne — finalny dobór NA RENDERACH, render is the gate.)
+Pełne nasycone kolory nie mogą przykrywać geometrii kontaktu ani gridu.
+Paleta jest zatwierdzana na renderach, nie w tabeli.
 
-## 5. Bramka (zamyka CAŁY track — sign-off Jozza)
+## 5. Finalna suita porównawcza
 
-- Build + walidator + boot M5/M6.
-- **Przejście po WSZYSTKICH teleportach** po kolei: auto ląduje poprawnie
-  (nie w terenie, nie w przeszkodzie), yaw sensowny (przodem do atrakcji).
-- Telemetria: przejazd asfalt→lód→offroad zmienia linię nawierzchni; skok na
-  L6 pokazuje airtime i kompresję; wartości wiarygodne (sanity, nie kalibracja).
-- **Finalna suita renderów `mapa_final_*`** (quad_shot): total top-down,
-  centrum, tor, drift+lód, poligony, plac fizyki, offroad łagodny, offroad
-  dziki, styk płyta/offroad. To jest NOWY zestaw referencyjny mapy (R9:
-  starych baseline'ów nie nadpisujemy).
-- Dokumentacja z §2.6 zaktualizowana W TYM SAMYM commicie.
-- Wpis CHECKPOINTS + **akceptacja Jozza całego tracku** (jak D1/D2/D3 przy
-  finalizacji nadwozia).
+Wszystkie polecenia, env i kamery zapisujemy obok listy dowodów.
 
-## 6. Ryzyka etapu
+1. `mapa_final_plate_top` — cała płyta 3×3 + brama offroadu;
+2. `mapa_final_center_top` — dokładnie ten sam kadr co Etap 2R;
+3. `mapa_final_center_driver` — z rdzenia ku trzem wejściom;
+4. `mapa_final_track`;
+5. `mapa_final_drift`;
+6. `mapa_final_landings`;
+7. `mapa_final_physics`;
+8. `mapa_final_stress_clean` i `stress_loaded`;
+9. `mapa_final_offroad_seam`;
+10. `mapa_final_offroad_mountain`.
 
-- Kolizje hotkeyów z istniejącymi skrótami labu/sampla — dlatego najpierw
-  `HOTKEY_AUDIT_PL.md`, przydział dopiero po nim.
-- `userMaterialId` wstecz w E1/E3/E4 — rozproszona zmiana; checklista per
-  moduł (terrain/kafle/kit/playground) w PR-ze etapu.
-- Pokusa „jeszcze jednej strefy" na polish — NIE; nowe strefy = nowy plan
-  (scope-creep zabija zamknięcie tracku).
+Do sign-offu trafia też zestaw trzech kadrów środka:
+
+- stan przed pierwszym Etapem 2;
+- odrzucony `b8afab9`;
+- finalna Mapa 2.0.
+
+## 6. Bramka końcowa
+
+### Techniczna
+
+- pełny gate;
+- przejście po wszystkich kotwicach: poprawna pozycja/yaw, brak overlapu;
+- materiały raportowane poprawnie na szwach i platformach;
+- lap timer, station timer, airtime i landing compression mają sanity values;
+- reset świata czyści dynamiczne batch'e i odtwarza stałe stanowiska;
+- brak wzrostu body/shape po cyklu teleport/reset/regenerate;
+- dokumentacja README/INDEX/TECH_DEBT/CHECKPOINTS zsynchronizowana.
+
+### Produktowa
+
+- centrum jest natychmiast rozpoznawalne jako serce mapy;
+- z centrum da się wybrać kierunek bez teleportu i bez zgadywania;
+- satelity wyglądają jak część jednej mapy;
+- żadna późniejsza strefa nie zdegradowała czytelności centralnego gridu;
+- Jozz przejeżdża wybrany ciąg:
+  Centrum → test podstrefy → tor/drift → plac fizyki → offroad → powrót;
+- finalna akceptacja Jozza zamyka status **Mapa 2.0**.
+
+## 7. Dokumentacja zamknięcia
+
+W tym samym commicie:
+
+- `README_FOR_AGENTS.md`: nowy zwalidowany stan i reguły środka;
+- `CURRENT_STATE_INDEX_PL.md`: kamień milowy Mapa 2.0;
+- `TECH_DEBT_PL.md`: jawne ograniczenia i odłożone rzeczy;
+- `CHECKPOINTS_PL.md`: oddzielnie wynik techniczny i sign-off produktowy;
+- stare dokumenty Etapu 2 nie są kopiowane do nowych „raportów”; historia
+  pozostaje w git.
+
+## 8. Ryzyka
+
+- telemetria może stać się przeładowanym HUD-em — domyślnie jedna linia
+  kontekstowa, szczegóły w rozwijanym panelu;
+- teleporty mogą ukryć zły wayfinding — sign-off zawiera pełny przejazd bez
+  teleportowania;
+- polish może stać się pretekstem do nowej strefy — nowe strefy są poza
+  zakresem;
+- zielone testy mogą ponownie przykryć słaby layout — produktowa bramka jest
+  równorzędna i wymaga Jozza.

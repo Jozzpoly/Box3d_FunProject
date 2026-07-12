@@ -17,11 +17,17 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-12 · Rebase planu mapy: Etap 2 odrzucony i ponownie otwarty · docs
+- CO:     Przebudowano master plan i dokumenty E1–E6 wokół kaflowej architektury hub-and-spoke; E1 zostaje zaakceptowany, a E2R odzyska obstacle kit i zastąpi odległy 6-lane'owy pas centralnym kampusem N/W/E/S na pełnym technicznym gridzie.
+- CZEMU:  Realny render i kod pokazały pusty kafel C (`x,z≈±66.7`) oraz odseparowany katalog przeszkód przy `x=150..195`; zielona walidacja techniczna nie sprawdziła fokusu, czytelności ani jakości mapy.
+- EFEKT:  Dokumentacja jawnie rozdziela „kod działa” od „mapa zaakceptowana”, dodaje footprint/approach/runoff validator, neutralny język wizualny, skeleton STOP-gate i obowiązkowe porównanie przed/odrzucony/nowy; kod mapy pozostaje bez zmian w tym docs-only rebasie.
+- DALEJ:  E2R.0 zachowuje baseline, E2R.1 buduje kontrakt danych i walidator; przed bryłami obowiązkowa akceptacja skeletonu centralnego kampusu przez Jozza.
+
 ## 2026-07-12 · Etap 2 mapy: obstacle kit + poligon zawieszeń 6 lane'ów · b8afab9
 - CO:     nowy `jozz_vehicle_obstacle_kit.{h,cpp}` (15 parametrycznych generatorów: rampy/kicker/tabletop/gap-jump/stairs/whoops/washboard/rock-garden/ruts/off-camber/berm/logs/articulation, ostre=boxy transformowane, zaokrąglone=kapsuły, `customColorHex` per-shape); `jozz_vehicle_m5_test_course.cpp` przebudowany na 6-lane'owy poligon (`world_layout.h` §Poligon, x:150-195/z:-60..60) zamiast starych 4 ramp+2 washboard; etykiety stacji (`DrawString3D`, distance-cull 80 m) w obu labach (M5/M6, R11); propy odsunięte z osi jazdy na skraj placu fizyki (`kPropZoneOriginX/Z`); nowy env `JOZZ_M6_TELEPORT_XZ` (dowolne x,z, headless).
 - CZEMU:  plan `MAPA_ETAP_2_PRZESZKODY_I_POLIGONY_PL.md` — zastąpić przypadkowe rampy/washboard "mądrze zaprojektowanymi miejscami do testowania zawieszeń" z progresją trudności (feedback Jozza pkt 4-5).
 - EFEKT:  build 3/3 OK, walidator 18/18 OK (z roota), test.exe 11/11 PASS, boot-smoke M5+M6 0 błędów sokol. Rendery `mapa_e2_*`: top-down poligonu (6 lane'ów, kolory zielony/żółty/czerwony czytelne), close-up kickera (kapsuła-lip widoczna na krawędzi), whoops+ruts+off-camber (zaokrąglenia vs ostre V-rowki), rock garden (23 losowe kamienie), articulation+berm (łuk banda poprawnie zakrzywiony). Autodrive L1 (8-12 m/s) i L6 (gap-jump 4 m + lądowanie) bez błędów fizyki, liczba shape'ów stabilna (107, zgodna z ręcznym przeliczeniem ~74 kit + 9 plate + 1 offroad + 14 prop + rig). R5 checklist: wszystkie `kit_*` shape'y przechodzą przez wspólny `MakeKitShapeDef(terrainCategoryBits,...)` — zweryfikowane grepem.
-- DALEJ:  Etap 3 (tor i drift) — czeka na sygnał Jozza.
+- DALEJ:  **HISTORYCZNE / NADPISANE decyzją powyżej:** Etap 3 jest zablokowany; najpierw E2R i centralny kampus.
 
 ## 2026-07-12 · Fix: "R" zabierał kamerę z trybu trzeciej osoby (T) · e4c80ca
 - CO:     `Sample::Sample` (sample.cpp) oraz konstruktory M5/M6 wyłączały `m_camera->m_thirdPerson` BEZWARUNKOWO przy każdej konstrukcji, nawet przy "R" restart — teraz to samo zabezpieczenie co przy `SetView` (`if (context->restart == false)`), więc restart tej samej próbki NIE zdejmuje trybu jazdy za autem (T).

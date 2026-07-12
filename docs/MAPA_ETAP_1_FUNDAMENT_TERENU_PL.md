@@ -538,3 +538,34 @@ ADDYTYWNE (`armMass * (kMountainPeakHeight*kArmHeightScale + subPeak*kArmSubPeak
 nie multiplikatywnym tłumieniem jak we wcześniejszym szkicu planu — dosłowne
 czytanie "węzły górskie powinny TWORZYĆ na sobie mniejsze góry" wymaga realnie
 WYŻSZYCH punktów na grani, nie tylko rzadszych dołków.
+
+## 13. Kontrakt po rebasie planu mapy (2026-07-12)
+
+**Status Etapu 1 pozostaje: ZAMKNIĘTY I ZAAKCEPTOWANY.** Rebase Etapu 2 nie
+cofa płyty, offroadu, góry, węzłów ani żadnego z dowodów §9–§12.
+
+Nowa architektura mapy doprecyzowuje rolę płyty 3×3:
+
+1. Środkowy shape (`row=1, col=1`, około
+   `x,z∈[-66.667,66.667]`) jest w całości technicznym gridem i zostaje
+   wizualnym sercem mapy.
+2. Grid nie jest pustym buforem. Etap 2R buduje na nim centralny kampus,
+   pozostawiając nieprzerwaną powierzchnię bazową i większość gridu widoczną.
+3. Osiem zewnętrznych kafli jest satelitami o granicach zgodnych z tile'ami.
+   Nie wolno ponownie projektować arbitralnych stref przecinających kafle bez
+   jawnego łącznika.
+4. Wschodni kafel przy szwie pozostaje bramą i rozbiegiem do offroadu. Nie jest
+   miejscem na ciasny katalog przeszkód.
+
+### Dozwolone doszlifowanie Etapu 1
+
+Tylko gdy skeleton Etapu 2R ujawni konkretny problem:
+
+- poprawa kontrastu neutralnych zewnętrznych kafli względem centralnego gridu;
+- usunięcie widocznego/fizycznego szwu kafli;
+- poprawa bezpiecznego spawnu na gridzie;
+- rozszerzenie testu potwierdzającego, że cały centralny shape używa materiału
+  proceduralnego gridu.
+
+Każda taka zmiana wymaga osobnego before/after i nie może zmieniać
+zaakceptowanego generatora offroadu. „Przy okazji” nie stroimy ponownie góry.
