@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-12 · Walidacja mapy: spawn po footprincie + checkpoint dla "R" · [pending push]
+- CO:     Feedback Jozza z jazdy: (1) spawn teleportu próbkuje teren pod WSZYSTKIMI 4 kołami (max z 5 punktów + 0.25 m zapasu) zamiast 1 punktu z 0.05 m — koniec z kołami wbitymi w stok; (2) "R" restart odtwarza CHECKPOINT: ostatnia kotwica teleportu + seed terenu persystowane w debug-session (`spawnAnchorX/Z`, `worldSeed`), teren regenerowany PRZED spawnem pojazdu.
+- CZEMU:  Teleport na górę/stok zostawiał koła pod ziemią (1-punktowe próbkowanie na pochyłości); "R" cofał na Start i PODMIENIAŁ wyregenerowany teren na domyślny seed.
+- EFEKT:  Rendery `24_gora_fixed`/`25_gleboko_fixed`: 4/4 kontakt kół, normalna postawa na obu kotwicach. Dowód checkpointu: run bez env po runie z teleportem+seed 777 → `[terrain] seed=1337` potem `seed=777` (regen z checkpointu) i spawn na kotwicy góry. NOWE USTALENIE o czerwonym probe `suspensionHertz`: wynik walidatora zależy od CWD (root repo: 18 OK; build/bin/Debug: FAILED 3.4≠3.5) — to CWD-zależna resolucja assetów, nie regres; zgłoszone jako osobny task.
+- DALEJ:  Plan ostatniego polishingu terenu (góra wyżej, węzły górskie, edge fade) — do akceptacji Jozza.
+
 ## 2026-07-12 · Mapa Etap 1 final polish: góra centralna (fokus terenu) · 829ff95
 - CO:     Na życzenie Jozza dodany centralny punkt fokusu — jedna naturalna góra rosnąca losowo koło środka offroadu (`ComputeMountain` w `jozz_vehicle_world_terrain.cpp`). Pięć złożonych mechanizmów: (1) centrum jitterowane seedem ±45 m, (2) radialna masa `smoothstep` (gradient szczyt→podnóże), (3) domain warp obrysu (podstawa nie jest kołem), (4) modulacja promienia szumem kątowym → promieniste granie/żleby (nie kopiec-wulkan), (5) zupełnie nowy 4-oktawowy ridged FBM na rzeźbę szczytu (duże+średnie+drobne nierówności). Teren bazowy tłumiony pod masą (góra zastępuje pofalowanie, nie dubluje). Sufit heightfielda 14→22 m. Nowa kotwica `Offroad - gora` + env `JOZZ_M6_TERRAIN_DUMP`.
 - CZEMU:  Terenowi brakowało centralnego fokusu; Jozz chciał górę ze szczytem "o połowę wyższym" od standardu, nowym realistycznym szumem, z prośbą o krytyczne+kreatywne własne rozwiązania. Pełne uzasadnienie: `MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md` §11.

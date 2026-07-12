@@ -89,7 +89,14 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		// Restore whatever debug/view toggles were in effect last time, for the
 		// same reason the config load above exists: "R" restart must not
 		// silently undo a choice Jozz made in the Debug tab.
+		// Also restores the CHECKPOINT: last teleport anchor + terrain seed
+		// (Jozz's feedback - "R" was teleporting him back to Start and quietly
+		// swapping the regenerated terrain for the default-seed one).
 		LoadDebugViewState();
+		if ( (uint32_t)m_worldSeedInput != m_worldGround.seed )
+		{
+			RegenerateTerrain(); // before CreateVehicle: spawn height must sample the checkpoint's terrain
+		}
 
 		m_contactHertz = 30.0f;
 		m_contactDampingRatio = 10.0f;
@@ -330,9 +337,23 @@ void JozzVehicleM6RigLab::RegenerateTerrain()
 void JozzVehicleM6RigLab::CreateVehicle()
 	{
 		DestroyVehicle();
+		// Spawn height: sample the terrain under ALL four wheel positions (with
+		// a little padding), not just the anchor center, and take the max. On a
+		// mountainside a single center sample leaves the uphill wheels starting
+		// below ground (Jozz's feedback: teleport wbija kola w podloge). The
+		// +0.30 m clearance also absorbs the difference between the smooth
+		// analytic noise and the piecewise-linear heightfield triangles between
+		// grid vertices (worst on sharp ridged crests). The car drops a few cm
+		// and settles - much better than a wheel locked inside the ground.
+		float footX = m_config.axleHalfSpacing + 0.3f;
+		float footZ = m_config.trackHalfWidth + 0.2f;
 		float groundY = GetGroundHeightAt( m_spawnAnchorX, m_spawnAnchorZ );
+		groundY = b3MaxFloat( groundY, GetGroundHeightAt( m_spawnAnchorX + footX, m_spawnAnchorZ + footZ ) );
+		groundY = b3MaxFloat( groundY, GetGroundHeightAt( m_spawnAnchorX + footX, m_spawnAnchorZ - footZ ) );
+		groundY = b3MaxFloat( groundY, GetGroundHeightAt( m_spawnAnchorX - footX, m_spawnAnchorZ + footZ ) );
+		groundY = b3MaxFloat( groundY, GetGroundHeightAt( m_spawnAnchorX - footX, m_spawnAnchorZ - footZ ) );
 		m_vehicle = CreateJozzVehicleM6( m_worldId, m_groundId, m_config,
-										  { m_spawnAnchorX, groundY + GetSpawnHeight(), m_spawnAnchorZ } );
+										  { m_spawnAnchorX, groundY + GetSpawnHeight() + 0.25f, m_spawnAnchorZ } );
 		UpdateWheelShapeVisibility();
 		UpdateChassisShapeVisibility();
 		SetupMountRig();

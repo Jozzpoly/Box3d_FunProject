@@ -31,6 +31,13 @@ void JozzVehicleM6RigLab::SaveDebugViewState()
 		// Collision-layer preview (Etap 3 D3): force the chassis collision box
 		// visible on top of the body skin.
 		file << "showChassisCollider=" << ( m_showChassisCollider ? 1 : 0 ) << "\n";
+		// Checkpoint semantics (Jozz's feedback, walidacja mapy E1): "R" restart
+		// must respawn at the LAST TELEPORT anchor, on the SAME terrain - not
+		// silently back at Start on a default-seed rebuild. Same file as the
+		// view toggles because it is session state, not vehicle tuning.
+		file << "spawnAnchorX=" << m_spawnAnchorX << "\n";
+		file << "spawnAnchorZ=" << m_spawnAnchorZ << "\n";
+		file << "worldSeed=" << m_worldGround.seed << "\n";
 	}
 
 void JozzVehicleM6RigLab::LoadDebugViewState()
@@ -82,6 +89,22 @@ void JozzVehicleM6RigLab::LoadDebugViewState()
 			else if ( key == "showChassisCollider" )
 			{
 				m_showChassisCollider = value;
+			}
+			else if ( key == "spawnAnchorX" )
+			{
+				m_spawnAnchorX = std::strtof( line.c_str() + eq + 1, nullptr );
+			}
+			else if ( key == "spawnAnchorZ" )
+			{
+				m_spawnAnchorZ = std::strtof( line.c_str() + eq + 1, nullptr );
+			}
+			else if ( key == "worldSeed" )
+			{
+				// Stashed into the UI seed field only; the constructor compares it
+				// against the freshly built default-seed terrain and regenerates
+				// once if they differ (regen must happen BEFORE CreateVehicle so
+				// the spawn height samples the checkpoint's actual terrain).
+				m_worldSeedInput = (int)std::strtoul( line.c_str() + eq + 1, nullptr, 10 );
 			}
 		}
 	}
