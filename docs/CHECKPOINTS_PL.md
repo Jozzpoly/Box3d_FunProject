@@ -17,7 +17,7 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
-## 2026-07-12 · Walidacja mapy: spawn po footprincie + checkpoint dla "R" · [pending push]
+## 2026-07-12 · Walidacja mapy: spawn po footprincie + checkpoint dla "R" · 73ece06
 - CO:     Feedback Jozza z jazdy: (1) spawn teleportu próbkuje teren pod WSZYSTKIMI 4 kołami (max z 5 punktów + 0.25 m zapasu) zamiast 1 punktu z 0.05 m — koniec z kołami wbitymi w stok; (2) "R" restart odtwarza CHECKPOINT: ostatnia kotwica teleportu + seed terenu persystowane w debug-session (`spawnAnchorX/Z`, `worldSeed`), teren regenerowany PRZED spawnem pojazdu.
 - CZEMU:  Teleport na górę/stok zostawiał koła pod ziemią (1-punktowe próbkowanie na pochyłości); "R" cofał na Start i PODMIENIAŁ wyregenerowany teren na domyślny seed.
 - EFEKT:  Rendery `24_gora_fixed`/`25_gleboko_fixed`: 4/4 kontakt kół, normalna postawa na obu kotwicach. Dowód checkpointu: run bez env po runie z teleportem+seed 777 → `[terrain] seed=1337` potem `seed=777` (regen z checkpointu) i spawn na kotwicy góry. NOWE USTALENIE o czerwonym probe `suspensionHertz`: wynik walidatora zależy od CWD (root repo: 18 OK; build/bin/Debug: FAILED 3.4≠3.5) — to CWD-zależna resolucja assetów, nie regres; zgłoszone jako osobny task.
