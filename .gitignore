@@ -12,3 +12,6 @@ CMakeUserPresets.json
 .tmp/
 .fetchcontent-cache/
 *.b3rec
+
+# Local photogrammetry source packages; never commit private/raw scans.
+local_assets/scans/
