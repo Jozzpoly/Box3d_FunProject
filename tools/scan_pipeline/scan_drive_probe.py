@@ -135,9 +135,21 @@ def detected_seam_paths(
         })
 
     paths.extend([
-        {"name": "golden_region_east_west", "start": [min_x + margin, (min_y + max_y) * 0.5], "end": [max_x - margin, (min_y + max_y) * 0.5]},
-        {"name": "golden_region_north_south", "start": [(min_x + max_x) * 0.5, min_y + margin], "end": [(min_x + max_x) * 0.5, max_y - margin]},
-        {"name": "golden_region_diagonal", "start": [min_x + margin, min_y + margin], "end": [max_x - margin, max_y - margin]},
+        {
+            "name": "golden_region_east_west",
+            "start": [min_x + margin, (min_y + max_y) * 0.5],
+            "end": [max_x - margin, (min_y + max_y) * 0.5],
+        },
+        {
+            "name": "golden_region_north_south",
+            "start": [(min_x + max_x) * 0.5, min_y + margin],
+            "end": [(min_x + max_x) * 0.5, max_y - margin],
+        },
+        {
+            "name": "golden_region_diagonal",
+            "start": [min_x + margin, min_y + margin],
+            "end": [max_x - margin, max_y - margin],
+        },
     ])
 
     unique: list[dict[str, Any]] = []
@@ -161,14 +173,19 @@ def path_samples(start: Sequence[float], end: Sequence[float], spacing: float) -
     return centers, distance
 
 
-def wheel_positions(centers: np.ndarray, heading: np.ndarray, wheelbase: float, track: float) -> np.ndarray:
+def wheel_positions(
+    centers: np.ndarray,
+    heading: np.ndarray,
+    wheelbase: float,
+    track: float,
+) -> np.ndarray:
     forward = heading / np.linalg.norm(heading)
     left = np.array([-forward[1], forward[0]])
     offsets = np.array([
-        forward * (wheelbase * 0.5) + left * (track * 0.5),
-        forward * (wheelbase * 0.5) - left * (track * 0.5),
-        -forward * (wheelbase * 0.5) + left * (track * 0.5),
-        -forward * (wheelbase * 0.5) - left * (track * 0.5),
+        forward * (wheelbase * 0.5) + left * (track * 0.5),   # front-left
+        forward * (wheelbase * 0.5) - left * (track * 0.5),   # front-right
+        -forward * (wheelbase * 0.5) + left * (track * 0.5),  # rear-left
+        -forward * (wheelbase * 0.5) - left * (track * 0.5),  # rear-right
     ])
     return centers[:, None, :] + offsets[None, :, :]
 
@@ -191,7 +208,10 @@ def evaluate_path(
         for wheel in range(4)
     ])
     valid = np.all(np.isfinite(wheel_heights), axis=1)
-    distance = distance[valid]; centers = centers[valid]; wheels_xy = wheels_xy[valid]; wheel_heights = wheel_heights[valid]
+    distance = distance[valid]
+    centers = centers[valid]
+    wheels_xy = wheels_xy[valid]
+    wheel_heights = wheel_heights[valid]
     if len(distance) < 3:
         return {"name": path["name"], "status": "insufficient-valid-samples"}, {}
 
@@ -201,7 +221,12 @@ def evaluate_path(
     right = wheel_heights[:, [1, 3]].mean(axis=1)
     pitch = np.degrees(np.arctan2(front - rear, wheelbase))
     roll = np.degrees(np.arctan2(left - right, track))
-    twist = 0.25 * (wheel_heights[:, 0] - wheel_heights[:, 1] - wheel_heights[:, 2] + wheel_heights[:, 3])
+
+    # For a rectangular footprint, this cross term is the non-planar/twist input.
+    twist = 0.25 * (
+        wheel_heights[:, 0] - wheel_heights[:, 1]
+        - wheel_heights[:, 2] + wheel_heights[:, 3]
+    )
     articulation_span = np.abs(twist) * 2.0
     footprint_range = wheel_heights.max(axis=1) - wheel_heights.min(axis=1)
 
@@ -210,48 +235,94 @@ def evaluate_path(
     center_height = wheel_heights.mean(axis=1)
     center_gradient = np.gradient(center_height, ds)
     center_curvature = np.gradient(center_gradient, ds)
-    acceleration = {f"{int(speed)}mps": percentiles(center_curvature * speed * speed) for speed in (5.0, 15.0, 30.0)}
+
+    acceleration: dict[str, Any] = {}
+    for speed in (5.0, 15.0, 30.0):
+        acceleration[f"{int(speed)}mps"] = percentiles(center_curvature * speed * speed)
 
     result = {
-        "name": path["name"], "status": "measured", "start": path["start"], "end": path["end"],
-        "detectedSeam": path.get("detectedSeam"), "pathLengthMeters": float(distance[-1] - distance[0]),
-        "sampleSpacingMeters": ds, "validSamples": int(len(distance)),
-        "wheelHeightStepMeters": percentiles(wheel_step), "pitchDegrees": percentiles(pitch),
-        "rollDegrees": percentiles(roll), "articulationSpanMeters": percentiles(articulation_span),
+        "name": path["name"],
+        "status": "measured",
+        "start": path["start"],
+        "end": path["end"],
+        "detectedSeam": path.get("detectedSeam"),
+        "pathLengthMeters": float(distance[-1] - distance[0]),
+        "sampleSpacingMeters": ds,
+        "validSamples": int(len(distance)),
+        "wheelHeightStepMeters": percentiles(wheel_step),
+        "pitchDegrees": percentiles(pitch),
+        "rollDegrees": percentiles(roll),
+        "articulationSpanMeters": percentiles(articulation_span),
         "footprintHeightRangeMeters": percentiles(footprint_range),
-        "centerVerticalAccelerationMetersPerSecond2": acceleration, "travelBudgetMeters": total_travel,
+        "centerVerticalAccelerationMetersPerSecond2": acceleration,
+        "travelBudgetMeters": total_travel,
         "travelBudgetExceededFraction": float(np.mean(articulation_span > total_travel)),
         "halfTravelExceededFraction": float(np.mean(articulation_span > total_travel * 0.5)),
     }
-    traces = {"distance": distance, "centers": centers, "wheelsXY": wheels_xy, "wheelHeights": wheel_heights, "pitch": pitch, "roll": roll, "articulation": articulation_span}
+    traces = {
+        "distance": distance,
+        "centers": centers,
+        "wheelsXY": wheels_xy,
+        "wheelHeights": wheel_heights,
+        "pitch": pitch,
+        "roll": roll,
+        "articulation": articulation_span,
+    }
     return result, traces
 
 
-def overlay_paths(height: np.ndarray, paths: Sequence[dict[str, Any]], region: Sequence[float], output: Path) -> None:
+def overlay_paths(
+    height: np.ndarray,
+    paths: Sequence[dict[str, Any]],
+    region: Sequence[float],
+    output: Path,
+) -> None:
     valid = np.isfinite(height)
     low, high = np.percentile(height[valid], [2, 98])
     normalized = np.clip((height - low) / max(high - low, 1e-6), 0.0, 1.0)
     safe = np.where(valid, normalized, 0.0)
-    rgb = np.stack([40 + 180 * safe, 60 + 170 * safe, 120 + 120 * (1.0 - safe)], axis=-1).astype(np.uint8)
+    rgb = np.stack([
+        40 + 180 * safe,
+        60 + 170 * safe,
+        120 + 120 * (1.0 - safe),
+    ], axis=-1).astype(np.uint8)
     image = Image.fromarray(np.flipud(rgb), mode="RGB").resize((900, 900), Image.Resampling.BILINEAR)
     draw = ImageDraw.Draw(image)
     min_x, min_y, max_x, max_y = map(float, region)
+
     def pixel(point: Sequence[float]) -> tuple[float, float]:
-        return ((float(point[0]) - min_x) / (max_x - min_x) * 899, (max_y - float(point[1])) / (max_y - min_y) * 899)
+        x = (float(point[0]) - min_x) / (max_x - min_x) * 899
+        y = (max_y - float(point[1])) / (max_y - min_y) * 899
+        return x, y
+
     for index, path in enumerate(paths):
         color = (255, 255, 255) if index % 2 == 0 else (255, 80, 20)
         draw.line([pixel(path["start"]), pixel(path["end"])], fill=color, width=4)
-        x, y = pixel(path["start"]); draw.ellipse((x-5, y-5, x+5, y+5), fill=color)
+        x, y = pixel(path["start"])
+        draw.ellipse((x-5, y-5, x+5, y+5), fill=color)
     image.save(output, optimize=False, compress_level=9)
 
 
-def run_probe(core_output: Path, output: Path, wheelbase: float, track: float, total_travel: float) -> dict[str, Any]:
+def run_probe(
+    core_output: Path,
+    output: Path,
+    wheelbase: float,
+    track: float,
+    total_travel: float,
+) -> dict[str, Any]:
     output.mkdir(parents=True, exist_ok=True)
     report: dict[str, Any] = {
         "formatVersion": 1,
-        "vehicleFootprint": {"wheelbaseMeters": wheelbase, "trackMeters": track, "totalSuspensionTravelHintMeters": total_travel, "source": "JozzVehicleM6DefaultConfig defaults"},
-        "region": list(DEFAULT_REGION), "profiles": {},
+        "vehicleFootprint": {
+            "wheelbaseMeters": wheelbase,
+            "trackMeters": track,
+            "totalSuspensionTravelHintMeters": total_travel,
+            "source": "JozzVehicleM6DefaultConfig defaults",
+        },
+        "region": list(DEFAULT_REGION),
+        "profiles": {},
     }
+
     for cell_label, cell in (("050", 0.50), ("025", 0.25)):
         dem_root = core_output / f"dem_{cell_label}"
         owner = np.load(dem_root / "owner.npy")
@@ -269,34 +340,61 @@ def run_probe(core_output: Path, output: Path, wheelbase: float, track: float, t
             trace_directory = output / cell_label / surface_name
             trace_directory.mkdir(parents=True, exist_ok=True)
             overlay_paths(height, paths, DEFAULT_REGION, trace_directory / "paths.png")
-            worst_score = -1.0; worst_trace = None; worst_name = ""
+            worst_score = -1.0
+            worst_trace: dict[str, np.ndarray] | None = None
+            worst_name = ""
             for path in paths:
-                result, traces = evaluate_path(height, path, DEFAULT_REGION, cell, wheelbase, track, total_travel)
+                result, traces = evaluate_path(
+                    height, path, DEFAULT_REGION, cell,
+                    wheelbase, track, total_travel,
+                )
                 surface_results.append(result)
                 if result.get("status") == "measured":
-                    score = float(result["articulationSpanMeters"]["p95"] or 0.0) + 0.1 * float(result["wheelHeightStepMeters"]["p95"] or 0.0)
-                    if score > worst_score: worst_score, worst_trace, worst_name = score, traces, result["name"]
+                    score = float(result["articulationSpanMeters"]["p95"] or 0.0)
+                    score += 0.1 * float(result["wheelHeightStepMeters"]["p95"] or 0.0)
+                    if score > worst_score:
+                        worst_score = score
+                        worst_trace = traces
+                        worst_name = result["name"]
             if worst_trace is not None:
-                np.savez_compressed(trace_directory / "worst_path_trace.npz", **worst_trace)
-            cell_report["surfaces"][surface_name] = {"paths": surface_results, "worstPath": worst_name, "worstScore": worst_score, "summary": summarize_surface(surface_results, total_travel)}
+                np.savez_compressed(
+                    trace_directory / "worst_path_trace.npz",
+                    **worst_trace,
+                )
+            cell_report["surfaces"][surface_name] = {
+                "paths": surface_results,
+                "worstPath": worst_name,
+                "worstScore": worst_score,
+                "summary": summarize_surface(surface_results, total_travel),
+            }
         report["profiles"][cell_label] = cell_report
+
     (output / "drive_probe_report.json").write_bytes(stable_json(report))
     return report
 
 
 def summarize_surface(paths: Sequence[dict[str, Any]], total_travel: float) -> dict[str, Any]:
     measured = [path for path in paths if path.get("status") == "measured"]
-    if not measured: return {"status": "no-measured-paths"}
+    if not measured:
+        return {"status": "no-measured-paths"}
+
     def maximum(field: str, percentile: str = "p95") -> float:
         return max(float(path[field][percentile] or 0.0) for path in measured)
+
     return {
-        "measuredPathCount": len(measured), "worstP95WheelStepMeters": maximum("wheelHeightStepMeters"),
-        "worstP95PitchDegrees": maximum("pitchDegrees"), "worstP95RollDegrees": maximum("rollDegrees"),
+        "measuredPathCount": len(measured),
+        "worstP95WheelStepMeters": maximum("wheelHeightStepMeters"),
+        "worstP95PitchDegrees": maximum("pitchDegrees"),
+        "worstP95RollDegrees": maximum("rollDegrees"),
         "worstP95ArticulationSpanMeters": maximum("articulationSpanMeters"),
         "maxTravelBudgetExceededFraction": max(path["travelBudgetExceededFraction"] for path in measured),
         "maxHalfTravelExceededFraction": max(path["halfTravelExceededFraction"] for path in measured),
         "travelBudgetMeters": total_travel,
-        "provisionalPass": maximum("wheelHeightStepMeters") <= 0.15 and maximum("articulationSpanMeters") <= total_travel and max(path["travelBudgetExceededFraction"] for path in measured) == 0.0,
+        "provisionalPass": (
+            maximum("wheelHeightStepMeters") <= 0.15
+            and maximum("articulationSpanMeters") <= total_travel
+            and max(path["travelBudgetExceededFraction"] for path in measured) == 0.0
+        ),
     }
 
 
@@ -308,8 +406,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--track", type=float, default=DEFAULT_TRACK)
     parser.add_argument("--total-travel", type=float, default=DEFAULT_TOTAL_TRAVEL)
     arguments = parser.parse_args(argv)
-    report = run_probe(arguments.core_output, arguments.output, arguments.wheelbase, arguments.track, arguments.total_travel)
-    print("scan_drive_probe: OK " f"profiles={sum(len(item['surfaces']) for item in report['profiles'].values())} " f"report={arguments.output / 'drive_probe_report.json'}")
+    report = run_probe(
+        arguments.core_output, arguments.output,
+        arguments.wheelbase, arguments.track, arguments.total_travel,
+    )
+    print(
+        "scan_drive_probe: OK "
+        f"profiles={sum(len(item['surfaces']) for item in report['profiles'].values())} "
+        f"report={arguments.output / 'drive_probe_report.json'}"
+    )
     return 0
 
 
