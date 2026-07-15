@@ -5,15 +5,17 @@
 - Branch eksperymentu: `Photogrametry_Import_experiment`.
 - `main` pozostaje nietykalny.
 - Właściciel kierunku i ręcznej akceptacji: Jozz.
-- Ten dokument jest operacyjnym frontem eksperymentu; kod i najnowsze testy są ważniejsze niż starsze plany.
-- Aktualny etap: **P1 — dependency-free Scan Inspector**.
-- Nie przechodzić do P2/P3 bez akceptacji Jozza.
+- Kod, testy i ten dokument są ważniejsze niż wcześniejsze rozmowy.
+- P1 inspector jest zaimplementowany.
+- Wieloetapowa roadmapa została dotknięta eksperymentalnie offline.
+- Pełne wyniki: `docs/PHOTOGRAMMETRY_ROADMAP_EXPERIMENT_REPORT_2026_07_15_PL.md`.
+- Runtime C++/Box3D nadal nie jest zaimplementowany.
 
 ## Cel produktu
 
-Zbudować bezpieczny pipeline, który przekształca jeden lub kilka skanów GLB w świat, po którym Jozz Vehicle może stabilnie jeździć. Surowy mesh fotogrametryczny jest reprezentacją wizualną, a nie automatycznie poprawną kolizją.
+Pipeline ma przekształcać skany GLB w świat, po którym Jozz Vehicle może stabilnie jeździć.
 
-Docelowo świat może posiadać trzy rozdzielone warstwy:
+Trzy warstwy pozostają rozdzielone:
 
 ```text
 visual photogrammetry mesh
@@ -21,40 +23,18 @@ continuous drivable ground
 simplified obstacle collision
 ```
 
-Nie projektujemy teraz kompletnego silnika otwartego świata. Najpierw kolejno udowadniamy:
+Surowy mesh fotogrametryczny nie jest automatycznie prawidłową kolizją.
+
+## Potwierdzone dane pierwszej paczki
 
 ```text
-1. Rozumiemy dane.
-2. Widzimy dane poprawnie.
-3. Rozumiemy szwy.
-4. Potrafimy wydobyć wiarygodny grunt na małym obszarze.
-5. Samochód przejeżdża przez najtrudniejszy szew.
-6. Dopiero wtedy skalujemy rozwiązanie.
-```
-
-## Potwierdzone fakty dla pierwszej paczki
-
-Paczka zawiera cztery GLB:
-
-```text
-MipTile_0.glb
-MipTile_1.glb
-MipTile_2.glb
-MipTile_3.glb
-```
-
-Łącznie:
-
-```text
-1 012 211 wierzchołków
-3 626 238 indeksów
-1 208 746 trójkątów
-18 meshów / primitive'ów
-18 materiałów
-18 osadzonych tekstur JPEG
-brak NORMAL
-brak TANGENT
-obecne POSITION + TEXCOORD_0
+GLB:        4
+vertices:   1 012 211
+triangles:  1 208 746
+materials:  18
+images:     18 JPEG
+NORMAL:     brak
+TANGENT:    brak
 ```
 
 Globalne bounds:
@@ -65,106 +45,59 @@ max:    [ 580.308593750,  560.300842285, 410.869445801]
 extent: [1153.054077148, 1004.957305908, 119.375518799]
 ```
 
-Hipoteza osi dla P1:
+Hipoteza osi:
 
 ```text
 source X/Y = płaszczyzna pozioma
 source Z   = wysokość
 ```
 
-To nadal hipoteza. Skala i osie muszą zostać potwierdzone znanym realnym odcinkiem przed runtime importem.
+Skala i osie nadal wymagają ręcznego potwierdzenia znanym realnym odcinkiem.
 
-Rozkład tekstur:
-
-```text
-8192x8192: 7
-4096x4096: 4
-2048x2048: 4
-1024x1024: 3
-```
-
-`MipTile_1` jest wąskim pasem łączeniowym, nie regularną ćwiartką mapy. Nie wolno zakładać układu 2×2.
+`MipTile_1` jest wąskim pasem łączeniowym, nie regularną ćwiartką mapy.
 
 ## Golden Seam Region
-
-Pierwszy obowiązkowy region pilotażowy:
 
 ```text
 source X: -32 .. 48
 source Y: -32 .. 48
 ```
 
-Obejmuje styk wszystkich czterech źródeł. Będzie używany kolejno do:
+Region obejmuje styk wszystkich czterech źródeł. Jest stress-testem szwów i klasyfikacji, ale nie jest automatycznie pierwszym obszarem jazdy.
 
-- wizualizacji overlapów;
-- pomiaru residuali;
-- pierwszego wspólnego DEM;
-- porównania siatki 0,25 m i 0,50 m;
-- pierwszego przejazdu przez najtrudniejszy szew.
+Pierwszy runtime drive region ma zostać ręcznie wybrany po renderze jako **Golden Drive Region**.
 
 ## Prywatność i duże pliki
 
-Surowe skany przedstawiają realne domy, ogrody i teren. Dlatego:
-
-- raw GLB/ZIP nie trafiają automatycznie do publicznego Git;
-- lokalne źródła żyją pod `local_assets/scans/`;
-- wyniki robocze żyją pod `build/scan_pipeline/`;
-- `local_assets/scans/` jest gitignored;
-- repo przechowuje kod, małe syntetyczne fixtures, manifesty i bezpieczne raporty;
+- Raw GLB/ZIP nie trafiają automatycznie do publicznego Git.
+- Lokalne źródła: `local_assets/scans/`.
+- Wyniki robocze: `build/scan_pipeline/`.
+- `local_assets/scans/` jest gitignored.
+- Repo przechowuje kod, małe fixtures, manifesty i bezpieczne raporty.
 - Git LFS lub zewnętrzny storage wymagają osobnej decyzji Jozza.
 
-## Nienegocjowalne zasady
-
-1. Nie dotykać `src/` ani `include/` Box3D.
-2. Nie zmieniać accepted vehicle behavior ani defaultów M6/M7/M8.
-3. Nie rozszerzać `jozz_vehicle_visual_mesh` do roli world importera.
-4. Nie tworzyć pustych placeholderów.
-5. Najpierw reprodukcja i pomiar, potem architektura.
-6. Render jest bramką dla pracy wizualnej.
-7. Zielony validator nie zastępuje czytania liczb ani ręcznego testu Jozza.
-8. Nie luzować progów testów, aby etap przeszedł.
-9. Nie force-pushować i nie przepisywać historii.
-10. Nie przechodzić do kolejnego etapu przez obejście kryterium akceptacji.
-
-## Roadmapa
-
-### L0 — Governance i Ground Truth
-
-- potwierdzenie repo, brancha, remote i czystego drzewa;
-- standardowy baseline projektu;
-- hashe źródeł;
-- polityka prywatności;
-- jawne osie, skala i origin;
-- zapis Golden Seam Region.
-
-### P1 — Dependency-free Scan Inspector
-
-Aktualny etap.
-
-Implementacja:
+## Zaimplementowane narzędzia
 
 ```text
 tools/scan_pipeline/scan_inspect.py
+tools/scan_pipeline/scan_geometry.py
+tools/scan_pipeline/scan_plan_experiments.py
+tools/scan_pipeline/scan_ground_filters.py
+tools/scan_pipeline/scan_drive_probe.py
+tools/scan_pipeline/scan_chunk_probe.py
+tools/scan_pipeline/scan_adaptive_chunk_probe.py
+tools/scan_pipeline/scan_texture_quality_probe.py
+tools/scan_pipeline/requirements-experiments.txt
+
 tests/scan_pipeline/test_scan_inspect.py
+tests/scan_pipeline/test_scan_plan_experiments.py
 ```
 
-Inspector korzysta wyłącznie z Python standard library i obsługuje potrzebny podzbiór GLB 2.0:
+Są to narzędzia offline. NumPy, SciPy, Pillow, trimesh i scikit-image nie są zależnościami runtime gry.
 
-- GLB header;
-- JSON/BIN chunks;
-- scenes i nodes;
-- matrix/TRS;
-- meshes i primitives;
-- accessors i bufferViews;
-- POSITION, TEXCOORD_0 i indeksy;
-- materiały, tekstury i embedded JPEG/PNG;
-- world bounds;
-- overlapy XY;
-- wykrywanie seam-strip candidate;
-- deterministyczny JSON/Markdown;
-- dwa deterministyczne PNG diagnostyczne.
+## Uruchomienie inspectora
 
-Uruchomienie z repo root:
+Z repo root:
 
 ```powershell
 python .\tools\scan_pipeline\scan_inspect.py `
@@ -173,190 +106,259 @@ python .\tools\scan_pipeline\scan_inspect.py `
   --name home-large
 ```
 
-Wejście może być:
+Wejście może być pojedynczym GLB, katalogiem lub ZIP-em.
 
-- pojedynczym `.glb`;
-- katalogiem zawierającym GLB;
-- archiwum `.zip` zawierającym GLB.
+## Uruchomienie eksperymentów
 
-Wyjście:
+Instalacja środowiska badawczego:
 
-```text
-inspection.json
-inspection.md
-source_layout.png
-texture_inventory.png
+```powershell
+python -m pip install -r .\tools\scan_pipeline\requirements-experiments.txt
 ```
 
-Testy:
+Core bez tekstur:
+
+```powershell
+python .\tools\scan_pipeline\scan_plan_experiments.py `
+  --input .\local_assets\scans\home_large `
+  --output .\build\scan_pipeline\roadmap_core `
+  --name home-large `
+  --only core
+```
+
+Tekstury jako osobny, wznawialny etap:
+
+```powershell
+python .\tools\scan_pipeline\scan_plan_experiments.py `
+  --input .\local_assets\scans\home_large `
+  --output .\build\scan_pipeline\roadmap_textures `
+  --name home-large `
+  --only textures
+```
+
+Kinematiczny four-wheel probe:
+
+```powershell
+python .\tools\scan_pipeline\scan_drive_probe.py `
+  --core-output .\build\scan_pipeline\roadmap_core `
+  --output .\build\scan_pipeline\drive_probe
+```
+
+Uniform chunk probe:
+
+```powershell
+python .\tools\scan_pipeline\scan_chunk_probe.py `
+  --input .\local_assets\scans\home_large `
+  --output .\build\scan_pipeline\chunk_probe.json
+```
+
+Adaptive load-balance probe:
+
+```powershell
+python .\tools\scan_pipeline\scan_adaptive_chunk_probe.py `
+  --input .\local_assets\scans\home_large `
+  --output .\build\scan_pipeline\adaptive_chunks
+```
+
+Texture quality probe:
+
+```powershell
+python .\tools\scan_pipeline\scan_texture_quality_probe.py `
+  --input .\local_assets\scans\home_large `
+  --output .\build\scan_pipeline\texture_quality
+```
+
+## Testy
 
 ```powershell
 python -m unittest discover -s tests\scan_pipeline -p "test_*.py" -v
 ```
 
-Bramka P1:
-
-- testy syntetycznego GLB przechodzą;
-- pięć uruchomień daje identyczne SHA raportu i PNG;
-- counts odpowiadają realnej paczce;
-- `MipTile_1` zostaje wykryty jako seam-strip candidate;
-- Golden Seam Region jest zapisany;
-- raw scan nie znajduje się w Git;
-- standardowy `tools/gate.ps1` zostaje uruchomiony lokalnie na Windows;
-- obrazy zostają faktycznie otwarte i ocenione.
-
-### P2 — Parser Decision Spike
-
-Po akceptacji P1 porównać:
+Aktualny wynik eksperymentów:
 
 ```text
-cgltf jako autorytatywny parser GLB/glTF
-Python/Open3D jako warstwa eksperymentów geometrycznych
+12/12 PASS
 ```
 
-Nie integrować dwóch pełnych importerów.
+Dwa pełne przebiegi `core` wygenerowały 95/95 identycznych plików. Raporty są semantycznie identyczne po pominięciu timingów.
 
-### P3 — Izolowany Scan Preview Lab
+## Najważniejsze zwalidowane wnioski
 
-- nowy sample scan-only;
-- wszystkie źródła i materiały;
-- jawny source→Box3D transform;
-- origin rebase;
-- unlit baseColor;
-- maks. 1024² w preview;
-- bez fizyki, LOD, spatial chunkingu i DDS jako blockera;
-- fixed camera screenshots;
-- ręczny sign-off Jozza.
+### Parser
 
-**STOP: bez akceptacji orientacji, skali i renderu nie przechodzić do DEM.**
+- Nasz parser i trimesh zgadzają się dla 4/4 GLB.
+- Counts są identyczne.
+- Maksymalny błąd bounds jest mniejszy niż 5e-10.
+- Parser nie jest już głównym ryzykiem projektu.
 
-### P4 — Seam Measurement
+### Szwy
 
-- overlap AABB;
-- liczba próbek;
-- mediana, P90 i P95 residuali;
-- różnica wysokości i normalnych;
-- heatmapy;
-- brak automatycznego stosowania ICP.
-
-### P5 — Ground Candidate Extraction
-
-Tylko Golden Seam Region i drugi Golden Drive Region:
-
-- wszystkie przecięcia promieni;
-- slope/normal/component metadata;
-- ground seeds;
-- flood fill po ciągłości;
-- exclusion/forced-ground masks;
-- confidence map;
-- profile 0,25 m i 0,50 m.
-
-Dach ani korona drzewa nie mogą zostać zaakceptowane jako grunt bez jawnego override'u.
-
-### P6 — Heightfield Seam Experiment
-
-- minimalny zestaw sąsiednich heightfieldów;
-- jeden globalny min/max;
-- identyczne próbki graniczne;
-- debug granic;
-- headless raycast/sweep/contact tests.
-
-Różnica próbek na wspólnej krawędzi musi wynosić dokładnie zero.
-
-### P7 — First Drive MVP
-
-- nowy Scan Terrain Drive Lab;
-- istniejący moduł pojazdu, bez kopii solvera;
-- visual/collision/contact debug;
-- spoczynek, wolny i szybki przejazd, hamowanie, skręt i lądowanie na szwie;
-- porównanie 0,25 m vs 0,50 m;
-- ręczny sign-off Jozza.
-
-### P8 — Pełny cook świata
-
-Odblokowany wyłącznie po P7. Najpierw statyczny load całego świata, nadal bez streamingu.
-
-Rozmiar chunka wybiera benchmark:
+Niskie mediany i wysokie P95 wskazują lokalne problemy semantyczne, nie jeden globalny rigid offset.
 
 ```text
-64 m
-128 m
-256 m
+Tile 0–1: median 0,175 m, P95 4,115 m
+Tile 0–2: median 0,057 m, P95 3,762 m
+Tile 1–2: median 0,116 m, P95 5,154 m
+Tile 1–3: median 0,036 m, P95 1,772 m
+Tile 2–3: median 0,021 m, P95 0,238 m
 ```
 
-### P9–P11 — Optymalizacja według profilu
+**Globalne ICP pozostaje zabronione.**
 
-- 1024/2048 RGBA8;
-- BC7 DDS dopiero po proofie;
-- meshoptimizer i attribute-aware LOD;
-- renderer refactor tylko po udowodnieniu realnego problemu.
+### Ground extraction
 
-Brak problemu oznacza brak refaktoru.
-
-### P12 — Przeszkody
-
-Najpierw ręczne i półautomatyczne proxy:
-
-- budynki;
-- mury;
-- ważne krawężniki;
-- duże skały i uskoki.
-
-Bez kolizji dla liści, trawy, cienkich gałęzi i fotogrametrycznych floaterów.
-
-### P13–P15 — Streaming, texture rebake i kolejne skany
-
-Streaming odblokowuje profil, nie ambicja. System staje się produktem dopiero wtedy, gdy drugi niezależny skan przechodzi pipeline bez zmian C++.
-
-## Aktualny wynik P1
-
-Lokalna weryfikacja pierwszej paczki:
+Surowy continuity flood nie odróżnia gruntu od dachów.
 
 ```text
-4/4 testy syntetyczne: PASS
-5/5 pełnych uruchomień: identyczne artefakty
-inspection.json SHA-256:
-3cda0a7c3b04b362c9c52a53ab9812b7c3232813fcba962b90c71df6684185bb
+raw P95 articulation: 2,93–4,21 m
+M6 travel hint:       0,70 m
 ```
 
-Potwierdzone przez inspector:
+Morfologia obniża wymagania do około 0,27–0,38 m P95, ale nie tworzy semantycznej prawdy. Ręczne maski i ground seeds są obowiązkowe.
+
+### Rozdzielczość
 
 ```text
-files=4
-vertices=1012211
-triangles=1208746
-materials=18
-images=18
-seam_candidates=MipTile_1.glb
+MVP default: 0,50 m
+0,25 m: tylko ręcznie wybrane high-detail zones
 ```
 
-Oba PNG zostały otwarte i ocenione:
+0,25 m zachowuje więcej szumu i nie jest automatycznie lepsze dla pojazdu.
 
-- `source_layout.png` pokazuje trzy duże źródła, wąski pas `MipTile_1` i Golden Seam Region;
-- `texture_inventory.png` pokazuje poprawną hierarchię 7×8K, 4×4K, 4×2K i 3×1K.
+### Heightfieldy
 
-## Niewykonana bramka środowiskowa
+- 0,50 m: global 161×161, chunk 81×81.
+- 0,25 m: global 321×321, chunk 161×161.
+- Jeden globalny min/max i wspólna kwantyzacja uint16.
+- Wszystkie cztery wspólne krawędzie są matematycznie identyczne.
 
-W tej sesji nie było checkoutu Windows ani dostępu sieciowego z kontenera, dlatego nie wykonano uczciwie:
+Strategia podziału heightfieldów jest potwierdzona. Ryzykiem pozostaje jakość wejściowego gruntu.
 
-```powershell
-.\tools\gate.ps1 -SaveBaseline
-.\tools\gate.ps1 -DiffBaseline
+### Source → Box3D
+
+```text
+boxX = sourceX - originX
+boxY = sourceZ - originZ
+boxZ = -(sourceY - originY)
 ```
 
-To nie jest zaliczone domyślnie. P1 pozostaje technicznie zaimplementowany i przetestowany na danych, ale standardowy gate projektu musi zostać uruchomiony w lokalnym checkoutcie Windows przed oznaczeniem etapu jako w pełni zamkniętego.
+Winding eksportu jest testowany numerycznie; finalne OBJ mają normalne skierowane w +Y.
 
-## Protokół STOP
+### Chunki
 
-Agent zatrzymuje się, gdy:
+Uniform 128 m ma niski koszt duplikacji, ale skrajnie nierówny load:
 
-- nie może potwierdzić brancha;
-- źródła są niekompletne;
-- skala lub osie wymagają decyzji Jozza;
-- trzeba zmienić accepted vehicle behavior;
-- trzeba dotknąć Box3D core;
-- kryterium etapu jest nieosiągalne;
-- test przechodzi tylko po poluzowaniu progu;
-- następna bramka wymaga ręcznego render/feel sign-offu.
+```text
+median: 488 tri
+P95:    123 477 tri
+max:    371 501 tri
+```
 
-W STOP należy podać dokładny stan, pytanie i nie rozpoczynać kolejnego etapu.
+Najbardziej prawdopodobna architektura:
+
+```text
+uniform world/physics chunks
++ adaptive render sections wewnątrz ciężkich chunków
+```
+
+Uniform grid nie może sam definiować render budgetu.
+
+### Tekstury
+
+```text
+1K: około 96 MiB RGBA8 + mip
+2K: około 336 MiB RGBA8 + mip
+native decoded: ponad 2,2 GB
+```
+
+Quality probe 1K względem 2K:
+
+```text
+SSIM median: 0,99880
+PSNR median: 50,42 dB
+```
+
+P3 preview zaczyna od 1K. 2K jest profilem A/B. BC7 nie jest blockerem pierwszego renderu.
+
+### Pipeline
+
+Monolityczne `all` jest niebezpieczne operacyjnie. Cooker ma być etapowy, checkpointowany i wznawialny:
+
+```text
+inspect
+geometry_extract
+seam_measure
+pilot_dem
+manual_review
+heightfield_cook
+texture_cook
+render_lod_cook
+package
+```
+
+## Zmieniona kolejność prac
+
+### A. Ręczna walidacja danych
+
+1. Uruchomić Windows `gate.ps1`.
+2. Potwierdzić skalę znanym odcinkiem.
+3. Obejrzeć continuity, object-height, balanced/aggressive ground i seam heatmap.
+4. Wybrać Golden Drive Region z realną drogą.
+5. Zapisać pierwsze `groundSeeds`, `excludedPolygons` i `forcedGroundPolygons`.
+
+### B. Minimalny C++ preview
+
+1. Read-only `cgltf` spike.
+2. Osobny scan-only sample.
+3. Unlit baseColor max 1K.
+4. Jawny source→Box3D transform.
+5. Fixed cameras i screenshoty.
+6. Bez fizyki i bez refaktoru wspólnego renderera.
+7. Ręczny sign-off Jozza.
+
+### C. Pierwszy Box3D heightfield
+
+1. Tylko Golden Drive Region.
+2. Profil 0,50 m.
+3. Ręcznie zatwierdzony ground.
+4. Jeden lub cztery heightfieldy.
+5. Visual/collision difference overlay.
+6. Spokojny spawn i powolny przejazd.
+7. Dopiero potem stress-test Golden Seam Region.
+
+## Nadal zablokowane
+
+- pełny kilometr runtime;
+- streaming;
+- BC7 jako blocker;
+- automatyczne obstacle compounds;
+- globalne ICP;
+- finalny `.jmesh` format;
+- zmiany Box3D core.
+
+## Nienegocjowalne zasady
+
+1. Nie dotykać `src/` ani `include/` Box3D.
+2. Nie zmieniać accepted vehicle behavior M6/M7/M8.
+3. Nie rozszerzać `jozz_vehicle_visual_mesh` do roli world importera.
+4. Nie commitować raw scanów.
+5. Nie tworzyć pustych placeholderów.
+6. Najpierw pomiar i render, potem architektura.
+7. Kinematic PASS nie oznacza semantic PASS.
+8. Nie luzować progów testów.
+9. Nie force-pushować.
+10. Ręczny sign-off Jozza jest realną bramką.
+
+## Niewykonane bramki
+
+Nie wykonano jeszcze:
+
+- Windows `tools/gate.ps1`;
+- C++ build i testów;
+- prawdziwego renderu skanu;
+- `b3HeightFieldShape`;
+- kontaktów kół w solverze;
+- kalibracji skali;
+- ręcznego wyboru Golden Drive Region.
+
+Nie wolno oznaczać tych elementów jako zaliczone domyślnie.
