@@ -3,6 +3,7 @@
 
 #include "gfx/draw.h"
 #include "imgui.h"
+#include "jozz_scan_preview_lab.h"
 #include "jozz_vehicle_m5_drivable_lab.h"
 #include "jozz_vehicle_m6_rig_lab.h"
 #include "jozz_vehicle_m8_rig_bench.h"
@@ -73,6 +74,9 @@ static int sampleJozzVehicleLabM1 = RegisterSample( "Jozz Vehicle", "Lab M1 Smok
 
 static int sampleJozzVehiclePrimitiveCornerM2 =
 	RegisterSample( "Jozz Vehicle", "Lab M2 Primitive Corner", CreateJozzVehiclePrimitiveCornerM2 );
+
+static int sampleJozzScanSourcePreview =
+	RegisterSample( "Jozz Vehicle", "P2A Scan Source Preview", CreateJozzScanSourcePreviewLab );
 
 static int sampleJozzVehicleM5FirstDrivable =
 	RegisterSample( "Jozz Vehicle", "M5 First Drivable", CreateJozzVehicleM5FirstDrivable );
