@@ -57,11 +57,20 @@ class ScanOwnerGateTests(unittest.TestCase):
                     root, expected_glb=7, expected_ply=7
                 )
 
-    def test_failed_or_incompatible_reports_are_not_selected(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
+    def test_failed_incompatible_or_invalid_reports_block_selection(self) -> None:
+        with self.subTest("no passing candidate"), tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             write_report(root / "a" / "inspection.json", report(passed=False))
             write_report(root / "b" / "inspection.json", report(status="incompatible"))
+            with self.assertRaises(module.OwnerGateError):
+                module.select_identical_passing_candidate(
+                    root, expected_glb=7, expected_ply=7
+                )
+
+        with self.subTest("invalid candidate beside valid evidence"), tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            write_report(root / "a" / "inspection.json", report())
+            write_report(root / "b" / "inspection.json", {"schema": "unknown"})
             with self.assertRaises(module.OwnerGateError):
                 module.select_identical_passing_candidate(
                     root, expected_glb=7, expected_ply=7
