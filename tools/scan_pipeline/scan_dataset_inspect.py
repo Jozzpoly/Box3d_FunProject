@@ -107,6 +107,33 @@ def canonical_source_label(tile_id: int, suffix: str) -> str:
     return f"MipTile_{tile_id}{suffix.lower()}"
 
 
+def _preflight_glb_storage(data: bytes, source_label: str) -> None:
+    """Validate every GLB bufferView against declared buffer bytes, not padding."""
+
+    doc, binary = scan_glb_quality.scan_inspect.parse_glb(data, source_label)
+    buffers = doc.get("buffers", [])
+    if len(buffers) != 1:
+        raise scan_glb_quality.GlbQualityError(
+            "P1 GLB contract requires exactly one embedded buffer"
+        )
+    declared = int(buffers[0].get("byteLength", -1))
+    if declared < 0 or declared > len(binary):
+        raise scan_glb_quality.GlbQualityError(
+            "GLB buffer byteLength exceeds the BIN chunk"
+        )
+    for index, view in enumerate(doc.get("bufferViews", [])):
+        if int(view.get("buffer", 0)) != 0:
+            raise scan_glb_quality.GlbQualityError(
+                f"bufferView {index} uses nonzero GLB buffer"
+            )
+        start = int(view.get("byteOffset", 0))
+        length = int(view.get("byteLength", -1))
+        if start < 0 or length < 0 or start + length > declared:
+            raise scan_glb_quality.GlbQualityError(
+                f"bufferView {index} exceeds declared GLB buffer bytes"
+            )
+
+
 def inspect_glb_file(
     path: Path,
     *,
@@ -114,10 +141,12 @@ def inspect_glb_file(
     triangle_chunk: int,
 ) -> dict[str, Any]:
     identifier = tile_id_from_path(path)
+    source_label = canonical_source_label(identifier, ".glb")
     data = path.read_bytes()
+    _preflight_glb_storage(data, source_label)
     result = scan_glb_quality.inspect_glb_quality(
         data,
-        canonical_source_label(identifier, ".glb"),
+        source_label,
         prefer_numpy=prefer_numpy,
         triangle_chunk=triangle_chunk,
     )
@@ -218,10 +247,7 @@ def compare_pair(glb: dict[str, Any], ply: dict[str, Any]) -> dict[str, Any]:
         best_permutation != (0, 1, 2)
         and best_permutation_error + 0.05 < max_extent_error
     )
-    spatially_plausible = (
-        normalized_center_delta <= 0.15
-        and overlap_ratio >= 0.40
-    )
+    spatially_plausible = normalized_center_delta <= 0.15 and overlap_ratio >= 0.40
 
     if (
         normalized_center_delta <= 0.02
@@ -307,6 +333,7 @@ class GridEvidence:
         self.xextent = self.xmax - self.xmin
         self.yextent = self.ymax - self.ymin
         self.points_accumulated = 0
+        self.verified_source_hashes: dict[int, str] = {}
         if self.xextent <= 0 or self.yextent <= 0:
             raise DatasetInspectionError("dataset has zero XY extent")
         if use_numpy:
@@ -332,8 +359,19 @@ class GridEvidence:
         _np.clip(iy, 0, self.height - 1, out=iy)
         return iy * self.width + ix, z
 
-    def add_source(self, path: Path, *, chunk_vertices: int) -> None:
+    def add_source(
+        self,
+        path: Path,
+        expected: dict[str, Any],
+        *,
+        chunk_vertices: int,
+    ) -> None:
+        identity_before = scan_ply._file_identity(path)
+        if identity_before[0] != int(expected["byteLength"]):
+            raise DatasetInspectionError("PLY size changed before evidence rasterization")
         header = scan_ply.read_ply_header(path)
+        if header.vertex_count != int(expected["vertexCount"]):
+            raise DatasetInspectionError("PLY count changed before evidence rasterization")
         seen = _np.zeros(self.cell_count, dtype=bool) if self.use_numpy else set()
         source_points = 0
         for chunk in scan_ply.iter_vertex_chunks(
@@ -363,6 +401,14 @@ class GridEvidence:
                     seen.add(flat)
         if source_points != header.vertex_count:
             raise DatasetInspectionError("evidence grid point count differs from PLY header")
+        digest = scan_ply.sha256_file(path)
+        identity_after = scan_ply._file_identity(path)
+        if identity_after != identity_before:
+            raise DatasetInspectionError("PLY changed during evidence rasterization")
+        if digest != expected["sha256"]:
+            raise DatasetInspectionError("PLY hash differs between inspection and evidence rasterization")
+        identifier = int(expected["tileId"])
+        self.verified_source_hashes[identifier] = digest
         self.points_accumulated += source_points
         if self.use_numpy:
             self.support += seen.astype(self.support.dtype)
@@ -391,6 +437,7 @@ class GridEvidence:
             "height": self.height,
             "backend": self.backend,
             "pointsAccumulated": int(self.points_accumulated),
+            "verifiedSourceCount": len(self.verified_source_hashes),
             "occupiedCells": occupied,
             "occupancyRatio": rounded(occupied / self.cell_count),
             "maxPointsPerCell": int(max(counts, default=0)),
@@ -494,6 +541,58 @@ def evaluate_review_contract(
     return result
 
 
+def _automatic_evidence_gate(
+    glb_files: Sequence[dict[str, Any]],
+    ply_files: Sequence[dict[str, Any]],
+    grid: GridEvidence,
+) -> dict[str, Any]:
+    unanalyzed = sum(
+        int(file["geometryQuality"]["unanalyzedPrimitiveCount"])
+        for file in glb_files
+    )
+    required_extensions = sorted(
+        {extension for file in glb_files for extension in file["extensionsRequired"]}
+    )
+    default_unreachable = sorted(
+        int(file["tileId"])
+        for file in glb_files
+        if file["sceneSummary"]["defaultUnreachableMeshNodeIndices"]
+    )
+    orphan_nodes = sorted(
+        int(file["tileId"])
+        for file in glb_files
+        if file["sceneSummary"]["orphanNodeIndices"]
+    )
+    declared_bounds_mismatch = sorted(
+        int(file["tileId"])
+        for file in glb_files
+        if any(
+            primitive["quality"].get("declaredPositionBounds", {}).get("present")
+            and not primitive["quality"]["declaredPositionBounds"]["matchesActual"]
+            for primitive in file["primitives"]
+        )
+    )
+    ply_stable = all(bool(file["fileStableDuringInspection"]) for file in ply_files)
+    grid_hashes_verified = len(grid.verified_source_hashes) == len(ply_files)
+    passed = (
+        unanalyzed == 0
+        and not required_extensions
+        and not default_unreachable
+        and ply_stable
+        and grid_hashes_verified
+    )
+    return {
+        "passed": passed,
+        "unanalyzedPrimitiveCount": unanalyzed,
+        "requiredExtensions": required_extensions,
+        "defaultUnreachableMeshTileIds": default_unreachable,
+        "orphanNodeTileIds": orphan_nodes,
+        "declaredBoundsMismatchTileIds": declared_bounds_mismatch,
+        "plyFilesStable": ply_stable,
+        "gridSourceHashesVerified": grid_hashes_verified,
+    }
+
+
 def percentile(values: list[float], fraction: float) -> float:
     if not values:
         return 0.0
@@ -591,6 +690,7 @@ def markdown(report: dict[str, Any]) -> str:
     totals = report["totals"]
     quality = report["geometryQuality"]
     gate = report["p2Gate"]
+    automatic = report["automaticEvidenceGate"]
     lines = [
         f"# Scan dataset inspection — {report['packageName']}",
         "",
@@ -599,6 +699,7 @@ def markdown(report: dict[str, Any]) -> str:
         "## Gate status",
         "",
         f"- dataset status: `{report['datasetStatus']}`",
+        f"- automatic evidence gate: `{'pass' if automatic['passed'] else 'fail'}`",
         f"- P2 unblocked: `{'yes' if report['p2Unblocked'] else 'no'}`",
         f"- scale confirmed: `{'yes' if gate['scaleConfirmed'] else 'no'}`",
         f"- axes confirmed: `{'yes' if gate['axesConfirmed'] else 'no'}`",
@@ -633,6 +734,7 @@ def markdown(report: dict[str, Any]) -> str:
         f"- dimensions: `{report['evidenceGrid']['width']} × {report['evidenceGrid']['height']}`",
         f"- backend: `{report['evidenceGrid']['backend']}`",
         f"- points accumulated: `{report['evidenceGrid']['pointsAccumulated']}`",
+        f"- verified source hashes: `{report['evidenceGrid']['verifiedSourceCount']}`",
         f"- occupied cells: `{report['evidenceGrid']['occupiedCells']}`",
         f"- max source support: `{report['evidenceGrid']['maxSourceSupport']}`",
         f"- vertical spread P95: `{report['evidenceGrid']['verticalSpreadP95SourceUnits']}` source units",
@@ -733,19 +835,19 @@ def inspect_dataset(
 
     grid = GridEvidence(ply_bounds, grid_size, prefer_numpy=prefer_numpy)
     for path in ply_paths:
-        grid.add_source(path, chunk_vertices=chunk_vertices)
+        identifier = tile_id_from_path(path)
+        grid.add_source(
+            path,
+            ply_by_tile[identifier],
+            chunk_vertices=chunk_vertices,
+        )
 
     review = evaluate_review_contract(
         review_contract,
         review_contract_sha256,
         comparisons,
     )
-    p2_unblocked = (
-        dataset_status != "incompatible"
-        and review["scaleConfirmed"]
-        and review["axesConfirmed"]
-        and review["reviewPairsApproved"]
-    )
+    automatic_gate = _automatic_evidence_gate(glb_files, ply_files, grid)
 
     aggregate_edge_counts = scan_glb_quality._empty_edge_threshold_counts()
     for file in glb_files:
@@ -780,20 +882,6 @@ def inspect_dataset(
         ),
     }
 
-    warnings = []
-    if dataset_status == "compatible-review":
-        warnings.append("One or more GLB/PLY pairs require explicit owner review before P2.")
-    if dataset_status == "incompatible":
-        warnings.append("At least one GLB/PLY pair is spatially incompatible; P2 remains blocked.")
-    if any(pair["axisPermutationSuspicion"] for pair in comparisons):
-        warnings.append("At least one spatially plausible pair has a materially better non-XYZ extent permutation.")
-    for file in glb_files:
-        warnings.extend(f"{file['sourceLabel']}: {warning}" for warning in file["warnings"])
-    if review_contract is None:
-        warnings.append("No P1 review contract was supplied; scale, axes and review approvals remain unconfirmed.")
-    elif not p2_unblocked:
-        warnings.append("The P1 review contract is present but does not satisfy every P2 gate.")
-
     totals = {
         "glbFiles": len(glb_files),
         "plyFiles": len(ply_files),
@@ -806,7 +894,38 @@ def inspect_dataset(
     if grid.points_accumulated != totals["plyPoints"]:
         raise DatasetInspectionError("evidence grid total differs from inspected PLY point total")
     if geometry_quality["triangleCountAnalyzed"] != totals["glbTriangles"]:
-        warnings.append("Not every GLB triangle was analyzed; inspect primitive modes before P2.")
+        automatic_gate["passed"] = False
+        automatic_gate["triangleCountMismatch"] = True
+    else:
+        automatic_gate["triangleCountMismatch"] = False
+
+    p2_unblocked = (
+        dataset_status != "incompatible"
+        and automatic_gate["passed"]
+        and review["scaleConfirmed"]
+        and review["axesConfirmed"]
+        and review["reviewPairsApproved"]
+    )
+
+    warnings = []
+    if dataset_status == "compatible-review":
+        warnings.append("One or more GLB/PLY pairs require explicit owner review before P2.")
+    if dataset_status == "incompatible":
+        warnings.append("At least one GLB/PLY pair is spatially incompatible; P2 remains blocked.")
+    if any(pair["axisPermutationSuspicion"] for pair in comparisons):
+        warnings.append("At least one spatially plausible pair has a materially better non-XYZ extent permutation.")
+    for file in glb_files:
+        warnings.extend(f"{file['sourceLabel']}: {warning}" for warning in file["warnings"])
+    if not automatic_gate["passed"]:
+        warnings.append("Automatic P1 evidence gate failed; manual approval cannot override structural data problems.")
+    if automatic_gate["orphanNodeTileIds"]:
+        warnings.append("Orphan GLB nodes were detected; they are reported but do not alone block P2.")
+    if automatic_gate["declaredBoundsMismatchTileIds"]:
+        warnings.append("Declared GLB POSITION bounds differ from actual data; actual bounds were used.")
+    if review_contract is None:
+        warnings.append("No P1 review contract was supplied; scale, axes and review approvals remain unconfirmed.")
+    elif not p2_unblocked:
+        warnings.append("The P1 review contract is present but does not satisfy every P2 gate.")
 
     report = {
         "schema": SCHEMA,
@@ -818,6 +937,7 @@ def inspect_dataset(
         "axesConfirmed": bool(review["axesConfirmed"]),
         "axisHypothesis": {"horizontal": ["X", "Y"], "up": "Z"},
         "p2Gate": review,
+        "automaticEvidenceGate": automatic_gate,
         "totals": totals,
         "geometryQuality": geometry_quality,
         "globalBounds": global_bounds,
@@ -934,8 +1054,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     totals = report["totals"]
     print(
         "scan_dataset_inspect: OK | "
-        f"status={report['datasetStatus']} p2_ready={report['p2Unblocked']} "
-        f"glb={totals['glbFiles']} ply={totals['plyFiles']} "
+        f"status={report['datasetStatus']} automatic_gate={report['automaticEvidenceGate']['passed']} "
+        f"p2_ready={report['p2Unblocked']} glb={totals['glbFiles']} ply={totals['plyFiles']} "
         f"points={totals['plyPoints']} triangles={totals['glbTriangles']} "
         f"inspection_sha256={hashes['inspection.json']}"
     )
