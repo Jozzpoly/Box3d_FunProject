@@ -94,14 +94,16 @@ The Python verifier remains the cryptographic trust boundary. The C++ reader per
 The canonical runner now includes:
 
 ```text
-P1/P1B tests                       89
-P2A generator/verifier tests       11
-P2A runtime architecture tests      3
--------------------------------------
-Canonical intended total          103
+P1/P1B tests before receipt v2         89
+additional owner-gate receipt-v2 test   1
+P2A preview-pack generator tests       11
+P2A verifier CLI tests                  3
+P2A runtime architecture tests          2
+------------------------------------------
+Canonical expected total              106
 ```
 
-`103` is the expected suite size from the registered test modules. It must not be recorded as PASS until the final branch head is actually executed.
+`106` is the expected suite size from the actual registered `unittest` methods. It must not be recorded as PASS until the final branch head is actually executed.
 
 ## Current blockers before first terrain image
 
@@ -109,7 +111,7 @@ Canonical intended total          103
 2. run `scan_owner_gate.py finalize` against the real 7+7 inspection;
 3. manually review only the printed `shareable/inspection.shareable.json`;
 4. rerun finalize with privacy acknowledgement and retain the private v2 receipt;
-5. execute all 103 contracts on the exact P2A head;
+5. execute all 106 contracts on the exact P2A head;
 6. configure and build the `samples` target on Windows;
 7. build and independently verify the real private preview pack;
 8. launch `P2A Source Visual Preview` and review orientation, scale, tile coverage and seams.
