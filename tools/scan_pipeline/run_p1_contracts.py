@@ -28,6 +28,7 @@ TEST_FILES = (
     "test_scan_preview_pack.py",
     "test_scan_preview_pack_verify.py",
     "test_scan_preview_runtime_contract.py",
+    "test_scan_p2a_local_gate_ps1.py",
 )
 
 
