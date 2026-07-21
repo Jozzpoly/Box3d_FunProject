@@ -1,0 +1,49 @@
+name: P1 Scan Inspector
+
+on:
+  pull_request:
+    branches:
+      - photogrammetry/import-v2-foundation
+    paths:
+      - "tools/scan_pipeline/scan_*.py"
+      - "tests/scan_pipeline/test_scan_*.py"
+      - ".github/workflows/p1-scan-inspector.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-contracts:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }} / numpy=${{ matrix.numpy }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.13"]
+        numpy: [false, true]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install optional NumPy backend
+        if: matrix.numpy
+        run: python -m pip install --upgrade numpy
+
+      - name: Compile P1 modules
+        run: >-
+          python -m py_compile
+          tools/scan_pipeline/scan_inspect.py
+          tools/scan_pipeline/scan_ply.py
+          tools/scan_pipeline/scan_glb_quality.py
+          tools/scan_pipeline/scan_dataset_inspect.py
+
+      - name: Run scan-pipeline contracts
+        run: python -m unittest discover -s tests/scan_pipeline -p "test_*.py" -v
