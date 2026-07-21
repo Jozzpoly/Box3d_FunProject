@@ -123,6 +123,22 @@ class ScanWorldContractTests(unittest.TestCase):
                 frame_contract=frame_contract(),
             )
 
+    def test_package_requires_canonical_tile_order(self) -> None:
+        package = contracts.build_source_package(
+            package_id="scan/example",
+            inspection_report=inspection(),
+            frame_contract=frame_contract(),
+        )
+        package["tiles"].reverse()
+        revision_payload = {
+            "packageId": package["packageId"],
+            "frameContract": package["sourceFrameContract"],
+            "tiles": package["tiles"],
+        }
+        package["revisionId"] = f"sha256:{contracts.sha256_json(revision_payload)}"
+        with self.assertRaises(contracts.WorldContractError):
+            contracts.validate_source_package(package)
+
     def test_package_revision_hash_detects_mutation(self) -> None:
         package = contracts.build_source_package(
             package_id="scan/example",
@@ -182,6 +198,25 @@ class ScanWorldContractTests(unittest.TestCase):
         self.assertFalse(proposal["capabilities"]["internalGeometryCorrespondencePassed"])
         self.assertFalse(proposal["capabilities"]["acceptedWorldPatchReady"])
         contracts.validate_world_import_proposal(proposal)
+
+    def test_proposal_semantics_are_validated_even_with_recomputed_hash(self) -> None:
+        report = inspection()
+        package = contracts.build_source_package(
+            package_id="scan/example",
+            inspection_report=report,
+            frame_contract=frame_contract(),
+        )
+        proposal = contracts.build_world_import_proposal(
+            proposal_id="proposal/example-r1",
+            source_package=package,
+            inspection_report=report,
+        )
+        proposal["capabilities"]["acceptedWorldPatchReady"] = True
+        unsigned = dict(proposal)
+        unsigned.pop("proposalContentSha256")
+        proposal["proposalContentSha256"] = contracts.sha256_json(unsigned)
+        with self.assertRaises(contracts.WorldContractError):
+            contracts.validate_world_import_proposal(proposal)
 
     def test_proposal_hash_detects_mutation(self) -> None:
         report = inspection()
