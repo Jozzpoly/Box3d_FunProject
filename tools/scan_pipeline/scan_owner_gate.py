@@ -144,9 +144,10 @@ def discover_candidates(root: Path) -> list[dict[str, Any]]:
             candidates.append(inspection_candidate(path))
         except OwnerGateError as exc:
             errors.append(str(exc))
+    if errors:
+        raise OwnerGateError(f"invalid inspection candidate: {errors[0]}")
     if not candidates:
-        detail = errors[0] if errors else "no valid inspection candidates"
-        raise OwnerGateError(detail)
+        raise OwnerGateError("no valid inspection candidates")
     return candidates
 
 
