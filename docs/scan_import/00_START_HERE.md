@@ -1,29 +1,32 @@
 # Photogrammetry Import V2 — start here
 
-**Status:** `P1A_SOURCE_INSPECTION_PASS / P1B_BUNDLE_HOSTED_CI_PASS / OWNER_LOCAL_GATE_REQUIRED`  
-**Branch roboczy:** `agent/p1b-inspector-bundle-staging`  
-**Baza:** `agent/p1b-world-import-contract-staging@eac2327589ad799e270ed760cf7288696f4f50c3`  
-**Zakres:** offline contracts, privacy, persistence, tests and documentation only; no runtime C++, renderer, vehicle or Box3D behavior changes.
+**Status:** `P1A_REAL_INSPECTION_LOCAL_PASS / P1B_OWNER_GATE_HARDENING`  
+**Branch roboczy:** `agent/p1b-owner-gate-hardening`  
+**Baza:** `agent/p1b-inspector-bundle-staging@a7459be8ffad14a6bfaea04696750b1e18bd0b43`  
+**Zakres:** owner-local contracts, privacy, persistence, tests and gate reliability only; no occupancy, runtime C++, renderer, vehicle or Box3D behavior changes.
 
 ## Co jest prawdziwe
 
-- P0 Windows build/validator/test/smoke został zaliczony.
-- P1A inspector ma zielone dependency-free CI na Windows/Linux, Python 3.11/3.13, stdlib/NumPy.
-- W sesji właściciela wykonano realny przebieg 7 GLB + 7 PLY: automatic evidence gate przeszedł i dwa przebiegi dały identyczne siedem artefaktów.
-- Bounds nie dowodzą zgodności wnętrza geometrii. P2 nie jest jeszcze semantycznie odblokowane.
-- `ScanSourcePackage` i `WorldImportProposal` istnieją jako neutralne kontrakty, ale nie są accepted world truth.
-- Bundle oraz niezależny verifier przeszły pełne hosted CI 8/8 na Windows i Linux dla code headu `9718b89a46834a5e102ea3342fb54ab5d044c501`.
+- P0 Windows build/validator/test/smoke przeszedł lokalnie na dokładnym headzie `a7459be...`.
+- Pełny dependency-free runner P1/P1B przeszedł lokalnie: 77/77 na tym samym headzie.
+- Dwa realne przebiegi 7 GLB + 7 PLY wygenerowały byte-identyczne `inspection.json`.
+- Oba raporty mają 7 GLB, 7 PLY, 7 par, automatic evidence gate `PASS` i status `compatible-review`.
+- Bounds nadal nie dowodzą zgodności wnętrza geometrii. P1C/occupancy i P2 pozostają zablokowane.
+- Bundle, independent verifier i private/shareable projection mają zielone synthetic CI.
+- Brakuje realnego owner-confirmed source frame, realnego bundle'a i ręcznego privacy review.
 
-## Aktualny przepływ
+## Przepływ prawdy
 
 ```text
-inspection.json + source-frame.json
+private GLB/PLY
+→ inspection.json
+→ explicit owner-confirmed source-frame.json
 → ScanSourcePackage
 → WorldImportProposal (UNREVIEWED / BOUNDS_ONLY)
-→ private/shareable projection
-→ content-addressed staging
-→ COMPLETE.json
-→ immutable verified bundle
+→ private/shareable bundle
+→ independent verifier
+→ manual review of one shareable JSON
+→ P1B_BUNDLE_PASS
 ```
 
 Bundle jest kopertą dowodową. Nie jest mapą, accepted patch, heightfieldem ani runtime cache.
@@ -32,65 +35,91 @@ Bundle jest kopertą dowodową. Nie jest mapą, accepted patch, heightfieldem an
 
 ```powershell
 python .\tools\scan_pipeline\run_p1_contracts.py
-```
-
-Po pobraniu brancha na Windows:
-
-```powershell
 .\tools\gate.ps1
 ```
 
-## Lokalny bundle z istniejącego inspectora
+`gate.ps1` konfiguruje świeży Windows worktree automatycznie i zatrzymuje się po każdym realnym błędzie CMake lub brakującym executable.
 
-Najpierw przygotuj prywatny `source-frame.json`. Następnie:
+## Krok 1 — sprawdź realne raporty
 
-```powershell
-python .\tools\scan_pipeline\scan_import_bundle.py `
-  --inspection .\build\scan_pipeline\p1_dataset_approved\inspection.json `
-  --frame-contract .\build\scan_pipeline\p1_source_frame.json `
-  --output-root .\build\scan_pipeline\bundles `
-  --package-id scan/model-skanu `
-  --proposal-id proposal/model-skanu/revision-1 `
-  --bundle-label model-skanu `
-  --require-inspection-pass `
-  --require-frame-confirmed
-```
-
-Wynik pozostaje pod `build/`. Nie commituj katalogu bundle ani prywatnego frame contract.
-
-## Niezależna kontrola gotowego bundle’a
-
-Po utworzeniu uruchom osobne, read-only sprawdzenie:
+Podaj katalog zawierający prywatne outputy inspectora:
 
 ```powershell
-python .\tools\scan_pipeline\scan_import_bundle_verify.py `
-  .\build\scan_pipeline\bundles\<dokładna-nazwa-katalogu-bundle>
+python .\tools\scan_pipeline\scan_owner_gate.py inspect `
+  --inspection-root <PRIVATE_SCAN_PIPELINE_OUTPUT_ROOT>
 ```
 
-Kod wyjścia:
+Runner wybierze raport automatycznie tylko wtedy, gdy wszystkie pasujące raporty 7+7 są byte-identyczne. Różne raporty są stop condition.
+
+## Krok 2 — przygotuj source frame
+
+Najpierw ustal faktyczne:
+
+- source units per meter;
+- signed source axes `right`, `forward`, `up`;
+- local source origin;
+- czy transformacja zachowuje orientację, czy wymaga mirroru.
+
+Zobacz wymagane argumenty:
+
+```powershell
+python .\tools\scan_pipeline\scan_source_frame_contract.py create --help
+```
+
+Generator sam wylicza handedness i `axisMatrix`. Bez jawnego `--confirmed` zapisuje kontrakt niepotwierdzony. Mirror wymaga osobnego `--mirror-approved`.
+
+Walidacja gotowego kontraktu:
+
+```powershell
+python .\tools\scan_pipeline\scan_source_frame_contract.py validate `
+  .\build\scan_pipeline\p1_source_frame.json `
+  --require-confirmed
+```
+
+Nie commituj source-frame contractu. Pozostaje pod ignorowanym `build/`.
+
+## Krok 3 — owner gate
+
+Po potwierdzeniu frame contractu:
+
+```powershell
+python .\tools\scan_pipeline\scan_owner_gate.py finalize `
+  --inspection-root <PRIVATE_SCAN_PIPELINE_OUTPUT_ROOT> `
+  --frame-contract .\build\scan_pipeline\p1_source_frame.json
+```
+
+Runner:
+
+1. wybierze byte-identyczny raport 7+7;
+2. zbuduje content-addressed bundle;
+3. uruchomi osobny read-only verifier;
+4. zapisze privacy-safe local receipt;
+5. wskaże dokładnie jeden plik `shareable/inspection.shareable.json` do ręcznej kontroli.
+
+Pierwszy przebieg kończy się statusem:
 
 ```text
-0 = bundle kompletny i spójny
-2 = brak, uszkodzenie, dodatkowy plik, zły hash lub niespójny kontrakt
+TECHNICAL_PASS / PRIVACY_REVIEW_REQUIRED
 ```
 
-Verifier nie poprawia i nie nadpisuje danych.
+Po faktycznym otwarciu i sprawdzeniu wskazanego shareable JSON uruchom tę samą komendę z:
 
-## Bramka `P1B_BUNDLE_PASS`
+```text
+--acknowledge-shareable-privacy-review
+```
 
-Hosted Python gate jest zielony. Pełna bramka wymaga jeszcze:
+Dopiero wtedy runner może zgłosić:
 
-1. bundle’a z realnego 7+7 inspection;
-2. niezależnego verify tego bundle’a;
-3. realnego, potwierdzonego przez Jozza source frame;
-4. ręcznego privacy review realnego shareable JSON;
-5. lokalnego `tools/gate.ps1` bez regresji;
-6. bezpiecznego receipt bez prywatnych współrzędnych i nazw.
+```text
+P1B_BUNDLE_PASS
+```
 
 ## Następne po tej bramce
 
+Osobny branch i osobny PR:
+
 - internal occupancy correspondence GLB↔PLY;
-- fixture: identyczne bounds, błędne wnętrze;
+- sabotage fixture: identyczne bounds, błędne wnętrze;
 - adjacency/seam evidence;
 - dopiero później P2 Diagnostic Preview.
 
@@ -98,8 +127,11 @@ Hosted Python gate jest zielony. Pełna bramka wymaga jeszcze:
 
 Zatrzymaj implementację, jeżeli:
 
+- source axis, scale lub origin są zgadywane;
+- mirror ma przejść bez jawnej akceptacji;
+- różne raporty 7+7 są automatycznie scalane lub wybierane;
 - raw GLB/PLY mają zostać skopiowane do bundle;
 - shareable output zaczyna kopiować nieznane pola lub free-form warnings;
 - bundle jest przedstawiany jako accepted world patch;
 - Box3D/GPU/UI handle trafia do kontraktu;
-- branch zaczyna ground extraction, cooker, renderer albo pełny Workbench JES.
+- branch zaczyna occupancy, ground extraction, cooker, renderer albo pełny Workbench JES przed `P1B_BUNDLE_PASS`.
