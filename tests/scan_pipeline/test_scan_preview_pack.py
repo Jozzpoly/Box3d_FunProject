@@ -9,7 +9,12 @@ import sys
 import tempfile
 import unittest
 
-MODULE_PATH = Path(__file__).parents[2] / "tools" / "scan_pipeline" / "scan_preview_pack.py"
+MODULE_PATH = (
+    Path(__file__).parents[2]
+    / "tools"
+    / "scan_pipeline"
+    / "scan_preview_pack.py"
+)
 spec = importlib.util.spec_from_file_location("scan_preview_pack_tested", MODULE_PATH)
 assert spec and spec.loader
 preview = importlib.util.module_from_spec(spec)
@@ -20,9 +25,15 @@ spec.loader.exec_module(preview)
 def make_glb(*, mode: int = 4) -> bytes:
     positions = struct.pack(
         "<9f",
-        1001.0, 2002.0, 3003.0,
-        1002.0, 2002.0, 3003.0,
-        1001.0, 2003.0, 3003.0,
+        1001.0,
+        2002.0,
+        3003.0,
+        1002.0,
+        2002.0,
+        3003.0,
+        1001.0,
+        2003.0,
+        3003.0,
     )
     indices = struct.pack("<3H", 0, 1, 2)
     binary = positions + indices
@@ -32,7 +43,11 @@ def make_glb(*, mode: int = 4) -> bytes:
         "buffers": [{"byteLength": len(binary)}],
         "bufferViews": [
             {"buffer": 0, "byteOffset": 0, "byteLength": len(positions)},
-            {"buffer": 0, "byteOffset": len(positions), "byteLength": len(indices)},
+            {
+                "buffer": 0,
+                "byteOffset": len(positions),
+                "byteLength": len(indices),
+            },
         ],
         "accessors": [
             {
@@ -43,9 +58,24 @@ def make_glb(*, mode: int = 4) -> bytes:
                 "min": [1001.0, 2002.0, 3003.0],
                 "max": [1002.0, 2003.0, 3003.0],
             },
-            {"bufferView": 1, "componentType": 5123, "count": 3, "type": "SCALAR"},
+            {
+                "bufferView": 1,
+                "componentType": 5123,
+                "count": 3,
+                "type": "SCALAR",
+            },
         ],
-        "meshes": [{"primitives": [{"attributes": {"POSITION": 0}, "indices": 1, "mode": mode}]}],
+        "meshes": [
+            {
+                "primitives": [
+                    {
+                        "attributes": {"POSITION": 0},
+                        "indices": 1,
+                        "mode": mode,
+                    }
+                ]
+            }
+        ],
         "nodes": [{"mesh": 0}],
         "scenes": [{"nodes": [0]}],
         "scene": 0,
@@ -93,8 +123,11 @@ def report(glb: bytes) -> dict[str, object]:
         "datasetStatus": "compatible",
         "automaticEvidenceGate": {"passed": True},
         "totals": {
-            "glbFiles": 1, "plyFiles": 1, "glbVertices": 3,
-            "glbTriangles": 1, "plyPoints": 3,
+            "glbFiles": 1,
+            "plyFiles": 1,
+            "glbVertices": 3,
+            "glbTriangles": 1,
+            "plyPoints": 3,
         },
         "geometryQuality": {
             "triangleCountAnalyzed": 1,
@@ -105,34 +138,97 @@ def report(glb: bytes) -> dict[str, object]:
             "maxTriangleAreaSourceUnitsSquared": 0.5,
         },
         "evidenceGrid": {
-            "width": 4, "height": 4, "backend": "stdlib",
-            "pointsAccumulated": 3, "verifiedSourceCount": 1,
-            "occupiedCells": 3, "occupancyRatio": 3.0 / 16.0,
-            "maxPointsPerCell": 1, "maxSourceSupport": 1,
+            "width": 4,
+            "height": 4,
+            "backend": "stdlib",
+            "pointsAccumulated": 3,
+            "verifiedSourceCount": 1,
+            "occupiedCells": 3,
+            "occupancyRatio": 3.0 / 16.0,
+            "maxPointsPerCell": 1,
+            "maxSourceSupport": 1,
             "verticalSpreadP95SourceUnits": 0.0,
         },
-        "glbFiles": [{
-            "tileId": 0, "sourceLabel": "MipTile_0.glb",
-            "sha256": hashlib.sha256(glb).hexdigest(), "byteLength": len(glb),
-        }],
-        "plyFiles": [{
-            "tileId": 0, "sourceLabel": "MipTile_0.ply",
-            "sha256": "c" * 64, "byteLength": 12,
-        }],
-        "pairs": [{
-            "tileId": 0, "classification": "strong-match",
-            "normalizedCenterDelta": 0.0, "maxExtentRelativeError": 0.0,
-            "xyOverlapOfSmaller": 1.0, "axisPermutationSuspicion": False,
-            "centerDelta": [0.0, 0.0, 0.0],
-            "glbBounds": {"min": [1001, 2002, 3003], "max": [1002, 2003, 3003]},
-            "plyBounds": {"min": [1001, 2002, 3003], "max": [1002, 2003, 3003]},
-        }],
-        "globalBounds": {"min": [1001, 2002, 3003], "max": [1002, 2003, 3003]},
+        "glbFiles": [
+            {
+                "tileId": 0,
+                "sourceLabel": "MipTile_0.glb",
+                "sha256": hashlib.sha256(glb).hexdigest(),
+                "byteLength": len(glb),
+            }
+        ],
+        "plyFiles": [
+            {
+                "tileId": 0,
+                "sourceLabel": "MipTile_0.ply",
+                "sha256": "c" * 64,
+                "byteLength": 12,
+            }
+        ],
+        "pairs": [
+            {
+                "tileId": 0,
+                "classification": "strong-match",
+                "normalizedCenterDelta": 0.0,
+                "maxExtentRelativeError": 0.0,
+                "xyOverlapOfSmaller": 1.0,
+                "axisPermutationSuspicion": False,
+                "centerDelta": [0.0, 0.0, 0.0],
+                "glbBounds": {
+                    "min": [1001, 2002, 3003],
+                    "max": [1002, 2003, 3003],
+                },
+                "plyBounds": {
+                    "min": [1001, 2002, 3003],
+                    "max": [1002, 2003, 3003],
+                },
+            }
+        ],
+        "globalBounds": {
+            "min": [1001, 2002, 3003],
+            "max": [1002, 2003, 3003],
+        },
         "warnings": [],
     }
 
 
-def fixture(root: Path, *, mode: int = 4, confirmed: bool = True) -> tuple[Path, Path]:
+def _write_receipt(
+    root: Path,
+    bundle: Path,
+    *,
+    acknowledged: bool = True,
+    bundle_hash: str | None = None,
+    revision: str | None = None,
+) -> Path:
+    summary = preview.scan_import_bundle.verify_bundle(bundle)
+    receipt = preview.scan_owner_gate.build_receipt(
+        candidate={
+            "schemaVersion": 3,
+            "datasetStatus": "compatible",
+            "automaticEvidenceGatePassed": True,
+            "glbFiles": 1,
+            "plyFiles": 1,
+            "pairCount": 1,
+        },
+        identical_copy_count=2,
+        privacy_review_acknowledged=acknowledged,
+        bundle_content_sha256=(
+            bundle_hash or summary["bundleContentSha256"]
+        ),
+        source_revision_id=(revision or summary["sourceRevisionId"]),
+    )
+    path = root / "p1b_owner_gate_receipt.local.json"
+    preview.scan_owner_gate.write_json_atomic(path, receipt)
+    return path
+
+
+def fixture(
+    root: Path,
+    *,
+    mode: int = 4,
+    confirmed: bool = True,
+    receipt_acknowledged: bool = True,
+) -> tuple[Path, Path, Path]:
     glb = make_glb(mode=mode)
     documents = preview.scan_import_bundle.build_bundle_documents(
         package_id="scan/test",
@@ -142,22 +238,47 @@ def fixture(root: Path, *, mode: int = 4, confirmed: bool = True) -> tuple[Path,
         require_inspection_pass=True,
     )
     bundle = preview.scan_import_bundle.write_bundle_transactionally(
-        documents=documents, output_root=root / "bundles", bundle_label="fixture"
+        documents=documents,
+        output_root=root / "bundles",
+        bundle_label="fixture",
+    )
+    receipt = _write_receipt(
+        root, bundle, acknowledged=receipt_acknowledged
     )
     source = root / "source"
     source.mkdir()
     (source / "MipTile_0.glb").write_bytes(glb)
-    return bundle, source
+    return bundle, receipt, source
+
+
+def build_fixture_preview(
+    root: Path,
+    *,
+    mode: int = 4,
+    confirmed: bool = True,
+    receipt_acknowledged: bool = True,
+    label: str = "source-preview",
+) -> Path:
+    bundle, receipt, source = fixture(
+        root,
+        mode=mode,
+        confirmed=confirmed,
+        receipt_acknowledged=receipt_acknowledged,
+    )
+    return preview.build_preview_pack(
+        bundle=bundle,
+        owner_gate_receipt=receipt,
+        source_root=source,
+        output_root=root / "previews",
+        label=label,
+    )
 
 
 class ScanPreviewPackTests(unittest.TestCase):
     def test_builds_verified_geometry_only_pack(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            bundle, source = fixture(root)
-            output = preview.build_preview_pack(
-                bundle=bundle, source_root=source, output_root=root / "previews"
-            )
+            output = build_fixture_preview(root)
             manifest = preview._strict_json(output / "COMPLETE.json")
             self.assertEqual(preview.verify_preview_pack(output)["tileCount"], 1)
             self.assertEqual(manifest["purpose"], preview.PURPOSE)
@@ -169,59 +290,117 @@ class ScanPreviewPackTests(unittest.TestCase):
         payload, metadata = preview._extract_geometry(make_glb(), 0, frame())
         first = preview.VERTEX.unpack_from(payload, preview.HEADER.size)
         self.assertEqual(first[:3], (1.0, 3.0, -2.0))
-        self.assertEqual(metadata["boundsLabMeters"]["min"], [1.0, 3.0, -3.0])
-        self.assertEqual(metadata["boundsLabMeters"]["max"], [2.0, 3.0, -2.0])
+        self.assertEqual(
+            metadata["boundsLabMeters"]["min"], [1.0, 3.0, -3.0]
+        )
+        self.assertEqual(
+            metadata["boundsLabMeters"]["max"], [2.0, 3.0, -2.0]
+        )
 
     def test_unconfirmed_frame_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            bundle, source = fixture(root, confirmed=False)
+            bundle, receipt, source = fixture(root, confirmed=False)
             with self.assertRaises(preview.PreviewPackError):
                 preview.build_preview_pack(
-                    bundle=bundle, source_root=source, output_root=root / "previews"
+                    bundle=bundle,
+                    owner_gate_receipt=receipt,
+                    source_root=source,
+                    output_root=root / "previews",
+                )
+
+    def test_pending_or_wrong_receipt_is_rejected(self) -> None:
+        with self.subTest("privacy pending"), tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            bundle, receipt, source = fixture(
+                root, receipt_acknowledged=False
+            )
+            with self.assertRaises(preview.PreviewPackError):
+                preview.build_preview_pack(
+                    bundle=bundle,
+                    owner_gate_receipt=receipt,
+                    source_root=source,
+                    output_root=root / "previews",
+                )
+
+        with self.subTest("wrong bundle binding"), tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            bundle, _, source = fixture(root)
+            receipt = _write_receipt(
+                root, bundle, bundle_hash="e" * 64
+            )
+            with self.assertRaises(preview.PreviewPackError):
+                preview.build_preview_pack(
+                    bundle=bundle,
+                    owner_gate_receipt=receipt,
+                    source_root=source,
+                    output_root=root / "previews",
                 )
 
     def test_source_hash_mismatch_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            bundle, source = fixture(root)
+            bundle, receipt, source = fixture(root)
             path = source / "MipTile_0.glb"
             damaged = bytearray(path.read_bytes())
             damaged[-1] ^= 1
             path.write_bytes(damaged)
             with self.assertRaises(preview.PreviewPackError):
                 preview.build_preview_pack(
-                    bundle=bundle, source_root=source, output_root=root / "previews"
+                    bundle=bundle,
+                    owner_gate_receipt=receipt,
+                    source_root=source,
+                    output_root=root / "previews",
                 )
 
     def test_non_triangle_primitive_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            bundle, source = fixture(root, mode=1)
+            bundle, receipt, source = fixture(root, mode=1)
             with self.assertRaises(preview.PreviewPackError):
                 preview.build_preview_pack(
-                    bundle=bundle, source_root=source, output_root=root / "previews"
+                    bundle=bundle,
+                    owner_gate_receipt=receipt,
+                    source_root=source,
+                    output_root=root / "previews",
                 )
+
+    def test_unsafe_label_is_rejected_before_path_creation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            bundle, receipt, source = fixture(root)
+            with self.assertRaises(preview.PreviewPackError):
+                preview.build_preview_pack(
+                    bundle=bundle,
+                    owner_gate_receipt=receipt,
+                    source_root=source,
+                    output_root=root / "previews",
+                    label="../escape",
+                )
+            self.assertFalse((root / "escape").exists())
 
     def test_publication_is_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            bundle, source = fixture(root)
+            bundle, receipt, source = fixture(root)
             first = preview.build_preview_pack(
-                bundle=bundle, source_root=source, output_root=root / "previews"
+                bundle=bundle,
+                owner_gate_receipt=receipt,
+                source_root=source,
+                output_root=root / "previews",
             )
             second = preview.build_preview_pack(
-                bundle=bundle, source_root=source, output_root=root / "previews"
+                bundle=bundle,
+                owner_gate_receipt=receipt,
+                source_root=source,
+                output_root=root / "previews",
             )
             self.assertEqual(first, second)
 
     def test_tamper_and_extra_file_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            bundle, source = fixture(root)
-            output = preview.build_preview_pack(
-                bundle=bundle, source_root=source, output_root=root / "previews"
-            )
+            output = build_fixture_preview(root)
             tile = output / "tiles" / "tile_000.bin"
             tile.write_bytes(tile.read_bytes() + b"x")
             with self.assertRaises(preview.PreviewPackError):
@@ -229,23 +408,33 @@ class ScanPreviewPackTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            bundle, source = fixture(root)
-            output = preview.build_preview_pack(
-                bundle=bundle, source_root=source, output_root=root / "previews"
-            )
+            output = build_fixture_preview(root)
             (output / "unexpected.txt").write_text("no", encoding="utf-8")
             with self.assertRaises(preview.PreviewPackError):
                 preview.verify_preview_pack(output)
 
-    def test_capability_overclaim_is_rejected_after_rehash(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
+    def test_capability_or_extra_field_overclaim_is_rejected_after_rehash(self) -> None:
+        with self.subTest("capability"), tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            bundle, source = fixture(root)
-            output = preview.build_preview_pack(
-                bundle=bundle, source_root=source, output_root=root / "previews"
-            )
+            output = build_fixture_preview(root)
             manifest = preview._strict_json(output / "COMPLETE.json")
             manifest["capabilities"]["collisionReady"] = True
+            unsigned = dict(manifest)
+            unsigned.pop("previewContentSha256")
+            manifest["previewContentSha256"] = preview._sha256_bytes(
+                preview._canonical_json_bytes(unsigned)
+            )
+            (output / "COMPLETE.json").write_bytes(
+                preview._canonical_json_bytes(manifest)
+            )
+            with self.assertRaises(preview.PreviewPackError):
+                preview.verify_preview_pack(output)
+
+        with self.subTest("extra top-level claim"), tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output = build_fixture_preview(root)
+            manifest = preview._strict_json(output / "COMPLETE.json")
+            manifest["acceptedWorldPatch"] = {"ready": True}
             unsigned = dict(manifest)
             unsigned.pop("previewContentSha256")
             manifest["previewContentSha256"] = preview._sha256_bytes(
