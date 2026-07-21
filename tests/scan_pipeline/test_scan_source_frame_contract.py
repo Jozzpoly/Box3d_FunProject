@@ -4,7 +4,6 @@ import importlib.util
 from pathlib import Path
 import sys
 import tempfile
-import types
 import unittest
 
 MODULE_PATH = Path(__file__).parents[2] / "tools" / "scan_pipeline" / "scan_source_frame_contract.py"
@@ -16,24 +15,6 @@ spec.loader.exec_module(module)
 
 
 class ScanSourceFrameContractTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.original_loader = module._load_scan_frames
-        module._load_scan_frames = lambda: types.SimpleNamespace(
-            validate_frame_contract=self._normalize
-        )
-
-    def tearDown(self) -> None:
-        module._load_scan_frames = self.original_loader
-
-    @staticmethod
-    def _normalize(contract):
-        result = dict(contract)
-        result["sourceToLab"] = dict(contract["sourceToLab"])
-        result["sourceToLab"]["determinant"] = module._determinant(
-            contract["sourceToLab"]["axisMatrix"]
-        )
-        return result
-
     def test_build_derives_expected_matrix_without_confirming(self) -> None:
         contract = module.build_contract(
             source_units_per_meter=2.0,
@@ -49,6 +30,7 @@ class ScanSourceFrameContractTests(unittest.TestCase):
             [[1, 0, 0], [0, 0, 1], [0, -1, 0]],
         )
         self.assertEqual(contract["sourceToLab"]["orientationChange"], "preserve")
+        self.assertEqual(contract["sourceToLab"]["determinant"], 1)
         self.assertEqual(contract["sourceFrame"]["handedness"], "right")
 
     def test_mirror_requires_explicit_approval(self) -> None:
