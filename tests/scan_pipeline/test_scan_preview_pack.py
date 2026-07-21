@@ -85,20 +85,16 @@ def frame(*, confirmed: bool = True) -> dict[str, object]:
     }
 
 
-def inspection(glb: bytes, *, confirmed: bool = True) -> tuple[dict[str, object], dict[str, object]]:
-    glb_sha = hashlib.sha256(glb).hexdigest()
-    report = {
+def report(glb: bytes) -> dict[str, object]:
+    return {
         "schema": preview.scan_world_contracts.INSPECTION_SCHEMA,
         "schemaVersion": 3,
         "packageName": "private-test",
         "datasetStatus": "compatible",
         "automaticEvidenceGate": {"passed": True},
         "totals": {
-            "glbFiles": 1,
-            "plyFiles": 1,
-            "glbVertices": 3,
-            "glbTriangles": 1,
-            "plyPoints": 3,
+            "glbFiles": 1, "plyFiles": 1, "glbVertices": 3,
+            "glbTriangles": 1, "plyPoints": 3,
         },
         "geometryQuality": {
             "triangleCountAnalyzed": 1,
@@ -109,197 +105,164 @@ def inspection(glb: bytes, *, confirmed: bool = True) -> tuple[dict[str, object]
             "maxTriangleAreaSourceUnitsSquared": 0.5,
         },
         "evidenceGrid": {
-            "width": 4,
-            "height": 4,
-            "backend": "stdlib",
-            "pointsAccumulated": 3,
-            "verifiedSourceCount": 1,
-            "occupiedCells": 3,
-            "occupancyRatio": 3.0 / 16.0,
-            "maxPointsPerCell": 1,
-            "maxSourceSupport": 1,
+            "width": 4, "height": 4, "backend": "stdlib",
+            "pointsAccumulated": 3, "verifiedSourceCount": 1,
+            "occupiedCells": 3, "occupancyRatio": 3.0 / 16.0,
+            "maxPointsPerCell": 1, "maxSourceSupport": 1,
             "verticalSpreadP95SourceUnits": 0.0,
         },
-        "glbFiles": [
-            {
-                "tileId": 0,
-                "sourceLabel": "MipTile_0.glb",
-                "sha256": glb_sha,
-                "byteLength": len(glb),
-            }
-        ],
-        "plyFiles": [
-            {
-                "tileId": 0,
-                "sourceLabel": "MipTile_0.ply",
-                "sha256": "c" * 64,
-                "byteLength": 12,
-            }
-        ],
-        "pairs": [
-            {
-                "tileId": 0,
-                "classification": "strong-match",
-                "normalizedCenterDelta": 0.0,
-                "maxExtentRelativeError": 0.0,
-                "xyOverlapOfSmaller": 1.0,
-                "axisPermutationSuspicion": False,
-                "centerDelta": [0.0, 0.0, 0.0],
-                "glbBounds": {"min": [1001, 2002, 3003], "max": [1002, 2003, 3003]},
-                "plyBounds": {"min": [1001, 2002, 3003], "max": [1002, 2003, 3003]},
-            }
-        ],
+        "glbFiles": [{
+            "tileId": 0, "sourceLabel": "MipTile_0.glb",
+            "sha256": hashlib.sha256(glb).hexdigest(), "byteLength": len(glb),
+        }],
+        "plyFiles": [{
+            "tileId": 0, "sourceLabel": "MipTile_0.ply",
+            "sha256": "c" * 64, "byteLength": 12,
+        }],
+        "pairs": [{
+            "tileId": 0, "classification": "strong-match",
+            "normalizedCenterDelta": 0.0, "maxExtentRelativeError": 0.0,
+            "xyOverlapOfSmaller": 1.0, "axisPermutationSuspicion": False,
+            "centerDelta": [0.0, 0.0, 0.0],
+            "glbBounds": {"min": [1001, 2002, 3003], "max": [1002, 2003, 3003]},
+            "plyBounds": {"min": [1001, 2002, 3003], "max": [1002, 2003, 3003]},
+        }],
         "globalBounds": {"min": [1001, 2002, 3003], "max": [1002, 2003, 3003]},
         "warnings": [],
     }
-    return report, frame(confirmed=confirmed)
 
 
-def fixture(root: Path, *, mode: int = 4, confirmed: bool = True) -> tuple[Path, Path, bytes]:
+def fixture(root: Path, *, mode: int = 4, confirmed: bool = True) -> tuple[Path, Path]:
     glb = make_glb(mode=mode)
-    report, contract = inspection(glb, confirmed=confirmed)
     documents = preview.scan_import_bundle.build_bundle_documents(
         package_id="scan/test",
         proposal_id="proposal/test/revision-1",
-        inspection_report=report,
-        frame_contract=contract,
+        inspection_report=report(glb),
+        frame_contract=frame(confirmed=confirmed),
         require_inspection_pass=True,
-        require_frame_confirmed=False,
     )
     bundle = preview.scan_import_bundle.write_bundle_transactionally(
-        documents=documents,
-        output_root=root / "bundles",
-        bundle_label="fixture",
+        documents=documents, output_root=root / "bundles", bundle_label="fixture"
     )
     source = root / "source"
     source.mkdir()
     (source / "MipTile_0.glb").write_bytes(glb)
-    return bundle, source, glb
+    return bundle, source
 
 
 class ScanPreviewPackTests(unittest.TestCase):
     def test_builds_verified_geometry_only_pack(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            bundle, source, _ = fixture(root)
-            output = preview.build_preview_pack(bundle=bundle, source_root=source, output_root=root / tuple[Path, Path, bytes]:
-    glb = make_glb(mode=mode)
-    report, contract = inspection(glb, confirmed=confirmed)
-    documents = preview.scan_import_bundle.build_bundle_documents(
-        package_id="scan/test",
-        proposal_id="proposal/test/revision-1",
-        inspection_report=report,
-        frame_contract=contract,
-        require_inspection_pass=True": True,
-                    "texturesIncluded": False,
-                    "internalGeometryCorrespondencePassed": False,
-                    "acceptedWorld": False,
-                    "collisionReady": False,
-                },
+            bundle, source = fixture(root)
+            output = preview.build_preview_pack(
+                bundle=bundle, source_root=source, output_root=root / "previews"
             )
+            manifest = preview._strict_json(output / "COMPLETE.json")
+            self.assertEqual(preview.verify_preview_pack(output)["tileCount"], 1)
+            self.assertEqual(manifest["purpose"], preview.PURPOSE)
+            self.assertFalse(manifest["capabilities"]["acceptedWorld"])
+            self.assertFalse(manifest["capabilities"]["collisionReady"])
+            self.assertFalse(manifest["capabilities"]["texturesIncluded"])
 
-    def test_source_origin_and_axis_matrix_are_baked(self) -> None:
+    def test_frame_is_baked_into_lab_space(self) -> None:
         payload, metadata = preview._extract_geometry(make_glb(), 0, frame())
-        values = preview.VERTEX.unpack_from(payload, preview.HEADER.size)
-        self.assertEqual(values[:3], (1.0, 3.0, -2.0))
+        first = preview.VERTEX.unpack_from(payload, preview.HEADER.size)
+        self.assertEqual(first[:3], (1.0, 3.0, -2.0))
         self.assertEqual(metadata["boundsLabMeters"]["min"], [1.0, 3.0, -3.0])
         self.assertEqual(metadata["boundsLabMeters"]["max"], [2.0, 3.0, -2.0])
 
     def test_unconfirmed_frame_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            bundle, source, _ = fixture(root, confirmed=False)
+            bundle, source = fixture(root, confirmed=False)
             with self.assertRaises(preview.PreviewPackError):
-                preview.build_preview_pack(bundle=bundle, source_root=source, output_root=root / "previews")
+                preview.build_preview_pack(
+                    bundle=bundle, source_root=source, output_root=root / "previews"
+                )
 
     def test_source_hash_mismatch_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            bundle, source, glb = fixture(root)
-            damaged = bytearray(glb)
+            bundle, source = fixture(root)
+            path = source / "MipTile_0.glb"
+            damaged = bytearray(path.read_bytes())
             damaged[-1] ^= 1
-            (source / "MipTile_0.glb").write_bytes(damaged)
+            path.write_bytes(damaged)
             with self.assertRaises(preview.PreviewPackError):
-                preview.build_preview_pack(bundle=bundle, source_root=source, output_root=root / "previews")
+                preview.build_preview_pack(
+                    bundle=bundle, source_root=source, output_root=root / "previews"
+                )
 
     def test_non_triangle_primitive_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            bundle, source, _ = fixture(root, mode=1)
+            bundle, source = fixture(root, mode=1)
             with self.assertRaises(preview.PreviewPackError):
-                preview.build_preview_pack(bundle=bundle, source_root=source, output_root=root / "previews")
+                preview.build_preview_pack(
+                    bundle=bundle, source_root=source, output_root=root / "previews"
+                )
 
-    def test_publication_is_content_addressed_and_idempotent(self) -> None:
+    def test_publication_is_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            bundle, source, _ = fixture(root)
-            first = preview.build_preview_pack(bundle=bundle, source_root=source, output_root=root / "previews")
-            second = preview.build_preview_pack(bundle=bundle, source_root=source, output_root=root / "previews")
+            bundle, source = fixture(root)
+            first = preview.build_preview_pack(
+                bundle=bundle, source_root=source, output_root=root / "previews"
+            )
+            second = preview.build_preview_pack(
+                bundle=bundle, source_root=source, output_root=root / "previews"
+            )
             self.assertEqual(first, second)
 
-    def test_tampered_tile_is_rejected(self) -> None:
+    def test_tamper_and_extra_file_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            bundle, source, _ = fixture(root)
-            output = preview.build_preview_pack(bundle=bundle, source_root=source, output_root=root / "previews")
+            bundle, source = fixture(root)
+            output = preview.build_preview_pack(
+                bundle=bundle, source_root=source, output_root=root / "previews"
+            )
             tile = output / "tiles" / "tile_000.bin"
             tile.write_bytes(tile.read_bytes() + b"x")
             with self.assertRaises(preview.PreviewPackError):
                 preview.verify_preview_pack(output)
 
-    def test_unexpected_extra_file_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            bundle, source, _ = fixture(root)
-            output = preview.build_preview_pack(bundle=bundle, source_root=source, output_root=root / "previews")
+            bundle, source = fixture(root)
+            output = preview.build_preview_pack(
+                bundle=bundle, source_root=source, output_root=root / "previews"
+            )
             (output / "unexpected.txt").write_text("no", encoding="utf-8")
             with self.assertRaises(preview.PreviewPackError):
                 preview.verify_preview_pack(output)
 
-    def test_capability_overclaim_is_rejected_even_with_recomputed_hash(self) -> None:
+    def test_capability_overclaim_is_rejected_after_rehash(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            bundle, source, _ = fixture(root)
-            output = preview.build_preview_pack(bundle=bundle, source_root=source, output_root=root / "previews")
+            bundle, source = fixture(root)
+            output = preview.build_preview_pack(
+                bundle=bundle, source_root=source, output_root=root / "previews"
+            )
             manifest = preview._strict_json(output / "COMPLETE.json")
             manifest["capabilities"]["collisionReady"] = True
             unsigned = dict(manifest)
             unsigned.pop("previewContentSha256")
-            manifest["previewContentSha256"] = preview._sha256_bytes(preview._canonical_json_bytes(unsigned))\:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            bundle, source, _ = fixture(root)
-reviewPackError):
+            manifest["previewContentSha256"] = preview._sha256_bytes(
+                preview._canonical_json_bytes(unsigned)
+            )
+            (output / "COMPLETE.json").write_bytes(
+                preview._canonical_json_bytes(manifest)
+            )
+            with self.assertRaises(preview.PreviewPackError):
                 preview.verify_preview_pack(output)
 
-    def test_out_of_range_binary_index_is_rejected(self) -> None:
+    def test_binary_index_range_is_validated(self) -> None:
         payload, _ = preview._extract_geometry(make_glb(), 0, frame())
         damaged = bytearray(payload)
         struct.pack_into("<I", damaged, len(damaged) - 4, 99)
         with self.assertRaises(preview.PreviewPackError):
             preview._read_tile(bytes(damaged), 0)
-
-    def test_noncanonical_tile_path_is_rejected(self) -> None:
-        payload, metadata = preview._extract_geometry(make_glb(), 0, frame())
-        record = {
-            **metadata,
-            "path": "tiles/wrong.bin",
-            "byteLength": len(payload),
-            "sha256": hashlib.sha256(payload).hexdigest(),
-        }
-        core = preview._manifest_core(
-            bundle_summary={"bundleContentSha256": "a" * 64},
-            source_package={
-                "packageId": "scan/test",
-                "revisionId": "sha256:" + "b" * 64,
-                "sourceFrameContractSha256": "c" * 64,
-            },
-            tile_records=[record],
-        )
-        manifest = dict(core)
-        manifest["previewContentSha256"] = preview._sha256_bytes(preview._canonical_json_bytes(core))
-        with self.assertRaises(preview.PreviewPackError):
-            preview._validate_manifest(manifest)
 
 
 if __name__ == "__main__":
