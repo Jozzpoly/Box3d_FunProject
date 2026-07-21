@@ -9,6 +9,14 @@ on:
       - "tools/scan_pipeline/run_p1_contracts.py"
       - "tests/scan_pipeline/test_scan_*.py"
       - ".github/workflows/p1-scan-inspector.yml"
+  push:
+    branches:
+      - agent/p1b-world-import-contract-staging
+    paths:
+      - "tools/scan_pipeline/scan_*.py"
+      - "tools/scan_pipeline/run_p1_contracts.py"
+      - "tests/scan_pipeline/test_scan_*.py"
+      - ".github/workflows/p1-scan-inspector.yml"
   workflow_dispatch:
 
 permissions:
@@ -36,6 +44,8 @@ jobs:
           tools/scan_pipeline/scan_ply.py
           tools/scan_pipeline/scan_glb_quality.py
           tools/scan_pipeline/scan_dataset_inspect.py
+          tools/scan_pipeline/scan_frames.py
+          tools/scan_pipeline/scan_world_contracts.py
           tools/scan_pipeline/run_p1_contracts.py
 
       - name: Run canonical contracts and capture output
@@ -143,6 +153,8 @@ jobs:
           tools/scan_pipeline/scan_ply.py
           tools/scan_pipeline/scan_glb_quality.py
           tools/scan_pipeline/scan_dataset_inspect.py
+          tools/scan_pipeline/scan_frames.py
+          tools/scan_pipeline/scan_world_contracts.py
           tools/scan_pipeline/run_p1_contracts.py
 
       - name: Run scan-pipeline contracts
