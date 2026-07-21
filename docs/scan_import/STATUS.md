@@ -13,35 +13,63 @@
 | P1A real 7+7 inspection | `PASS_SESSION_REPORTED` | 7 GLB, 7 PLY, automatic gate pass, deterministic 7/7 artifacts; reproducible local receipt still needed |
 | Pair bounds compatibility | `PASS_WITH_REVIEW` | five pairs review, two historical strong-match; all remain `BOUNDS_ONLY` |
 | Full source frame contract | `IMPLEMENTED_NOT_OWNER_CONFIRMED` | signs, handedness, mirror, local origin and round-trip implemented; real owner frame values absent |
-| Source package / proposal boundary | `IMPLEMENTED_LOCAL_PASS` | exact source revision binding and adversarial validation implemented in stacked PR #2 |
-| Private/shareable evidence split | `IMPLEMENTED_LOCAL_SYNTHETIC_PASS` | explicit allow-list; no source names, paths, bounds, hashes or free-form warnings |
-| Transactional evidence bundle | `IMPLEMENTED_LOCAL_SYNTHETIC_PASS` | content-addressed directory, cross-document checks, `COMPLETE.json`, tamper verifier |
-| Hosted P1B bundle CI | `PENDING` | workflow updated for stacked P1B PR targets and `agent/p1b-*` pushes |
+| Source package / proposal boundary | `PASS_CI` | exact source revision binding and adversarial validation covered by hosted matrix |
+| Private/shareable evidence split | `PASS_CI_SYNTHETIC` | explicit allow-list; no source names, paths, bounds, hashes or free-form warnings |
+| Transactional evidence bundle | `PASS_CI_SYNTHETIC` | content-addressed directory, cross-document checks, `COMPLETE.json`, tamper verifier |
+| Independent read-only verifier | `PASS_CI_SYNTHETIC` | valid, tampered and missing bundle CLI cases pass on Windows/Linux |
+| Hosted P1B bundle CI | `PASS_8_OF_8` | run `29834444976`, code head `9718b89a46834a5e102ea3342fb54ab5d044c501` |
 | Real 7+7 bundle | `NOT_RUN` | requires owner-local `inspection.json` and confirmed frame contract |
 | Internal GLB↔PLY correspondence | `NOT_RUN` | occupancy/internal geometry evidence not implemented |
-| Diagnostic preview P2 | `NOT_STARTED` | waits for P1B bundle and correspondence gates |
+| Diagnostic preview P2 | `NOT_STARTED` | waits for real P1B bundle and correspondence gates |
 | Accepted world patch | `NOT_STARTED` | no Golden Drive Region or authored review |
 | Collision projection | `NOT_STARTED` | no accepted surface/cooker contract |
 | Drive test | `NOT_STARTED` | no scan-terrain physics probes |
 | JES transfer candidate | `NO` | requires reimport and second real scan |
 
-## NOW
+## Completed in the current package
 
-- convert one private inspection into `ScanSourcePackage` and `WorldImportProposal`;
-- preserve exact cross-document source revision links;
-- emit one canonical shareable projection through a field allow-list;
-- publish immutable content-addressed bundles only after `COMPLETE.json`;
-- reject tampering, extra files, incomplete writes, duplicate JSON keys and non-finite values;
-- run the new test in the dependency-free repository runner and CI matrix.
+- converted one private inspection into `ScanSourcePackage` and `WorldImportProposal`;
+- preserved exact cross-document source revision links;
+- emitted one canonical shareable projection through a field allow-list;
+- published immutable content-addressed bundles only after `COMPLETE.json`;
+- rejected tampering, extra files, incomplete writes, duplicate JSON keys and non-finite values;
+- added a separate read-only verifier command;
+- ran the exact repository modules through the complete hosted matrix.
 
-## NEXT
+## Hosted validation
 
-- execute the complete runner on hosted Windows/Linux CI;
-- create a real local bundle from the 7+7 inspection;
-- manually inspect the real shareable JSON for privacy and semantic overclaims;
-- record the real P1A/P1B receipt without committing private output;
-- add internal occupancy correspondence and the same-bounds/wrong-interior sabotage fixture;
-- only then start P2 Diagnostic Preview.
+The final code head passed:
+
+```text
+Canonical Ubuntu / Python 3.11 / stdlib  PASS
+Ubuntu / Python 3.11 / NumPy            PASS
+Ubuntu / Python 3.13 / stdlib           PASS
+Ubuntu / Python 3.13 / NumPy            PASS
+Windows / Python 3.11 / stdlib          PASS
+Windows / Python 3.11 / NumPy           PASS
+Windows / Python 3.13 / stdlib          PASS
+Windows / Python 3.13 / NumPy           PASS
+```
+
+Run: `29834444976` — **8/8 PASS**.
+
+## Remaining owner-local gate
+
+Do not start occupancy correspondence or P2 until all are complete:
+
+1. create a real local source-frame contract with owner-confirmed axes, units, mirror state and origin;
+2. create a bundle from the real 7+7 `inspection.json`;
+3. run the independent verifier against that bundle;
+4. manually inspect only `shareable/inspection.shareable.json` for privacy and semantic overclaims;
+5. run `tools/gate.ps1` on the owner Windows checkout;
+6. record a non-private receipt containing only hashes, statuses and tool versions.
+
+## NEXT after that gate
+
+- internal occupancy correspondence GLB↔PLY;
+- sabotage fixture: identical bounds, mismatched interior geometry;
+- adjacency/seam evidence;
+- then P2 Diagnostic Preview.
 
 ## PARKED
 
@@ -53,34 +81,13 @@
 - reimport UI;
 - JES implementation.
 
-## Validation evidence
+## Current test scope
 
-Previously completed for the contract foundation:
-
-```text
-scan_frames: 8 tests PASS
-scan_world_contracts: 13 tests PASS
-```
-
-Completed for the new bundle package in an isolated filesystem harness:
+Bundle persistence/privacy:
 
 ```text
-scan_import_bundle: 13 tests PASS
+scan_import_bundle: 13 adversarial tests
+scan_import_bundle_verify: 3 CLI tests
 ```
 
-The bundle tests cover:
-
-- private/shareable separation;
-- source-name, coordinate, hash and warning omission;
-- content-addressed idempotence;
-- payload tamper detection;
-- refusal to overwrite corrupt existing content;
-- extra-file and incomplete-directory rejection;
-- duplicate JSON key rejection;
-- `NaN` rejection before hashing;
-- optional inspection/frame promotion gates;
-- unsafe output-label rejection;
-- cross-document revision mismatch after recomputing proposal hash;
-- noncanonical shareable document rejection before publication.
-
-This does **not** yet prove the full repository runner against the exact real sibling modules on hosted CI. The Windows vehicle gate and real 7+7 bundle remain owner-local gates.
+These run inside the full dependency-free P1/P1B suite. They prove the synthetic contract and filesystem boundary, not correctness of the private real frame or semantic correspondence of GLB and PLY interiors.
