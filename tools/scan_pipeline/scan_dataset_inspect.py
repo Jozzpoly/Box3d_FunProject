@@ -151,6 +151,7 @@ def inspect_ply_file(
         "bounds": raw["bounds"],
         "meanDensityXY": raw["meanDensityXY"],
         "streaming": dict(raw["streaming"]),
+        "fileStableDuringInspection": bool(raw["fileStableDuringInspection"]),
     }
 
 
@@ -213,10 +214,13 @@ def compare_pair(glb: dict[str, Any], ply: dict[str, Any]) -> dict[str, Any]:
     best_permutation, best_permutation_error = _best_extent_permutation(
         gb["extent"], pb["extent"]
     )
-    same_axis_error = max_extent_error
     axis_permutation_suspicion = (
         best_permutation != (0, 1, 2)
-        and best_permutation_error + 0.05 < same_axis_error
+        and best_permutation_error + 0.05 < max_extent_error
+    )
+    spatially_plausible = (
+        normalized_center_delta <= 0.15
+        and overlap_ratio >= 0.40
     )
 
     if (
@@ -227,11 +231,10 @@ def compare_pair(glb: dict[str, Any], ply: dict[str, Any]) -> dict[str, Any]:
     ):
         classification = "strong-match"
         reason = "centers, extents and XY coverage agree tightly"
-    elif (
-        normalized_center_delta <= 0.15
-        and max_extent_error <= 0.30
-        and overlap_ratio >= 0.40
-    ) or axis_permutation_suspicion:
+    elif spatially_plausible and (
+        max_extent_error <= 0.30
+        or (axis_permutation_suspicion and best_permutation_error <= 0.30)
+    ):
         classification = "review"
         reason = (
             "a different extent-axis permutation fits materially better"
@@ -257,6 +260,7 @@ def compare_pair(glb: dict[str, Any], ply: dict[str, Any]) -> dict[str, Any]:
         "bestExtentAxisPermutation": [AXIS_NAMES[index] for index in best_permutation],
         "bestExtentPermutationError": rounded(best_permutation_error),
         "axisPermutationSuspicion": axis_permutation_suspicion,
+        "spatiallyPlausible": spatially_plausible,
     }
 
 
@@ -782,7 +786,7 @@ def inspect_dataset(
     if dataset_status == "incompatible":
         warnings.append("At least one GLB/PLY pair is spatially incompatible; P2 remains blocked.")
     if any(pair["axisPermutationSuspicion"] for pair in comparisons):
-        warnings.append("At least one pair has a materially better non-XYZ extent permutation.")
+        warnings.append("At least one spatially plausible pair has a materially better non-XYZ extent permutation.")
     for file in glb_files:
         warnings.extend(f"{file['sourceLabel']}: {warning}" for warning in file["warnings"])
     if review_contract is None:
@@ -923,6 +927,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         scan_inspect.ScanInspectionError,
         scan_ply.PlyInspectionError,
         scan_glb_quality.GlbQualityError,
+        scan_glb_quality.scan_inspect.ScanInspectionError,
     ) as exc:
         print(f"scan_dataset_inspect: ERROR: {exc}", file=sys.stderr)
         return 2
