@@ -52,6 +52,31 @@ def propose(report: dict[str, object] | None = None) -> dict[str, object]:
     )
 
 
+def propose_command(
+    report_path: Path,
+    output_path: Path,
+) -> list[str]:
+    return [
+        sys.executable,
+        str(MODULE_PATH),
+        "propose-from-inspection",
+        "--inspection",
+        str(report_path),
+        "--output",
+        str(output_path),
+        "--origin-policy",
+        "global-bounds-center",
+        "--source-units-per-meter",
+        "1",
+        "--source-right",
+        "+X",
+        "--source-forward",
+        "+Y",
+        "--source-up",
+        "+Z",
+    ]
+
+
 class ScanSourceFrameContractTests(unittest.TestCase):
     def test_build_derives_expected_matrix_without_confirming(self) -> None:
         contract = module.build_contract(
@@ -145,35 +170,21 @@ class ScanSourceFrameContractTests(unittest.TestCase):
             propose(inspection(passed=False))
         with self.assertRaises(module.SourceFrameCliError):
             propose(inspection(status="incompatible"))
+        with self.assertRaises(module.SourceFrameCliError):
+            propose(inspection(status="unknown"))
 
-    def test_proposal_cli_does_not_print_private_origin_or_inspection_path(self) -> None:
+    def test_proposal_cli_does_not_print_private_origin_or_local_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             report_path = root / "very-private-inspection-name.json"
-            output_path = root / "proposal.json"
+            output_path = root / "private-proposal-name.json"
             report = inspection(
                 minimum=[1234.125, 5678.25, 9012.5],
                 maximum=[1236.125, 5682.25, 9018.5],
             )
             report_path.write_text(json.dumps(report), encoding="utf-8")
             result = subprocess.run(
-                [
-                    sys.executable,
-                    str(MODULE_PATH),
-                    "propose-from-inspection",
-                    "--inspection",
-                    str(report_path),
-                    "--output",
-                    str(output_path),
-                    "--source-units-per-meter",
-                    "1",
-                    "--source-right",
-                    "+X",
-                    "--source-forward",
-                    "+Y",
-                    "--source-up",
-                    "+Z",
-                ],
+                propose_command(report_path, output_path),
                 text=True,
                 capture_output=True,
                 check=False,
@@ -181,6 +192,7 @@ class ScanSourceFrameContractTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             combined = result.stdout + result.stderr
             self.assertNotIn(str(report_path), combined)
+            self.assertNotIn(str(output_path), combined)
             for private_value in (
                 "1234.125",
                 "5678.25",
@@ -192,6 +204,24 @@ class ScanSourceFrameContractTests(unittest.TestCase):
                 self.assertNotIn(private_value, combined)
             self.assertIn("origin_policy=GLOBAL_BOUNDS_CENTER", result.stdout)
             self.assertIn("proposal_sha256=", result.stdout)
+            self.assertIn("units_per_meter=1.0", result.stdout)
+
+    def test_proposal_cli_failure_does_not_print_private_inspection_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            report_path = root / "secret-broken-inspection.json"
+            output_path = root / "proposal.json"
+            report_path.write_text("{broken", encoding="utf-8")
+            result = subprocess.run(
+                propose_command(report_path, output_path),
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 2)
+            self.assertNotIn(str(report_path), result.stderr)
+            self.assertNotIn(str(output_path), result.stderr)
+            self.assertIn("cannot read private inspection JSON", result.stderr)
 
     def test_confirmation_requires_exact_hash_and_changes_only_confirmed(self) -> None:
         proposal = propose()
@@ -207,6 +237,23 @@ class ScanSourceFrameContractTests(unittest.TestCase):
         normalized = copy.deepcopy(confirmed)
         normalized["confirmed"] = False
         self.assertEqual(normalized, proposal_before)
+
+    def test_confirmation_rejects_noncanonical_proposal_shape(self) -> None:
+        extra = propose()
+        extra["unexpected"] = "field"
+        with self.assertRaises(module.SourceFrameCliError):
+            module.confirm_contract(
+                extra,
+                expected_sha256=module.contract_sha256(extra),
+            )
+
+        missing = propose()
+        missing.pop("confirmed")
+        with self.assertRaises(module.SourceFrameCliError):
+            module.confirm_contract(
+                missing,
+                expected_sha256=module.contract_sha256(missing),
+            )
 
     def test_wrong_or_stale_hash_cannot_confirm(self) -> None:
         proposal = propose()
@@ -244,6 +291,8 @@ class ScanSourceFrameContractTests(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(first.returncode, 0, first.stderr)
+            self.assertNotIn(str(proposal_path), first.stdout + first.stderr)
+            self.assertNotIn(str(output_path), first.stdout + first.stderr)
             second = subprocess.run(
                 command,
                 text=True,
