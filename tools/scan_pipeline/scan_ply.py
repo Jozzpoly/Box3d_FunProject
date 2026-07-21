@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
-"""Streaming, privacy-preserving PLY point-cloud inspection for photogrammetry P1.
+"""Streaming, privacy-preserving PLY point-cloud inspection for P1.
 
-The module intentionally supports only the subset needed by the scan package:
-binary little-endian or big-endian PLY with scalar vertex properties. It never
-copies comments or obj_info records into reports because those fields may contain
-georeferencing or private source metadata.
-
-NumPy is an optional acceleration path. The standard-library fallback implements
-the same contract and is used by tests, so NumPy is not a required dependency.
+The module intentionally supports the scan package contract: binary little- or
+big-endian PLY 1.0 with fixed-size scalar vertex records. Comments and obj_info
+are never copied because they may contain georeferencing or private paths.
+NumPy is an optional acceleration path; the standard-library backend implements
+the same public contract.
 """
 from __future__ import annotations
 
@@ -20,13 +18,12 @@ from typing import Any, Iterator, Sequence
 
 try:  # Optional acceleration only.
     import numpy as _np
-except ImportError:  # pragma: no cover - exercised on systems without NumPy.
+except ImportError:  # pragma: no cover - exercised where NumPy is unavailable.
     _np = None
 
 MAX_HEADER_BYTES = 1024 * 1024
 DEFAULT_CHUNK_VERTICES = 262_144
 
-# Canonical PLY scalar names and commonly encountered aliases.
 _SCALAR_TYPES: dict[str, tuple[str, int, str]] = {
     "char": ("b", 1, "i1"),
     "int8": ("b", 1, "i1"),
@@ -48,7 +45,7 @@ _SCALAR_TYPES: dict[str, tuple[str, int, str]] = {
 
 
 class PlyInspectionError(RuntimeError):
-    """Raised when input is malformed or outside the intentionally small contract."""
+    """Raised when input is malformed or outside the intentional P1 subset."""
 
 
 @dataclass(frozen=True)
@@ -87,11 +84,7 @@ class PlyHeader:
 
 @dataclass(frozen=True)
 class VertexChunk:
-    """One bounded chunk of vertex arrays.
-
-    Values are NumPy arrays when the optional acceleration path is active and
-    Python lists otherwise. Callers must treat them as read-only sequences.
-    """
+    """One bounded chunk of read-only coordinate/color sequences."""
 
     x: Any
     y: Any
@@ -114,12 +107,11 @@ def vector(values: Sequence[float]) -> list[float]:
 
 
 def sha256_file(path: Path, block_bytes: int = 4 * 1024 * 1024) -> str:
+    if block_bytes <= 0:
+        raise ValueError("block_bytes must be positive")
     digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        while True:
-            block = handle.read(block_bytes)
-            if not block:
-                break
+    with Path(path).open("rb") as handle:
+        for block in iter(lambda: handle.read(block_bytes), b""):
             digest.update(block)
     return digest.hexdigest()
 
@@ -144,6 +136,15 @@ def _parse_scalar_property(tokens: list[str], offset: int) -> PlyProperty:
     return PlyProperty(name, type_name, code, size, offset, numpy_code)
 
 
+def _validate_list_property(tokens: list[str]) -> None:
+    if len(tokens) != 5:
+        raise PlyInspectionError("list property must have count type, item type and name")
+    if tokens[2].lower() not in _SCALAR_TYPES or tokens[3].lower() not in _SCALAR_TYPES:
+        raise PlyInspectionError("list property uses an unsupported scalar type")
+    if not tokens[4]:
+        raise PlyInspectionError("list property name cannot be empty")
+
+
 def read_ply_header(path: Path, max_header_bytes: int = MAX_HEADER_BYTES) -> PlyHeader:
     """Parse a bounded PLY header without retaining comments or obj_info."""
 
@@ -156,6 +157,7 @@ def read_ply_header(path: Path, max_header_bytes: int = MAX_HEADER_BYTES) -> Ply
         raise PlyInspectionError(f"cannot stat PLY: {path.name}") from exc
 
     elements: list[dict[str, Any]] = []
+    element_names: set[str] = set()
     current: dict[str, Any] | None = None
     format_name: str | None = None
     header_size = 0
@@ -182,14 +184,17 @@ def read_ply_header(path: Path, max_header_bytes: int = MAX_HEADER_BYTES) -> Ply
             keyword = tokens[0].lower()
 
             if keyword in {"comment", "obj_info"}:
-                # Deliberately discarded: may contain coordinates or user paths.
                 continue
             if keyword == "format":
+                if elements:
+                    raise PlyInspectionError("format must be declared before elements")
                 if len(tokens) != 3 or tokens[2] != "1.0" or format_name is not None:
                     raise PlyInspectionError("unsupported or duplicate PLY format declaration")
                 format_name = tokens[1].lower()
                 continue
             if keyword == "element":
+                if format_name is None:
+                    raise PlyInspectionError("format must be declared before elements")
                 if len(tokens) != 3:
                     raise PlyInspectionError("element declaration must have name and count")
                 try:
@@ -198,19 +203,34 @@ def read_ply_header(path: Path, max_header_bytes: int = MAX_HEADER_BYTES) -> Ply
                     raise PlyInspectionError("invalid PLY element count") from exc
                 if count < 0:
                     raise PlyInspectionError("negative PLY element count")
-                current = {"name": tokens[1], "count": count, "properties": [], "has_list": False}
+                name = tokens[1]
+                if name in element_names:
+                    raise PlyInspectionError(f"duplicate PLY element: {name}")
+                element_names.add(name)
+                current = {
+                    "name": name,
+                    "count": count,
+                    "properties": [],
+                    "property_names": set(),
+                    "has_list": False,
+                }
                 elements.append(current)
                 continue
             if keyword == "property":
                 if current is None:
                     raise PlyInspectionError("property declared before element")
                 if len(tokens) >= 2 and tokens[1].lower() == "list":
+                    _validate_list_property(tokens)
+                    if tokens[4] in current["property_names"]:
+                        raise PlyInspectionError(f"duplicate property name: {tokens[4]}")
+                    current["property_names"].add(tokens[4])
                     current["has_list"] = True
                     continue
                 offset = sum(prop.size for prop in current["properties"])
                 prop = _parse_scalar_property(tokens, offset)
-                if any(existing.name == prop.name for existing in current["properties"]):
+                if prop.name in current["property_names"]:
                     raise PlyInspectionError(f"duplicate property name: {prop.name}")
+                current["property_names"].add(prop.name)
                 current["properties"].append(prop)
                 continue
             if keyword == "end_header":
@@ -240,9 +260,12 @@ def read_ply_header(path: Path, max_header_bytes: int = MAX_HEADER_BYTES) -> Ply
             )
         )
 
-    vertex_index = next((i for i, element in enumerate(parsed_elements) if element.name == "vertex"), None)
-    if vertex_index is None:
-        raise PlyInspectionError("PLY has no vertex element")
+    vertex_indices = [
+        index for index, element in enumerate(parsed_elements) if element.name == "vertex"
+    ]
+    if len(vertex_indices) != 1:
+        raise PlyInspectionError("PLY must contain exactly one vertex element")
+    vertex_index = vertex_indices[0]
     vertex = parsed_elements[vertex_index]
     if vertex.has_list_property:
         raise PlyInspectionError("list properties in vertex records are unsupported")
@@ -257,6 +280,8 @@ def read_ply_header(path: Path, max_header_bytes: int = MAX_HEADER_BYTES) -> Ply
     for element in parsed_elements[:vertex_index]:
         if element.has_list_property:
             raise PlyInspectionError("variable-length element before vertex is unsupported")
+        if element.count and element.stride <= 0:
+            raise PlyInspectionError("nonempty fixed-size element before vertex has zero stride")
         data_offset += element.count * element.stride
 
     required = data_offset + vertex.count * vertex.stride
@@ -288,7 +313,11 @@ def _numpy_dtype(header: PlyHeader) -> Any:
 
 def _chunk_from_numpy(records: Any) -> VertexChunk:
     names = set(records.dtype.names or ())
-    color = (records["red"], records["green"], records["blue"]) if {"red", "green", "blue"}.issubset(names) else (None, None, None)
+    color = (
+        (records["red"], records["green"], records["blue"])
+        if {"red", "green", "blue"}.issubset(names)
+        else (None, None, None)
+    )
     return VertexChunk(records["x"], records["y"], records["z"], *color)
 
 
@@ -296,7 +325,7 @@ def _chunk_from_struct(raw: bytes, header: PlyHeader) -> VertexChunk:
     fmt = struct.Struct(header.endian + "".join(prop.struct_code for prop in header.vertex_properties))
     if fmt.size != header.vertex_stride:
         raise PlyInspectionError("struct layout does not match PLY vertex stride")
-    index = {prop.name: i for i, prop in enumerate(header.vertex_properties)}
+    index = {prop.name: item for item, prop in enumerate(header.vertex_properties)}
     x: list[float] = []
     y: list[float] = []
     z: list[float] = []
@@ -354,6 +383,11 @@ def _sequence_min_max(values: Any) -> tuple[float, float]:
     return float(min(values)), float(max(values))
 
 
+def _file_identity(path: Path) -> tuple[int, int]:
+    stat = Path(path).stat()
+    return int(stat.st_size), int(stat.st_mtime_ns)
+
+
 def inspect_ply(
     path: Path,
     logical_name: str | None = None,
@@ -364,6 +398,7 @@ def inspect_ply(
     """Return a deterministic, privacy-safe summary of one PLY point cloud."""
 
     path = Path(path)
+    identity_before = _file_identity(path)
     header = read_ply_header(path)
     minimum = [math.inf, math.inf, math.inf]
     maximum = [-math.inf, -math.inf, -math.inf]
@@ -390,17 +425,27 @@ def inspect_ply(
     if not observed:
         raise PlyInspectionError("empty point cloud")
 
-    extent = [maximum[i] - minimum[i] for i in range(3)]
-    center = [(minimum[i] + maximum[i]) * 0.5 for i in range(3)]
+    digest = sha256_file(path)
+    identity_after = _file_identity(path)
+    if identity_after != identity_before:
+        raise PlyInspectionError("PLY changed during inspection")
+
+    extent = [maximum[index] - minimum[index] for index in range(3)]
+    center = [(minimum[index] + maximum[index]) * 0.5 for index in range(3)]
     xy_area = extent[0] * extent[1]
     density = observed / xy_area if xy_area > 0 else None
-    names = set(header.property_names)
+    property_by_name = {prop.name: prop for prop in header.vertex_properties}
+    rgb_names = {"red", "green", "blue"}
+    has_rgb = rgb_names.issubset(property_by_name) and all(
+        property_by_name[name].type_name in {"uchar", "uint8"}
+        for name in rgb_names
+    )
 
     return {
         "logicalName": (logical_name or path.name).replace("\\", "/"),
         "fileName": path.name,
-        "byteLength": path.stat().st_size,
-        "sha256": sha256_file(path),
+        "byteLength": identity_after[0],
+        "sha256": digest,
         "format": header.format_name,
         "vertexCount": header.vertex_count,
         "vertexStride": header.vertex_stride,
@@ -408,7 +453,7 @@ def inspect_ply(
             {"name": prop.name, "type": prop.type_name}
             for prop in header.vertex_properties
         ],
-        "hasRgb": {"red", "green", "blue"}.issubset(names),
+        "hasRgb": has_rgb,
         "bounds": {
             "min": vector(minimum),
             "max": vector(maximum),
@@ -420,4 +465,5 @@ def inspect_ply(
             "chunkVertices": int(chunk_vertices),
             "backend": "numpy" if prefer_numpy and _np is not None else "stdlib",
         },
+        "fileStableDuringInspection": True,
     }
