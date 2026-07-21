@@ -20,6 +20,7 @@ TEST_FILES = (
     "test_scan_frames.py",
     "test_scan_world_contracts.py",
     "test_scan_import_bundle.py",
+    "test_scan_import_bundle_verify.py",
 )
 
 
