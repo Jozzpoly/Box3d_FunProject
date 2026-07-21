@@ -1,121 +1,148 @@
 # Photogrammetry Import V2 — current status
 
 **Updated:** 2026-07-21  
-**Active branch:** `agent/p1b-owner-gate-hardening`  
-**Stack base:** `agent/p1b-inspector-bundle-staging@a7459be8ffad14a6bfaea04696750b1e18bd0b43`
+**Active branch:** `agent/p2a-source-visual-preview`  
+**Stack base:** `agent/p1b-owner-gate-hardening@2d91d17428292234c9b560a2ef855761f445f54f`  
+**Product draft PR:** #5
 
 ## Truth table
 
 | Capability | Status | Evidence / blocker |
 |---|---|---|
-| P0 vehicle baseline | `PASS_LOCAL_EXACT_HEAD` | Windows build/validator/test/smoke passed locally on `a7459be...` |
+| P0 vehicle baseline | `PASS_LOCAL_EXACT_HEAD` | Windows build/validator/test/smoke passed locally on `2d91d174...` |
 | P1A parser and synthetic contracts | `PASS_CI` | PR #1 workflow green |
 | P1A real 7+7 inspection | `PASS_LOCAL_DETERMINISTIC` | two real reports; each 7 GLB, 7 PLY, 7 pairs, automatic gate pass; reports byte-identical |
-| Pair bounds compatibility | `PASS_WITH_REVIEW` | five pairs review, two historical strong-match; all remain `BOUNDS_ONLY` |
-| Full source frame contract | `IMPLEMENTED_NOT_OWNER_CONFIRMED` | signs, handedness, mirror, local origin and round-trip implemented; real owner values absent |
-| Source-frame creation workflow | `PASS_HOSTED_MATRIX` | CLI derives matrix from explicit roles, validates through canonical frame code, blocks implicit mirror and never confirms implicitly |
+| Pair bounds compatibility | `PASS_WITH_REVIEW` | all pair evidence remains `BOUNDS_ONLY`; interior correspondence is not asserted |
+| Full source-frame contract machinery | `PASS_HOSTED_AND_LOCAL` | signed axes, handedness, mirror approval, local origin and round-trip validation implemented |
+| Real owner-confirmed source frame | `NOT_CREATED` | MipMap report supports LOCAL_ENU/metric assumptions, but a real local origin and explicit owner confirmation are still required |
 | Source package / proposal boundary | `PASS_CI` | exact source revision binding and adversarial validation covered by hosted matrix |
 | Private/shareable evidence split | `PASS_CI_SYNTHETIC` | explicit allow-list; no source names, paths, bounds, hashes or free-form warnings |
 | Transactional evidence bundle | `PASS_CI_SYNTHETIC` | content-addressed directory, cross-document checks, `COMPLETE.json`, tamper verifier |
-| Independent read-only verifier | `PASS_CI_SYNTHETIC` | valid, tampered and missing bundle CLI cases pass on Windows/Linux |
-| Hosted P1B bundle CI | `PASS_8_OF_8` | final PR #3 head `a7459be8ffad14a6bfaea04696750b1e18bd0b43` |
-| Owner-gate orchestrator | `PASS_HOSTED_8_OF_8` | final functional head `cce22d35190c189f7c78007537322e511b814faf`, run `29842627877` |
-| Windows gate reliability | `PASS_HOSTED_PARSE / LOCAL_RETEST_REQUIRED` | fresh-worktree configure, CMake exit codes and expected executable existence are hard gates; corrected script parsed on hosted Windows |
+| Independent bundle verifier | `PASS_CI_SYNTHETIC` | valid, tampered and missing bundle CLI cases pass on Windows/Linux |
+| Owner-gate orchestrator | `PASS_HOSTED_AND_LOCAL` | 89/89 tests and corrected Windows gate passed locally on exact hardening head |
+| Owner-gate receipt v2 | `IMPLEMENTED_NOT_REAL_RUN` | private receipt is bound to exact bundle SHA-256 and source revision; P2A rejects pending, stale or mismatched receipts |
 | Real 7+7 bundle | `NOT_RUN` | requires owner-confirmed source frame |
 | Manual shareable privacy review | `NOT_RUN` | waits for real bundle; exactly one review target will be printed |
-| Internal GLB↔PLY correspondence | `BLOCKED` | waits for `P1B_BUNDLE_PASS`; occupancy/internal geometry evidence not implemented |
-| Diagnostic preview P2 | `NOT_STARTED` | waits for real P1B bundle and correspondence gates |
-| Accepted world patch | `NOT_STARTED` | no Golden Drive Region or authored review |
+| P2A private preview-pack generator | `IMPLEMENTED_NOT_FINAL_EXECUTION_PROVEN` | streams verified GLB tiles into content-addressed render-only binary tiles; requires exact P1B_BUNDLE_PASS receipt |
+| P2A independent preview verifier | `IMPLEMENTED_NOT_FINAL_EXECUTION_PROVEN` | checks closed manifest schema, exact file set, symlinks, byte lengths, SHA-256, binary structure, bounds, normals and indices |
+| P2A native runtime reader | `IMPLEMENTED_NOT_COMPILE_PROVEN_ON_FINAL_HEAD` | structural defense in C++; intentionally not a cryptographic verifier and cannot create Box3D bodies/shapes |
+| P2A Source Visual Preview Lab | `IMPLEMENTED_NOT_REAL_ASSET_RUN` | geometry-only tile rendering, metre grid, axes, tile bounds/toggles and evidence-only warnings; no textures or collision |
+| Internal GLB↔PLY correspondence | `BLOCKED` | starts only after real `P1B_BUNDLE_PASS`; occupancy/internal geometry evidence not implemented |
+| P2B correspondence/seam preview | `NOT_STARTED` | requires internal correspondence and adjacency evidence |
+| Accepted world patch | `NOT_STARTED` | no Golden Drive Region or authored surface review |
 | Collision projection | `NOT_STARTED` | no accepted surface/cooker contract |
 | Drive test | `NOT_STARTED` | no scan-terrain physics probes |
-| JES transfer candidate | `NO` | requires reimport and second real scan |
+| JES transfer candidate | `NO` | requires reimport and a second real scan |
 
-## Completed in the owner-gate hardening package
-
-- removed dependence on placeholder inspection paths;
-- added deterministic discovery for repeated real `inspection.json` outputs;
-- auto-selection is allowed only for byte-identical passing 7+7 reports;
-- any invalid discovered inspection is now a hard stop rather than silently ignored;
-- added explicit source-frame generator/validator with derived matrix and mirror block;
-- added one-command bundle publication plus separate-process verification;
-- added a receipt that omits paths, source hashes, names, bounds and coordinates;
-- separated technical verification from manual shareable privacy acknowledgement;
-- repaired `tools/gate.ps1` so a missing CMake configure/build cannot be reported as green;
-- added 12 focused hardening tests and connected them to the canonical runner and matrix;
-- parsed the corrected PowerShell gate on every hosted Windows matrix job.
-
-## Evidence already obtained locally
-
-On exact P1B bundle head `a7459be8ffad14a6bfaea04696750b1e18bd0b43`:
+## Locally proven on the exact P1B hardening head
 
 ```text
-P1/P1B dependency-free tests: 77/77 PASS
+HEAD: 2d91d17428292234c9b560a2ef855761f445f54f
+Canonical scan contracts: 89/89 PASS
 Windows gate: build 3/3, validator PASS, test PASS, smoke 0 errors
-Real inspection A: 7 GLB / 7 PLY / 7 pairs / automatic gate PASS
-Real inspection B: 7 GLB / 7 PLY / 7 pairs / automatic gate PASS
-Inspection A and B: byte-identical
+Real inspection discovery: 2 byte-identical reports
+Each report: 7 GLB / 7 PLY / 7 pairs / compatible-review
 ```
 
-No source coordinates, source names or source hashes are recorded in this status file.
+The local proof above validates the base of PR #5. It does not validate later P2A commits.
 
-## Hosted hardening validation
+## Implemented in P2A
 
-Final functional head `cce22d35190c189f7c78007537322e511b814faf` passed run `29842627877`:
+### Private projection boundary
+
+The P2A generator:
+
+- consumes one independently verified P1B bundle;
+- requires a private owner-gate receipt with `status = P1B_BUNDLE_PASS`;
+- binds the receipt to the exact `bundleContentSha256` and `sourceRevisionId`;
+- verifies every private source GLB against immutable byte-length and SHA-256 records;
+- parses triangle primitives and node transforms;
+- applies the confirmed source-frame origin, units and axis matrix;
+- corrects winding for explicitly approved mirrored transforms;
+- rebuilds deterministic normals from transformed triangle geometry;
+- writes one tile at a time so the whole scan is not retained in Python memory;
+- publishes a content-addressed directory transactionally;
+- never writes collision data or an accepted-world claim.
+
+Every preview manifest is fixed to:
 
 ```text
-Canonical Ubuntu / Python 3.11 / stdlib  PASS
-Ubuntu / Python 3.11 / NumPy            PASS
-Ubuntu / Python 3.13 / stdlib           PASS
-Ubuntu / Python 3.13 / NumPy            PASS
-Windows / Python 3.11 / stdlib          PASS
-Windows / Python 3.11 / NumPy           PASS
-Windows / Python 3.13 / stdlib          PASS
-Windows / Python 3.13 / NumPy           PASS
-PowerShell gate syntax parse             PASS on all Windows jobs
+purpose = SOURCE_VISUAL_PREVIEW_ONLY
+privacyClass = PRIVATE_LOCAL_ONLY
+texturesIncluded = false
+internalGeometryCorrespondencePassed = false
+acceptedWorld = false
+collisionReady = false
 ```
 
-## Remaining owner-local gate
+### Native render-only lab
 
-Do not start occupancy correspondence or P2 until all are complete:
+The native sample:
 
-1. check out the hardening branch;
-2. rerun the canonical Python suite and corrected `tools/gate.ps1`;
-3. create a real local source-frame contract with owner-confirmed axes, units, mirror state and origin;
-4. run `scan_owner_gate.py finalize` against the real 7+7 output root;
-5. open and manually inspect only the printed `shareable/inspection.shareable.json`;
-6. rerun with `--acknowledge-shareable-privacy-review`;
-7. retain all private outputs under ignored `build/` only;
-8. record only the privacy-safe receipt status.
+- reads only the prepared preview format, not GLB or PLY;
+- validates the closed structural contract before GPU registration;
+- shows per-tile geometry, bounds, metre grid and lab axes;
+- allows individual tile visibility toggles;
+- clearly labels the result as source evidence only;
+- does not display the private absolute pack path;
+- contains no Box3D body, shape, mesh-shape, heightfield or terrain-creation API.
 
-## NEXT after that gate
+The Python verifier remains the cryptographic trust boundary. The C++ reader performs defense-in-depth structural validation and does not claim to replace SHA-256 verification.
 
-- internal occupancy correspondence GLB↔PLY;
-- sabotage fixture: identical bounds, mismatched interior geometry;
-- adjacency/seam evidence;
-- then P2 Diagnostic Preview.
+## Current contract-test scope
+
+The canonical runner now includes:
+
+```text
+P1/P1B tests                       89
+P2A generator/verifier tests       11
+P2A runtime architecture tests      3
+-------------------------------------
+Canonical intended total          103
+```
+
+`103` is the expected suite size from the registered test modules. It must not be recorded as PASS until the final branch head is actually executed.
+
+## Current blockers before first terrain image
+
+1. create the real owner-confirmed source-frame contract;
+2. run `scan_owner_gate.py finalize` against the real 7+7 inspection;
+3. manually review only the printed `shareable/inspection.shareable.json`;
+4. rerun finalize with privacy acknowledgement and retain the private v2 receipt;
+5. execute all 103 contracts on the exact P2A head;
+6. configure and build the `samples` target on Windows;
+7. build and independently verify the real private preview pack;
+8. launch `P2A Source Visual Preview` and review orientation, scale, tile coverage and seams.
+
+## Promotion criteria: `TERRAIN_VISIBLE_PASS`
+
+The first terrain image is accepted only when:
+
+- the exact preview pack passes the independent verifier;
+- all seven expected tiles load;
+- source-to-lab orientation is visually correct;
+- metre scale is plausible against known scene dimensions;
+- the result is not mirrored;
+- tile bounds and seams can be inspected;
+- restart produces the same content-addressed pack and layout;
+- UI continues to state `NO COLLISION` and `NOT ACCEPTED WORLD`.
+
+## NEXT after `TERRAIN_VISIBLE_PASS`
+
+- internal occupancy/surface-support correspondence GLB↔PLY;
+- sabotage fixture with identical bounds and mismatched interior geometry;
+- tile adjacency and seam evidence;
+- P2B diagnostic overlay;
+- selection of a small Golden Drive Region.
 
 ## PARKED
 
-- Golden Drive Region;
-- ground classifier;
-- heightfield cooker;
-- Box3D scan physics lab;
+- automatic ground classifier;
+- accepted-world editor;
+- heightfield/collision cooker;
+- scan-terrain physics probes;
 - full vehicle drive loop;
 - reimport UI;
 - JES implementation.
 
-## Current test scope
-
-Existing P1/P1B suite: 77 tests on the prior head.
-
-Owner-gate hardening adds:
-
-```text
-scan_source_frame_contract: 4 tests
-scan_owner_gate: 5 tests
-scan_gate_ps1: 3 regression-contract tests
-```
-
-Canonical total: 89 tests, green across the hosted matrix.
-
-These tests prove workflow contracts and fail-fast boundaries. They do not prove the correctness of the private real frame or semantic correspondence of GLB and PLY interiors.
+No source coordinates, private source names, absolute paths or source file hashes belong in this status document.
