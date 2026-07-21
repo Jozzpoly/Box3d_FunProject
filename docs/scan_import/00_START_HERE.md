@@ -1,76 +1,88 @@
 # Photogrammetry Import V2 — start here
 
-**Status:** `P1A_SOURCE_INSPECTION_PASS / P1B_CONTRACT_FOUNDATION_IN_PROGRESS`  
-**Branch roboczy:** `agent/p1b-world-import-contract-staging`  
-**Baza:** head draft PR #1 (`dbbd065d9bbf8887b824e351e464dbbe60be1e68`)  
-**Zakres:** offline contracts, tests and documentation only; no runtime C++, renderer, vehicle or Box3D behavior changes.
+**Status:** `P1A_SOURCE_INSPECTION_PASS / P1B_BUNDLE_IN_PROGRESS`  
+**Branch roboczy:** `agent/p1b-inspector-bundle-staging`  
+**Baza:** `agent/p1b-world-import-contract-staging@eac2327589ad799e270ed760cf7288696f4f50c3`  
+**Zakres:** offline contracts, privacy, persistence, tests and documentation only; no runtime C++, renderer, vehicle or Box3D behavior changes.
 
 ## Co jest prawdziwe
 
 - P0 Windows build/validator/test/smoke został zaliczony.
-- Aktualny P1A inspector ma zielone dependency-free CI na Windows/Linux, Python 3.11/3.13, stdlib/NumPy.
-- W aktywnej sesji właściciela wykonano realny przebieg 7 GLB + 7 PLY: 7/7 źródeł wykryto, automatic evidence gate przeszedł i dwa przebiegi dały identyczne siedem artefaktów.
-- Ten wynik sesji nadal wymaga zapisania jako odtwarzalny lokalny receipt na dokładnym headzie; prywatne outputy nie trafiają do Git.
-- P2 nie jest odblokowane semantycznie: bounds nie dowodzą zgodności wnętrza geometrii, a dotychczasowy kontrakt osi nie opisuje znaków osi, mirror, local origin ani pełnej transformacji source→lab.
+- P1A inspector ma zielone dependency-free CI na Windows/Linux, Python 3.11/3.13, stdlib/NumPy.
+- W sesji właściciela wykonano realny przebieg 7 GLB + 7 PLY: automatic evidence gate przeszedł i dwa przebiegi dały identyczne siedem artefaktów.
+- Bounds nie dowodzą zgodności wnętrza geometrii. P2 nie jest jeszcze semantycznie odblokowane.
+- `ScanSourcePackage` i `WorldImportProposal` istnieją jako neutralne kontrakty, ale nie są accepted world truth.
+- Aktualny pakiet podłącza te kontrakty do jednego prywatnego/shareable bundle’a bez kopiowania raw GLB/PLY.
 
-## Co robi P1B
-
-P1B wprowadza najmniejszą granicę potrzebną przed diagnostic preview:
+## Aktualny przepływ
 
 ```text
-inspection evidence
-→ ScanSourcePackage (stable identity + content revision)
-→ WorldImportProposal (generated, UNREVIEWED)
-→ future WorldPatchReview
-→ future AcceptedWorldPatch
+inspection.json + source-frame.json
+→ ScanSourcePackage
+→ WorldImportProposal (UNREVIEWED / BOUNDS_ONLY)
+→ private/shareable projection
+→ content-addressed staging
+→ COMPLETE.json
+→ immutable verified bundle
 ```
 
-Pierwszy pakiet P1B zawiera:
+Bundle jest kopertą dowodową. Nie jest mapą, accepted patch, heightfieldem ani runtime cache.
 
-- `scan_frames.py` — pełny, jawny kontrakt jednostek i source→lab;
-- `scan_world_contracts.py` — backend-neutralne source package i import proposal;
-- dependency-free tests;
-- kanoniczną architekturę i aktualny status.
-
-## Kanoniczne polecenie testowe
+## Kanoniczne testy
 
 ```powershell
 python .\tools\scan_pipeline\run_p1_contracts.py
 ```
 
-Po pobraniu brancha na Windows należy dodatkowo uruchomić:
+Po pobraniu brancha na Windows:
 
 ```powershell
 .\tools\gate.ps1
 ```
 
-## Najbliższa bramka
+## Lokalny bundle z istniejącego inspectora
 
-`P1B_CONTRACT_FOUNDATION_PASS` wymaga łącznie:
+Najpierw przygotuj prywatny `source-frame.json`. Następnie:
 
-1. wszystkich kontraktów dependency-free PASS;
-2. round-trip source→lab→source;
-3. jawnego wykrycia mirror i odrzucenia niezatwierdzonego mirror;
-4. stable package ID niezależnego od rewizji plików;
-5. content-derived revision ID;
-6. proposal pozostającego `UNREVIEWED` i `BOUNDS_ONLY`;
-7. braku native/GPU/UI handles w trwałych kontraktach;
-8. lokalnego P0/vehicle gate bez regresji.
+```powershell
+python .\tools\scan_pipeline\scan_import_bundle.py `
+  --inspection .\build\scan_pipeline\p1_dataset_approved\inspection.json `
+  --frame-contract .\build\scan_pipeline\p1_source_frame.json `
+  --output-root .\build\scan_pipeline\bundles `
+  --package-id scan/model-skanu `
+  --proposal-id proposal/model-skanu/revision-1 `
+  --bundle-label model-skanu `
+  --require-inspection-pass `
+  --require-frame-confirmed
+```
 
-## Następne po tym pakiecie
+Wynik pozostaje pod `build/`. Nie commituj katalogu bundle ani prywatnego frame contract.
 
-- podłączyć frame contract i source package do inspectora jako osobne outputy prywatne;
-- rozdzielić private evidence od shareable evidence;
-- dodać transactional output bundle;
-- wprowadzić occupancy/internal-geometry pair evidence;
-- dopiero potem otworzyć P2 Diagnostic Preview.
+## Bramka `P1B_BUNDLE_PASS`
+
+Wymaga łącznie:
+
+1. pełnego dependency-free runnera PASS;
+2. macierzy CI Linux/Windows, Python 3.11/3.13, stdlib/NumPy;
+3. bundle’a z realnego 7+7 inspection;
+4. weryfikacji `COMPLETE.json` i wszystkich hashów;
+5. ręcznego privacy review realnego shareable JSON;
+6. jawnie potwierdzonego source frame;
+7. lokalnego `tools/gate.ps1` bez regresji.
+
+## Następne po tej bramce
+
+- internal occupancy correspondence GLB↔PLY;
+- fixture: identyczne bounds, błędne wnętrze;
+- adjacency/seam evidence;
+- dopiero później P2 Diagnostic Preview.
 
 ## Stop conditions
 
 Zatrzymaj implementację, jeżeli:
 
-- raw GLB/PLY lub prywatne współrzędne mają trafić do Git;
-- proposal zaczyna zawierać ręczne decyzje autora;
+- raw GLB/PLY mają zostać skopiowane do bundle;
+- shareable output zaczyna kopiować nieznane pola lub free-form warnings;
+- bundle jest przedstawiany jako accepted world patch;
 - Box3D/GPU/UI handle trafia do kontraktu;
-- source mesh lub heightfield zostaje nazwany authored world truth;
-- branch zaczyna zmieniać pojazd, renderer albo budować pełny Workbench JES.
+- branch zaczyna ground extraction, cooker, renderer albo pełny Workbench JES.
