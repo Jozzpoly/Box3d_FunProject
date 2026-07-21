@@ -10,6 +10,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $python = (Get-Command python -ErrorAction Stop).Source
 $cmake = (Get-Command cmake -ErrorAction Stop).Source
 $git = (Get-Command git -ErrorAction Stop).Source
+$powerShellHost = (Get-Process -Id $PID -ErrorAction Stop).Path
 
 function Invoke-HardGate {
     param(
@@ -63,9 +64,26 @@ try {
     Write-Host "    PASS: samples.exe exists"
 
     if (-not $SkipVehicleGate) {
-        Invoke-HardGate "Existing vehicle/build/smoke gate" {
-            & ".\tools\gate.ps1"
+        Write-Host ""
+        Write-Host "==> Existing vehicle/build/smoke gate"
+
+        # tools/gate.ps1 intentionally captures native stderr because samples.exe
+        # writes its successful smoke summary there. Run the legacy gate in a
+        # child PowerShell process so this script's ErrorActionPreference=Stop
+        # cannot reinterpret that successful stderr line as a terminating error.
+        # The child process exit code remains the hard pass/fail boundary.
+        $vehicleGate = Join-Path $repoRoot "tools\gate.ps1"
+        $vehicleGateArgument = '"' + $vehicleGate + '"'
+        $process = Start-Process `
+            -FilePath $powerShellHost `
+            -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $vehicleGateArgument) `
+            -Wait `
+            -PassThru `
+            -NoNewWindow
+        if ($process.ExitCode -ne 0) {
+            throw "Existing vehicle/build/smoke gate failed with exit code $($process.ExitCode)"
         }
+        Write-Host "    PASS: Existing vehicle/build/smoke gate"
     }
 
     Write-Host ""
