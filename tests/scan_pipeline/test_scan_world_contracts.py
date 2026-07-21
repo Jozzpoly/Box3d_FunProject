@@ -123,6 +123,46 @@ class ScanWorldContractTests(unittest.TestCase):
                 frame_contract=frame_contract(),
             )
 
+    def test_package_revision_hash_detects_mutation(self) -> None:
+        package = contracts.build_source_package(
+            package_id="scan/example",
+            inspection_report=inspection(),
+            frame_contract=frame_contract(),
+        )
+        package["tiles"][0]["ply"]["sha256"] = "f" * 64
+        with self.assertRaises(contracts.WorldContractError):
+            contracts.validate_source_package(package)
+
+    def test_proposal_requires_exact_pair_tile_coverage(self) -> None:
+        report = inspection()
+        package = contracts.build_source_package(
+            package_id="scan/example",
+            inspection_report=report,
+            frame_contract=frame_contract(),
+        )
+        report["pairs"].pop()
+        with self.assertRaises(contracts.WorldContractError):
+            contracts.build_world_import_proposal(
+                proposal_id="proposal/example-r1",
+                source_package=package,
+                inspection_report=report,
+            )
+
+    def test_proposal_rejects_nonfinite_or_out_of_range_metrics(self) -> None:
+        report = inspection()
+        package = contracts.build_source_package(
+            package_id="scan/example",
+            inspection_report=report,
+            frame_contract=frame_contract(),
+        )
+        report["pairs"][0]["xyOverlapOfSmaller"] = 1.5
+        with self.assertRaises(contracts.WorldContractError):
+            contracts.build_world_import_proposal(
+                proposal_id="proposal/example-r1",
+                source_package=package,
+                inspection_report=report,
+            )
+
     def test_proposal_downgrades_strong_match_to_bounds_only_evidence(self) -> None:
         report = inspection()
         package = contracts.build_source_package(
