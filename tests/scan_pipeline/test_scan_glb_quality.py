@@ -103,11 +103,14 @@ class ScanGlbQualityTests(unittest.TestCase):
         report = scan_glb_quality.inspect_glb_quality(data, "MipTile_1.glb", prefer_numpy=False)
         self.assertEqual(report["geometryQuality"]["degenerateTriangleCount"], 1)
 
-    def test_large_triangle_is_reported(self) -> None:
+    def test_long_edge_histogram_is_reported_in_source_units(self) -> None:
         data = build_glb([(0.0, 0.0, 0.0), (100.0, 0.0, 0.0), (0.0, 100.0, 0.0)], [0, 1, 2])
         report = scan_glb_quality.inspect_glb_quality(data, "MipTile_2.glb", prefer_numpy=False)
-        self.assertEqual(report["geometryQuality"]["largeTriangleCount"], 1)
-        self.assertGreater(report["geometryQuality"]["maxTriangleEdge"], 100.0)
+        quality = report["geometryQuality"]
+        self.assertEqual(quality["provisionalLargeTriangleCount"], 1)
+        self.assertEqual(quality["edgeThresholdCountsSourceUnits"]["gt_100"], 1)
+        self.assertGreater(quality["maxTriangleEdgeSourceUnits"], 100.0)
+        self.assertNotIn("Meters", repr(quality))
 
     def test_invalid_float_indices_are_rejected(self) -> None:
         data = build_glb(
@@ -117,6 +120,14 @@ class ScanGlbQualityTests(unittest.TestCase):
         )
         with self.assertRaises(scan_glb_quality.GlbQualityError):
             scan_glb_quality.inspect_glb_quality(data, "bad.glb", prefer_numpy=False)
+
+    def test_out_of_range_index_is_rejected(self) -> None:
+        data = build_glb(
+            [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+            [0, 1, 9],
+        )
+        with self.assertRaises(scan_glb_quality.GlbQualityError):
+            scan_glb_quality.inspect_glb_quality(data, "bad-index.glb", prefer_numpy=False)
 
     def test_declared_bounds_mismatch_does_not_replace_actual_bounds(self) -> None:
         data = build_glb(
@@ -150,9 +161,7 @@ class ScanGlbQualityTests(unittest.TestCase):
         fast = scan_glb_quality.inspect_glb_quality(data, "MipTile_5.glb", prefer_numpy=True)
         slow = scan_glb_quality.inspect_glb_quality(data, "MipTile_5.glb", prefer_numpy=False)
         self.assertEqual(fast["worldBounds"], slow["worldBounds"])
-        fast_quality = dict(fast["geometryQuality"])
-        slow_quality = dict(slow["geometryQuality"])
-        self.assertEqual(fast_quality, slow_quality)
+        self.assertEqual(fast["geometryQuality"], slow["geometryQuality"])
 
 
 if __name__ == "__main__":
