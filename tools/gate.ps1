@@ -1,10 +1,10 @@
 # gate.ps1 - one-command quality gate for the Jozz Vehicle project.
 #
 # Encodes README_FOR_AGENTS.md §3 + the per-stage gate so no agent re-derives
-# it: build the three targets, run the validator (reading exit code AND its
-# printed FAILED/bad lines, since it asserts loosely), run the engine tests,
-# and boot-smoke the main lab. Prints ONE summary line; on failure prints the
-# first offending line and exits non-zero.
+# it: configure an empty Windows worktree, build the three targets, run the
+# validator (reading exit code AND its printed FAILED/bad lines, since it
+# asserts loosely), run the engine tests, and boot-smoke the main lab. Prints
+# ONE summary line; on failure prints the first offending line and exits nonzero.
 #
 # Usage (from anywhere):  .\tools\gate.ps1
 #         key numbers:    .\tools\gate.ps1 -Numbers       (also echo key probe lines)
@@ -27,7 +27,7 @@ param(
     [switch]$Shots
 )
 
-$repoRoot = Split-Path -Parent $PSScriptRoot
+$repoRoot = (Resolve-Path (Split-Path -Parent $PSScriptRoot)).Path
 Set-Location $repoRoot
 
 function Fail([string]$stage, [string]$detail) {
@@ -36,16 +36,31 @@ function Fail([string]$stage, [string]$detail) {
     exit 1
 }
 
-$val = "build\bin\Debug\jozz_vehicle_validation.exe"
-$test = "build\bin\Debug\test.exe"
-$samples = "build\bin\Debug\samples.exe"
+function First-UsefulLine([object[]]$lines, [string]$fallback) {
+    $line = $lines |
+        ForEach-Object { [string]$_ } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+        Select-Object -Last 1
+    if ($line) { return [string]$line }
+    return $fallback
+}
+
+$buildRoot = Join-Path $repoRoot "build"
+$val = Join-Path $buildRoot "bin\Debug\jozz_vehicle_validation.exe"
+$test = Join-Path $buildRoot "bin\Debug\test.exe"
+$samples = Join-Path $buildRoot "bin\Debug\samples.exe"
+$targetExecutables = @{
+    "samples" = $samples
+    "jozz_vehicle_validation" = $val
+    "test" = $test
+}
 
 # --- R0 baseline helpers -----------------------------------------------------
 # Baseline lives under build\ (gitignored): it is a LOCAL before/after snapshot
 # for one refactor stage on one machine, not a committed artifact.
-$baselineTxt = "build\gate_baseline.txt"
-$baselineShot = "build\gate_baseline_shots\quad.png"
-$currentShot = "build\gate_current_shots\quad.png"
+$baselineTxt = Join-Path $buildRoot "gate_baseline.txt"
+$baselineShot = Join-Path $buildRoot "gate_baseline_shots\quad.png"
+$currentShot = Join-Path $buildRoot "gate_current_shots\quad.png"
 
 # Defensive time-line filter, applied identically on save AND diff so it can
 # never skew the comparison. The validator today prints NO time lines (verified:
@@ -71,18 +86,43 @@ function New-GateQuad([string]$outPng) {
     if (-not (Test-Path $outPng)) { Fail "shots" "quad_shot did not produce $outPng" }
 }
 
-# 0. Free samples.exe (an open window holds the linker -> LNK1168).
+# 0. Configure a fresh worktree. A build preset cannot create CMakeCache.txt.
+if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) {
+    Fail "configure" "cmake is not available on PATH"
+}
+$cache = Join-Path $buildRoot "CMakeCache.txt"
+if (-not (Test-Path $cache -PathType Leaf)) {
+    $configureOut = cmake --preset windows 2>&1
+    $configureExit = $LASTEXITCODE
+    if ($configureExit -ne 0) {
+        Fail "configure" (First-UsefulLine $configureOut "cmake --preset windows exited $configureExit")
+    }
+    if (-not (Test-Path $cache -PathType Leaf)) {
+        Fail "configure" "cmake reported success but did not create $cache"
+    }
+    Write-Host "  configure windows: OK"
+}
+
+# 1. Free samples.exe (an open window holds the linker -> LNK1168).
 Get-Process samples -ErrorAction SilentlyContinue | Stop-Process -Force
 
-# 1. Build the three targets. Filter to real compiler/linker errors.
+# 2. Build the three targets. Trust the exit code first; compiler text is detail.
 foreach ($target in @("samples", "jozz_vehicle_validation", "test")) {
     $out = cmake --build --preset windows-debug --target $target 2>&1
-    $errs = $out | Select-String -Pattern "error C\d|error LNK|fatal error"
-    if ($errs) { Fail "build ($target)" $errs[0].Line }
+    $buildExit = $LASTEXITCODE
+    $errs = $out | Select-String -Pattern "error C\d|error LNK|fatal error" | Select-Object -First 1
+    if ($buildExit -ne 0) {
+        $detail = if ($errs) { $errs.Line } else { First-UsefulLine $out "cmake build exited $buildExit" }
+        Fail "build ($target)" $detail
+    }
+    $expectedExecutable = $targetExecutables[$target]
+    if (-not (Test-Path $expectedExecutable -PathType Leaf)) {
+        Fail "build ($target)" "build exited 0 but did not produce $expectedExecutable"
+    }
     Write-Host ("  build {0}: OK" -f $target)
 }
 
-# 2. Validator. Trust the exit code, but ALSO scan output - it prints "FAILED"
+# 3. Validator. Trust the exit code, but ALSO scan output - it prints "FAILED"
 #    / "bad <name>" per probe and asserts loosely (README §3).
 $valOut = & $val 2>&1
 $valExit = $LASTEXITCODE
@@ -93,17 +133,20 @@ if ($valExit -ne 0 -or $valBad) {
 }
 Write-Host "  validator: OK"
 
-# 3. Engine test suite.
+# 4. Engine test suite.
 $testOut = & $test 2>&1
-if (-not ($testOut | Select-String -Pattern "All Box3D tests passed")) {
+$testExit = $LASTEXITCODE
+if ($testExit -ne 0 -or -not ($testOut | Select-String -Pattern "All Box3D tests passed")) {
     $tf = $testOut | Select-String -Pattern "failed|FAILED" | Select-Object -First 1
     $td = if ($tf) { $tf.Line } else { "test.exe did not report all-passed" }
     Fail "test.exe" $td
 }
 Write-Host "  test.exe: PASS"
 
-# 4. Boot smoke of the main lab (renders 300 frames, must exit clean).
+# 5. Boot smoke of the main lab (renders 300 frames, must exit clean).
 $smokeOut = & $samples --sample-name "M6 Suspension Rig Lab" --frames 300 2>&1
+$smokeExit = $LASTEXITCODE
+if ($smokeExit -ne 0) { Fail "boot smoke" "samples.exe exit code $smokeExit" }
 $smokeErr = $smokeOut | Select-String -Pattern "sokol error" | Where-Object { $_ -notmatch "0 sokol errors" }
 if ($smokeErr) { Fail "boot smoke" $smokeErr[0].Line }
 if (-not ($smokeOut | Select-String -Pattern "300 frames")) {
@@ -118,7 +161,7 @@ if ($Numbers) {
         ForEach-Object { Write-Host ("  {0}" -f $_.Line.Trim()) }
 }
 
-# 5. R0 baseline: save a snapshot, or diff the current run against it.
+# 6. R0 baseline: save a snapshot, or diff the current run against it.
 #    Both reuse $valOut captured above (same bytes the gate already vetted).
 $valLines = @($valOut | ForEach-Object { [string]$_ })
 
