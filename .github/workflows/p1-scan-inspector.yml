@@ -6,6 +6,7 @@ on:
       - photogrammetry/import-v2-foundation
     paths:
       - "tools/scan_pipeline/scan_*.py"
+      - "tools/scan_pipeline/run_p1_contracts.py"
       - "tests/scan_pipeline/test_scan_*.py"
       - ".github/workflows/p1-scan-inspector.yml"
   workflow_dispatch:
@@ -35,13 +36,14 @@ jobs:
           tools/scan_pipeline/scan_ply.py
           tools/scan_pipeline/scan_glb_quality.py
           tools/scan_pipeline/scan_dataset_inspect.py
+          tools/scan_pipeline/run_p1_contracts.py
 
       - name: Run canonical contracts and capture output
         id: contracts
         shell: bash
         run: |
           set +e
-          python -m unittest discover -s tests/scan_pipeline -p "test_*.py" -v > p1-test-output.txt 2>&1
+          python tools/scan_pipeline/run_p1_contracts.py > p1-test-output.txt 2>&1
           status=$?
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           tail -n 180 p1-test-output.txt
@@ -119,6 +121,7 @@ jobs:
           tools/scan_pipeline/scan_ply.py
           tools/scan_pipeline/scan_glb_quality.py
           tools/scan_pipeline/scan_dataset_inspect.py
+          tools/scan_pipeline/run_p1_contracts.py
 
       - name: Run scan-pipeline contracts
-        run: python -m unittest discover -s tests/scan_pipeline -p "test_*.py" -v
+        run: python tools/scan_pipeline/run_p1_contracts.py
