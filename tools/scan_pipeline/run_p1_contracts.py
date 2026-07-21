@@ -21,6 +21,9 @@ TEST_FILES = (
     "test_scan_world_contracts.py",
     "test_scan_import_bundle.py",
     "test_scan_import_bundle_verify.py",
+    "test_scan_source_frame_contract.py",
+    "test_scan_owner_gate.py",
+    "test_scan_gate_ps1.py",
 )
 
 
