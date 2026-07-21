@@ -50,7 +50,49 @@ INDEX = struct.Struct("<I")
 MAX_TILES = 64
 MAX_VERTICES_PER_TILE = 25_000_000
 MAX_INDICES_PER_TILE = 75_000_000
+MAX_SOURCE_GLB_BYTES = 2 * 1024 * 1024 * 1024
 MAX_TOTAL_BINARY_BYTES = 8 * 1024 * 1024 * 1024
+
+_CAPABILITIES = {
+    "sourceGeometryVisible": True,
+    "texturesIncluded": False,
+    "internalGeometryCorrespondencePassed": False,
+    "acceptedWorld": False,
+    "collisionReady": False,
+}
+_TILE_FORMAT = {
+    "magic": MAGIC.rstrip(b"\0").decode("ascii"),
+    "version": BINARY_VERSION,
+    "vertexLayout": "float32 position.xyz + float32 normal.xyz",
+    "indexLayout": "uint32 triangle-list",
+}
+_MANIFEST_KEYS = {
+    "schema",
+    "schemaVersion",
+    "status",
+    "privacyClass",
+    "purpose",
+    "sourceBundleContentSha256",
+    "packageId",
+    "sourceRevisionId",
+    "sourceFrameContractSha256",
+    "capabilities",
+    "tileFormat",
+    "tileCount",
+    "globalBoundsLabMeters",
+    "tiles",
+    "previewContentSha256",
+}
+_TILE_KEYS = {
+    "tileId",
+    "vertexCount",
+    "indexCount",
+    "triangleCount",
+    "boundsLabMeters",
+    "path",
+    "byteLength",
+    "sha256",
+}
 
 
 class PreviewPackError(ValueError):
@@ -77,6 +119,28 @@ def _strict_json(path: Path) -> dict[str, Any]:
     return scan_import_bundle.load_json_strict(path)
 
 
+def _exact_keys(value: dict[str, Any], expected: set[str], label: str) -> None:
+    actual = set(value)
+    if actual != expected:
+        missing = sorted(expected - actual)
+        extra = sorted(actual - expected)
+        raise PreviewPackError(f"{label} keys mismatch; missing={missing} extra={extra}")
+
+
+def _sha(value: Any, label: str) -> str:
+    try:
+        return scan_import_bundle._sha(value, label)
+    except scan_import_bundle.ImportBundleError as exc:
+        raise PreviewPackError(str(exc)) from exc
+
+
+def _safe_label(value: Any) -> str:
+    try:
+        return scan_import_bundle._label(value, "previewLabel")
+    except scan_import_bundle.ImportBundleError as exc:
+        raise PreviewPackError(str(exc)) from exc
+
+
 def _finite(value: Any, label: str) -> float:
     try:
         result = float(value)
@@ -94,6 +158,13 @@ def _uint(value: Any, label: str) -> int:
     return value
 
 
+def _revision(value: Any) -> str:
+    if not isinstance(value, str) or not value.startswith("sha256:"):
+        raise PreviewPackError("sourceRevisionId must be sha256:<hex>")
+    _sha(value[7:], "sourceRevisionId")
+    return value
+
+
 def _axis_vector(value: str) -> tuple[float, float, float]:
     sign = -1.0 if value.startswith("-") else 1.0
     axis = value[-1:]
@@ -106,21 +177,38 @@ def _axis_vector(value: str) -> tuple[float, float, float]:
     raise PreviewPackError(f"invalid signed axis {value!r}")
 
 
-def _mat_vec(matrix: Sequence[Sequence[Any]], value: Sequence[float]) -> tuple[float, float, float]:
+def _mat_vec(
+    matrix: Sequence[Sequence[Any]], value: Sequence[float]
+) -> tuple[float, float, float]:
     if len(matrix) != 3 or any(len(row) != 3 for row in matrix):
         raise PreviewPackError("sourceToLab.axisMatrix must be 3x3")
     return tuple(
-        sum(_finite(matrix[row][column], f"axisMatrix[{row}][{column}]") * value[column] for column in range(3))
+        sum(
+            _finite(matrix[row][column], f"axisMatrix[{row}][{column}]")
+            * value[column]
+            for column in range(3)
+        )
         for row in range(3)
     )  # type: ignore[return-value]
 
 
-def _source_to_lab(frame: dict[str, Any], point: Sequence[float]) -> tuple[float, float, float]:
-    units_per_meter = _finite(frame["sourceFrame"]["unitsPerMeter"], "sourceFrame.unitsPerMeter")
+def _source_to_lab(
+    frame: dict[str, Any], point: Sequence[float]
+) -> tuple[float, float, float]:
+    units_per_meter = _finite(
+        frame["sourceFrame"]["unitsPerMeter"], "sourceFrame.unitsPerMeter"
+    )
     if units_per_meter <= 0.0:
         raise PreviewPackError("sourceFrame.unitsPerMeter must be positive")
     origin = frame["sourceToLab"]["localOriginSource"]
-    local = tuple((_finite(point[i], f"point[{i}]") - _finite(origin[i], f"origin[{i}]")) / units_per_meter for i in range(3))
+    local = tuple(
+        (
+            _finite(point[index], f"point[{index}]")
+            - _finite(origin[index], f"origin[{index}]")
+        )
+        / units_per_meter
+        for index in range(3)
+    )
     return _mat_vec(frame["sourceToLab"]["axisMatrix"], local)
 
 
@@ -136,7 +224,9 @@ def _sub(a: Sequence[float], b: Sequence[float]) -> tuple[float, float, float]:
     return a[0] - b[0], a[1] - b[1], a[2] - b[2]
 
 
-def _normalise(value: Sequence[float], fallback: Sequence[float]) -> tuple[float, float, float]:
+def _normalise(
+    value: Sequence[float], fallback: Sequence[float]
+) -> tuple[float, float, float]:
     length = math.sqrt(sum(component * component for component in value))
     if length <= 1.0e-20:
         return float(fallback[0]), float(fallback[1]), float(fallback[2])
@@ -161,7 +251,27 @@ def _bounds(points: Iterable[Sequence[float]]) -> dict[str, list[float]]:
     }
 
 
-def _merge_bounds(items: Sequence[dict[str, list[float]]]) -> dict[str, list[float]]:
+def _validate_bounds(value: Any, label: str) -> dict[str, list[float]]:
+    if not isinstance(value, dict):
+        raise PreviewPackError(f"{label} must be an object")
+    _exact_keys(value, {"min", "max"}, label)
+    result: dict[str, list[float]] = {}
+    for side in ("min", "max"):
+        raw = value[side]
+        if not isinstance(raw, list) or len(raw) != 3:
+            raise PreviewPackError(f"{label}.{side} must contain three values")
+        result[side] = [
+            _finite(component, f"{label}.{side}[{axis}]")
+            for axis, component in enumerate(raw)
+        ]
+    if any(result["min"][axis] > result["max"][axis] for axis in range(3)):
+        raise PreviewPackError(f"{label} min exceeds max")
+    return result
+
+
+def _merge_bounds(
+    items: Sequence[dict[str, list[float]]],
+) -> dict[str, list[float]]:
     if not items:
         raise PreviewPackError("preview pack requires at least one tile")
     return {
@@ -170,60 +280,98 @@ def _merge_bounds(items: Sequence[dict[str, list[float]]]) -> dict[str, list[flo
     }
 
 
-def _extract_geometry(glb: bytes, tile_id: int, frame: dict[str, Any]) -> tuple[bytes, dict[str, Any]]:
+def _extract_geometry(
+    glb: bytes, tile_id: int, frame: dict[str, Any]
+) -> tuple[bytes, dict[str, Any]]:
+    if not 0 <= tile_id <= 0xFFFFFFFF:
+        raise PreviewPackError("tile id exceeds binary format")
     document, binary = scan_inspect.parse_glb(glb, f"MipTile_{tile_id}.glb")
     meshes = document.get("meshes", [])
+    accessors = document.get("accessors", [])
     positions: list[tuple[float, float, float]] = []
     indices: list[int] = []
+    mirror = frame["sourceToLab"]["orientationChange"] == "mirror"
 
     for node_index, world in scan_inspect.world_nodes(document):
         node = document.get("nodes", [])[node_index]
         if "mesh" not in node:
             continue
-        mesh_index = int(node["mesh"])
-        mesh = scan_inspect.checked(meshes, mesh_index, "mesh")
+        mesh = scan_inspect.checked(meshes, int(node["mesh"]), "mesh")
         for primitive in mesh.get("primitives", []):
             if int(primitive.get("mode", 4)) != 4:
-                raise PreviewPackError(f"tile {tile_id}: only TRIANGLES primitives are supported")
+                raise PreviewPackError(
+                    f"tile {tile_id}: only TRIANGLES primitives are supported"
+                )
             attributes = primitive.get("attributes", {})
             if "POSITION" not in attributes:
                 raise PreviewPackError(f"tile {tile_id}: primitive has no POSITION")
-            source_positions = list(scan_inspect.accessor_values(document, binary, int(attributes["POSITION"])))
-            if len(source_positions) > MAX_VERTICES_PER_TILE:
+            position_index = int(attributes["POSITION"])
+            position_accessor = scan_inspect.checked(
+                accessors, position_index, "POSITION accessor"
+            )
+            if (
+                position_accessor.get("componentType") != 5126
+                or position_accessor.get("type") != "VEC3"
+            ):
+                raise PreviewPackError(
+                    f"tile {tile_id}: POSITION must be float32 VEC3"
+                )
+            source_positions = list(
+                scan_inspect.accessor_values(document, binary, position_index)
+            )
+            if len(positions) + len(source_positions) > MAX_VERTICES_PER_TILE:
                 raise PreviewPackError(f"tile {tile_id}: vertex limit exceeded")
             base = len(positions)
             for point in source_positions:
-                if len(point) != 3:
-                    raise PreviewPackError(f"tile {tile_id}: POSITION must be VEC3")
                 source_world = scan_inspect.transform_point(world, point)
                 positions.append(_source_to_lab(frame, source_world))
 
             if "indices" in primitive:
-                source_indices = [int(value[0]) for value in scan_inspect.accessor_values(document, binary, int(primitive["indices"]))]
+                index_accessor_index = int(primitive["indices"])
+                index_accessor = scan_inspect.checked(
+                    accessors, index_accessor_index, "index accessor"
+                )
+                if (
+                    index_accessor.get("type") != "SCALAR"
+                    or index_accessor.get("componentType") not in (5121, 5123, 5125)
+                ):
+                    raise PreviewPackError(
+                        f"tile {tile_id}: indices must be unsigned SCALAR"
+                    )
+                source_indices = [
+                    int(value[0])
+                    for value in scan_inspect.accessor_values(
+                        document, binary, index_accessor_index
+                    )
+                ]
             else:
                 source_indices = list(range(len(source_positions)))
             if len(source_indices) % 3 != 0:
-                raise PreviewPackError(f"tile {tile_id}: triangle index count is not divisible by three")
+                raise PreviewPackError(
+                    f"tile {tile_id}: triangle index count is not divisible by three"
+                )
             if len(indices) + len(source_indices) > MAX_INDICES_PER_TILE:
                 raise PreviewPackError(f"tile {tile_id}: index limit exceeded")
-            for value in source_indices:
-                if value < 0 or value >= len(source_positions):
+            for offset in range(0, len(source_indices), 3):
+                triangle = source_indices[offset : offset + 3]
+                if any(value < 0 or value >= len(source_positions) for value in triangle):
                     raise PreviewPackError(f"tile {tile_id}: index out of range")
-                indices.append(base + value)
+                if mirror:
+                    triangle[1], triangle[2] = triangle[2], triangle[1]
+                indices.extend(base + value for value in triangle)
 
     if not positions or not indices:
         raise PreviewPackError(f"tile {tile_id}: no renderable triangle geometry")
-    if len(positions) > MAX_VERTICES_PER_TILE or len(indices) > MAX_INDICES_PER_TILE:
-        raise PreviewPackError(f"tile {tile_id}: geometry limit exceeded")
 
     fallback_up = _axis_vector(frame["labFrame"]["axisRoles"]["up"])
     accumulated = [[0.0, 0.0, 0.0] for _ in positions]
-    degenerate = 0
     for offset in range(0, len(indices), 3):
-        ia, ib, ic = indices[offset:offset + 3]
-        normal = _cross(_sub(positions[ib], positions[ia]), _sub(positions[ic], positions[ia]))
+        ia, ib, ic = indices[offset : offset + 3]
+        normal = _cross(
+            _sub(positions[ib], positions[ia]),
+            _sub(positions[ic], positions[ia]),
+        )
         if sum(component * component for component in normal) <= 1.0e-20:
-            degenerate += 1
             continue
         for index in (ia, ib, ic):
             accumulated[index][0] += normal[0]
@@ -231,23 +379,25 @@ def _extract_geometry(glb: bytes, tile_id: int, frame: dict[str, Any]) -> tuple[
             accumulated[index][2] += normal[2]
     normals = [_normalise(value, fallback_up) for value in accumulated]
 
-    payload = bytearray(HEADER.pack(MAGIC, BINARY_VERSION, tile_id, len(positions), len(indices)))
+    payload = bytearray(
+        HEADER.pack(MAGIC, BINARY_VERSION, tile_id, len(positions), len(indices))
+    )
     for position, normal in zip(positions, normals):
         payload.extend(VERTEX.pack(*position, *normal))
     for index in indices:
         payload.extend(INDEX.pack(index))
-    tile_bounds = _bounds(positions)
     return bytes(payload), {
         "tileId": tile_id,
         "vertexCount": len(positions),
         "indexCount": len(indices),
         "triangleCount": len(indices) // 3,
-        "degenerateTriangleCount": degenerate,
-        "boundsLabMeters": tile_bounds,
+        "boundsLabMeters": _bounds(positions),
     }
 
 
-def _read_tile(data: bytes, expected_tile_id: int | None = None) -> dict[str, Any]:
+def _read_tile(
+    data: bytes, expected_tile_id: int | None = None
+) -> dict[str, Any]:
     if len(data) < HEADER.size:
         raise PreviewPackError("preview tile is truncated")
     magic, version, tile_id, vertex_count, index_count = HEADER.unpack_from(data)
@@ -257,19 +407,31 @@ def _read_tile(data: bytes, expected_tile_id: int | None = None) -> dict[str, An
         raise PreviewPackError("preview tile id mismatch")
     if vertex_count == 0 or index_count == 0 or index_count % 3 != 0:
         raise PreviewPackError("preview tile contains invalid counts")
-    if vertex_count > MAX_VERTICES_PER_TILE or index_count > MAX_INDICES_PER_TILE:
+    if (
+        vertex_count > MAX_VERTICES_PER_TILE
+        or index_count > MAX_INDICES_PER_TILE
+    ):
         raise PreviewPackError("preview tile exceeds geometry limits")
-    expected_size = HEADER.size + vertex_count * VERTEX.size + index_count * INDEX.size
+    expected_size = (
+        HEADER.size + vertex_count * VERTEX.size + index_count * INDEX.size
+    )
     if len(data) != expected_size:
         raise PreviewPackError("preview tile byte length does not match header")
-    points: list[tuple[float, float, float]] = []
+
+    minimum = [math.inf, math.inf, math.inf]
+    maximum = [-math.inf, -math.inf, -math.inf]
     offset = HEADER.size
     for _ in range(vertex_count):
         values = VERTEX.unpack_from(data, offset)
         offset += VERTEX.size
         if not all(math.isfinite(value) for value in values):
             raise PreviewPackError("preview tile contains non-finite vertex data")
-        points.append(values[:3])
+        normal_length = math.sqrt(sum(value * value for value in values[3:6]))
+        if abs(normal_length - 1.0) > 1.0e-3:
+            raise PreviewPackError("preview tile contains non-unit normal")
+        for axis in range(3):
+            minimum[axis] = min(minimum[axis], values[axis])
+            maximum[axis] = max(maximum[axis], values[axis])
     for _ in range(index_count):
         (index,) = INDEX.unpack_from(data, offset)
         offset += INDEX.size
@@ -280,11 +442,19 @@ def _read_tile(data: bytes, expected_tile_id: int | None = None) -> dict[str, An
         "vertexCount": vertex_count,
         "indexCount": index_count,
         "triangleCount": index_count // 3,
-        "boundsLabMeters": _bounds(points),
+        "boundsLabMeters": {
+            "min": [_finite(value, "tile.bounds.min") for value in minimum],
+            "max": [_finite(value, "tile.bounds.max") for value in maximum],
+        },
     }
 
 
-def _manifest_core(*, bundle_summary: dict[str, Any], source_package: dict[str, Any], tile_records: Sequence[dict[str, Any]]) -> dict[str, Any]:
+def _manifest_core(
+    *,
+    bundle_summary: dict[str, Any],
+    source_package: dict[str, Any],
+    tile_records: Sequence[dict[str, Any]],
+) -> dict[str, Any]:
     return {
         "schema": SCHEMA,
         "schemaVersion": SCHEMA_VERSION,
@@ -294,82 +464,103 @@ def _manifest_core(*, bundle_summary: dict[str, Any], source_package: dict[str, 
         "sourceBundleContentSha256": bundle_summary["bundleContentSha256"],
         "packageId": source_package["packageId"],
         "sourceRevisionId": source_package["revisionId"],
-        "sourceFrameContractSha256": source_package["sourceFrameContractSha256"],
-        "capabilities": {
-            "sourceGeometryVisible": True,
-            "texturesIncluded": False,
-            "internalGeometryCorrespondencePassed": False,
-            "acceptedWorld": False,
-            "collisionReady": False,
-        },
-        "tileFormat": {
-            "magic": MAGIC.rstrip(b"\0").decode("ascii"),
-            "version": BINARY_VERSION,
-            "vertexLayout": "float32 position.xyz + float32 normal.xyz",
-            "indexLayout": "uint32 triangle-list",
-        },
+        "sourceFrameContractSha256": source_package[
+            "sourceFrameContractSha256"
+        ],
+        "capabilities": dict(_CAPABILITIES),
+        "tileFormat": dict(_TILE_FORMAT),
         "tileCount": len(tile_records),
-        "globalBoundsLabMeters": _merge_bounds([record["boundsLabMeters"] for record in tile_records]),
+        "globalBoundsLabMeters": _merge_bounds(
+            [record["boundsLabMeters"] for record in tile_records]
+        ),
         "tiles": list(tile_records),
     }
 
 
 def _validate_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
-    if manifest.get("schema") != SCHEMA or int(manifest.get("schemaVersion", 0)) != SCHEMA_VERSION:
-        raise PreviewPackError("invalid preview manifest schema or version")
-    if manifest.get("status") != "COMPLETE" or manifest.get("privacyClass") != PRIVACY_CLASS or manifest.get("purpose") != PURPOSE:
-        raise PreviewPackError("invalid preview manifest status, privacy or purpose")
-    expected_capabilities = {
-        "sourceGeometryVisible": True,
-        "texturesIncluded": False,
-        "internalGeometryCorrespondencePassed": False,
-        "acceptedWorld": False,
-        "collisionReady": False,
-    }
-    if manifest.get("capabilities") != expected_capabilities:
+    _exact_keys(manifest, _MANIFEST_KEYS, "preview manifest")
+    if (
+        manifest["schema"] != SCHEMA
+        or int(manifest["schemaVersion"]) != SCHEMA_VERSION
+        or manifest["status"] != "COMPLETE"
+        or manifest["privacyClass"] != PRIVACY_CLASS
+        or manifest["purpose"] != PURPOSE
+    ):
+        raise PreviewPackError(
+            "invalid preview manifest schema, status, privacy or purpose"
+        )
+    _sha(manifest["sourceBundleContentSha256"], "sourceBundleContentSha256")
+    try:
+        scan_world_contracts._stable_id(manifest["packageId"], "packageId")
+    except scan_world_contracts.WorldContractError as exc:
+        raise PreviewPackError(str(exc)) from exc
+    _revision(manifest["sourceRevisionId"])
+    _sha(manifest["sourceFrameContractSha256"], "sourceFrameContractSha256")
+    if manifest["capabilities"] != _CAPABILITIES:
         raise PreviewPackError("preview capability boundary mismatch")
-    expected_hash = manifest.get("previewContentSha256")
-    if not isinstance(expected_hash, str) or len(expected_hash) != 64:
-        raise PreviewPackError("previewContentSha256 is invalid")
+    if manifest["tileFormat"] != _TILE_FORMAT:
+        raise PreviewPackError("preview tile format mismatch")
+
+    expected_hash = _sha(manifest["previewContentSha256"], "previewContentSha256")
     unsigned = dict(manifest)
-    unsigned.pop("previewContentSha256", None)
+    unsigned.pop("previewContentSha256")
     if _sha256_bytes(_canonical_json_bytes(unsigned)) != expected_hash:
         raise PreviewPackError("previewContentSha256 mismatch")
-    tiles = manifest.get("tiles")
+
+    tiles = manifest["tiles"]
     if not isinstance(tiles, list) or not tiles or len(tiles) > MAX_TILES:
         raise PreviewPackError("preview tiles array is invalid")
     observed: list[int] = []
     paths: list[str] = []
     total_bytes = 0
+    normalized_bounds: list[dict[str, list[float]]] = []
     for record in tiles:
         if not isinstance(record, dict):
             raise PreviewPackError("preview tile record must be an object")
-        tile_id = _uint(record.get("tileId"), "tile.tileId")
+        _exact_keys(record, _TILE_KEYS, "preview tile record")
+        tile_id = _uint(record["tileId"], "tile.tileId")
+        if tile_id > 0xFFFFFFFF:
+            raise PreviewPackError("tile id exceeds binary format")
         observed.append(tile_id)
         expected_path = f"tiles/tile_{tile_id:03d}.bin"
-        if record.get("path") != expected_path:
-            raise PreviewPackError(f"non-canonical preview tile path for {tile_id}")
+        if record["path"] != expected_path:
+            raise PreviewPackError(
+                f"non-canonical preview tile path for {tile_id}"
+            )
         paths.append(expected_path)
-        total_bytes += _uint(record.get("byteLength"), f"tile[{tile_id}].byteLength")
-        sha = record.get("sha256")
-        if not isinstance(sha, str) or len(sha) != 64:
-            raise PreviewPackError(f"tile[{tile_id}].sha256 is invalid")
-        for key in ("vertexCount", "indexCount", "triangleCount", "degenerateTriangleCount"):
-            _uint(record.get(key), f"tile[{tile_id}].{key}")
-        bounds = record.get("boundsLabMeters")
-        if not isinstance(bounds, dict) or not all(isinstance(bounds.get(side), list) and len(bounds[side]) == 3 for side in ("min", "max")):
-            raise PreviewPackError(f"tile[{tile_id}].boundsLabMeters is invalid")
-        for side in ("min", "max"):
-            for axis, value in enumerate(bounds[side]):
-                _finite(value, f"tile[{tile_id}].bounds.{side}[{axis}]")
+        vertex_count = _uint(record["vertexCount"], f"tile[{tile_id}].vertexCount")
+        index_count = _uint(record["indexCount"], f"tile[{tile_id}].indexCount")
+        triangle_count = _uint(
+            record["triangleCount"], f"tile[{tile_id}].triangleCount"
+        )
+        if (
+            vertex_count == 0
+            or vertex_count > MAX_VERTICES_PER_TILE
+            or index_count == 0
+            or index_count > MAX_INDICES_PER_TILE
+            or index_count != triangle_count * 3
+        ):
+            raise PreviewPackError(f"tile[{tile_id}] geometry counts are invalid")
+        expected_length = (
+            HEADER.size + vertex_count * VERTEX.size + index_count * INDEX.size
+        )
+        byte_length = _uint(record["byteLength"], f"tile[{tile_id}].byteLength")
+        if byte_length != expected_length:
+            raise PreviewPackError(f"tile[{tile_id}] byteLength mismatch")
+        total_bytes += byte_length
+        _sha(record["sha256"], f"tile[{tile_id}].sha256")
+        normalized_bounds.append(
+            _validate_bounds(record["boundsLabMeters"], f"tile[{tile_id}].bounds")
+        )
+
     if observed != sorted(observed) or len(observed) != len(set(observed)):
         raise PreviewPackError("preview tile ids must be sorted and unique")
     if len(paths) != len(set(paths)) or total_bytes > MAX_TOTAL_BINARY_BYTES:
-        raise PreviewPackError("preview tile paths or total byte budget are invalid")
-    if manifest.get("tileCount") != len(tiles):
+        raise PreviewPackError("preview paths or total byte budget are invalid")
+    if manifest["tileCount"] != len(tiles):
         raise PreviewPackError("preview tileCount mismatch")
-    expected_global = _merge_bounds([record["boundsLabMeters"] for record in tiles])
-    if manifest.get("globalBoundsLabMeters") != expected_global:
+    expected_global = _merge_bounds(normalized_bounds)
+    if _validate_bounds(manifest["globalBoundsLabMeters"], "globalBounds") != expected_global:
         raise PreviewPackError("preview global bounds mismatch")
     return manifest
 
@@ -392,9 +583,12 @@ def verify_preview_pack(root: Path) -> dict[str, Any]:
     if not complete.is_file() or complete.is_symlink():
         raise PreviewPackError("preview pack is incomplete")
     manifest = _validate_manifest(_strict_json(complete))
-    expected = {record["path"] for record in manifest["tiles"]} | {"COMPLETE.json"}
+    expected = {record["path"] for record in manifest["tiles"]} | {
+        "COMPLETE.json"
+    }
     if _files(root) != expected:
         raise PreviewPackError("preview pack contains missing or unexpected files")
+
     total_bytes = 0
     for record in manifest["tiles"]:
         path = root / PurePosixPath(record["path"])
@@ -403,9 +597,16 @@ def verify_preview_pack(root: Path) -> dict[str, Any]:
         if _sha256_file(path) != record["sha256"]:
             raise PreviewPackError(f"SHA-256 mismatch for {record['path']}")
         parsed = _read_tile(path.read_bytes(), record["tileId"])
-        for key in ("vertexCount", "indexCount", "triangleCount", "boundsLabMeters"):
+        for key in (
+            "vertexCount",
+            "indexCount",
+            "triangleCount",
+            "boundsLabMeters",
+        ):
             if parsed[key] != record[key]:
-                raise PreviewPackError(f"tile metadata mismatch for {record['path']}: {key}")
+                raise PreviewPackError(
+                    f"tile metadata mismatch for {record['path']}: {key}"
+                )
         total_bytes += record["byteLength"]
     if total_bytes > MAX_TOTAL_BINARY_BYTES:
         raise PreviewPackError("preview pack exceeds total byte budget")
@@ -425,15 +626,28 @@ def _write(path: Path, data: bytes) -> None:
         os.fsync(handle.fileno())
 
 
-def build_preview_pack(*, bundle: Path, source_root: Path, output_root: Path, label: str = "source-preview") -> Path:
+def build_preview_pack(
+    *,
+    bundle: Path,
+    source_root: Path,
+    output_root: Path,
+    label: str = "source-preview",
+) -> Path:
+    label = _safe_label(label)
     bundle = Path(bundle)
     source_root = Path(source_root)
     output_root = Path(output_root)
     bundle_summary = scan_import_bundle.verify_bundle(bundle)
-    source_package = scan_world_contracts.validate_source_package(_strict_json(bundle / "private/source_package.json"))
-    frame = scan_frames.validate_frame_contract(_strict_json(bundle / "private/source_frame.json"))
+    source_package = scan_world_contracts.validate_source_package(
+        _strict_json(bundle / "private/source_package.json")
+    )
+    frame = scan_frames.validate_frame_contract(
+        _strict_json(bundle / "private/source_frame.json")
+    )
     if not frame["confirmed"]:
-        raise PreviewPackError("source frame must be owner-confirmed before visual preview")
+        raise PreviewPackError(
+            "source frame must be owner-confirmed before visual preview"
+        )
     if source_package["sourceFrameContract"] != frame:
         raise PreviewPackError("bundle frame differs from source package")
     if source_package["revisionId"] != bundle_summary["sourceRevisionId"]:
@@ -447,7 +661,9 @@ def build_preview_pack(*, bundle: Path, source_root: Path, output_root: Path, la
     if output_root.is_symlink():
         raise PreviewPackError("output root must not be a symlink")
 
-    staging = output_root / f".{label}.staging-{os.getpid()}-{uuid.uuid4().hex}"
+    staging = output_root / (
+        f".{label}.staging-{os.getpid()}-{uuid.uuid4().hex}"
+    )
     staging.mkdir()
     records: list[dict[str, Any]] = []
     total_bytes = 0
@@ -456,30 +672,61 @@ def build_preview_pack(*, bundle: Path, source_root: Path, output_root: Path, la
             tile_id = int(tile["tileId"])
             source = tile["glb"]
             source_path = source_root / source["sourceLabel"]
+            source_bytes = int(source["byteLength"])
+            if source_bytes <= 0 or source_bytes > MAX_SOURCE_GLB_BYTES:
+                raise PreviewPackError(
+                    f"source GLB byte budget invalid for tile {tile_id}"
+                )
             if not source_path.is_file() or source_path.is_symlink():
                 raise PreviewPackError(f"missing real GLB for tile {tile_id}")
-            if source_path.stat().st_size != source["byteLength"]:
-                raise PreviewPackError(f"source GLB byteLength mismatch for tile {tile_id}")
+            if source_path.stat().st_size != source_bytes:
+                raise PreviewPackError(
+                    f"source GLB byteLength mismatch for tile {tile_id}"
+                )
             if _sha256_file(source_path) != source["sha256"]:
-                raise PreviewPackError(f"source GLB SHA-256 mismatch for tile {tile_id}")
-            payload, geometry = _extract_geometry(source_path.read_bytes(), tile_id, frame)
+                raise PreviewPackError(
+                    f"source GLB SHA-256 mismatch for tile {tile_id}"
+                )
+            payload, geometry = _extract_geometry(
+                source_path.read_bytes(), tile_id, frame
+            )
             total_bytes += len(payload)
             if total_bytes > MAX_TOTAL_BINARY_BYTES:
                 raise PreviewPackError("preview pack exceeds total byte budget")
             relative = f"tiles/tile_{tile_id:03d}.bin"
             _write(staging / PurePosixPath(relative), payload)
-            records.append({**geometry, "path": relative, "byteLength": len(payload), "sha256": _sha256_bytes(payload)})
+            records.append(
+                {
+                    **geometry,
+                    "path": relative,
+                    "byteLength": len(payload),
+                    "sha256": _sha256_bytes(payload),
+                }
+            )
         records.sort(key=lambda record: record["tileId"])
-        core = _manifest_core(bundle_summary=bundle_summary, source_package=source_package, tile_records=records)
+        core = _manifest_core(
+            bundle_summary=bundle_summary,
+            source_package=source_package,
+            tile_records=records,
+        )
         manifest = dict(core)
-        manifest["previewContentSha256"] = _sha256_bytes(_canonical_json_bytes(core))
+        manifest["previewContentSha256"] = _sha256_bytes(
+            _canonical_json_bytes(core)
+        )
         _validate_manifest(manifest)
         _write(staging / "COMPLETE.json", _canonical_json_bytes(manifest))
-        final = output_root / f"{label}-{manifest['previewContentSha256'][:16]}"
+        final = output_root / (
+            f"{label}-{manifest['previewContentSha256'][:16]}"
+        )
         if final.exists():
             existing = verify_preview_pack(final)
-            if existing["previewContentSha256"] != manifest["previewContentSha256"]:
-                raise PreviewPackError("existing content-addressed preview is inconsistent")
+            if (
+                existing["previewContentSha256"]
+                != manifest["previewContentSha256"]
+            ):
+                raise PreviewPackError(
+                    "existing content-addressed preview is inconsistent"
+                )
             shutil.rmtree(staging)
             return final
         os.replace(staging, final)
@@ -493,24 +740,52 @@ def build_preview_pack(*, bundle: Path, source_root: Path, output_root: Path, la
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
-    build = subparsers.add_parser("build", help="build one private render-only preview pack")
+    build = subparsers.add_parser(
+        "build", help="build one private render-only preview pack"
+    )
     build.add_argument("--bundle", required=True, type=Path)
     build.add_argument("--source-root", required=True, type=Path)
-    build.add_argument("--output-root", type=Path, default=Path("build/scan_pipeline/previews"))
+    build.add_argument(
+        "--output-root",
+        type=Path,
+        default=Path("build/scan_pipeline/previews"),
+    )
     build.add_argument("--label", default="source-preview")
-    verify = subparsers.add_parser("verify", help="verify one existing preview pack")
+    verify = subparsers.add_parser(
+        "verify", help="verify one existing preview pack"
+    )
     verify.add_argument("preview", type=Path)
     args = parser.parse_args(argv)
     try:
         if args.command == "build":
-            path = build_preview_pack(bundle=args.bundle, source_root=args.source_root, output_root=args.output_root, label=args.label)
+            path = build_preview_pack(
+                bundle=args.bundle,
+                source_root=args.source_root,
+                output_root=args.output_root,
+                label=args.label,
+            )
             summary = verify_preview_pack(path)
-            print("scan_preview_pack: PREVIEW_READY | " f"path={path} preview_sha256={summary['previewContentSha256']} " f"tiles={summary['tileCount']} revision={summary['sourceRevisionId']}")
+            print(
+                "scan_preview_pack: PREVIEW_READY | "
+                f"path={path} preview_sha256={summary['previewContentSha256']} "
+                f"tiles={summary['tileCount']} revision={summary['sourceRevisionId']}"
+            )
         else:
             summary = verify_preview_pack(args.preview)
-            print("scan_preview_pack: OK | " f"path={args.preview} preview_sha256={summary['previewContentSha256']} " f"tiles={summary['tileCount']} revision={summary['sourceRevisionId']}")
+            print(
+                "scan_preview_pack: OK | "
+                f"path={args.preview} preview_sha256={summary['previewContentSha256']} "
+                f"tiles={summary['tileCount']} revision={summary['sourceRevisionId']}"
+            )
         return 0
-    except (OSError, PreviewPackError, scan_import_bundle.ImportBundleError, scan_frames.FrameContractError, scan_world_contracts.WorldContractError, scan_inspect.ScanInspectionError) as exc:
+    except (
+        OSError,
+        PreviewPackError,
+        scan_import_bundle.ImportBundleError,
+        scan_frames.FrameContractError,
+        scan_world_contracts.WorldContractError,
+        scan_inspect.ScanInspectionError,
+    ) as exc:
         print(f"scan_preview_pack: ERROR: {exc}", file=sys.stderr)
         return 2
 
