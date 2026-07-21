@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Run only the dependency-free P1 scan-inspector contract suite.
+"""Run only the dependency-free P1/P1B scan contract suite.
 
 The repository also contains roadmap experiment tests that intentionally require
 NumPy/SciPy/Pillow/trimesh/scikit-image. Those tests belong to the separate
 `requirements-experiments.txt` environment and must not silently turn NumPy
-into a mandatory dependency of the P1 inspector.
+into a mandatory dependency of the source inspector or world-contract boundary.
 """
 from __future__ import annotations
 
@@ -17,6 +17,8 @@ TEST_FILES = (
     "test_scan_ply.py",
     "test_scan_glb_quality.py",
     "test_scan_dataset_inspect.py",
+    "test_scan_frames.py",
+    "test_scan_world_contracts.py",
 )
 
 
