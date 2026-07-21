@@ -12,10 +12,82 @@ on:
 
 permissions:
   contents: read
+  issues: write
+  pull-requests: write
 
 jobs:
+  diagnostic:
+    name: Canonical diagnostic / Ubuntu / Python 3.11 / stdlib
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile P1 modules
+        run: >-
+          python -m py_compile
+          tools/scan_pipeline/scan_inspect.py
+          tools/scan_pipeline/scan_ply.py
+          tools/scan_pipeline/scan_glb_quality.py
+          tools/scan_pipeline/scan_dataset_inspect.py
+
+      - name: Run canonical contracts and capture output
+        id: contracts
+        shell: bash
+        run: |
+          set +e
+          python -m unittest discover -s tests/scan_pipeline -p "test_*.py" -v > p1-test-output.txt 2>&1
+          status=$?
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          tail -n 180 p1-test-output.txt
+          exit 0
+
+      - name: Publish one failure diagnostic to the PR
+        if: github.event_name == 'pull_request' && steps.contracts.outputs.exit_code != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- p1-ci-diagnostic -->';
+            const raw = fs.readFileSync('p1-test-output.txt', 'utf8');
+            const tail = raw.slice(-12000).replaceAll('```', '~~~');
+            const body = `${marker}\n## P1 canonical test failure\n\n\`\`\`text\n${tail}\n\`\`\``;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find(comment => comment.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Enforce canonical contract result
+        if: steps.contracts.outputs.exit_code != '0'
+        shell: bash
+        run: exit 1
+
   python-contracts:
     name: ${{ matrix.os }} / Python ${{ matrix.python }} / numpy=${{ matrix.numpy }}
+    needs: diagnostic
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -23,6 +95,10 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         python: ["3.11", "3.13"]
         numpy: [false, true]
+        exclude:
+          - os: ubuntu-latest
+            python: "3.11"
+            numpy: false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
