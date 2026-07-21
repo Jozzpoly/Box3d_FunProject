@@ -49,6 +49,7 @@ jobs:
           tools/scan_pipeline/scan_frames.py
           tools/scan_pipeline/scan_world_contracts.py
           tools/scan_pipeline/scan_import_bundle.py
+          tools/scan_pipeline/scan_import_bundle_verify.py
           tools/scan_pipeline/run_p1_contracts.py
 
       - name: Run canonical contracts and capture output
@@ -159,6 +160,7 @@ jobs:
           tools/scan_pipeline/scan_frames.py
           tools/scan_pipeline/scan_world_contracts.py
           tools/scan_pipeline/scan_import_bundle.py
+          tools/scan_pipeline/scan_import_bundle_verify.py
           tools/scan_pipeline/run_p1_contracts.py
 
       - name: Run scan-pipeline contracts
