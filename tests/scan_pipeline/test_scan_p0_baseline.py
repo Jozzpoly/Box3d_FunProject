@@ -58,6 +58,25 @@ class ScanP0BaselineTests(unittest.TestCase):
             "BRAMKA: build 3/3 OK - walidator OK - test PASS - smoke 0 err",
         )
 
+    def test_gate_summary_requires_all_success_tokens(self) -> None:
+        self.assertTrue(
+            scan_p0.gate_summary_is_pass(
+                "BRAMKA: build 3/3 OK - walidator OK - test PASS - smoke 0 err"
+            )
+        )
+        self.assertFalse(scan_p0.gate_summary_is_pass("BRAMKA: build 3/3 OK"))
+        self.assertFalse(scan_p0.gate_summary_is_pass(None))
+
+    def test_output_must_remain_under_build(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            inside = scan_p0.ensure_output_root(
+                root, Path("build/scan_pipeline/p0_baseline")
+            )
+            self.assertEqual(inside, root / "build" / "scan_pipeline" / "p0_baseline")
+            with self.assertRaises(scan_p0.BaselineError):
+                scan_p0.ensure_output_root(root, root / "outside")
+
     def test_stale_baseline_artifact_is_not_copied(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -93,6 +112,8 @@ class ScanP0BaselineTests(unittest.TestCase):
             output.mkdir()
             report = {
                 "format": scan_p0.FORMAT_ID,
+                "status": "PASS",
+                "failureReasons": [],
                 "repository": {
                     "branch": "photogrammetry/import-v2-foundation",
                     "commitSha": "a" * 40,
@@ -109,7 +130,7 @@ class ScanP0BaselineTests(unittest.TestCase):
                 "gate": {
                     "status": "PASS",
                     "durationSeconds": 1.0,
-                    "summaryLine": "BRAMKA: PASS",
+                    "summaryLine": "BRAMKA: build 3/3 OK - walidator OK - test PASS - smoke 0 err",
                 },
                 "artifacts": {},
             }
