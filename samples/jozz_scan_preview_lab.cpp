@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <string>
 
 namespace
 {
@@ -83,7 +84,8 @@ public:
 		ImGui::TextWrapped( "%s", m_pack.status.c_str() );
 		if ( m_pack.sourcePath.empty() == false )
 		{
-			ImGui::TextWrapped( "Pack: %s", m_pack.sourcePath.string().c_str() );
+			std::string packLabel = m_pack.sourcePath.filename().string();
+			ImGui::TextWrapped( "Pack: %s", packLabel.c_str() );
 		}
 		if ( m_pack.loaded )
 		{
@@ -132,16 +134,16 @@ public:
 		{
 			if ( m_showGrid )
 			{
-				b3Vec3 center = {
-					0.5f * ( m_pack.bounds.lowerBound.x + m_pack.bounds.upperBound.x ),
-					0.0f,
-					0.5f * ( m_pack.bounds.lowerBound.z + m_pack.bounds.upperBound.z ),
+				b3Pos center = {
+					0.5 * ( m_pack.bounds.lowerBound.x + m_pack.bounds.upperBound.x ),
+					0.0,
+					0.5 * ( m_pack.bounds.lowerBound.z + m_pack.bounds.upperBound.z ),
 				};
 				float extentX = m_pack.bounds.upperBound.x - m_pack.bounds.lowerBound.x;
 				float extentZ = m_pack.bounds.upperBound.z - m_pack.bounds.lowerBound.z;
 				float halfExtent = 0.6f * std::max( extentX, extentZ );
 				halfExtent = std::max( halfExtent, 10.0f );
-				int divisions = b3ClampInt( (int)std::ceil( 2.0f * halfExtent ), 10, 200 );
+				int divisions = std::clamp( (int)std::ceil( 2.0f * halfExtent ), 10, 200 );
 				DrawGrid( center, b3Vec3_axisY, halfExtent, divisions, { 0.32f, 0.34f, 0.38f, 0.55f } );
 			}
 			if ( m_showAxes )
@@ -166,7 +168,10 @@ private:
 			return;
 		}
 
-		float aspect = m_context->windowHeight > 0 ? (float)m_context->windowWidth / (float)m_context->windowHeight : 16.0f / 9.0f;
+		float aspect =
+			m_context->windowHeight > 0
+				? (float)m_context->windowWidth / (float)m_context->windowHeight
+				: 16.0f / 9.0f;
 		m_camera->Frame( m_pack.bounds, aspect, 1.25f );
 	}
 
