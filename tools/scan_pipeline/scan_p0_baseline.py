@@ -105,6 +105,25 @@ def sanitize_summary_line(lines: Iterable[str]) -> str | None:
     return candidates[-1] if candidates else None
 
 
+def gate_summary_is_pass(summary: str | None) -> bool:
+    if summary is None:
+        return False
+    required = ("build 3/3 OK", "walidator OK", "test PASS", "smoke 0 err")
+    return summary.startswith("BRAMKA:") and all(token in summary for token in required)
+
+
+def ensure_output_root(repo_root: Path, output_root: Path) -> Path:
+    root = repo_root.resolve()
+    allowed = (root / "build").resolve()
+    resolved = output_root if output_root.is_absolute() else root / output_root
+    resolved = resolved.resolve()
+    try:
+        resolved.relative_to(allowed)
+    except ValueError as exc:
+        raise BaselineError("P0 output must stay under the gitignored build directory") from exc
+    return resolved
+
+
 def assert_report_private(report: dict[str, Any], repo_root: Path) -> None:
     serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
     forbidden = {
@@ -170,7 +189,8 @@ def _write_reports(output_dir: Path, report: dict[str, Any], repo_root: Path) ->
     lines = [
         "# Photogrammetry Import V2 — P0 baseline",
         "",
-        f"- Status: **{gate['status']}**",
+        f"- P0 status: **{report['status']}**",
+        f"- Gate process: **{gate['status']}**",
         f"- Branch: `{report['repository']['branch']}`",
         f"- Commit: `{report['repository']['commitSha']}`",
         f"- Base branch: `{report['repository']['expectedBaseBranch']}`",
@@ -194,6 +214,9 @@ def _write_reports(output_dir: Path, report: dict[str, Any], repo_root: Path) ->
                 )
     else:
         lines.append("- none")
+    if report["failureReasons"]:
+        lines.extend(["", "## Failure reasons", ""])
+        lines.extend(f"- {reason}" for reason in report["failureReasons"])
     lines.extend(
         [
             "",
@@ -265,7 +288,7 @@ def run_baseline(args: argparse.Namespace) -> int:
         )
 
     timestamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    output_root = args.output_root if args.output_root.is_absolute() else repo_root / args.output_root
+    output_root = ensure_output_root(repo_root, args.output_root)
     output_dir = output_root / f"{commit_sha[:12]}_{timestamp}"
     output_dir.mkdir(parents=True, exist_ok=False)
 
@@ -312,8 +335,24 @@ def run_baseline(args: argparse.Namespace) -> int:
     }
 
     dirty_after = _git(repo_root, "status", "--porcelain", "--untracked-files=all")
+    summary_line = sanitize_summary_line(gate_output.splitlines())
+    failure_reasons: list[str] = []
+    if gate_result.returncode != 0:
+        failure_reasons.append(f"gate exit code {gate_result.returncode}")
+    if not gate_summary_is_pass(summary_line):
+        failure_reasons.append("gate success summary is missing or incomplete")
+    if artifacts["validatorBaseline"] is None:
+        failure_reasons.append("fresh validator baseline was not produced")
+    if artifacts["m6Quad"] is None:
+        failure_reasons.append("fresh M6 quad screenshot was not produced")
+    if dirty_after:
+        failure_reasons.append("gate left tracked or untracked repository changes")
+    p0_status = "PASS" if not failure_reasons else "FAIL"
+
     report: dict[str, Any] = {
         "format": FORMAT_ID,
+        "status": p0_status,
+        "failureReasons": failure_reasons,
         "createdUtc": dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z"),
         "repository": {
             "branch": branch,
@@ -342,7 +381,7 @@ def run_baseline(args: argparse.Namespace) -> int:
             "status": "PASS" if gate_result.returncode == 0 else "FAIL",
             "exitCode": gate_result.returncode,
             "durationSeconds": round(duration, 6),
-            "summaryLine": sanitize_summary_line(gate_output.splitlines()),
+            "summaryLine": summary_line,
         },
         "artifacts": artifacts,
         "privacy": {
@@ -355,11 +394,10 @@ def run_baseline(args: argparse.Namespace) -> int:
     _write_reports(output_dir, report, repo_root)
 
     print(f"P0 report: {output_dir.relative_to(repo_root).as_posix()}")
-    if gate_result.returncode != 0:
+    if p0_status != "PASS":
+        for reason in failure_reasons:
+            print(f"P0 reason: {reason}", file=sys.stderr)
         print("P0: FAIL — P1 remains blocked", file=sys.stderr)
-        return 1
-    if dirty_after:
-        print("P0: FAIL — gate left tracked/untracked repository changes", file=sys.stderr)
         return 1
     print("P0: PASS — baseline captured; P1 may start")
     return 0
