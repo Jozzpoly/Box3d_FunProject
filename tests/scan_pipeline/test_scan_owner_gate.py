@@ -83,7 +83,7 @@ class ScanOwnerGateTests(unittest.TestCase):
         )
         self.assertEqual(str(path), "C:\\Project Files\\bundles\\scan-abc")
 
-    def test_receipt_omits_paths_hashes_and_coordinates(self) -> None:
+    def test_receipt_omits_source_paths_and_direct_source_hashes(self) -> None:
         candidate = {
             "schemaVersion": 3,
             "datasetStatus": "compatible-review",
@@ -98,15 +98,42 @@ class ScanOwnerGateTests(unittest.TestCase):
             candidate=candidate,
             identical_copy_count=2,
             privacy_review_acknowledged=False,
+            bundle_content_sha256="e" * 64,
+            source_revision_id="sha256:" + "f" * 64,
         )
         encoded = json.dumps(receipt, sort_keys=True)
         self.assertNotIn("private/location", encoded)
         self.assertNotIn("a" * 64, encoded)
+        self.assertEqual(receipt["schemaVersion"], 2)
+        self.assertEqual(receipt["privacyClass"], "PRIVATE_LOCAL_ONLY")
         self.assertEqual(
             receipt["status"],
             "P1B_TECHNICAL_PASS_PRIVACY_REVIEW_REQUIRED",
         )
         self.assertEqual(receipt["privacyReview"]["status"], "PENDING")
+        self.assertEqual(receipt["bundle"]["bundleContentSha256"], "e" * 64)
+        self.assertEqual(
+            receipt["bundle"]["sourceRevisionId"], "sha256:" + "f" * 64
+        )
+        self.assertFalse(receipt["privacy"]["sourceFileHashesIncluded"])
+        self.assertTrue(receipt["privacy"]["bundleFingerprintIncluded"])
+
+    def test_verified_bundle_binding_rejects_wrong_manifest_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "COMPLETE.json").write_text(
+                json.dumps(
+                    {
+                        "schema": "wrong",
+                        "status": "COMPLETE",
+                        "bundleContentSha256": "e" * 64,
+                        "sourceRevisionId": "sha256:" + "f" * 64,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaises(module.OwnerGateError):
+                module.read_verified_bundle_binding(root)
 
 
 if __name__ == "__main__":
