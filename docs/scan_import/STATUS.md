@@ -12,7 +12,7 @@
 | P1A parser and synthetic contracts | `PASS_CI` | current PR #1 workflow green |
 | P1A real 7+7 inspection | `PASS_SESSION_REPORTED` | 7 GLB, 7 PLY, automatic gate pass, deterministic 7/7 artifacts; local receipt still needed |
 | Pair bounds compatibility | `PASS_WITH_REVIEW` | five pairs review, two historical strong-match; all remain bounds-only evidence |
-| Full source frame | `IN_PROGRESS` | new explicit frame contract and round-trip tests |
+| Full source frame | `IN_PROGRESS` | explicit frame contract and round-trip tests implemented; real owner frame data not yet supplied |
 | Internal GLB↔PLY correspondence | `NOT_RUN` | occupancy/internal geometry evidence not implemented |
 | Diagnostic preview P2 | `NOT_STARTED` | waits for P1B contract foundation; may start before final world acceptance |
 | Accepted world patch | `NOT_STARTED` | no Golden Drive Region or authored review document |
@@ -27,6 +27,7 @@
 - prove coordinate round-trip;
 - create stable source package identity and content-derived revision;
 - create immutable, unreviewed bounds-only world proposal;
+- red-team package/proposal validation against recomputed but semantically invalid hashes;
 - add both suites to the dependency-free runner.
 
 ## NEXT
@@ -53,8 +54,15 @@
 
 ```text
 scan_frames: 8 tests PASS
-scan_world_contracts: 10 tests PASS
-total new tests: 18 PASS
+scan_world_contracts: 12 tests PASS
+total new tests: 20 PASS
 ```
+
+The red-team cases additionally prove that:
+
+- mutating source content invalidates `revisionId`;
+- reordering package tiles is rejected even if a new hash is calculated;
+- incomplete pair coverage and invalid numeric evidence are rejected;
+- a proposal cannot claim accepted-world readiness even if its content hash is recomputed after the illegal mutation.
 
 These local tests validate only the new dependency-free modules. Full repository contracts and Windows gate must run after the branch is fetched on the owner machine or CI.
