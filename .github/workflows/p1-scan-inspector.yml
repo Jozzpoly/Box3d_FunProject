@@ -82,6 +82,28 @@ jobs:
               });
             }
 
+      - name: Resolve prior diagnostic after success
+        if: github.event_name == 'pull_request' && steps.contracts.outputs.exit_code == '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- p1-ci-diagnostic -->';
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find(comment => comment.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: `${marker}\n## P1 canonical diagnostic resolved\n\nThe latest canonical compile and dependency-free P1 contract run passed for commit \`${context.sha}\`.`,
+              });
+            }
+
       - name: Enforce canonical contract result
         if: steps.contracts.outputs.exit_code != '0'
         shell: bash
