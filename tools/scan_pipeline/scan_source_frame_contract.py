@@ -40,6 +40,8 @@ _INSPECTION_SCHEMA = "jozz.scan-dataset-inspection"
 _MIN_INSPECTION_SCHEMA_VERSION = 3
 _ORIGIN_POLICY = "GLOBAL_BOUNDS_CENTER"
 _ORIGIN_POLICY_CLI = "global-bounds-center"
+_BASIC_BOUNDS_KEYS = frozenset({"min", "max"})
+_CANONICAL_BOUNDS_KEYS = frozenset({"min", "max", "extent", "center"})
 
 
 class SourceFrameCliError(ValueError):
@@ -217,6 +219,11 @@ def _finite_vector3(value: Any, field: str) -> list[float]:
     return result
 
 
+def _rounded9(value: float) -> float:
+    result = round(float(value), 9)
+    return 0.0 if result == -0.0 else result
+
+
 def _inspection_global_bounds_center(
     inspection: dict[str, Any],
 ) -> list[float]:
@@ -241,22 +248,49 @@ def _inspection_global_bounds_center(
         )
 
     bounds = inspection.get("globalBounds")
-    if not isinstance(bounds, dict) or set(bounds) != {"min", "max"}:
+    if not isinstance(bounds, dict):
+        raise SourceFrameCliError("inspection globalBounds must be an object")
+    keys = frozenset(bounds)
+    if keys not in {_BASIC_BOUNDS_KEYS, _CANONICAL_BOUNDS_KEYS}:
         raise SourceFrameCliError(
-            "inspection globalBounds must contain exactly min and max"
+            "inspection globalBounds must contain min/max or canonical "
+            "min/max/extent/center"
         )
+
     minimum = _finite_vector3(bounds["min"], "globalBounds.min")
     maximum = _finite_vector3(bounds["max"], "globalBounds.max")
+    extent: list[float] = []
     center: list[float] = []
     for axis in range(3):
         if minimum[axis] > maximum[axis]:
             raise SourceFrameCliError(
                 f"globalBounds are reversed on axis {axis}"
             )
-        value = minimum[axis] + 0.5 * (maximum[axis] - minimum[axis])
-        if not math.isfinite(value):
-            raise SourceFrameCliError("globalBounds center is not finite")
-        center.append(0.0 if value == -0.0 else value)
+        axis_extent = _rounded9(maximum[axis] - minimum[axis])
+        axis_center = _rounded9(
+            minimum[axis] + 0.5 * (maximum[axis] - minimum[axis])
+        )
+        if not math.isfinite(axis_extent) or not math.isfinite(axis_center):
+            raise SourceFrameCliError("globalBounds derived values are not finite")
+        extent.append(axis_extent)
+        center.append(axis_center)
+
+    if keys == _CANONICAL_BOUNDS_KEYS:
+        declared_extent = _finite_vector3(
+            bounds["extent"], "globalBounds.extent"
+        )
+        declared_center = _finite_vector3(
+            bounds["center"], "globalBounds.center"
+        )
+        if declared_extent != extent:
+            raise SourceFrameCliError(
+                "globalBounds.extent disagrees with min/max"
+            )
+        if declared_center != center:
+            raise SourceFrameCliError(
+                "globalBounds.center disagrees with min/max"
+            )
+
     return center
 
 
