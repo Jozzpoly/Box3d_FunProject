@@ -53,8 +53,8 @@
 
 ```text
 scan_frames: 8 tests PASS
-scan_world_contracts: 7 tests PASS
-total new tests: 15 PASS
+scan_world_contracts: 10 tests PASS
+total new tests: 18 PASS
 ```
 
 These local tests validate only the new dependency-free modules. Full repository contracts and Windows gate must run after the branch is fetched on the owner machine or CI.
