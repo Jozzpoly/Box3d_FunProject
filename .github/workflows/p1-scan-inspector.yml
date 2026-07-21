@@ -7,6 +7,7 @@ on:
       - agent/p1-dataset-inspector-staging
       - agent/p1b-world-import-contract-staging
       - agent/p1b-inspector-bundle-staging
+      - agent/p1b-owner-gate-hardening
     paths:
       - "tools/scan_pipeline/scan_*.py"
       - "tools/scan_pipeline/run_p1_contracts.py"
@@ -16,6 +17,7 @@ on:
   push:
     branches:
       - "agent/p1b-*"
+      - "agent/p2a-*"
     paths:
       - "tools/scan_pipeline/scan_*.py"
       - "tools/scan_pipeline/run_p1_contracts.py"
@@ -42,7 +44,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Compile P1 modules
+      - name: Compile P1/P1B/P2A modules
         run: >-
           python -m py_compile
           tools/scan_pipeline/scan_inspect.py
@@ -55,6 +57,8 @@ jobs:
           tools/scan_pipeline/scan_import_bundle_verify.py
           tools/scan_pipeline/scan_source_frame_contract.py
           tools/scan_pipeline/scan_owner_gate.py
+          tools/scan_pipeline/scan_preview_pack.py
+          tools/scan_pipeline/scan_preview_pack_verify.py
           tools/scan_pipeline/run_p1_contracts.py
 
       - name: Run canonical contracts and capture output
@@ -77,7 +81,12 @@ jobs:
             const marker = '<!-- p1-ci-diagnostic -->';
             const raw = fs.readFileSync('p1-test-output.txt', 'utf8');
             const tail = raw.slice(-12000).replaceAll('```', '~~~');
-            const body = `${marker}\n## P1 canonical test failure\n\n\`\`\`text\n${tail}\n\`\`\``;
+            const body = `${marker}
+            ## P1/P1B/P2A canonical test failure
+
+            \`\`\`text
+            ${tail}
+            \`\`\``;
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -119,7 +128,10 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 comment_id: existing.id,
-                body: `${marker}\n## P1 canonical diagnostic resolved\n\nThe latest canonical compile and dependency-free P1 contract run passed for commit \`${context.sha}\`.`,
+                body: `${marker}
+                ## P1/P1B/P2A canonical diagnostic resolved
+
+                The latest canonical compile and dependency-free scan contract run passed for commit \`${context.sha}\`.`,
               });
             }
 
@@ -155,7 +167,7 @@ jobs:
         if: matrix.numpy
         run: python -m pip install --upgrade numpy
 
-      - name: Compile P1 modules
+      - name: Compile P1/P1B/P2A modules
         run: >-
           python -m py_compile
           tools/scan_pipeline/scan_inspect.py
@@ -168,6 +180,8 @@ jobs:
           tools/scan_pipeline/scan_import_bundle_verify.py
           tools/scan_pipeline/scan_source_frame_contract.py
           tools/scan_pipeline/scan_owner_gate.py
+          tools/scan_pipeline/scan_preview_pack.py
+          tools/scan_pipeline/scan_preview_pack_verify.py
           tools/scan_pipeline/run_p1_contracts.py
 
       - name: Parse PowerShell gate
