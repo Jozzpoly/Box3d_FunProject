@@ -5,13 +5,13 @@ The command derives handedness and the signed-permutation matrix from semantic
 axis roles. It never infers source axes from scan bounds and never marks a
 contract confirmed without a separate explicit owner action.
 
-The owner-safe flow deliberately keeps private origin coordinates out of command
-arguments and console output:
+The owner-safe flow deliberately keeps private origin coordinates and local file
+paths out of command arguments and console output:
 
 1. ``propose-from-inspection`` derives only the local origin from verified global
    bounds and writes an unconfirmed proposal.
-2. ``confirm`` requires the exact proposal content hash and changes only
-   ``confirmed: false`` to ``confirmed: true``.
+2. ``confirm`` requires the exact canonical proposal content hash and changes
+   only ``confirmed: false`` to ``confirmed: true``.
 
 Mirrored proposals are not accepted by this flow. They require a separate,
 explicitly reviewed procedure through the legacy ``create --mirror-approved``
@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import argparse
 import copy
-import hashlib
 import hmac
 import importlib.util
 import json
@@ -40,6 +39,7 @@ _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _INSPECTION_SCHEMA = "jozz.scan-dataset-inspection"
 _MIN_INSPECTION_SCHEMA_VERSION = 3
 _ORIGIN_POLICY = "GLOBAL_BOUNDS_CENTER"
+_ORIGIN_POLICY_CLI = "global-bounds-center"
 
 
 class SourceFrameCliError(ValueError):
@@ -82,6 +82,19 @@ def load_json_strict(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise SourceFrameCliError(f"{path} must contain a JSON object")
     return value
+
+
+def load_private_inspection_json(path: Path) -> dict[str, Any]:
+    """Load inspection data without echoing its private local path on failure."""
+    try:
+        return load_json_strict(path)
+    except SourceFrameCliError as exc:
+        text = str(exc)
+        if text.startswith("duplicate JSON key:") or text.startswith(
+            "non-standard JSON constant:"
+        ):
+            raise
+        raise SourceFrameCliError("cannot read private inspection JSON") from exc
 
 
 def _axis_vector(label: str, field: str) -> tuple[int, int, int]:
@@ -161,22 +174,8 @@ def _finite_origin(values: Sequence[float]) -> list[float]:
     return [0.0 if value == -0.0 else value for value in result]
 
 
-def _canonical_json_bytes(value: Any) -> bytes:
-    return (
-        json.dumps(
-            value,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        )
-        + "\n"
-    ).encode("utf-8")
-
-
 def contract_sha256(contract: dict[str, Any]) -> str:
-    normalized = _load_scan_frames().validate_frame_contract(contract)
-    return hashlib.sha256(_canonical_json_bytes(normalized)).hexdigest()
+    return _load_scan_frames().contract_sha256(contract)
 
 
 def _sha256(value: str, field: str) -> str:
@@ -212,8 +211,13 @@ def _inspection_global_bounds_center(inspection: dict[str, Any]) -> list[float]:
         raise SourceFrameCliError("inspection schemaVersion must be an integer")
     if version < _MIN_INSPECTION_SCHEMA_VERSION:
         raise SourceFrameCliError("inspection report schema is too old")
-    if inspection.get("datasetStatus") == "incompatible":
-        raise SourceFrameCliError("incompatible inspection cannot propose a frame")
+    if inspection.get("datasetStatus") not in {
+        "compatible",
+        "compatible-review",
+    }:
+        raise SourceFrameCliError(
+            "inspection must be compatible or compatible-review"
+        )
     automatic = inspection.get("automaticEvidenceGate")
     if not isinstance(automatic, dict) or automatic.get("passed") is not True:
         raise SourceFrameCliError(
@@ -238,6 +242,17 @@ def _inspection_global_bounds_center(inspection: dict[str, Any]) -> list[float]:
             raise SourceFrameCliError("globalBounds center is not finite")
         center.append(0.0 if value == -0.0 else value)
     return center
+
+
+def _require_canonical_contract(
+    document: dict[str, Any], *, label: str
+) -> dict[str, Any]:
+    normalized = _load_scan_frames().validate_frame_contract(document)
+    if document != normalized:
+        raise SourceFrameCliError(
+            f"{label} must be an exact canonical source-frame document"
+        )
+    return normalized
 
 
 def build_contract(
@@ -319,7 +334,7 @@ def propose_contract_from_inspection(
         raise SourceFrameCliError(
             "owner-safe proposal flow accepts only non-mirrored transforms"
         )
-    return contract
+    return _require_canonical_contract(contract, label="proposal")
 
 
 def confirm_contract(
@@ -327,8 +342,7 @@ def confirm_contract(
 ) -> dict[str, Any]:
     """Confirm the exact proposal while changing only its confirmed flag."""
     expected = _sha256(expected_sha256, "expectedSha256")
-    frames = _load_scan_frames()
-    normalized = frames.validate_frame_contract(proposal)
+    normalized = _require_canonical_contract(proposal, label="proposal")
     if normalized["confirmed"] is not False:
         raise SourceFrameCliError("proposal is already confirmed")
     transform = normalized["sourceToLab"]
@@ -346,7 +360,7 @@ def confirm_contract(
 
     confirmed = copy.deepcopy(normalized)
     confirmed["confirmed"] = True
-    confirmed = frames.validate_frame_contract(confirmed)
+    confirmed = _load_scan_frames().validate_frame_contract(confirmed)
 
     comparison = copy.deepcopy(confirmed)
     comparison["confirmed"] = False
@@ -354,7 +368,7 @@ def confirm_contract(
         raise SourceFrameCliError(
             "confirmation attempted to change fields other than confirmed"
         )
-    return confirmed
+    return _require_canonical_contract(confirmed, label="confirmed contract")
 
 
 def write_contract(
@@ -421,7 +435,9 @@ def _create(args: argparse.Namespace) -> int:
 
 
 def _propose_from_inspection(args: argparse.Namespace) -> int:
-    inspection = load_json_strict(args.inspection)
+    if args.origin_policy != _ORIGIN_POLICY_CLI:
+        raise SourceFrameCliError("unsupported origin policy")
+    inspection = load_private_inspection_json(args.inspection)
     contract = propose_contract_from_inspection(
         inspection=inspection,
         source_units_per_meter=args.source_units_per_meter,
@@ -433,8 +449,9 @@ def _propose_from_inspection(args: argparse.Namespace) -> int:
     proposal_hash = contract_sha256(contract)
     print(
         "scan_source_frame_contract: PROPOSAL_READY | "
-        f"path={args.output} confirmed=false "
+        "confirmed=false "
         f"origin_policy={_ORIGIN_POLICY} "
+        f"units_per_meter={contract['sourceFrame']['unitsPerMeter']} "
         f"determinant={transform['determinant']} "
         f"orientation={transform['orientationChange']} "
         f"proposal_sha256={proposal_hash}"
@@ -442,7 +459,7 @@ def _propose_from_inspection(args: argparse.Namespace) -> int:
     print(
         "scan_source_frame_contract: REVIEW_REQUIRED | "
         "review units, semantic axes, orientation and proposal SHA-256; "
-        "private origin values were not printed"
+        "private origin values and local paths were not printed"
     )
     return 0
 
@@ -457,7 +474,7 @@ def _confirm(args: argparse.Namespace) -> int:
     transform = confirmed["sourceToLab"]
     print(
         "scan_source_frame_contract: CONFIRMED | "
-        f"path={args.output} confirmed=true "
+        "confirmed=true "
         f"proposal_sha256={args.expected_sha256} "
         f"confirmed_sha256={contract_sha256(confirmed)} "
         f"determinant={transform['determinant']} "
@@ -502,9 +519,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "create", help="derive and write one frame contract"
     )
     _add_axis_arguments(create)
-    create.add_argument(
-        "--output", required=True, type=Path
-    )
+    create.add_argument("--output", required=True, type=Path)
     create.add_argument(
         "--local-origin-source",
         required=True,
@@ -524,6 +539,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     _add_axis_arguments(propose)
     propose.add_argument("--inspection", required=True, type=Path)
     propose.add_argument("--output", required=True, type=Path)
+    propose.add_argument(
+        "--origin-policy",
+        required=True,
+        choices=[_ORIGIN_POLICY_CLI],
+    )
     propose.set_defaults(handler=_propose_from_inspection)
 
     confirm = subparsers.add_parser(
