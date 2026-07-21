@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Strict, privacy-safe GLB geometry evidence for photogrammetry P1.
 
-This module deliberately sits in front of the legacy dependency-free GLB
-inspector. It validates accessor layouts and primitive semantics, verifies
-POSITION bounds from actual data, and scans triangle quality without cooking
-runtime geometry or copying source names and textures into the report.
+This module sits in front of the legacy dependency-free GLB inspector. It
+validates accessor layouts and primitive semantics, verifies POSITION bounds
+from actual data, and scans triangle quality without cooking runtime geometry
+or copying private source names and textures into the report.
 """
 from __future__ import annotations
 
@@ -18,13 +18,13 @@ from typing import Any, Iterable, Sequence
 
 try:  # Optional acceleration only.
     import numpy as _np
-except ImportError:  # pragma: no cover - exercised on systems without NumPy.
+except ImportError:  # pragma: no cover - exercised where NumPy is unavailable.
     _np = None
 
 MODULE_DIR = Path(__file__).resolve().parent
 TRIANGLE_CHUNK = 131_072
-LARGE_EDGE_MIN_METERS = 10.0
-LARGE_EDGE_FRACTION_OF_PRIMITIVE_DIAGONAL = 0.05
+PROVISIONAL_LARGE_EDGE_SOURCE_UNITS = 10.0
+EDGE_THRESHOLDS_SOURCE_UNITS = (1.0, 5.0, 10.0, 25.0, 50.0, 100.0)
 DEGENERATE_RELATIVE_EPSILON = 1.0e-12
 
 _COMPONENT_NUMPY = {
@@ -126,6 +126,7 @@ def accessor_layout(doc: dict[str, Any], binary: bytes, index: int) -> dict[str,
         "stride": stride,
         "start": view_start + accessor_offset,
         "viewIndex": view_index,
+        "hasExplicitStride": "byteStride" in view,
         "normalized": bool(accessor.get("normalized", False)),
     }
 
@@ -227,10 +228,6 @@ def _declared_bounds_evidence(
     }
 
 
-def _transform_point(matrix: Sequence[float], point: Sequence[float]) -> tuple[float, float, float]:
-    return scan_inspect.transform_point(matrix, point)
-
-
 def _distance(a: Sequence[float], b: Sequence[float]) -> float:
     return math.sqrt(sum((float(a[i]) - float(b[i])) ** 2 for i in range(3)))
 
@@ -244,36 +241,29 @@ def _cross_length(a: Sequence[float], b: Sequence[float], c: Sequence[float]) ->
     return math.sqrt(cx * cx + cy * cy + cz * cz)
 
 
-def _triangle_thresholds(world_bounds: dict[str, list[float]]) -> tuple[float, float]:
+def _degenerate_area2_threshold(world_bounds: dict[str, list[float]]) -> float:
     diagonal = math.sqrt(sum(value * value for value in world_bounds["extent"]))
-    large_edge = max(
-        LARGE_EDGE_MIN_METERS,
-        diagonal * LARGE_EDGE_FRACTION_OF_PRIMITIVE_DIAGONAL,
-    )
-    degenerate_area2 = max(
-        1.0e-12,
-        diagonal * diagonal * DEGENERATE_RELATIVE_EPSILON,
-    )
-    return large_edge, degenerate_area2
+    return max(1.0e-12, diagonal * diagonal * DEGENERATE_RELATIVE_EPSILON)
+
+
+def _empty_edge_threshold_counts() -> dict[str, int]:
+    return {f"gt_{threshold:g}": 0 for threshold in EDGE_THRESHOLDS_SOURCE_UNITS}
 
 
 def _analyze_triangles_numpy(
     positions: Any,
     indices: Any,
     world: Sequence[float],
-    large_edge_threshold: float,
     degenerate_area2_threshold: float,
     triangle_chunk: int,
 ) -> dict[str, Any]:
     assert _np is not None
-    linear = _np.asarray(
-        [world[0:3], world[4:7], world[8:11]],
-        dtype=_np.float64,
-    )
+    linear = _np.asarray([world[0:3], world[4:7], world[8:11]], dtype=_np.float64)
     translation = _np.asarray([world[3], world[7], world[11]], dtype=_np.float64)
     triangle_count = int(indices.size // 3)
     degenerate = 0
-    large = 0
+    provisional_large = 0
+    edge_counts = _empty_edge_threshold_counts()
     maximum_edge = 0.0
     maximum_area = 0.0
 
@@ -306,16 +296,19 @@ def _analyze_triangles_numpy(
             | (tri_indices[:, 2] == tri_indices[:, 0])
         )
         degenerate += int(_np.count_nonzero(repeated | (area2 <= degenerate_area2_threshold)))
-        large += int(_np.count_nonzero(max_edges > large_edge_threshold))
-        maximum_edge = max(maximum_edge, float(max_edges.max(initial=0.0)))
-        maximum_area = max(maximum_area, float((area2 * 0.5).max(initial=0.0)))
+        provisional_large += int(_np.count_nonzero(max_edges > PROVISIONAL_LARGE_EDGE_SOURCE_UNITS))
+        for threshold in EDGE_THRESHOLDS_SOURCE_UNITS:
+            edge_counts[f"gt_{threshold:g}"] += int(_np.count_nonzero(max_edges > threshold))
+        maximum_edge = max(maximum_edge, float(max_edges.max()))
+        maximum_area = max(maximum_area, float((area2 * 0.5).max()))
 
     return {
         "triangleCountAnalyzed": triangle_count,
         "degenerateTriangleCount": degenerate,
-        "largeTriangleCount": large,
-        "maxTriangleEdge": rounded(maximum_edge),
-        "maxTriangleArea": rounded(maximum_area),
+        "provisionalLargeTriangleCount": provisional_large,
+        "edgeThresholdCountsSourceUnits": edge_counts,
+        "maxTriangleEdgeSourceUnits": rounded(maximum_edge),
+        "maxTriangleAreaSourceUnitsSquared": rounded(maximum_area),
     }
 
 
@@ -324,11 +317,11 @@ def _analyze_triangles_stdlib(
     index_reader: AccessorReader | None,
     triangle_count: int,
     world: Sequence[float],
-    large_edge_threshold: float,
     degenerate_area2_threshold: float,
 ) -> dict[str, Any]:
     degenerate = 0
-    large = 0
+    provisional_large = 0
+    edge_counts = _empty_edge_threshold_counts()
     maximum_edge = 0.0
     maximum_area = 0.0
 
@@ -339,10 +332,7 @@ def _analyze_triangles_stdlib(
             ids = tuple(int(index_reader.get(triangle * 3 + corner)[0]) for corner in range(3))
         if any(index < 0 or index >= len(position_reader) for index in ids):
             raise GlbQualityError("triangle index is outside POSITION accessor")
-        points = [
-            _transform_point(world, position_reader.get(index))
-            for index in ids
-        ]
+        points = [scan_inspect.transform_point(world, position_reader.get(index)) for index in ids]
         edge = max(
             _distance(points[0], points[1]),
             _distance(points[1], points[2]),
@@ -351,18 +341,48 @@ def _analyze_triangles_stdlib(
         area2 = _cross_length(points[0], points[1], points[2])
         if len(set(ids)) < 3 or area2 <= degenerate_area2_threshold:
             degenerate += 1
-        if edge > large_edge_threshold:
-            large += 1
+        if edge > PROVISIONAL_LARGE_EDGE_SOURCE_UNITS:
+            provisional_large += 1
+        for threshold in EDGE_THRESHOLDS_SOURCE_UNITS:
+            if edge > threshold:
+                edge_counts[f"gt_{threshold:g}"] += 1
         maximum_edge = max(maximum_edge, edge)
         maximum_area = max(maximum_area, area2 * 0.5)
 
     return {
         "triangleCountAnalyzed": triangle_count,
         "degenerateTriangleCount": degenerate,
-        "largeTriangleCount": large,
-        "maxTriangleEdge": rounded(maximum_edge),
-        "maxTriangleArea": rounded(maximum_area),
+        "provisionalLargeTriangleCount": provisional_large,
+        "edgeThresholdCountsSourceUnits": edge_counts,
+        "maxTriangleEdgeSourceUnits": rounded(maximum_edge),
+        "maxTriangleAreaSourceUnitsSquared": rounded(maximum_area),
     }
+
+
+def _validate_vertex_attribute(
+    semantic: str,
+    layout: dict[str, Any],
+    position_count: int,
+) -> None:
+    if int(layout["count"]) != position_count:
+        raise GlbQualityError(f"vertex attribute {semantic} count differs from POSITION")
+    if semantic == "NORMAL" and (
+        layout["componentType"] != 5126
+        or layout["type"] != "VEC3"
+        or layout["normalized"]
+    ):
+        raise GlbQualityError("NORMAL must be a non-normalized FLOAT VEC3 accessor")
+    if semantic == "TEXCOORD_0":
+        if layout["type"] != "VEC2":
+            raise GlbQualityError("TEXCOORD_0 must be VEC2")
+        component_type = int(layout["componentType"])
+        normalized = bool(layout["normalized"])
+        if component_type == 5126 and normalized:
+            raise GlbQualityError("FLOAT TEXCOORD_0 cannot be normalized")
+        if component_type not in {5126, 5121, 5123}:
+            raise GlbQualityError("TEXCOORD_0 has an unsupported component type")
+        if component_type in {5121, 5123} and not normalized:
+            raise GlbQualityError("integer TEXCOORD_0 must be normalized")
 
 
 def analyze_triangle_primitive(
@@ -371,20 +391,17 @@ def analyze_triangle_primitive(
     primitive: dict[str, Any],
     world: Sequence[float],
     world_bounds: dict[str, list[float]],
+    actual_minimum: Sequence[float],
+    actual_maximum: Sequence[float],
     *,
     prefer_numpy: bool,
     triangle_chunk: int,
 ) -> dict[str, Any]:
     mode = int(primitive.get("mode", 4))
-    if mode != 4:
-        return {
-            "analyzed": False,
-            "reason": f"primitive mode {mode} is not TRIANGLES",
-        }
-
     attributes = primitive.get("attributes", {})
     if "POSITION" not in attributes:
         raise GlbQualityError("primitive has no POSITION accessor")
+
     position_index = int(attributes["POSITION"])
     position_accessor = scan_inspect.checked(doc.get("accessors", []), position_index, "accessor")
     position_layout = accessor_layout(doc, binary, position_index)
@@ -395,11 +412,33 @@ def analyze_triangle_primitive(
     ):
         raise GlbQualityError("POSITION must be a non-normalized FLOAT VEC3 accessor")
 
+    for semantic, accessor_index in attributes.items():
+        if semantic == "POSITION":
+            continue
+        _validate_vertex_attribute(
+            str(semantic),
+            accessor_layout(doc, binary, int(accessor_index)),
+            int(position_layout["count"]),
+        )
+
+    declared_evidence = _declared_bounds_evidence(
+        position_accessor,
+        actual_minimum,
+        actual_maximum,
+    )
+    if mode != 4:
+        return {
+            "analyzed": False,
+            "reason": f"primitive mode {mode} is not TRIANGLES",
+            "declaredPositionBounds": declared_evidence,
+        }
+
     index_reader: AccessorReader | None = None
     index_values: Any
     if "indices" in primitive:
-        index_index = int(primitive["indices"])
-        index_layout = accessor_layout(doc, binary, index_index)
+        index_layout = accessor_layout(doc, binary, int(primitive["indices"]))
+        if index_layout["hasExplicitStride"]:
+            raise GlbQualityError("index accessors cannot use a strided bufferView")
         if (
             index_layout["type"] != "SCALAR"
             or index_layout["componentType"] not in _ALLOWED_INDEX_COMPONENTS
@@ -424,15 +463,13 @@ def analyze_triangle_primitive(
             index_values = None
 
     triangle_count = index_count // 3
-    large_edge_threshold, degenerate_area2_threshold = _triangle_thresholds(world_bounds)
+    degenerate_threshold = _degenerate_area2_threshold(world_bounds)
     if prefer_numpy and _np is not None:
-        positions = _numpy_accessor(binary, position_layout)
         result = _analyze_triangles_numpy(
-            positions,
+            _numpy_accessor(binary, position_layout),
             index_values,
             world,
-            large_edge_threshold,
-            degenerate_area2_threshold,
+            degenerate_threshold,
             triangle_chunk,
         )
         backend = "numpy"
@@ -442,8 +479,7 @@ def analyze_triangle_primitive(
             index_reader,
             triangle_count,
             world,
-            large_edge_threshold,
-            degenerate_area2_threshold,
+            degenerate_threshold,
         )
         backend = "stdlib"
 
@@ -451,13 +487,9 @@ def analyze_triangle_primitive(
         {
             "analyzed": True,
             "backend": backend,
-            "largeEdgeThreshold": rounded(large_edge_threshold),
-            "degenerateArea2Threshold": rounded(degenerate_area2_threshold),
-            "declaredPositionBounds": _declared_bounds_evidence(
-                position_accessor,
-                _actual_vec3_bounds(binary, position_layout, prefer_numpy=prefer_numpy)[0],
-                _actual_vec3_bounds(binary, position_layout, prefer_numpy=prefer_numpy)[1],
-            ),
+            "provisionalLargeEdgeThresholdSourceUnits": PROVISIONAL_LARGE_EDGE_SOURCE_UNITS,
+            "degenerateArea2ThresholdSourceUnitsSquared": rounded(degenerate_threshold),
+            "declaredPositionBounds": declared_evidence,
         }
     )
     return result
@@ -527,8 +559,8 @@ def scene_summary(doc: dict[str, Any]) -> dict[str, Any]:
         for index, node in enumerate(nodes)
         if "mesh" in node and index not in default_reachable
     )
-    non_identity = 0
     identity = scan_inspect.identity()
+    non_identity = 0
     for node in nodes:
         matrix = scan_inspect.node_matrix(node)
         if any(abs(float(matrix[i]) - float(identity[i])) > 1.0e-12 for i in range(16)):
@@ -563,14 +595,10 @@ def inspect_glb_quality(
     if declared_buffer_bytes < 0 or declared_buffer_bytes > len(binary):
         raise GlbQualityError("GLB buffer byteLength exceeds the BIN chunk")
 
-    layouts = [
-        accessor_layout(doc, binary, index)
-        for index in range(len(doc.get("accessors", [])))
-    ]
+    layouts = [accessor_layout(doc, binary, index) for index in range(len(doc.get("accessors", [])))]
     legacy = scan_inspect.inspect_glb_bytes(data, source_label)
     scene_info = scene_summary(doc)
     meshes = doc.get("meshes", [])
-    accessors = doc.get("accessors", [])
     primitive_reports = []
     world_bounds = scan_inspect.empty_bounds()
     local_bounds_cache: dict[int, tuple[list[float], list[float]]] = {}
@@ -587,12 +615,6 @@ def inspect_glb_quality(
                 raise GlbQualityError("primitive has no POSITION accessor")
             position_index = int(attributes["POSITION"])
             position_layout = layouts[position_index]
-            if (
-                position_layout["componentType"] != 5126
-                or position_layout["type"] != "VEC3"
-                or position_layout["normalized"]
-            ):
-                raise GlbQualityError("POSITION must be a non-normalized FLOAT VEC3 accessor")
             if position_index not in local_bounds_cache:
                 local_bounds_cache[position_index] = _actual_vec3_bounds(
                     binary,
@@ -609,6 +631,8 @@ def inspect_glb_quality(
                 primitive,
                 world,
                 finished_world_bounds,
+                actual_minimum,
+                actual_maximum,
                 prefer_numpy=prefer_numpy,
                 triangle_chunk=triangle_chunk,
             )
@@ -632,12 +656,18 @@ def inspect_glb_quality(
 
     final_bounds = scan_inspect.finish_bounds(world_bounds)
     analyzed = [item["quality"] for item in primitive_reports if item["quality"].get("analyzed")]
+    aggregate_edges = _empty_edge_threshold_counts()
+    for item in analyzed:
+        for key, value in item["edgeThresholdCountsSourceUnits"].items():
+            aggregate_edges[key] += int(value)
     geometry_totals = {
         "triangleCountAnalyzed": sum(int(item["triangleCountAnalyzed"]) for item in analyzed),
         "degenerateTriangleCount": sum(int(item["degenerateTriangleCount"]) for item in analyzed),
-        "largeTriangleCount": sum(int(item["largeTriangleCount"]) for item in analyzed),
-        "maxTriangleEdge": rounded(max((float(item["maxTriangleEdge"]) for item in analyzed), default=0.0)),
-        "maxTriangleArea": rounded(max((float(item["maxTriangleArea"]) for item in analyzed), default=0.0)),
+        "provisionalLargeTriangleCount": sum(int(item["provisionalLargeTriangleCount"]) for item in analyzed),
+        "provisionalLargeEdgeThresholdSourceUnits": PROVISIONAL_LARGE_EDGE_SOURCE_UNITS,
+        "edgeThresholdCountsSourceUnits": aggregate_edges,
+        "maxTriangleEdgeSourceUnits": rounded(max((float(item["maxTriangleEdgeSourceUnits"]) for item in analyzed), default=0.0)),
+        "maxTriangleAreaSourceUnitsSquared": rounded(max((float(item["maxTriangleAreaSourceUnitsSquared"]) for item in analyzed), default=0.0)),
         "unanalyzedPrimitiveCount": len(primitive_reports) - len(analyzed),
     }
 
@@ -648,14 +678,14 @@ def inspect_glb_quality(
         warnings.append("No TANGENT attributes; tangent-space normal mapping is unavailable as-is.")
     if geometry_totals["degenerateTriangleCount"]:
         warnings.append("Degenerate triangles exist and must not be treated as reliable surface evidence.")
-    if geometry_totals["largeTriangleCount"]:
-        warnings.append("Large triangles exist and may represent spikes, bridges across holes or distant floaters.")
+    if geometry_totals["provisionalLargeTriangleCount"]:
+        warnings.append("Long-edge triangles exist in source units and may indicate spikes or bridges across holes.")
     if scene_info["orphanNodeIndices"]:
         warnings.append("The GLB contains orphan nodes not reachable from any scene.")
     if scene_info["defaultUnreachableMeshNodeIndices"]:
         warnings.append("Some mesh nodes are not reachable from the default scene.")
     if any(
-        item["quality"].get("analyzed")
+        item["quality"].get("declaredPositionBounds", {}).get("present")
         and not item["quality"]["declaredPositionBounds"]["matchesActual"]
         for item in primitive_reports
     ):
