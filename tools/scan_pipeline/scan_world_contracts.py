@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import math
 from pathlib import Path
 import re
 import sys
@@ -80,6 +81,26 @@ def _sha256(value: Any, label: str) -> str:
     if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
         raise WorldContractError(f"{label} must be a lowercase SHA-256 hex string")
     return value
+
+
+def _finite_float(
+    value: Any,
+    label: str,
+    *,
+    minimum: float | None = None,
+    maximum: float | None = None,
+) -> float:
+    try:
+        result = float(value)
+    except (TypeError, ValueError) as exc:
+        raise WorldContractError(f"{label} must be numeric") from exc
+    if not math.isfinite(result):
+        raise WorldContractError(f"{label} must be finite")
+    if minimum is not None and result < minimum:
+        raise WorldContractError(f"{label} must be >= {minimum}")
+    if maximum is not None and result > maximum:
+        raise WorldContractError(f"{label} must be <= {maximum}")
+    return result
 
 
 def _reject_backend_handles(value: Any, path: str = "root") -> None:
@@ -223,6 +244,14 @@ def validate_source_package(package: dict[str, Any]) -> dict[str, Any]:
             raise WorldContractError(f"stableTileId mismatch for tile {tile_id}")
         _source_record({"tileId": tile_id, **dict(tile.get("glb", {}))}, "glb")
         _source_record({"tileId": tile_id, **dict(tile.get("ply", {}))}, "ply")
+    revision_payload = {
+        "packageId": package["packageId"],
+        "frameContract": normalized_frame,
+        "tiles": package["tiles"],
+    }
+    expected_revision = f"sha256:{sha256_json(revision_payload)}"
+    if package["revisionId"] != expected_revision:
+        raise WorldContractError("revisionId does not match source hashes and normalized frame contract")
     _reject_backend_handles(package, "sourcePackage")
     return package
 
@@ -243,11 +272,16 @@ def build_world_import_proposal(
     package = validate_source_package(source_package)
     report = _validate_inspection(inspection_report)
     proposal_id = _stable_id(proposal_id, "proposalId")
+    package_tile_ids = {int(tile["tileId"]) for tile in package["tiles"]}
+    pair_tile_ids: set[int] = set()
     pairs: list[dict[str, Any]] = []
     for raw in sorted(report["pairs"], key=lambda item: int(item["tileId"])):
         if not isinstance(raw, dict):
             raise WorldContractError("pair evidence entry must be an object")
         tile_id = _positive_int(raw.get("tileId"), "pair.tileId")
+        if tile_id in pair_tile_ids:
+            raise WorldContractError(f"duplicate pair evidence tile id {tile_id}")
+        pair_tile_ids.add(tile_id)
         classification = raw.get("classification")
         if classification not in {"strong-match", "bounds-strong-match", "review", "incompatible"}:
             raise WorldContractError(f"unknown pair classification for tile {tile_id}")
@@ -257,11 +291,29 @@ def build_world_import_proposal(
                 "stableTileId": f"{package['packageId']}/tile/{tile_id}",
                 "classification": "bounds-strong-match" if classification == "strong-match" else classification,
                 "evidenceLevel": "BOUNDS_ONLY",
-                "normalizedCenterDelta": float(raw.get("normalizedCenterDelta", 0.0)),
-                "maxExtentRelativeError": float(raw.get("maxExtentRelativeError", 0.0)),
-                "xyOverlapOfSmaller": float(raw.get("xyOverlapOfSmaller", 0.0)),
+                "normalizedCenterDelta": _finite_float(
+                    raw.get("normalizedCenterDelta", 0.0),
+                    f"pair[{tile_id}].normalizedCenterDelta",
+                    minimum=0.0,
+                ),
+                "maxExtentRelativeError": _finite_float(
+                    raw.get("maxExtentRelativeError", 0.0),
+                    f"pair[{tile_id}].maxExtentRelativeError",
+                    minimum=0.0,
+                ),
+                "xyOverlapOfSmaller": _finite_float(
+                    raw.get("xyOverlapOfSmaller", 0.0),
+                    f"pair[{tile_id}].xyOverlapOfSmaller",
+                    minimum=0.0,
+                    maximum=1.0,
+                ),
                 "axisPermutationSuspicion": raw.get("axisPermutationSuspicion") is True,
             }
+        )
+    if pair_tile_ids != package_tile_ids:
+        raise WorldContractError(
+            f"pair evidence must cover exactly the source package tiles; "
+            f"pairs={sorted(pair_tile_ids)}, package={sorted(package_tile_ids)}"
         )
 
     payload = {
