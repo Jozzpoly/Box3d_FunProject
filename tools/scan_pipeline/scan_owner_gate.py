@@ -5,8 +5,8 @@ The command can discover repeated real inspection reports, but it auto-selects
 one only when all passing candidates are byte-identical. Finalization requires
 an explicitly owner-confirmed source-frame contract, builds the immutable
 bundle, invokes the independent verifier as a separate process and writes a
-privacy-safe local receipt. Occupancy/P2 remain blocked until the owner also
-acknowledges manual review of the shareable JSON.
+private local receipt bound to that exact bundle revision. Occupancy/P2 remain
+blocked until the owner also acknowledges manual review of the shareable JSON.
 """
 from __future__ import annotations
 
@@ -26,8 +26,10 @@ MODULE_DIR = Path(__file__).resolve().parent
 INSPECTION_SCHEMA = "jozz.scan-dataset-inspection"
 MIN_INSPECTION_SCHEMA_VERSION = 3
 RECEIPT_SCHEMA = "jozz.scan-p1b-owner-gate-receipt"
-RECEIPT_SCHEMA_VERSION = 1
+RECEIPT_SCHEMA_VERSION = 2
 _SAFE_KEY = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_REVISION = re.compile(r"^sha256:[0-9a-f]{64}$")
 _BUNDLE_PATH = re.compile(r"\bpath=(.*?)\s+bundle_sha256=")
 
 
@@ -95,6 +97,18 @@ def _nonnegative_int(value: Any, field: str) -> int:
     return value
 
 
+def _sha256(value: Any, field: str) -> str:
+    if not isinstance(value, str) or not _SHA256.fullmatch(value):
+        raise OwnerGateError(f"{field} must be lowercase SHA-256")
+    return value
+
+
+def _revision(value: Any) -> str:
+    if not isinstance(value, str) or not _REVISION.fullmatch(value):
+        raise OwnerGateError("sourceRevisionId must be sha256:<hex>")
+    return value
+
+
 def inspection_candidate(path: Path) -> dict[str, Any]:
     path = Path(path)
     if not path.is_file() or path.is_symlink():
@@ -109,8 +123,12 @@ def inspection_candidate(path: Path) -> dict[str, Any]:
     if status not in {"compatible", "compatible-review", "incompatible"}:
         raise OwnerGateError(f"invalid datasetStatus in {path}")
     automatic = report.get("automaticEvidenceGate")
-    if not isinstance(automatic, dict) or not isinstance(automatic.get("passed"), bool):
-        raise OwnerGateError(f"automaticEvidenceGate.passed must be boolean in {path}")
+    if not isinstance(automatic, dict) or not isinstance(
+        automatic.get("passed"), bool
+    ):
+        raise OwnerGateError(
+            f"automaticEvidenceGate.passed must be boolean in {path}"
+        )
     totals = report.get("totals")
     pairs = report.get("pairs")
     if not isinstance(totals, dict) or not isinstance(pairs, list):
@@ -121,8 +139,12 @@ def inspection_candidate(path: Path) -> dict[str, Any]:
         "schemaVersion": version,
         "datasetStatus": status,
         "automaticEvidenceGatePassed": automatic["passed"],
-        "glbFiles": _nonnegative_int(totals.get("glbFiles"), "totals.glbFiles"),
-        "plyFiles": _nonnegative_int(totals.get("plyFiles"), "totals.plyFiles"),
+        "glbFiles": _nonnegative_int(
+            totals.get("glbFiles"), "totals.glbFiles"
+        ),
+        "plyFiles": _nonnegative_int(
+            totals.get("plyFiles"), "totals.plyFiles"
+        ),
         "pairCount": len(pairs),
     }
 
@@ -132,7 +154,11 @@ def discover_candidates(root: Path) -> list[dict[str, Any]]:
     if not root.is_dir() or root.is_symlink():
         raise OwnerGateError(f"inspection root must be a real directory: {root}")
     paths = sorted(
-        (path for path in root.rglob("inspection.json") if path.is_file() and not path.is_symlink()),
+        (
+            path
+            for path in root.rglob("inspection.json")
+            if path.is_file() and not path.is_symlink()
+        ),
         key=lambda path: path.as_posix().lower(),
     )
     if not paths:
@@ -184,15 +210,37 @@ def _run(command: list[str], label: str) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(command, capture_output=True, text=True, check=False)
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip()
-        raise OwnerGateError(f"{label} failed with exit code {result.returncode}: {detail}")
+        raise OwnerGateError(
+            f"{label} failed with exit code {result.returncode}: {detail}"
+        )
     return result
 
 
 def parse_bundle_path(stdout: str) -> Path:
     match = _BUNDLE_PATH.search(stdout)
     if not match:
-        raise OwnerGateError("bundle command did not report a parseable output path")
+        raise OwnerGateError(
+            "bundle command did not report a parseable output path"
+        )
     return Path(match.group(1))
+
+
+def read_verified_bundle_binding(bundle: Path) -> dict[str, str]:
+    complete = Path(bundle) / "COMPLETE.json"
+    if not complete.is_file() or complete.is_symlink():
+        raise OwnerGateError("verified bundle COMPLETE.json is missing or linked")
+    manifest = load_json_strict(complete)
+    if (
+        manifest.get("schema") != "jozz.scan-import-bundle"
+        or manifest.get("status") != "COMPLETE"
+    ):
+        raise OwnerGateError("verified bundle manifest boundary is invalid")
+    return {
+        "bundleContentSha256": _sha256(
+            manifest.get("bundleContentSha256"), "bundleContentSha256"
+        ),
+        "sourceRevisionId": _revision(manifest.get("sourceRevisionId")),
+    }
 
 
 def build_receipt(
@@ -200,6 +248,8 @@ def build_receipt(
     candidate: dict[str, Any],
     identical_copy_count: int,
     privacy_review_acknowledged: bool,
+    bundle_content_sha256: str,
+    source_revision_id: str,
 ) -> dict[str, Any]:
     return {
         "schema": RECEIPT_SCHEMA,
@@ -209,10 +259,13 @@ def build_receipt(
             if privacy_review_acknowledged
             else "P1B_TECHNICAL_PASS_PRIVACY_REVIEW_REQUIRED"
         ),
+        "privacyClass": "PRIVATE_LOCAL_ONLY",
         "inspection": {
             "schemaVersion": candidate["schemaVersion"],
             "datasetStatus": candidate["datasetStatus"],
-            "automaticEvidenceGatePassed": candidate["automaticEvidenceGatePassed"],
+            "automaticEvidenceGatePassed": candidate[
+                "automaticEvidenceGatePassed"
+            ],
             "glbFiles": candidate["glbFiles"],
             "plyFiles": candidate["plyFiles"],
             "pairCount": candidate["pairCount"],
@@ -222,9 +275,15 @@ def build_receipt(
         "bundle": {
             "internalVerificationPassed": True,
             "independentVerificationPassed": True,
+            "bundleContentSha256": _sha256(
+                bundle_content_sha256, "bundleContentSha256"
+            ),
+            "sourceRevisionId": _revision(source_revision_id),
         },
         "privacyReview": {
-            "status": "ACKNOWLEDGED" if privacy_review_acknowledged else "PENDING",
+            "status": (
+                "ACKNOWLEDGED" if privacy_review_acknowledged else "PENDING"
+            ),
             "reviewTargetRelativePath": "shareable/inspection.shareable.json",
         },
         "privacy": {
@@ -232,7 +291,8 @@ def build_receipt(
             "sourceBoundsIncluded": False,
             "sourceNamesIncluded": False,
             "sourcePathsIncluded": False,
-            "sourceHashesIncluded": False,
+            "sourceFileHashesIncluded": False,
+            "bundleFingerprintIncluded": True,
         },
     }
 
@@ -240,8 +300,12 @@ def build_receipt(
 def write_json_atomic(path: Path, value: dict[str, Any]) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
-    temporary = path.with_name(f".{path.name}.tmp-{os.getpid()}-{uuid.uuid4().hex}")
+    payload = (
+        json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    ).encode("utf-8")
+    temporary = path.with_name(
+        f".{path.name}.tmp-{os.getpid()}-{uuid.uuid4().hex}"
+    )
     try:
         with temporary.open("xb") as handle:
             handle.write(payload)
@@ -256,13 +320,25 @@ def _select(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     if args.inspection is not None:
         candidate = inspection_candidate(args.inspection)
         if not candidate["automaticEvidenceGatePassed"]:
-            raise OwnerGateError("explicit inspection did not pass the automatic evidence gate")
+            raise OwnerGateError(
+                "explicit inspection did not pass the automatic evidence gate"
+            )
         if candidate["datasetStatus"] == "incompatible":
             raise OwnerGateError("explicit inspection is spatially incompatible")
-        if candidate["glbFiles"] != args.expected_glb or candidate["plyFiles"] != args.expected_ply:
-            raise OwnerGateError("explicit inspection source counts do not match expectations")
-        if candidate["pairCount"] != args.expected_glb or candidate["pairCount"] != args.expected_ply:
-            raise OwnerGateError("explicit inspection pair coverage is incomplete")
+        if (
+            candidate["glbFiles"] != args.expected_glb
+            or candidate["plyFiles"] != args.expected_ply
+        ):
+            raise OwnerGateError(
+                "explicit inspection source counts do not match expectations"
+            )
+        if (
+            candidate["pairCount"] != args.expected_glb
+            or candidate["pairCount"] != args.expected_ply
+        ):
+            raise OwnerGateError(
+                "explicit inspection pair coverage is incomplete"
+            )
         return candidate, 1
     return select_identical_passing_candidate(
         args.inspection_root,
@@ -276,8 +352,8 @@ def _inspect(args: argparse.Namespace) -> int:
     print(
         "scan_owner_gate: INSPECTION_READY | "
         f"path={candidate['path']} copies={copies} "
-        f"glb={candidate['glbFiles']} ply={candidate['plyFiles']} pairs={candidate['pairCount']} "
-        f"status={candidate['datasetStatus']}"
+        f"glb={candidate['glbFiles']} ply={candidate['plyFiles']} "
+        f"pairs={candidate['pairCount']} status={candidate['datasetStatus']}"
     )
     return 0
 
@@ -288,53 +364,67 @@ def _finalize(args: argparse.Namespace) -> int:
     if not _SAFE_KEY.fullmatch(key):
         raise OwnerGateError(f"package key must match {_SAFE_KEY.pattern}")
 
-    frame_command = [
-        sys.executable,
-        str(MODULE_DIR / "scan_source_frame_contract.py"),
-        "validate",
-        str(args.frame_contract),
-        "--require-confirmed",
-    ]
-    _run(frame_command, "source-frame validation")
+    _run(
+        [
+            sys.executable,
+            str(MODULE_DIR / "scan_source_frame_contract.py"),
+            "validate",
+            str(args.frame_contract),
+            "--require-confirmed",
+        ],
+        "source-frame validation",
+    )
 
     output_root = Path(args.output_root)
-    bundle_command = [
-        sys.executable,
-        str(MODULE_DIR / "scan_import_bundle.py"),
-        "--inspection",
-        str(candidate["path"]),
-        "--frame-contract",
-        str(args.frame_contract),
-        "--output-root",
-        str(output_root),
-        "--package-id",
-        f"scan/{key}",
-        "--proposal-id",
-        f"proposal/{key}/revision-1",
-        "--bundle-label",
-        key,
-        "--require-inspection-pass",
-        "--require-frame-confirmed",
-    ]
-    bundle_result = _run(bundle_command, "bundle publication")
+    bundle_result = _run(
+        [
+            sys.executable,
+            str(MODULE_DIR / "scan_import_bundle.py"),
+            "--inspection",
+            str(candidate["path"]),
+            "--frame-contract",
+            str(args.frame_contract),
+            "--output-root",
+            str(output_root),
+            "--package-id",
+            f"scan/{key}",
+            "--proposal-id",
+            f"proposal/{key}/revision-1",
+            "--bundle-label",
+            key,
+            "--require-inspection-pass",
+            "--require-frame-confirmed",
+        ],
+        "bundle publication",
+    )
     bundle = parse_bundle_path(bundle_result.stdout)
-    verify_command = [
-        sys.executable,
-        str(MODULE_DIR / "scan_import_bundle_verify.py"),
-        str(bundle),
-    ]
-    _run(verify_command, "independent bundle verification")
+    _run(
+        [
+            sys.executable,
+            str(MODULE_DIR / "scan_import_bundle_verify.py"),
+            str(bundle),
+        ],
+        "independent bundle verification",
+    )
+    binding = read_verified_bundle_binding(bundle)
 
     shareable = bundle / "shareable" / "inspection.shareable.json"
     if not shareable.is_file() or shareable.is_symlink():
-        raise OwnerGateError("verified bundle does not contain a real shareable review file")
+        raise OwnerGateError(
+            "verified bundle does not contain a real shareable review file"
+        )
 
     receipt = build_receipt(
         candidate=candidate,
         identical_copy_count=copies,
         privacy_review_acknowledged=args.acknowledge_shareable_privacy_review,
+        bundle_content_sha256=binding["bundleContentSha256"],
+        source_revision_id=binding["sourceRevisionId"],
     )
-    receipt_path = args.receipt or output_root.parent / "p1b_owner_gate_receipt.local.json"
+    receipt_path = (
+        args.receipt
+        or output_root.parent / "p1b_owner_gate_receipt.local.json"
+    )
     write_json_atomic(receipt_path, receipt)
 
     if args.acknowledge_shareable_privacy_review:
@@ -349,8 +439,8 @@ def _finalize(args: argparse.Namespace) -> int:
         )
         print(f"scan_owner_gate: REVIEW_ONLY_THIS_FILE | {shareable}")
         print(
-            "scan_owner_gate: NEXT | after manual review rerun the same command with "
-            "--acknowledge-shareable-privacy-review"
+            "scan_owner_gate: NEXT | after manual review rerun the same command "
+            "with --acknowledge-shareable-privacy-review"
         )
     return 0
 
@@ -367,17 +457,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    inspect = subparsers.add_parser("inspect", help="discover and compare real inspection reports")
+    inspect = subparsers.add_parser(
+        "inspect", help="discover and compare real inspection reports"
+    )
     _add_inspection_selection(inspect)
     inspect.set_defaults(handler=_inspect)
 
-    finalize = subparsers.add_parser("finalize", help="build, independently verify and receipt one real bundle")
+    finalize = subparsers.add_parser(
+        "finalize",
+        help="build, independently verify and receipt one real bundle",
+    )
     _add_inspection_selection(finalize)
     finalize.add_argument("--frame-contract", required=True, type=Path)
-    finalize.add_argument("--output-root", type=Path, default=Path("build/scan_pipeline/bundles"))
+    finalize.add_argument(
+        "--output-root",
+        type=Path,
+        default=Path("build/scan_pipeline/bundles"),
+    )
     finalize.add_argument("--receipt", type=Path)
     finalize.add_argument("--package-key", default="photogrammetry-primary")
-    finalize.add_argument("--acknowledge-shareable-privacy-review", action="store_true")
+    finalize.add_argument(
+        "--acknowledge-shareable-privacy-review", action="store_true"
+    )
     finalize.set_defaults(handler=_finalize)
 
     args = parser.parse_args(argv)
