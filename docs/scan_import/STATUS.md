@@ -26,6 +26,7 @@
 - reject undeclared mirror;
 - prove coordinate round-trip;
 - create stable source package identity and content-derived revision;
+- bind every proposal to the exact GLB/PLY source revision used by its inspection;
 - create immutable, unreviewed bounds-only world proposal;
 - red-team package/proposal validation against recomputed but semantically invalid hashes;
 - add both suites to the dependency-free runner.
@@ -54,15 +55,16 @@
 
 ```text
 scan_frames: 8 tests PASS
-scan_world_contracts: 12 tests PASS
-total new tests: 20 PASS
+scan_world_contracts: 13 tests PASS
+total new tests: 21 PASS
 ```
 
 The red-team cases additionally prove that:
 
 - mutating source content invalidates `revisionId`;
 - reordering package tiles is rejected even if a new hash is calculated;
+- a proposal cannot consume inspection evidence from a different source revision;
 - incomplete pair coverage and invalid numeric evidence are rejected;
 - a proposal cannot claim accepted-world readiness even if its content hash is recomputed after the illegal mutation.
 
-These local tests validate only the new dependency-free modules. Full repository contracts and Windows gate must run after the branch is fetched on the owner machine or CI.
+The workflow now has an explicit push route for the stacked P1B branch and compiles the new modules. Full hosted CI remains unconfirmed until a workflow run is observable; the Windows vehicle gate must also run on the owner checkout.
