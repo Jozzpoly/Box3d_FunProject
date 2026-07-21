@@ -19,6 +19,7 @@ TEST_FILES = (
     "test_scan_dataset_inspect.py",
     "test_scan_frames.py",
     "test_scan_world_contracts.py",
+    "test_scan_import_bundle.py",
 )
 
 
