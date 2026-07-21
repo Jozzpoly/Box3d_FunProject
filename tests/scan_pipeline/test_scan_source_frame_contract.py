@@ -31,16 +31,29 @@ def inspection(
     maximum: list[float] | None = None,
     passed: bool = True,
     status: str = "compatible-review",
+    canonical_bounds: bool = False,
 ) -> dict[str, object]:
+    lower = minimum or [1000.0, 2000.0, 3000.0]
+    upper = maximum or [1100.0, 2200.0, 3400.0]
+    bounds: dict[str, object] = {"min": lower, "max": upper}
+    if canonical_bounds:
+        bounds["extent"] = [
+            round(upper[index] - lower[index], 9)
+            for index in range(3)
+        ]
+        bounds["center"] = [
+            round(
+                lower[index] + 0.5 * (upper[index] - lower[index]),
+                9,
+            )
+            for index in range(3)
+        ]
     return {
         "schema": "jozz.scan-dataset-inspection",
         "schemaVersion": 3,
         "datasetStatus": status,
         "automaticEvidenceGate": {"passed": passed},
-        "globalBounds": {
-            "min": minimum or [1000.0, 2000.0, 3000.0],
-            "max": maximum or [1100.0, 2200.0, 3400.0],
-        },
+        "globalBounds": bounds,
     }
 
 
@@ -197,6 +210,36 @@ class ScanSourceFrameContractTests(unittest.TestCase):
         )
         self.assertFalse(contract["sourceToLab"]["mirrorApproved"])
 
+    def test_real_canonical_global_bounds_are_accepted_and_cross_checked(self) -> None:
+        contract = propose(
+            inspection(
+                minimum=[1000.125, 2000.25, 3000.5],
+                maximum=[1100.375, 2200.75, 3401.5],
+                canonical_bounds=True,
+            )
+        )
+        self.assertEqual(
+            contract["sourceToLab"]["localOriginSource"],
+            [1050.25, 2100.5, 3201.0],
+        )
+        self.assertFalse(contract["confirmed"])
+
+    def test_inconsistent_or_unknown_global_bounds_metadata_is_rejected(self) -> None:
+        wrong_extent = inspection(canonical_bounds=True)
+        wrong_extent["globalBounds"]["extent"][0] = 999.0
+        with self.assertRaises(module.SourceFrameCliError):
+            propose(wrong_extent)
+
+        wrong_center = inspection(canonical_bounds=True)
+        wrong_center["globalBounds"]["center"][2] = 999.0
+        with self.assertRaises(module.SourceFrameCliError):
+            propose(wrong_center)
+
+        unknown = inspection()
+        unknown["globalBounds"]["unexpected"] = []
+        with self.assertRaises(module.SourceFrameCliError):
+            propose(unknown)
+
     def test_reversed_or_nonfinite_bounds_are_rejected(self) -> None:
         with self.assertRaises(module.SourceFrameCliError):
             propose(
@@ -236,6 +279,7 @@ class ScanSourceFrameContractTests(unittest.TestCase):
             report = inspection(
                 minimum=[1234.125, 5678.25, 9012.5],
                 maximum=[1236.125, 5682.25, 9018.5],
+                canonical_bounds=True,
             )
             report_path.write_text(json.dumps(report), encoding="utf-8")
             result = subprocess.run(
@@ -290,7 +334,7 @@ class ScanSourceFrameContractTests(unittest.TestCase):
             report_path = root / "private-inspection.json"
             output_path = root / "private-proposal.json"
             report_path.write_text(
-                json.dumps(inspection()),
+                json.dumps(inspection(canonical_bounds=True)),
                 encoding="utf-8",
             )
             output_path.write_text("occupied", encoding="utf-8")
