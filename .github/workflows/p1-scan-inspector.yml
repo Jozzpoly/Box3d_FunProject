@@ -11,6 +11,7 @@ on:
     paths:
       - "tools/scan_pipeline/scan_*.py"
       - "tools/scan_pipeline/run_p1_contracts.py"
+      - "tools/scan_pipeline/*.ps1"
       - "tools/gate.ps1"
       - "tests/scan_pipeline/test_scan_*.py"
       - "samples/jozz_scan_preview_*"
@@ -24,6 +25,7 @@ on:
     paths:
       - "tools/scan_pipeline/scan_*.py"
       - "tools/scan_pipeline/run_p1_contracts.py"
+      - "tools/scan_pipeline/*.ps1"
       - "tools/gate.ps1"
       - "tests/scan_pipeline/test_scan_*.py"
       - "samples/jozz_scan_preview_*"
@@ -190,20 +192,26 @@ jobs:
           tools/scan_pipeline/scan_preview_pack_verify.py
           tools/scan_pipeline/run_p1_contracts.py
 
-      - name: Parse PowerShell gate
+      - name: Parse PowerShell gates
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $tokens = $null
-          $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path tools/gate.ps1),
-            [ref]$tokens,
-            [ref]$errors
+          $paths = @(
+            "tools/gate.ps1",
+            "tools/scan_pipeline/run_p2a_local_gate.ps1"
           )
-          if ($errors.Count -ne 0) {
-            $errors | ForEach-Object { Write-Error $_ }
-            exit 1
+          foreach ($path in $paths) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $path),
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if ($errors.Count -ne 0) {
+              $errors | ForEach-Object { Write-Error $_ }
+              exit 1
+            }
           }
 
       - name: Run scan-pipeline contracts
