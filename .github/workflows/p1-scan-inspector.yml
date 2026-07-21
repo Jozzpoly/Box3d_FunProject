@@ -8,6 +8,7 @@ on:
       - agent/p1b-world-import-contract-staging
       - agent/p1b-inspector-bundle-staging
       - agent/p1b-owner-gate-hardening
+      - "agent/p2a-*"
     paths:
       - "tools/scan_pipeline/scan_*.py"
       - "tools/scan_pipeline/run_p1_contracts.py"
