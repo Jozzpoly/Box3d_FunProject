@@ -56,7 +56,10 @@ class WorldContractError(ValueError):
 
 
 def canonical_json_bytes(value: Any) -> bytes:
-    return (json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+    return (
+        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        + "\n"
+    ).encode("utf-8")
 
 
 def sha256_json(value: Any) -> str:
@@ -108,7 +111,9 @@ def _reject_backend_handles(value: Any, path: str = "root") -> None:
         for key, nested in value.items():
             lowered = str(key).replace("_", "").replace("-", "").lower()
             if any(token in lowered for token in _FORBIDDEN_KEY_TOKENS):
-                raise WorldContractError(f"backend/native handle field is forbidden at {path}.{key}")
+                raise WorldContractError(
+                    f"backend/native handle field is forbidden at {path}.{key}"
+                )
             _reject_backend_handles(nested, f"{path}.{key}")
     elif isinstance(value, list):
         for index, nested in enumerate(value):
@@ -122,9 +127,15 @@ def _validate_inspection(report: Any) -> dict[str, Any]:
         raise WorldContractError("unexpected inspection report schema")
     version = int(report.get("schemaVersion", 0))
     if version < 3:
-        raise WorldContractError("inspection report schema is too old for source-package conversion")
-    if not isinstance(report.get("glbFiles"), list) or not isinstance(report.get("plyFiles"), list):
-        raise WorldContractError("inspection report must contain glbFiles and plyFiles arrays")
+        raise WorldContractError(
+            "inspection report schema is too old for source-package conversion"
+        )
+    if not isinstance(report.get("glbFiles"), list) or not isinstance(
+        report.get("plyFiles"), list
+    ):
+        raise WorldContractError(
+            "inspection report must contain glbFiles and plyFiles arrays"
+        )
     if not isinstance(report.get("pairs"), list):
         raise WorldContractError("inspection report must contain pairs array")
     _reject_backend_handles(report, "inspection")
@@ -135,7 +146,9 @@ def _source_record(item: dict[str, Any], expected_suffix: str) -> dict[str, Any]
     tile_id = _positive_int(item.get("tileId"), f"{expected_suffix}.tileId")
     label = item.get("sourceLabel")
     if not isinstance(label, str) or label != f"MipTile_{tile_id}.{expected_suffix}":
-        raise WorldContractError(f"{expected_suffix} source label must be canonical for tile {tile_id}")
+        raise WorldContractError(
+            f"{expected_suffix} source label must be canonical for tile {tile_id}"
+        )
     return {
         "sourceLabel": label,
         "sha256": _sha256(item.get("sha256"), f"{label}.sha256"),
@@ -143,7 +156,9 @@ def _source_record(item: dict[str, Any], expected_suffix: str) -> dict[str, Any]
     }
 
 
-def _sources_by_tile(items: Iterable[dict[str, Any]], suffix: str) -> dict[int, dict[str, Any]]:
+def _sources_by_tile(
+    items: Iterable[dict[str, Any]], suffix: str
+) -> dict[int, dict[str, Any]]:
     result: dict[int, dict[str, Any]] = {}
     for raw in items:
         if not isinstance(raw, dict):
@@ -218,18 +233,29 @@ def build_source_package(
 def validate_source_package(package: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(package, dict):
         raise WorldContractError("source package must be an object")
-    if package.get("schema") != SOURCE_PACKAGE_SCHEMA or int(package.get("schemaVersion", 0)) != SOURCE_PACKAGE_SCHEMA_VERSION:
+    if (
+        package.get("schema") != SOURCE_PACKAGE_SCHEMA
+        or int(package.get("schemaVersion", 0)) != SOURCE_PACKAGE_SCHEMA_VERSION
+    ):
         raise WorldContractError("unknown source package schema or version")
     _stable_id(package.get("packageId"), "packageId")
     revision = package.get("revisionId")
-    if not isinstance(revision, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", revision):
+    if not isinstance(revision, str) or not re.fullmatch(
+        r"sha256:[0-9a-f]{64}", revision
+    ):
         raise WorldContractError("revisionId must be sha256:<hex>")
     if package.get("privacyClass") != "PRIVATE_LOCAL_ONLY":
-        raise WorldContractError("source package privacyClass must remain PRIVATE_LOCAL_ONLY")
-    normalized_frame = scan_frames.validate_frame_contract(package.get("sourceFrameContract"))
+        raise WorldContractError(
+            "source package privacyClass must remain PRIVATE_LOCAL_ONLY"
+        )
+    normalized_frame = scan_frames.validate_frame_contract(
+        package.get("sourceFrameContract")
+    )
     expected_frame_hash = scan_frames.contract_sha256(normalized_frame)
     if package.get("sourceFrameContractSha256") != expected_frame_hash:
-        raise WorldContractError("sourceFrameContractSha256 does not match normalized frame contract")
+        raise WorldContractError(
+            "sourceFrameContractSha256 does not match normalized frame contract"
+        )
     if not isinstance(package.get("tiles"), list) or not package["tiles"]:
         raise WorldContractError("source package requires at least one tile")
     seen: set[int] = set()
@@ -244,8 +270,8 @@ def validate_source_package(package: dict[str, Any]) -> dict[str, Any]:
         observed_order.append(tile_id)
         if tile.get("stableTileId") != f"{package['packageId']}/tile/{tile_id}":
             raise WorldContractError(f"stableTileId mismatch for tile {tile_id}")
-        _source_record({"tileId": tile_id, **dict(tile.get("glb", {}))}, "glb")
-        _source_record({"tileId": tile_id, **dict(tile.get("ply", {}))}, "ply")
+        _source_record({**dict(tile.get("glb", {})), "tileId": tile_id}, "glb")
+        _source_record({**dict(tile.get("ply", {})), "tileId": tile_id}, "ply")
     if observed_order != sorted(observed_order):
         raise WorldContractError("source package tiles must be sorted by tileId")
     revision_payload = {
@@ -255,9 +281,37 @@ def validate_source_package(package: dict[str, Any]) -> dict[str, Any]:
     }
     expected_revision = f"sha256:{sha256_json(revision_payload)}"
     if package["revisionId"] != expected_revision:
-        raise WorldContractError("revisionId does not match source hashes and normalized frame contract")
+        raise WorldContractError(
+            "revisionId does not match source hashes and normalized frame contract"
+        )
     _reject_backend_handles(package, "sourcePackage")
     return package
+
+
+def _assert_report_matches_source_package(
+    report: dict[str, Any],
+    package: dict[str, Any],
+) -> None:
+    report_glb = _sources_by_tile(report["glbFiles"], "glb")
+    report_ply = _sources_by_tile(report["plyFiles"], "ply")
+    package_tiles = {int(tile["tileId"]): tile for tile in package["tiles"]}
+    if set(report_glb) != set(package_tiles) or set(report_ply) != set(package_tiles):
+        raise WorldContractError(
+            "inspection sources must cover exactly the source package tiles"
+        )
+    for tile_id, tile in package_tiles.items():
+        package_glb = _source_record(
+            {**dict(tile.get("glb", {})), "tileId": tile_id},
+            "glb",
+        )
+        package_ply = _source_record(
+            {**dict(tile.get("ply", {})), "tileId": tile_id},
+            "ply",
+        )
+        if report_glb[tile_id] != package_glb or report_ply[tile_id] != package_ply:
+            raise WorldContractError(
+                f"inspection source identity differs from source package revision at tile {tile_id}"
+            )
 
 
 def build_world_import_proposal(
@@ -275,6 +329,7 @@ def build_world_import_proposal(
 
     package = validate_source_package(source_package)
     report = _validate_inspection(inspection_report)
+    _assert_report_matches_source_package(report, package)
     proposal_id = _stable_id(proposal_id, "proposalId")
     package_tile_ids = {int(tile["tileId"]) for tile in package["tiles"]}
     pair_tile_ids: set[int] = set()
@@ -287,13 +342,24 @@ def build_world_import_proposal(
             raise WorldContractError(f"duplicate pair evidence tile id {tile_id}")
         pair_tile_ids.add(tile_id)
         classification = raw.get("classification")
-        if classification not in {"strong-match", "bounds-strong-match", "review", "incompatible"}:
-            raise WorldContractError(f"unknown pair classification for tile {tile_id}")
+        if classification not in {
+            "strong-match",
+            "bounds-strong-match",
+            "review",
+            "incompatible",
+        }:
+            raise WorldContractError(
+                f"unknown pair classification for tile {tile_id}"
+            )
         pairs.append(
             {
                 "tileId": tile_id,
                 "stableTileId": f"{package['packageId']}/tile/{tile_id}",
-                "classification": "bounds-strong-match" if classification == "strong-match" else classification,
+                "classification": (
+                    "bounds-strong-match"
+                    if classification == "strong-match"
+                    else classification
+                ),
                 "evidenceLevel": "BOUNDS_ONLY",
                 "normalizedCenterDelta": _finite_float(
                     raw.get("normalizedCenterDelta", 0.0),
@@ -311,7 +377,9 @@ def build_world_import_proposal(
                     minimum=0.0,
                     maximum=1.0,
                 ),
-                "axisPermutationSuspicion": raw.get("axisPermutationSuspicion") is True,
+                "axisPermutationSuspicion": (
+                    raw.get("axisPermutationSuspicion") is True
+                ),
             }
         )
     if pair_tile_ids != package_tile_ids:
@@ -332,7 +400,9 @@ def build_world_import_proposal(
         "inspectionSha256": sha256_json(report),
         "pairEvidence": pairs,
         "capabilities": {
-            "sourceInspectionPassed": package["inspection"]["automaticEvidenceGatePassed"],
+            "sourceInspectionPassed": package["inspection"][
+                "automaticEvidenceGatePassed"
+            ],
             "sourceFrameConfirmed": package["sourceFrameContract"]["confirmed"],
             "pairingEvidenceLevel": "BOUNDS_ONLY",
             "internalGeometryCorrespondencePassed": False,
@@ -350,21 +420,34 @@ def build_world_import_proposal(
 def validate_world_import_proposal(proposal: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(proposal, dict):
         raise WorldContractError("world import proposal must be an object")
-    if proposal.get("schema") != WORLD_PROPOSAL_SCHEMA or int(proposal.get("schemaVersion", 0)) != WORLD_PROPOSAL_SCHEMA_VERSION:
+    if (
+        proposal.get("schema") != WORLD_PROPOSAL_SCHEMA
+        or int(proposal.get("schemaVersion", 0)) != WORLD_PROPOSAL_SCHEMA_VERSION
+    ):
         raise WorldContractError("unknown world import proposal schema or version")
     _stable_id(proposal.get("proposalId"), "proposalId")
-    source_package_id = _stable_id(proposal.get("sourcePackageId"), "sourcePackageId")
+    source_package_id = _stable_id(
+        proposal.get("sourcePackageId"), "sourcePackageId"
+    )
     source_revision = proposal.get("sourceRevisionId")
-    if not isinstance(source_revision, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", source_revision):
+    if not isinstance(source_revision, str) or not re.fullmatch(
+        r"sha256:[0-9a-f]{64}", source_revision
+    ):
         raise WorldContractError("sourceRevisionId must be sha256:<hex>")
-    _sha256(proposal.get("sourceFrameContractSha256"), "sourceFrameContractSha256")
+    _sha256(
+        proposal.get("sourceFrameContractSha256"), "sourceFrameContractSha256"
+    )
     _sha256(proposal.get("inspectionSha256"), "inspectionSha256")
     if proposal.get("status") != "UNREVIEWED":
         raise WorldContractError("v1 world import proposal must remain UNREVIEWED")
     if proposal.get("privacyClass") != "PRIVATE_LOCAL_ONLY":
-        raise WorldContractError("world import proposal privacyClass must remain PRIVATE_LOCAL_ONLY")
+        raise WorldContractError(
+            "world import proposal privacyClass must remain PRIVATE_LOCAL_ONLY"
+        )
     if proposal.get("manualDecisions") != []:
-        raise WorldContractError("manual decisions belong to a separate review document")
+        raise WorldContractError(
+            "manual decisions belong to a separate review document"
+        )
 
     pairs = proposal.get("pairEvidence")
     if not isinstance(pairs, list) or not pairs:
@@ -380,11 +463,21 @@ def validate_world_import_proposal(proposal: dict[str, Any]) -> dict[str, Any]:
         seen.add(tile_id)
         observed_order.append(tile_id)
         if pair.get("stableTileId") != f"{source_package_id}/tile/{tile_id}":
-            raise WorldContractError(f"proposal stableTileId mismatch for tile {tile_id}")
-        if pair.get("classification") not in {"bounds-strong-match", "review", "incompatible"}:
-            raise WorldContractError(f"invalid proposal pair classification for tile {tile_id}")
+            raise WorldContractError(
+                f"proposal stableTileId mismatch for tile {tile_id}"
+            )
+        if pair.get("classification") not in {
+            "bounds-strong-match",
+            "review",
+            "incompatible",
+        }:
+            raise WorldContractError(
+                f"invalid proposal pair classification for tile {tile_id}"
+            )
         if pair.get("evidenceLevel") != "BOUNDS_ONLY":
-            raise WorldContractError("P1B proposal pair evidence must remain BOUNDS_ONLY")
+            raise WorldContractError(
+                "P1B proposal pair evidence must remain BOUNDS_ONLY"
+            )
         _finite_float(
             pair.get("normalizedCenterDelta"),
             f"pairEvidence[{tile_id}].normalizedCenterDelta",
@@ -420,9 +513,13 @@ def validate_world_import_proposal(proposal: dict[str, Any]) -> dict[str, Any]:
         "collisionProjectionReady",
     ):
         if capabilities.get(field) is not False:
-            raise WorldContractError(f"capabilities.{field} must remain false in P1B proposal v1")
+            raise WorldContractError(
+                f"capabilities.{field} must remain false in P1B proposal v1"
+            )
     warnings = proposal.get("warnings")
-    if not isinstance(warnings, list) or not all(isinstance(value, str) for value in warnings):
+    if not isinstance(warnings, list) or not all(
+        isinstance(value, str) for value in warnings
+    ):
         raise WorldContractError("warnings must be an array of strings")
 
     expected_hash = proposal.get("proposalContentSha256")
