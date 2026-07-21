@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+"""Run only the dependency-free P1 scan-inspector contract suite.
+
+The repository also contains roadmap experiment tests that intentionally require
+NumPy/SciPy/Pillow/trimesh/scikit-image. Those tests belong to the separate
+`requirements-experiments.txt` environment and must not silently turn NumPy
+into a mandatory dependency of the P1 inspector.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+import sys
+import unittest
+
+TEST_FILES = (
+    "test_scan_inspect.py",
+    "test_scan_ply.py",
+    "test_scan_glb_quality.py",
+    "test_scan_dataset_inspect.py",
+)
+
+
+def build_suite() -> unittest.TestSuite:
+    root = Path(__file__).resolve().parents[2]
+    test_dir = root / "tests" / "scan_pipeline"
+    loader = unittest.TestLoader()
+    suite = unittest.TestSuite()
+    for pattern in TEST_FILES:
+        discovered = loader.discover(
+            start_dir=str(test_dir),
+            pattern=pattern,
+            top_level_dir=str(test_dir),
+        )
+        suite.addTests(discovered)
+    return suite
+
+
+def main() -> int:
+    result = unittest.TextTestRunner(verbosity=2).run(build_suite())
+    return 0 if result.wasSuccessful() else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
