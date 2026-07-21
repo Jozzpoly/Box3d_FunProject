@@ -8,7 +8,9 @@ import tempfile
 import unittest
 
 HELPER_PATH = Path(__file__).with_name("test_scan_preview_pack.py")
-helper_spec = importlib.util.spec_from_file_location("_scan_preview_fixture", HELPER_PATH)
+helper_spec = importlib.util.spec_from_file_location(
+    "_scan_preview_fixture", HELPER_PATH
+)
 assert helper_spec and helper_spec.loader
 helper = importlib.util.module_from_spec(helper_spec)
 sys.modules[helper_spec.name] = helper
@@ -26,12 +28,7 @@ class ScanPreviewPackVerifyTests(unittest.TestCase):
     def test_cli_verifies_complete_preview(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            bundle, source = helper.fixture(root)
-            output = helper.preview.build_preview_pack(
-                bundle=bundle,
-                source_root=source,
-                output_root=root / "previews",
-            )
+            output = helper.build_fixture_preview(root)
             result = subprocess.run(
                 [sys.executable, str(VERIFY), str(output)],
                 capture_output=True,
@@ -54,12 +51,7 @@ class ScanPreviewPackVerifyTests(unittest.TestCase):
     def test_cli_rejects_tampered_preview(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            bundle, source = helper.fixture(root)
-            output = helper.preview.build_preview_pack(
-                bundle=bundle,
-                source_root=source,
-                output_root=root / "previews",
-            )
+            output = helper.build_fixture_preview(root)
             tile = output / "tiles" / "tile_000.bin"
             tile.write_bytes(tile.read_bytes() + b"x")
             result = subprocess.run(
