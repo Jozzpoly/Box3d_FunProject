@@ -6,8 +6,15 @@ from pathlib import Path
 import sys
 import unittest
 
-MODULE_PATH = Path(__file__).parents[2] / "tools" / "scan_pipeline" / "scan_world_contracts.py"
-spec = importlib.util.spec_from_file_location("scan_world_contracts_tested", MODULE_PATH)
+MODULE_PATH = (
+    Path(__file__).parents[2]
+    / "tools"
+    / "scan_pipeline"
+    / "scan_world_contracts.py"
+)
+spec = importlib.util.spec_from_file_location(
+    "scan_world_contracts_tested", MODULE_PATH
+)
 assert spec and spec.loader
 contracts = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = contracts
@@ -86,7 +93,9 @@ class ScanWorldContractTests(unittest.TestCase):
         self.assertEqual(package["packageId"], "scan/example")
         self.assertTrue(package["revisionId"].startswith("sha256:"))
         self.assertEqual([tile["tileId"] for tile in package["tiles"]], [0, 1])
-        self.assertEqual(package["tiles"][0]["stableTileId"], "scan/example/tile/0")
+        self.assertEqual(
+            package["tiles"][0]["stableTileId"], "scan/example/tile/0"
+        )
         contracts.validate_source_package(package)
 
     def test_revision_changes_when_source_content_changes(self) -> None:
@@ -135,7 +144,9 @@ class ScanWorldContractTests(unittest.TestCase):
             "frameContract": package["sourceFrameContract"],
             "tiles": package["tiles"],
         }
-        package["revisionId"] = f"sha256:{contracts.sha256_json(revision_payload)}"
+        package["revisionId"] = (
+            f"sha256:{contracts.sha256_json(revision_payload)}"
+        )
         with self.assertRaises(contracts.WorldContractError):
             contracts.validate_source_package(package)
 
@@ -148,6 +159,24 @@ class ScanWorldContractTests(unittest.TestCase):
         package["tiles"][0]["ply"]["sha256"] = "f" * 64
         with self.assertRaises(contracts.WorldContractError):
             contracts.validate_source_package(package)
+
+    def test_proposal_rejects_evidence_from_a_different_source_revision(
+        self,
+    ) -> None:
+        source_report = inspection()
+        package = contracts.build_source_package(
+            package_id="scan/example",
+            inspection_report=source_report,
+            frame_contract=frame_contract(),
+        )
+        different_report = inspection()
+        different_report["glbFiles"][1]["sha256"] = "e" * 64
+        with self.assertRaises(contracts.WorldContractError):
+            contracts.build_world_import_proposal(
+                proposal_id="proposal/example-r1",
+                source_package=package,
+                inspection_report=different_report,
+            )
 
     def test_proposal_requires_exact_pair_tile_coverage(self) -> None:
         report = inspection()
@@ -179,7 +208,9 @@ class ScanWorldContractTests(unittest.TestCase):
                 inspection_report=report,
             )
 
-    def test_proposal_downgrades_strong_match_to_bounds_only_evidence(self) -> None:
+    def test_proposal_downgrades_strong_match_to_bounds_only_evidence(
+        self,
+    ) -> None:
         report = inspection()
         package = contracts.build_source_package(
             package_id="scan/example",
@@ -193,13 +224,22 @@ class ScanWorldContractTests(unittest.TestCase):
         )
         self.assertEqual(proposal["status"], "UNREVIEWED")
         self.assertEqual(proposal["manualDecisions"], [])
-        self.assertEqual(proposal["pairEvidence"][0]["classification"], "bounds-strong-match")
-        self.assertEqual(proposal["pairEvidence"][0]["evidenceLevel"], "BOUNDS_ONLY")
-        self.assertFalse(proposal["capabilities"]["internalGeometryCorrespondencePassed"])
+        self.assertEqual(
+            proposal["pairEvidence"][0]["classification"],
+            "bounds-strong-match",
+        )
+        self.assertEqual(
+            proposal["pairEvidence"][0]["evidenceLevel"], "BOUNDS_ONLY"
+        )
+        self.assertFalse(
+            proposal["capabilities"]["internalGeometryCorrespondencePassed"]
+        )
         self.assertFalse(proposal["capabilities"]["acceptedWorldPatchReady"])
         contracts.validate_world_import_proposal(proposal)
 
-    def test_proposal_semantics_are_validated_even_with_recomputed_hash(self) -> None:
+    def test_proposal_semantics_are_validated_even_with_recomputed_hash(
+        self,
+    ) -> None:
         report = inspection()
         package = contracts.build_source_package(
             package_id="scan/example",
