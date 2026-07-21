@@ -3,7 +3,8 @@
 
 A preview pack is a disposable projection of one verified scan-import bundle.
 It exists only to visualize source GLB geometry in the native sample host. It
-is never accepted-world data and never contains collision data.
+is never accepted-world data and never contains collision data. Real preview
+publication additionally requires a bundle-bound P1B owner-gate PASS receipt.
 """
 from __future__ import annotations
 
@@ -37,6 +38,7 @@ scan_import_bundle = _load_sibling("scan_import_bundle")
 scan_frames = _load_sibling("scan_frames")
 scan_world_contracts = _load_sibling("scan_world_contracts")
 scan_inspect = _load_sibling("scan_inspect")
+scan_owner_gate = _load_sibling("scan_owner_gate")
 
 SCHEMA = "jozz.scan-source-visual-preview-pack"
 SCHEMA_VERSION = 1
@@ -93,6 +95,41 @@ _TILE_KEYS = {
     "byteLength",
     "sha256",
 }
+_RECEIPT_KEYS = {
+    "schema",
+    "schemaVersion",
+    "status",
+    "privacyClass",
+    "inspection",
+    "sourceFrameConfirmed",
+    "bundle",
+    "privacyReview",
+    "privacy",
+}
+_RECEIPT_INSPECTION_KEYS = {
+    "schemaVersion",
+    "datasetStatus",
+    "automaticEvidenceGatePassed",
+    "glbFiles",
+    "plyFiles",
+    "pairCount",
+    "byteIdenticalCopyCount",
+}
+_RECEIPT_BUNDLE_KEYS = {
+    "internalVerificationPassed",
+    "independentVerificationPassed",
+    "bundleContentSha256",
+    "sourceRevisionId",
+}
+_RECEIPT_REVIEW_KEYS = {"status", "reviewTargetRelativePath"}
+_RECEIPT_PRIVACY_KEYS = {
+    "sourceCoordinatesIncluded",
+    "sourceBoundsIncluded",
+    "sourceNamesIncluded",
+    "sourcePathsIncluded",
+    "sourceFileHashesIncluded",
+    "bundleFingerprintIncluded",
+}
 
 
 class PreviewPackError(ValueError):
@@ -124,7 +161,9 @@ def _exact_keys(value: dict[str, Any], expected: set[str], label: str) -> None:
     if actual != expected:
         missing = sorted(expected - actual)
         extra = sorted(actual - expected)
-        raise PreviewPackError(f"{label} keys mismatch; missing={missing} extra={extra}")
+        raise PreviewPackError(
+            f"{label} keys mismatch; missing={missing} extra={extra}"
+        )
 
 
 def _sha(value: Any, label: str) -> str:
@@ -240,14 +279,14 @@ def _bounds(points: Iterable[Sequence[float]]) -> dict[str, list[float]]:
     for point in points:
         count += 1
         for axis in range(3):
-            value = _finite(point[axis], f"bounds.point[{axis}]")
-            minimum[axis] = min(minimum[axis], value)
-            maximum[axis] = max(maximum[axis], value)
+            number = _finite(point[axis], f"bounds.point[{axis}]")
+            minimum[axis] = min(minimum[axis], number)
+            maximum[axis] = max(maximum[axis], number)
     if count == 0:
         raise PreviewPackError("geometry contains no vertices")
     return {
-        "min": [_finite(value, "bounds.min") for value in minimum],
-        "max": [_finite(value, "bounds.max") for value in maximum],
+        "min": [_finite(number, "bounds.min") for number in minimum],
+        "max": [_finite(number, "bounds.max") for number in maximum],
     }
 
 
@@ -278,6 +317,90 @@ def _merge_bounds(
         "min": [min(item["min"][axis] for item in items) for axis in range(3)],
         "max": [max(item["max"][axis] for item in items) for axis in range(3)],
     }
+
+
+def _validate_owner_gate_receipt(
+    path: Path,
+    *,
+    bundle_summary: dict[str, Any],
+    source_package: dict[str, Any],
+) -> dict[str, Any]:
+    path = Path(path)
+    if not path.is_file() or path.is_symlink():
+        raise PreviewPackError("owner-gate receipt must be a real local file")
+    receipt = _strict_json(path)
+    _exact_keys(receipt, _RECEIPT_KEYS, "owner-gate receipt")
+    if (
+        receipt["schema"] != scan_owner_gate.RECEIPT_SCHEMA
+        or _uint(receipt["schemaVersion"], "receipt.schemaVersion")
+        != scan_owner_gate.RECEIPT_SCHEMA_VERSION
+        or receipt["status"] != "P1B_BUNDLE_PASS"
+        or receipt["privacyClass"] != "PRIVATE_LOCAL_ONLY"
+        or receipt["sourceFrameConfirmed"] is not True
+    ):
+        raise PreviewPackError("owner-gate receipt is not a P1B_BUNDLE_PASS v2")
+
+    inspection = receipt["inspection"]
+    if not isinstance(inspection, dict):
+        raise PreviewPackError("receipt.inspection must be an object")
+    _exact_keys(inspection, _RECEIPT_INSPECTION_KEYS, "receipt.inspection")
+    tile_count = len(source_package["tiles"])
+    if (
+        inspection["automaticEvidenceGatePassed"] is not True
+        or _uint(inspection["glbFiles"], "receipt.inspection.glbFiles")
+        != tile_count
+        or _uint(inspection["plyFiles"], "receipt.inspection.plyFiles")
+        != tile_count
+        or _uint(inspection["pairCount"], "receipt.inspection.pairCount")
+        != tile_count
+        or _uint(
+            inspection["byteIdenticalCopyCount"],
+            "receipt.inspection.byteIdenticalCopyCount",
+        )
+        < 1
+    ):
+        raise PreviewPackError("owner-gate receipt inspection coverage mismatch")
+
+    binding = receipt["bundle"]
+    if not isinstance(binding, dict):
+        raise PreviewPackError("receipt.bundle must be an object")
+    _exact_keys(binding, _RECEIPT_BUNDLE_KEYS, "receipt.bundle")
+    if (
+        binding["internalVerificationPassed"] is not True
+        or binding["independentVerificationPassed"] is not True
+        or _sha(binding["bundleContentSha256"], "receipt.bundleContentSha256")
+        != bundle_summary["bundleContentSha256"]
+        or _revision(binding["sourceRevisionId"])
+        != source_package["revisionId"]
+    ):
+        raise PreviewPackError("owner-gate receipt does not bind this bundle revision")
+
+    review = receipt["privacyReview"]
+    if not isinstance(review, dict):
+        raise PreviewPackError("receipt.privacyReview must be an object")
+    _exact_keys(review, _RECEIPT_REVIEW_KEYS, "receipt.privacyReview")
+    if (
+        review["status"] != "ACKNOWLEDGED"
+        or review["reviewTargetRelativePath"]
+        != "shareable/inspection.shareable.json"
+    ):
+        raise PreviewPackError("owner-gate privacy review is not acknowledged")
+
+    privacy = receipt["privacy"]
+    if not isinstance(privacy, dict):
+        raise PreviewPackError("receipt.privacy must be an object")
+    _exact_keys(privacy, _RECEIPT_PRIVACY_KEYS, "receipt.privacy")
+    expected_privacy = {
+        "sourceCoordinatesIncluded": False,
+        "sourceBoundsIncluded": False,
+        "sourceNamesIncluded": False,
+        "sourcePathsIncluded": False,
+        "sourceFileHashesIncluded": False,
+        "bundleFingerprintIncluded": True,
+    }
+    if privacy != expected_privacy:
+        raise PreviewPackError("owner-gate receipt privacy boundary mismatch")
+    return receipt
 
 
 def _extract_geometry(
@@ -333,7 +456,8 @@ def _extract_geometry(
                 )
                 if (
                     index_accessor.get("type") != "SCALAR"
-                    or index_accessor.get("componentType") not in (5121, 5123, 5125)
+                    or index_accessor.get("componentType")
+                    not in (5121, 5123, 5125)
                 ):
                     raise PreviewPackError(
                         f"tile {tile_id}: indices must be unsigned SCALAR"
@@ -354,7 +478,10 @@ def _extract_geometry(
                 raise PreviewPackError(f"tile {tile_id}: index limit exceeded")
             for offset in range(0, len(source_indices), 3):
                 triangle = source_indices[offset : offset + 3]
-                if any(value < 0 or value >= len(source_positions) for value in triangle):
+                if any(
+                    value < 0 or value >= len(source_positions)
+                    for value in triangle
+                ):
                     raise PreviewPackError(f"tile {tile_id}: index out of range")
                 if mirror:
                     triangle[1], triangle[2] = triangle[2], triangle[1]
@@ -386,13 +513,8 @@ def _extract_geometry(
         payload.extend(VERTEX.pack(*position, *normal))
     for index in indices:
         payload.extend(INDEX.pack(index))
-    return bytes(payload), {
-        "tileId": tile_id,
-        "vertexCount": len(positions),
-        "indexCount": len(indices),
-        "triangleCount": len(indices) // 3,
-        "boundsLabMeters": _bounds(positions),
-    }
+    encoded = bytes(payload)
+    return encoded, _read_tile(encoded, tile_id)
 
 
 def _read_tile(
@@ -424,9 +546,9 @@ def _read_tile(
     for _ in range(vertex_count):
         values = VERTEX.unpack_from(data, offset)
         offset += VERTEX.size
-        if not all(math.isfinite(value) for value in values):
+        if not all(math.isfinite(number) for number in values):
             raise PreviewPackError("preview tile contains non-finite vertex data")
-        normal_length = math.sqrt(sum(value * value for value in values[3:6]))
+        normal_length = math.sqrt(sum(number * number for number in values[3:6]))
         if abs(normal_length - 1.0) > 1.0e-3:
             raise PreviewPackError("preview tile contains non-unit normal")
         for axis in range(3):
@@ -443,8 +565,8 @@ def _read_tile(
         "indexCount": index_count,
         "triangleCount": index_count // 3,
         "boundsLabMeters": {
-            "min": [_finite(value, "tile.bounds.min") for value in minimum],
-            "max": [_finite(value, "tile.bounds.max") for value in maximum],
+            "min": [_finite(number, "tile.bounds.min") for number in minimum],
+            "max": [_finite(number, "tile.bounds.max") for number in maximum],
         },
     }
 
@@ -481,7 +603,7 @@ def _validate_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
     _exact_keys(manifest, _MANIFEST_KEYS, "preview manifest")
     if (
         manifest["schema"] != SCHEMA
-        or int(manifest["schemaVersion"]) != SCHEMA_VERSION
+        or _uint(manifest["schemaVersion"], "schemaVersion") != SCHEMA_VERSION
         or manifest["status"] != "COMPLETE"
         or manifest["privacyClass"] != PRIVACY_CLASS
         or manifest["purpose"] != PURPOSE
@@ -501,7 +623,9 @@ def _validate_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
     if manifest["tileFormat"] != _TILE_FORMAT:
         raise PreviewPackError("preview tile format mismatch")
 
-    expected_hash = _sha(manifest["previewContentSha256"], "previewContentSha256")
+    expected_hash = _sha(
+        manifest["previewContentSha256"], "previewContentSha256"
+    )
     unsigned = dict(manifest)
     unsigned.pop("previewContentSha256")
     if _sha256_bytes(_canonical_json_bytes(unsigned)) != expected_hash:
@@ -528,8 +652,12 @@ def _validate_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
                 f"non-canonical preview tile path for {tile_id}"
             )
         paths.append(expected_path)
-        vertex_count = _uint(record["vertexCount"], f"tile[{tile_id}].vertexCount")
-        index_count = _uint(record["indexCount"], f"tile[{tile_id}].indexCount")
+        vertex_count = _uint(
+            record["vertexCount"], f"tile[{tile_id}].vertexCount"
+        )
+        index_count = _uint(
+            record["indexCount"], f"tile[{tile_id}].indexCount"
+        )
         triangle_count = _uint(
             record["triangleCount"], f"tile[{tile_id}].triangleCount"
         )
@@ -544,23 +672,31 @@ def _validate_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
         expected_length = (
             HEADER.size + vertex_count * VERTEX.size + index_count * INDEX.size
         )
-        byte_length = _uint(record["byteLength"], f"tile[{tile_id}].byteLength")
+        byte_length = _uint(
+            record["byteLength"], f"tile[{tile_id}].byteLength"
+        )
         if byte_length != expected_length:
             raise PreviewPackError(f"tile[{tile_id}] byteLength mismatch")
         total_bytes += byte_length
         _sha(record["sha256"], f"tile[{tile_id}].sha256")
         normalized_bounds.append(
-            _validate_bounds(record["boundsLabMeters"], f"tile[{tile_id}].bounds")
+            _validate_bounds(
+                record["boundsLabMeters"], f"tile[{tile_id}].bounds"
+            )
         )
 
     if observed != sorted(observed) or len(observed) != len(set(observed)):
         raise PreviewPackError("preview tile ids must be sorted and unique")
     if len(paths) != len(set(paths)) or total_bytes > MAX_TOTAL_BINARY_BYTES:
         raise PreviewPackError("preview paths or total byte budget are invalid")
-    if manifest["tileCount"] != len(tiles):
+    tile_count = _uint(manifest["tileCount"], "tileCount")
+    if tile_count != len(tiles):
         raise PreviewPackError("preview tileCount mismatch")
     expected_global = _merge_bounds(normalized_bounds)
-    if _validate_bounds(manifest["globalBoundsLabMeters"], "globalBounds") != expected_global:
+    if (
+        _validate_bounds(manifest["globalBoundsLabMeters"], "globalBounds")
+        != expected_global
+    ):
         raise PreviewPackError("preview global bounds mismatch")
     return manifest
 
@@ -629,6 +765,7 @@ def _write(path: Path, data: bytes) -> None:
 def build_preview_pack(
     *,
     bundle: Path,
+    owner_gate_receipt: Path,
     source_root: Path,
     output_root: Path,
     label: str = "source-preview",
@@ -652,6 +789,11 @@ def build_preview_pack(
         raise PreviewPackError("bundle frame differs from source package")
     if source_package["revisionId"] != bundle_summary["sourceRevisionId"]:
         raise PreviewPackError("bundle revision differs from source package")
+    _validate_owner_gate_receipt(
+        owner_gate_receipt,
+        bundle_summary=bundle_summary,
+        source_package=source_package,
+    )
     if not source_root.is_dir() or source_root.is_symlink():
         raise PreviewPackError("source root must be a real directory")
     tiles = source_package["tiles"]
@@ -744,6 +886,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "build", help="build one private render-only preview pack"
     )
     build.add_argument("--bundle", required=True, type=Path)
+    build.add_argument("--owner-gate-receipt", required=True, type=Path)
     build.add_argument("--source-root", required=True, type=Path)
     build.add_argument(
         "--output-root",
@@ -760,6 +903,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "build":
             path = build_preview_pack(
                 bundle=args.bundle,
+                owner_gate_receipt=args.owner_gate_receipt,
                 source_root=args.source_root,
                 output_root=args.output_root,
                 label=args.label,
@@ -785,6 +929,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         scan_frames.FrameContractError,
         scan_world_contracts.WorldContractError,
         scan_inspect.ScanInspectionError,
+        scan_owner_gate.OwnerGateError,
     ) as exc:
         print(f"scan_preview_pack: ERROR: {exc}", file=sys.stderr)
         return 2
