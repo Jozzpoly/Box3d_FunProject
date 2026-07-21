@@ -170,5 +170,21 @@ jobs:
           tools/scan_pipeline/scan_owner_gate.py
           tools/scan_pipeline/run_p1_contracts.py
 
+      - name: Parse PowerShell gate
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path tools/gate.ps1),
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if ($errors.Count -ne 0) {
+            $errors | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
+
       - name: Run scan-pipeline contracts
         run: python tools/scan_pipeline/run_p1_contracts.py
