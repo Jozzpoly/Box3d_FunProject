@@ -34,6 +34,26 @@ def _rehash(document: dict[str, object]) -> None:
     )
 
 
+def _build_matching_derivatives(root: Path) -> tuple[Path, Path]:
+    """Build exact preview and surface evidence from one verified source revision."""
+    bundle, receipt, source_root = surface_fixture.fixture(root)
+    preview = preview_fixture.preview.build_preview_pack(
+        bundle=bundle,
+        owner_gate_receipt=receipt,
+        source_root=source_root,
+        output_root=root / "preview",
+    )
+    evidence = surface_fixture.surface.build_surface_evidence_pack(
+        bundle=bundle,
+        owner_gate_receipt=receipt,
+        source_root=source_root,
+        output_root=root / "surface",
+        cell_size_meters=0.4,
+        chunk_vertices=2,
+    )
+    return preview, evidence
+
+
 class ScanDerivativeCatalogTests(unittest.TestCase):
     def test_exact_only_catalog_preserves_future_gates(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -57,9 +77,7 @@ class ScanDerivativeCatalogTests(unittest.TestCase):
 
     def test_surface_evidence_becomes_queryable_but_not_authoritative(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            preview = preview_fixture.build_fixture_preview(root / "preview")
-            evidence = surface_fixture.build(root / "surface")
+            preview, evidence = _build_matching_derivatives(Path(temporary))
             document = catalog.build_catalog_document(
                 preview_manifest=catalog._strict_json(preview / "COMPLETE.json"),
                 surface_manifest=catalog._strict_json(evidence / "COMPLETE.json"),
@@ -97,11 +115,17 @@ class ScanDerivativeCatalogTests(unittest.TestCase):
 
     def test_surface_and_preview_revision_mismatch_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            preview = preview_fixture.build_fixture_preview(root / "preview")
-            evidence = surface_fixture.build(root / "surface")
+            preview, evidence = _build_matching_derivatives(Path(temporary))
             preview_manifest = catalog._strict_json(preview / "COMPLETE.json")
             surface_manifest = catalog._strict_json(evidence / "COMPLETE.json")
+            self.assertEqual(
+                preview_manifest["sourceRevisionId"],
+                surface_manifest["sourceRevisionId"],
+            )
+            self.assertEqual(
+                preview_manifest["sourceBundleContentSha256"],
+                surface_manifest["sourceBundleContentSha256"],
+            )
             surface_manifest["sourceRevisionId"] = "sha256:" + "f" * 64
             unsigned = dict(surface_manifest)
             unsigned.pop("surfaceEvidenceContentSha256")
@@ -142,9 +166,7 @@ class ScanDerivativeCatalogTests(unittest.TestCase):
 
     def test_resource_accounting_is_derived_from_payloads(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            preview = preview_fixture.build_fixture_preview(root / "preview")
-            evidence = surface_fixture.build(root / "surface")
+            preview, evidence = _build_matching_derivatives(Path(temporary))
             preview_manifest = catalog._strict_json(preview / "COMPLETE.json")
             surface_manifest = catalog._strict_json(evidence / "COMPLETE.json")
             document = catalog.build_catalog_document(
