@@ -5,12 +5,12 @@ The repository also contains roadmap experiment tests that intentionally require
 NumPy/SciPy/Pillow/trimesh/scikit-image. Those tests belong to the separate
 `requirements-experiments.txt` environment and must not silently turn NumPy
 into a mandatory dependency of the source inspector, world-contract boundary,
-render-only source preview, or conservative surface-evidence pack.
+render-only source preview, conservative surface-evidence pack, or derivative
+catalog.
 """
 from __future__ import annotations
 
 from pathlib import Path
-import sys
 import unittest
 
 TEST_FILES = (
@@ -30,6 +30,9 @@ TEST_FILES = (
     "test_scan_preview_runtime_contract.py",
     "test_scan_p2a_local_gate_ps1.py",
     "test_scan_surface_evidence.py",
+    "test_scan_surface_evidence_verify.py",
+    "test_scan_derivative_catalog.py",
+    "test_scan_derivative_catalog_verify.py",
 )
 
 
