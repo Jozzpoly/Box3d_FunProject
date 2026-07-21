@@ -134,17 +134,17 @@ public:
 		{
 			if ( m_showGrid )
 			{
-				b3Pos center = {
-					0.5 * ( m_pack.bounds.lowerBound.x + m_pack.bounds.upperBound.x ),
-					0.0,
-					0.5 * ( m_pack.bounds.lowerBound.z + m_pack.bounds.upperBound.z ),
+				b3Vec3 gridCenter = {
+					0.5f * ( m_pack.bounds.lowerBound.x + m_pack.bounds.upperBound.x ),
+					0.0f,
+					0.5f * ( m_pack.bounds.lowerBound.z + m_pack.bounds.upperBound.z ),
 				};
 				float extentX = m_pack.bounds.upperBound.x - m_pack.bounds.lowerBound.x;
 				float extentZ = m_pack.bounds.upperBound.z - m_pack.bounds.lowerBound.z;
 				float halfExtent = 0.6f * std::max( extentX, extentZ );
 				halfExtent = std::max( halfExtent, 10.0f );
 				int divisions = std::clamp( (int)std::ceil( 2.0f * halfExtent ), 10, 200 );
-				DrawGrid( center, b3Vec3_axisY, halfExtent, divisions, { 0.32f, 0.34f, 0.38f, 0.55f } );
+				DrawGrid( b3ToPos( gridCenter ), b3Vec3_axisY, halfExtent, divisions, { 0.32f, 0.34f, 0.38f, 0.55f } );
 			}
 			if ( m_showAxes )
 			{
