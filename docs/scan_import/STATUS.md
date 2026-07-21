@@ -99,22 +99,40 @@ additional owner-gate receipt-v2 test   1
 P2A preview-pack generator tests       11
 P2A verifier CLI tests                  3
 P2A runtime architecture tests          2
+P2A one-command local-gate test          1
 ------------------------------------------
-Canonical expected total              106
+Canonical expected total              107
 ```
 
-`106` is the expected suite size from the actual registered `unittest` methods. It must not be recorded as PASS until the final branch head is actually executed.
+`107` is the expected suite size from the actual registered `unittest` methods. It must not be recorded as PASS until the final branch head is actually executed.
+
+## One-command local code gate
+
+From the repository root on Windows:
+
+```powershell
+.\tools\scan_pipeline\run_p2a_local_gate.ps1
+```
+
+It stops on the first failure and runs:
+
+1. all canonical P1/P1B/P2A contracts;
+2. `cmake --preset windows`;
+3. native `samples` build;
+4. executable existence check;
+5. the existing vehicle/build/test/smoke gate.
+
+Success prints `P2A_LOCAL_CODE_GATE_PASS`. This proves code/build compatibility only; it does not assert `TERRAIN_VISIBLE_PASS` or validate private real assets.
 
 ## Current blockers before first terrain image
 
-1. create the real owner-confirmed source-frame contract;
-2. run `scan_owner_gate.py finalize` against the real 7+7 inspection;
-3. manually review only the printed `shareable/inspection.shareable.json`;
-4. rerun finalize with privacy acknowledgement and retain the private v2 receipt;
-5. execute all 106 contracts on the exact P2A head;
-6. configure and build the `samples` target on Windows;
-7. build and independently verify the real private preview pack;
-8. launch `P2A Source Visual Preview` and review orientation, scale, tile coverage and seams.
+1. execute all 107 contracts and native code gate on the exact P2A head;
+2. create the real owner-confirmed source-frame contract;
+3. run `scan_owner_gate.py finalize` against the real 7+7 inspection;
+4. manually review only the printed `shareable/inspection.shareable.json`;
+5. rerun finalize with privacy acknowledgement and retain the private v2 receipt;
+6. build and independently verify the real private preview pack;
+7. launch `P2A Source Visual Preview` and review orientation, scale, tile coverage and seams.
 
 ## Promotion criteria: `TERRAIN_VISIBLE_PASS`
 
