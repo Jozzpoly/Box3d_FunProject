@@ -13,6 +13,9 @@ on:
       - "tools/scan_pipeline/run_p1_contracts.py"
       - "tools/gate.ps1"
       - "tests/scan_pipeline/test_scan_*.py"
+      - "samples/jozz_scan_preview_*"
+      - "samples/sample_jozz_vehicle_lab.cpp"
+      - "samples/CMakeLists.txt"
       - ".github/workflows/p1-scan-inspector.yml"
   push:
     branches:
@@ -23,6 +26,9 @@ on:
       - "tools/scan_pipeline/run_p1_contracts.py"
       - "tools/gate.ps1"
       - "tests/scan_pipeline/test_scan_*.py"
+      - "samples/jozz_scan_preview_*"
+      - "samples/sample_jozz_vehicle_lab.cpp"
+      - "samples/CMakeLists.txt"
       - ".github/workflows/p1-scan-inspector.yml"
   workflow_dispatch:
 
@@ -202,3 +208,17 @@ jobs:
 
       - name: Run scan-pipeline contracts
         run: python tools/scan_pipeline/run_p1_contracts.py
+
+  windows-samples-build:
+    name: Windows / native samples build
+    needs: diagnostic
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Visual Studio build
+        run: cmake --preset windows
+
+      - name: Build native samples target
+        run: cmake --build --preset windows-debug --target samples
