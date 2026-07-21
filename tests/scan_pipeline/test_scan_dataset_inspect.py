@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import binascii
 import importlib.util
 import json
 from pathlib import Path
@@ -8,7 +7,6 @@ import struct
 import sys
 import tempfile
 import unittest
-import zlib
 
 MODULE_PATH = Path(__file__).parents[2] / "tools" / "scan_pipeline" / "scan_dataset_inspect.py"
 spec = importlib.util.spec_from_file_location("scan_dataset_inspect_tested", MODULE_PATH)
@@ -23,16 +21,26 @@ def pad4(data: bytes, padding: bytes = b"\x00") -> bytes:
 
 
 def build_glb(offset_x: float, *, invalid_index_accessor: bool = False) -> bytes:
-    positions = struct.pack("<9f", offset_x, 0.0, 1.0, offset_x + 2.0, 0.0, 2.0, offset_x, 3.0, 4.0)
+    positions = struct.pack(
+        "<9f",
+        offset_x,
+        0.0,
+        1.0,
+        offset_x + 2.0,
+        0.0,
+        2.0,
+        offset_x,
+        3.0,
+        4.0,
+    )
     indices = struct.pack("<3H", 0, 1, 2)
     extra = b"X" * 32
-    position_offset = 0
     index_offset = len(pad4(positions))
     extra_offset = index_offset + len(pad4(indices))
     binary = pad4(positions) + pad4(indices) + extra
     index_accessor_offset = 8 if invalid_index_accessor else 0
     document = {
-        "asset": {"version": "2.0", "generator": "p1-test"},
+        "asset": {"version": "2.0", "generator": "private-generator"},
         "scene": 0,
         "scenes": [{"nodes": [0]}],
         "nodes": [{"mesh": 0}],
@@ -55,7 +63,7 @@ def build_glb(offset_x: float, *, invalid_index_accessor: bool = False) -> bytes
             },
         ],
         "bufferViews": [
-            {"buffer": 0, "byteOffset": position_offset, "byteLength": len(positions)},
+            {"buffer": 0, "byteOffset": 0, "byteLength": len(positions)},
             {"buffer": 0, "byteOffset": index_offset, "byteLength": len(indices)},
             {"buffer": 0, "byteOffset": extra_offset, "byteLength": len(extra)},
         ],
@@ -72,12 +80,24 @@ def build_glb(offset_x: float, *, invalid_index_accessor: bool = False) -> bytes
     )
 
 
-def build_ply(offset_x: float, *, secret: str | None = None) -> bytes:
-    points = [
-        (offset_x, 0.0, 1.0, 10, 20, 30),
-        (offset_x + 2.0, 0.0, 2.0, 40, 50, 60),
-        (offset_x, 3.0, 4.0, 70, 80, 90),
-    ]
+def build_ply(
+    offset_x: float,
+    *,
+    secret: str | None = None,
+    swapped_xy_extent: bool = False,
+) -> bytes:
+    if swapped_xy_extent:
+        points = [
+            (offset_x, 0.0, 1.0, 10, 20, 30),
+            (offset_x + 3.0, 0.0, 2.0, 40, 50, 60),
+            (offset_x, 2.0, 4.0, 70, 80, 90),
+        ]
+    else:
+        points = [
+            (offset_x, 0.0, 1.0, 10, 20, 30),
+            (offset_x + 2.0, 0.0, 2.0, 40, 50, 60),
+            (offset_x, 3.0, 4.0, 70, 80, 90),
+        ]
     lines = ["ply", "format binary_little_endian 1.0"]
     if secret:
         lines += [f"comment {secret}", f"obj_info {secret}"]
@@ -96,17 +116,55 @@ def build_ply(offset_x: float, *, secret: str | None = None) -> bytes:
     )
 
 
-def write_pair(root: Path, tile: int, offset_x: float, *, ply_offset: float | None = None, secret: str | None = None) -> None:
-    glb_dir = root / "model-glb" / "Data" / f"MipTile_{tile}"
-    ply_dir = root / "model-ply" / "Data" / f"MipTile_{tile}"
+def write_pair(
+    root: Path,
+    tile: int,
+    offset_x: float,
+    *,
+    ply_offset: float | None = None,
+    secret: str | None = None,
+    swapped_xy_extent: bool = False,
+    invalid_glb_accessor: bool = False,
+) -> None:
+    glb_dir = root / "private-parent" / "model-glb" / "Data" / f"MipTile_{tile}"
+    ply_dir = root / "private-parent" / "model-ply" / "Data" / f"MipTile_{tile}"
     glb_dir.mkdir(parents=True, exist_ok=True)
     ply_dir.mkdir(parents=True, exist_ok=True)
-    (glb_dir / f"MipTile_{tile}.glb").write_bytes(build_glb(offset_x))
-    (ply_dir / f"MipTile_{tile}.ply").write_bytes(build_ply(offset_x if ply_offset is None else ply_offset, secret=secret))
+    (glb_dir / f"MipTile_{tile}.glb").write_bytes(
+        build_glb(offset_x, invalid_index_accessor=invalid_glb_accessor)
+    )
+    (ply_dir / f"MipTile_{tile}.ply").write_bytes(
+        build_ply(
+            offset_x if ply_offset is None else ply_offset,
+            secret=secret,
+            swapped_xy_extent=swapped_xy_extent,
+        )
+    )
+
+
+def review_contract(*, approved_ids: list[int] | None = None, owner_approved: bool = True) -> dict[str, object]:
+    return {
+        "schema": scan_dataset.REVIEW_SCHEMA,
+        "schemaVersion": scan_dataset.REVIEW_SCHEMA_VERSION,
+        "ownerApproved": owner_approved,
+        "knownDistance": {
+            "pointA": [0.0, 0.0, 0.0],
+            "pointB": [10.0, 0.0, 0.0],
+            "meters": 10.0,
+            "expectedSourceUnitsPerMeter": 1.0,
+            "maxRelativeError": 0.01,
+        },
+        "axes": {
+            "horizontal": ["X", "Y"],
+            "up": "Z",
+            "confirmed": True,
+        },
+        "approvedReviewTileIds": approved_ids or [],
+    }
 
 
 class ScanDatasetInspectTests(unittest.TestCase):
-    def test_two_paired_tiles_are_strong_matches(self) -> None:
+    def test_two_paired_tiles_are_strong_matches_but_p2_needs_review_contract(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             write_pair(root, 0, 0.0)
@@ -121,68 +179,137 @@ class ScanDatasetInspectTests(unittest.TestCase):
                 prefer_numpy=False,
             )
             self.assertEqual(report["datasetStatus"], "compatible")
-            self.assertEqual([pair["classification"] for pair in report["pairs"]], ["strong-match", "strong-match"])
+            self.assertEqual(
+                [pair["classification"] for pair in report["pairs"]],
+                ["strong-match", "strong-match"],
+            )
             self.assertEqual(report["totals"]["plyPoints"], 6)
             self.assertEqual(report["totals"]["glbTriangles"], 2)
             self.assertFalse(report["p2Unblocked"])
             self.assertFalse(report["scaleConfirmed"])
-            self.assertGreater(grid.summary()["occupiedCells"], 0)
+            self.assertEqual(grid.summary()["pointsAccumulated"], 6)
+
+    def test_valid_owner_review_contract_unblocks_compatible_dataset(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            write_pair(root, 0, 0.0)
+            report, _ = scan_dataset.inspect_dataset(
+                root,
+                grid_size=16,
+                prefer_numpy=False,
+                review_contract=review_contract(),
+                review_contract_sha256="fixture-contract-hash",
+            )
+            self.assertTrue(report["p2Unblocked"])
+            self.assertTrue(report["p2Gate"]["scaleConfirmed"])
+            self.assertTrue(report["p2Gate"]["axesConfirmed"])
+            self.assertEqual(report["p2Gate"]["sha256"], "fixture-contract-hash")
+
+    def test_review_pair_requires_explicit_tile_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            write_pair(root, 0, 0.0, ply_offset=0.2)
+            blocked, _ = scan_dataset.inspect_dataset(
+                root,
+                grid_size=16,
+                prefer_numpy=False,
+                review_contract=review_contract(),
+            )
+            approved, _ = scan_dataset.inspect_dataset(
+                root,
+                grid_size=16,
+                prefer_numpy=False,
+                review_contract=review_contract(approved_ids=[0]),
+            )
+            self.assertEqual(blocked["datasetStatus"], "compatible-review")
+            self.assertFalse(blocked["p2Unblocked"])
+            self.assertEqual(blocked["p2Gate"]["requiredReviewTileIds"], [0])
+            self.assertTrue(approved["p2Unblocked"])
 
     def test_outputs_are_byte_deterministic(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "input"
             write_pair(root, 0, 0.0)
             write_pair(root, 1, 10.0)
-            report_a, grid_a = scan_dataset.inspect_dataset(root, grid_size=32, chunk_vertices=2, prefer_numpy=False)
-            report_b, grid_b = scan_dataset.inspect_dataset(root, grid_size=32, chunk_vertices=2, prefer_numpy=False)
+            report_a, grid_a = scan_dataset.inspect_dataset(
+                root, grid_size=32, chunk_vertices=2, prefer_numpy=False
+            )
+            report_b, grid_b = scan_dataset.inspect_dataset(
+                root, grid_size=32, chunk_vertices=2, prefer_numpy=False
+            )
             out_a = Path(temporary) / "out-a"
             out_b = Path(temporary) / "out-b"
             hashes_a = scan_dataset.write_outputs(report_a, grid_a, out_a)
             hashes_b = scan_dataset.write_outputs(report_b, grid_b, out_b)
             self.assertEqual(hashes_a, hashes_b)
-            self.assertEqual(set(hashes_a), {
-                "inspection.json",
-                "inspection.md",
-                "source_layout.png",
-                "point_density.png",
-                "vertical_spread.png",
-                "source_support.png",
-                "glb_ply_alignment.png",
-            })
+            self.assertEqual(
+                set(hashes_a),
+                {
+                    "inspection.json",
+                    "inspection.md",
+                    "source_layout.png",
+                    "point_density.png",
+                    "vertical_spread.png",
+                    "source_support.png",
+                    "glb_ply_alignment.png",
+                },
+            )
             for name in hashes_a:
                 self.assertEqual((out_a / name).read_bytes(), (out_b / name).read_bytes())
 
-    def test_private_comments_and_absolute_root_are_absent(self) -> None:
+    def test_private_metadata_paths_and_original_names_are_absent(self) -> None:
         secret = "C:/Users/Jozz/private 50.123 20.456"
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "private-input"
+            root = Path(temporary) / "address-and-user-name"
             write_pair(root, 0, 0.0, secret=secret)
             report, grid = scan_dataset.inspect_dataset(root, grid_size=16, prefer_numpy=False)
             output = Path(temporary) / "out"
             scan_dataset.write_outputs(report, grid, output)
-            combined = (output / "inspection.json").read_text("utf-8") + (output / "inspection.md").read_text("utf-8")
+            combined = (
+                (output / "inspection.json").read_text("utf-8")
+                + (output / "inspection.md").read_text("utf-8")
+            )
             self.assertNotIn(secret, combined)
             self.assertNotIn(str(root), combined)
+            self.assertNotIn("private-generator", combined)
+            self.assertNotIn("private-parent", combined)
+            self.assertIn("MipTile_0.glb", combined)
             self.assertFalse(report["privacy"]["sourceRgbRendered"])
             self.assertFalse(report["privacy"]["georeferencingIncluded"])
+            self.assertTrue(report["privacy"]["canonicalSourceLabelsOnly"])
 
     def test_unpaired_tile_ids_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             write_pair(root, 0, 0.0)
-            extra = root / "model-ply" / "Data" / "MipTile_2"
+            extra = root / "private-parent" / "model-ply" / "Data" / "MipTile_2"
             extra.mkdir(parents=True)
             (extra / "MipTile_2.ply").write_bytes(build_ply(20.0))
             with self.assertRaises(scan_dataset.DatasetInspectionError):
                 scan_dataset.inspect_dataset(root, prefer_numpy=False)
 
-    def test_spatially_distant_ply_blocks_p2(self) -> None:
+    def test_spatially_distant_ply_stays_incompatible_even_with_axis_suspicion(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            write_pair(root, 0, 0.0, ply_offset=1000.0, swapped_xy_extent=True)
+            report, _ = scan_dataset.inspect_dataset(root, grid_size=16, prefer_numpy=False)
+            pair = report["pairs"][0]
+            self.assertTrue(pair["axisPermutationSuspicion"])
+            self.assertFalse(pair["spatiallyPlausible"])
+            self.assertEqual(pair["classification"], "incompatible")
+            self.assertFalse(report["p2Unblocked"])
+
+    def test_incompatible_dataset_cannot_be_overridden_by_review_contract(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             write_pair(root, 0, 0.0, ply_offset=1000.0)
-            report, _ = scan_dataset.inspect_dataset(root, grid_size=16, prefer_numpy=False)
+            report, _ = scan_dataset.inspect_dataset(
+                root,
+                grid_size=16,
+                prefer_numpy=False,
+                review_contract=review_contract(approved_ids=[0]),
+            )
             self.assertEqual(report["datasetStatus"], "incompatible")
-            self.assertEqual(report["pairs"][0]["classification"], "incompatible")
             self.assertFalse(report["p2Unblocked"])
 
     def test_expected_counts_are_a_hard_gate(self) -> None:
@@ -190,11 +317,59 @@ class ScanDatasetInspectTests(unittest.TestCase):
             root = Path(temporary)
             write_pair(root, 0, 0.0)
             with self.assertRaises(scan_dataset.DatasetInspectionError):
-                scan_dataset.inspect_dataset(root, expected_glb=7, expected_ply=7, prefer_numpy=False)
+                scan_dataset.inspect_dataset(
+                    root,
+                    expected_glb=7,
+                    expected_ply=7,
+                    prefer_numpy=False,
+                )
 
     def test_accessor_must_stay_inside_its_own_buffer_view(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            write_pair(root, 0, 0.0, invalid_glb_accessor=True)
+            with self.assertRaises(scan_dataset.scan_glb_quality.GlbQualityError):
+                scan_dataset.inspect_dataset(root, grid_size=16, prefer_numpy=False)
+
+    def test_review_contract_rejects_unknown_tile_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            write_pair(root, 0, 0.0)
+            with self.assertRaises(scan_dataset.DatasetInspectionError):
+                scan_dataset.inspect_dataset(
+                    root,
+                    grid_size=16,
+                    prefer_numpy=False,
+                    review_contract=review_contract(approved_ids=[99]),
+                )
+
+    def test_stdlib_grid_has_a_memory_safety_cap(self) -> None:
+        bounds = {
+            "min": [0.0, 0.0, 0.0],
+            "max": [1.0, 1.0, 1.0],
+            "extent": [1.0, 1.0, 1.0],
+            "center": [0.5, 0.5, 0.5],
+        }
         with self.assertRaises(scan_dataset.DatasetInspectionError):
-            scan_dataset.validate_glb_accessors(build_glb(0.0, invalid_index_accessor=True), "bad.glb")
+            scan_dataset.GridEvidence(bounds, 1024, prefer_numpy=False)
+
+    @unittest.skipUnless(scan_dataset._np is not None, "NumPy is optional")
+    def test_numpy_and_stdlib_pairing_and_grid_counts_agree(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            write_pair(root, 0, 0.0)
+            fast, _ = scan_dataset.inspect_dataset(root, grid_size=16, prefer_numpy=True)
+            slow, _ = scan_dataset.inspect_dataset(root, grid_size=16, prefer_numpy=False)
+            self.assertEqual(fast["pairs"], slow["pairs"])
+            self.assertEqual(
+                fast["evidenceGrid"]["pointsAccumulated"],
+                slow["evidenceGrid"]["pointsAccumulated"],
+            )
+            self.assertEqual(
+                fast["evidenceGrid"]["occupiedCells"],
+                slow["evidenceGrid"]["occupiedCells"],
+            )
+            self.assertEqual(fast["geometryQuality"], slow["geometryQuality"])
 
 
 if __name__ == "__main__":
