@@ -6,9 +6,11 @@ on:
       - photogrammetry/import-v2-foundation
       - agent/p1-dataset-inspector-staging
       - agent/p1b-world-import-contract-staging
+      - agent/p1b-inspector-bundle-staging
     paths:
       - "tools/scan_pipeline/scan_*.py"
       - "tools/scan_pipeline/run_p1_contracts.py"
+      - "tools/gate.ps1"
       - "tests/scan_pipeline/test_scan_*.py"
       - ".github/workflows/p1-scan-inspector.yml"
   push:
@@ -17,6 +19,7 @@ on:
     paths:
       - "tools/scan_pipeline/scan_*.py"
       - "tools/scan_pipeline/run_p1_contracts.py"
+      - "tools/gate.ps1"
       - "tests/scan_pipeline/test_scan_*.py"
       - ".github/workflows/p1-scan-inspector.yml"
   workflow_dispatch:
@@ -50,6 +53,8 @@ jobs:
           tools/scan_pipeline/scan_world_contracts.py
           tools/scan_pipeline/scan_import_bundle.py
           tools/scan_pipeline/scan_import_bundle_verify.py
+          tools/scan_pipeline/scan_source_frame_contract.py
+          tools/scan_pipeline/scan_owner_gate.py
           tools/scan_pipeline/run_p1_contracts.py
 
       - name: Run canonical contracts and capture output
@@ -161,6 +166,8 @@ jobs:
           tools/scan_pipeline/scan_world_contracts.py
           tools/scan_pipeline/scan_import_bundle.py
           tools/scan_pipeline/scan_import_bundle_verify.py
+          tools/scan_pipeline/scan_source_frame_contract.py
+          tools/scan_pipeline/scan_owner_gate.py
           tools/scan_pipeline/run_p1_contracts.py
 
       - name: Run scan-pipeline contracts
