@@ -1,168 +1,170 @@
 # Photogrammetry Import V2 — current status
 
 **Updated:** 2026-07-21  
-**Active branch:** `agent/p2a-source-visual-preview`  
-**Stack base:** `agent/p1b-owner-gate-hardening@2d91d17428292234c9b560a2ef855761f445f54f`  
-**Product draft PR:** #5
+**Active branch:** `agent/p2a-scan-derivatives-foundation`  
+**Stack base:** `agent/p2a-source-visual-preview@f20357ba10618ddecfdd2e274e93917fe508a983`  
+**Exact-preview draft PR:** #5  
+**Derivative-foundation draft PR:** #7
+
+## Core rule
+
+> A scan is evidence about the world. It is not automatically authored world,
+> accepted ground, or collision.
 
 ## Truth table
 
 | Capability | Status | Evidence / blocker |
 |---|---|---|
-| P0 vehicle baseline | `PASS_LOCAL_EXACT_HEAD` | Windows build/validator/test/smoke passed locally on `2d91d174...` |
-| P1A parser and synthetic contracts | `PASS_CI` | PR #1 workflow green |
-| P1A real 7+7 inspection | `PASS_LOCAL_DETERMINISTIC` | two real reports; each 7 GLB, 7 PLY, 7 pairs, automatic gate pass; reports byte-identical |
-| Pair bounds compatibility | `PASS_WITH_REVIEW` | all pair evidence remains `BOUNDS_ONLY`; interior correspondence is not asserted |
-| Full source-frame contract machinery | `PASS_HOSTED_AND_LOCAL` | signed axes, handedness, mirror approval, local origin and round-trip validation implemented |
-| Real owner-confirmed source frame | `NOT_CREATED` | MipMap report supports LOCAL_ENU/metric assumptions, but a real local origin and explicit owner confirmation are still required |
-| Source package / proposal boundary | `PASS_CI` | exact source revision binding and adversarial validation covered by hosted matrix |
-| Private/shareable evidence split | `PASS_CI_SYNTHETIC` | explicit allow-list; no source names, paths, bounds, hashes or free-form warnings |
-| Transactional evidence bundle | `PASS_CI_SYNTHETIC` | content-addressed directory, cross-document checks, `COMPLETE.json`, tamper verifier |
-| Independent bundle verifier | `PASS_CI_SYNTHETIC` | valid, tampered and missing bundle CLI cases pass on Windows/Linux |
-| Owner-gate orchestrator | `PASS_HOSTED_AND_LOCAL` | 89/89 tests and corrected Windows gate passed locally on exact hardening head |
-| Owner-gate receipt v2 | `IMPLEMENTED_NOT_REAL_RUN` | private receipt is bound to exact bundle SHA-256 and source revision; P2A rejects pending, stale or mismatched receipts |
-| Real 7+7 bundle | `NOT_RUN` | requires owner-confirmed source frame |
-| Manual shareable privacy review | `NOT_RUN` | waits for real bundle; exactly one review target will be printed |
-| P2A private preview-pack generator | `IMPLEMENTED_NOT_FINAL_EXECUTION_PROVEN` | streams verified GLB tiles into content-addressed render-only binary tiles; requires exact P1B_BUNDLE_PASS receipt |
-| P2A independent preview verifier | `IMPLEMENTED_NOT_FINAL_EXECUTION_PROVEN` | checks closed manifest schema, exact file set, symlinks, byte lengths, SHA-256, binary structure, bounds, normals and indices |
-| P2A native runtime reader | `IMPLEMENTED_NOT_COMPILE_PROVEN_ON_FINAL_HEAD` | structural defense in C++; intentionally not a cryptographic verifier and cannot create Box3D bodies/shapes |
-| P2A Source Visual Preview Lab | `IMPLEMENTED_NOT_REAL_ASSET_RUN` | geometry-only tile rendering, metre grid, axes, tile bounds/toggles and evidence-only warnings; no textures or collision |
-| Internal GLB↔PLY correspondence | `BLOCKED` | starts only after real `P1B_BUNDLE_PASS`; occupancy/internal geometry evidence not implemented |
-| P2B correspondence/seam preview | `NOT_STARTED` | requires internal correspondence and adjacency evidence |
-| Accepted world patch | `NOT_STARTED` | no Golden Drive Region or authored surface review |
-| Collision projection | `NOT_STARTED` | no accepted surface/cooker contract |
-| Drive test | `NOT_STARTED` | no scan-terrain physics probes |
+| P0 vehicle baseline | `PASS_LOCAL_EXACT_HEAD` | Windows build, validator, Box3D tests and 300-frame smoke passed |
+| P1A parser and synthetic contracts | `PASS_CI` | hosted parser/inspection matrix passed |
+| P1A real 7+7 inspection | `PASS_LOCAL_DETERMINISTIC` | two byte-identical reports; each 7 GLB, 7 PLY and 7 pairs |
+| Pair bounds compatibility | `PASS_WITH_REVIEW` | current pair evidence remains `BOUNDS_ONLY`; interior correspondence is not asserted |
+| Source-frame contract machinery | `PASS_HOSTED_AND_LOCAL` | units, signed axes, handedness, origin, mirror approval and round-trip checks implemented |
+| Real owner-confirmed source frame | `NOT_CREATED` | MipMap report supports metric `LOCAL_ENU`, but real local origin and explicit owner confirmation are still required |
+| Private/shareable evidence boundary | `PASS_CI_SYNTHETIC` | shareable allow-list excludes names, paths, bounds, source hashes and free-form private metadata |
+| Transactional P1B bundle and verifier | `PASS_CI_SYNTHETIC` | content-addressed publication, exact file set and independent tamper verification implemented |
+| Owner-gate receipt v2 | `IMPLEMENTED_NOT_REAL_RUN` | receipt is bound to exact bundle SHA-256 and source revision |
+| Real 7+7 P1B bundle | `NOT_RUN` | requires owner-confirmed source frame |
+| Manual shareable privacy review | `NOT_RUN` | waits for real bundle and exact printed review target |
+| P2A exact preview code gate | `PASS_LOCAL_EXACT_HEAD` | head `f20357ba...`: 108/108 tests, CMake, native samples build, vehicle gate and smoke passed |
+| Real exact preview pack | `NOT_RUN` | requires real `P1B_BUNDLE_PASS` receipt and private GLB root |
+| P2A native terrain review | `NOT_RUN` | no real pack has yet been loaded in the P2A lab |
+| Conservative surface-evidence pack | `IMPLEMENTED_NOT_EXACT_HEAD_EXECUTED` | streamed PLY evidence, canonical UNKNOWN cells, content addressing and independent verifier implemented on PR #7 |
+| Read-only surface query API | `IMPLEMENTED_NOT_EXACT_HEAD_EXECUTED` | exact observed cell / UNKNOWN / OUTSIDE semantics; no interpolation or ground claim |
+| Derivative graph and resource catalog | `IMPLEMENTED_NOT_EXACT_HEAD_EXECUTED` | exact preview and surface evidence may be READY; optimized visual, accepted surface and collision remain blocked |
+| Internal GLB↔PLY correspondence | `BLOCKED_REAL_BUNDLE` | no occupancy/surface-support proof yet |
+| Tile adjacency and seam evidence | `NOT_STARTED` | starts after real source geometry is visible and measured |
+| Golden Drive Region | `NOT_SELECTED` | requires visual/seam evidence and explicit owner choice |
+| Accepted surface | `NOT_STARTED` | surface evidence is not authored truth |
+| Collision projection | `NOT_STARTED` | must derive only from accepted surface |
+| Scan-terrain physics probes | `NOT_STARTED` | waits for collision projection |
+| First vehicle drive | `NOT_STARTED` | waits for probe PASS |
 | JES transfer candidate | `NO` | requires reimport and a second real scan |
 
-## Locally proven on the exact P1B hardening head
+## Exact P2A proof already completed
 
 ```text
-HEAD: 2d91d17428292234c9b560a2ef855761f445f54f
-Canonical scan contracts: 89/89 PASS
-Windows gate: build 3/3, validator PASS, test PASS, smoke 0 errors
-Real inspection discovery: 2 byte-identical reports
-Each report: 7 GLB / 7 PLY / 7 pairs / compatible-review
+HEAD: f20357ba10618ddecfdd2e274e93917fe508a983
+Canonical contracts: 108/108 PASS
+CMake configure: PASS
+Native samples target: PASS
+Existing vehicle/build/test/smoke gate: PASS
+Result: P2A_LOCAL_CODE_GATE_PASS
 ```
 
-The local proof above validates the base of PR #5. It does not validate later P2A commits.
+This proves the exact-preview code and existing vehicle stack. It does not prove
+real private asset transformation or `TERRAIN_VISIBLE_PASS`.
 
-## Implemented in P2A
+## Derivative foundation implemented on PR #7
 
-### Private projection boundary
+The derivative branch adds only Python tooling, tests and documentation. It does
+not change C++, the renderer, Box3D physics or the verified P2A sample.
 
-The P2A generator:
-
-- consumes one independently verified P1B bundle;
-- requires a private owner-gate receipt with `status = P1B_BUNDLE_PASS`;
-- binds the receipt to the exact `bundleContentSha256` and `sourceRevisionId`;
-- verifies every private source GLB against immutable byte-length and SHA-256 records;
-- parses triangle primitives and node transforms;
-- applies the confirmed source-frame origin, units and axis matrix;
-- corrects winding for explicitly approved mirrored transforms;
-- rebuilds deterministic normals from transformed triangle geometry;
-- writes one tile at a time so the whole scan is not retained in Python memory;
-- publishes a content-addressed directory transactionally;
-- never writes collision data or an accepted-world claim.
-
-Every preview manifest is fixed to:
+### Closed derivative graph
 
 ```text
-purpose = SOURCE_VISUAL_PREVIEW_ONLY
-privacyClass = PRIVATE_LOCAL_ONLY
-texturesIncluded = false
-internalGeometryCorrespondencePassed = false
-acceptedWorld = false
-collisionReady = false
+SOURCE_REVISION
+├── EXACT_VISUAL_PREVIEW
+│   └── OPTIMIZED_VISUAL
+└── SURFACE_EVIDENCE
+    └── ACCEPTED_SURFACE
+        └── COLLISION_PROJECTION
 ```
 
-### Native render-only lab
+Version 1 permits `READY` only for exact preview and conservative surface
+evidence. A rehashed mutation cannot bypass owner review or make collision READY.
 
-The native sample:
+### Surface evidence semantics
 
-- reads only the prepared preview format, not GLB or PLY;
-- validates the closed structural contract before GPU registration;
-- shows per-tile geometry, bounds, metre grid and lab axes;
-- allows individual tile visibility toggles;
-- clearly labels the result as source evidence only;
-- does not display the private absolute pack path;
-- contains no Box3D body, shape, mesh-shape, heightfield or terrain-creation API.
-
-The Python verifier remains the cryptographic trust boundary. The C++ reader performs defense-in-depth structural validation and does not claim to replace SHA-256 verification.
-
-## Current contract-test scope
-
-The canonical runner now includes:
+Each raster cell may contain:
 
 ```text
-P1/P1B tests before receipt v2         89
-additional owner-gate receipt-v2 test   1
-P2A preview-pack generator tests       11
-P2A verifier CLI tests                  3
-P2A runtime architecture tests          2
-P2A one-command local-gate test          1
-------------------------------------------
-Canonical expected total              107
+lowest observed Y
+highest observed Y
+support count
+source-tile mask
+evidence quality
+classification = OBSERVED_SURFACE_EVIDENCE or UNKNOWN
 ```
 
-`107` is the expected suite size from the actual registered `unittest` methods. It must not be recorded as PASS until the final branch head is actually executed.
+`UNKNOWN` is stored canonically and is never filled, blurred, averaged or made
+collidable. Evidence quality is not ground confidence.
 
-## One-command local code gate
+### Runtime policy recorded by the catalog
 
-From the repository root on Windows:
-
-```powershell
-.\tools\scan_pipeline\run_p2a_local_gate.ps1
+```text
+render interest center  = CAMERA
+physics interest center = VEHICLE
+unknown surface         = NOT_COLLIDABLE_UNTIL_REVIEWED
+source GLB/PLY parsing   = OFFLINE ONLY
+visual LOD decision     = MEASURE_EXACT_PREVIEW_FIRST
+geometry/texture budget = SEPARATE
 ```
 
-It stops on the first failure and runs:
+## Current derivative contract scope
 
-1. all canonical P1/P1B/P2A contracts;
-2. `cmake --preset windows`;
-3. native `samples` build;
-4. executable existence check;
-5. the existing vehicle/build/test/smoke gate.
+```text
+previous exact P2A suite                  108
+surface evidence contracts                 9
+surface evidence verifier CLI              3
+surface query contracts                    5
+derivative catalog contracts               7
+derivative catalog verifier CLI            3
+---------------------------------------------
+expected canonical total                 135
+```
 
-Success prints `P2A_LOCAL_CODE_GATE_PASS`. This proves code/build compatibility only; it does not assert `TERRAIN_VISIBLE_PASS` or validate private real assets.
+`135` is an expected count, not a PASS. The current PR #7 head must be executed
+locally before this branch is described as green.
 
-## Current blockers before first terrain image
+## Current blockers before the first terrain image
 
-1. execute all 107 contracts and native code gate on the exact P2A head;
-2. create the real owner-confirmed source-frame contract;
-3. run `scan_owner_gate.py finalize` against the real 7+7 inspection;
-4. manually review only the printed `shareable/inspection.shareable.json`;
-5. rerun finalize with privacy acknowledgement and retain the private v2 receipt;
-6. build and independently verify the real private preview pack;
-7. launch `P2A Source Visual Preview` and review orientation, scale, tile coverage and seams.
+The derivative work does **not** add a new blocker to `TERRAIN_VISIBLE_PASS`.
+The shortest honest path remains:
 
-## Promotion criteria: `TERRAIN_VISIBLE_PASS`
+1. create the real owner-confirmed source-frame contract;
+2. finalize the real 7+7 P1B bundle without privacy acknowledgement;
+3. manually inspect only the printed shareable JSON;
+4. rerun finalize with privacy acknowledgement and retain the private receipt v2;
+5. build and independently verify the exact private preview pack;
+6. launch `Jozz Vehicle → P2A Source Visual Preview`;
+7. inspect all seven tiles, orientation, scale, mirror state, coverage and seams;
+8. restart and confirm the same content-addressed result.
 
-The first terrain image is accepted only when:
+Success produces only:
 
-- the exact preview pack passes the independent verifier;
-- all seven expected tiles load;
-- source-to-lab orientation is visually correct;
-- metre scale is plausible against known scene dimensions;
-- the result is not mirrored;
-- tile bounds and seams can be inspected;
-- restart produces the same content-addressed pack and layout;
-- UI continues to state `NO COLLISION` and `NOT ACCEPTED WORLD`.
+```text
+TERRAIN_VISIBLE_PASS
+```
 
-## NEXT after `TERRAIN_VISIBLE_PASS`
+It does not produce pairing, accepted-world, collision or drive readiness.
 
-- internal occupancy/surface-support correspondence GLB↔PLY;
-- sabotage fixture with identical bounds and mismatched interior geometry;
-- tile adjacency and seam evidence;
-- P2B diagnostic overlay;
-- selection of a small Golden Drive Region.
+## Correct path after `TERRAIN_VISIBLE_PASS`
 
-## PARKED
+```text
+real PLY surface evidence
+→ surface query/debug overlay
+→ internal GLB↔PLY correspondence
+→ sabotage fixture with equal bounds but wrong interior
+→ adjacency and seam evidence
+→ owner-selected Golden Drive Region
+→ reviewed accepted surface
+→ disposable collision projection
+→ physics probes
+→ first vehicle drive
+```
 
-- automatic ground classifier;
-- accepted-world editor;
+## Parked until measured or required
+
+- optimized visual LOD cooking;
+- texture transcoding;
+- native tile streaming and eviction;
+- automatic ground classification;
+- gap filling and DTM smoothing;
+- accepted-surface editor;
 - heightfield/collision cooker;
-- scan-terrain physics probes;
-- full vehicle drive loop;
-- reimport UI;
-- JES implementation.
+- full scan-terrain drive loop;
+- reimport UI and JES implementation.
 
-No source coordinates, private source names, absolute paths or source file hashes belong in this status document.
+No source coordinates, original source names, absolute paths, direct source file
+hashes or private scan payloads belong in Git.
