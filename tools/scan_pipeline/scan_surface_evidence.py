@@ -17,7 +17,7 @@ from pathlib import Path, PurePosixPath
 import shutil
 import struct
 import sys
-from typing import Any, Sequence
+from typing import Any, Iterator, Sequence
 import uuid
 
 MODULE_DIR = Path(__file__).resolve().parent
@@ -56,7 +56,10 @@ MAX_CELLS = 8_000_000
 MAX_BINARY_BYTES = HEADER.size + MAX_CELLS * CELL.size
 UNKNOWN = 0
 OBSERVED_SURFACE_EVIDENCE = 1
-CLASSIFICATIONS = {UNKNOWN: "UNKNOWN", OBSERVED_SURFACE_EVIDENCE: "OBSERVED_SURFACE_EVIDENCE"}
+CLASSIFICATIONS = {
+    UNKNOWN: "UNKNOWN",
+    OBSERVED_SURFACE_EVIDENCE: "OBSERVED_SURFACE_EVIDENCE",
+}
 QUALITY_ALGORITHM = {
     "name": "support-and-spread-evidence-quality",
     "version": 1,
@@ -73,16 +76,33 @@ _CAPABILITIES = {
     "collisionReady": False,
 }
 _MANIFEST_KEYS = {
-    "schema", "schemaVersion", "status", "privacyClass", "purpose",
-    "sourceBundleContentSha256", "packageId", "sourceRevisionId",
-    "sourceFrameContractSha256", "capabilities", "grid", "qualityAlgorithm",
-    "tileBitOrdinals", "statistics", "surfacePath", "surfaceByteLength",
-    "surfaceSha256", "surfaceEvidenceContentSha256",
+    "schema",
+    "schemaVersion",
+    "status",
+    "privacyClass",
+    "purpose",
+    "sourceBundleContentSha256",
+    "packageId",
+    "sourceRevisionId",
+    "sourceFrameContractSha256",
+    "capabilities",
+    "grid",
+    "qualityAlgorithm",
+    "tileBitOrdinals",
+    "statistics",
+    "surfacePath",
+    "surfaceByteLength",
+    "surfaceSha256",
+    "surfaceEvidenceContentSha256",
 }
 _GRID_KEYS = {"originLabXZ", "cellSizeMeters", "width", "height", "upAxis"}
 _STATS_KEYS = {
-    "sourcePointCount", "observedCellCount", "unknownCellCount",
-    "multiSourceCellCount", "maxSupportCount", "heightMinLabMeters",
+    "sourcePointCount",
+    "observedCellCount",
+    "unknownCellCount",
+    "multiSourceCellCount",
+    "maxSupportCount",
+    "heightMinLabMeters",
     "heightMaxLabMeters",
 }
 _TILE_BIT_KEYS = {"bitOrdinal", "tileId"}
@@ -116,7 +136,8 @@ def _exact_keys(value: dict[str, Any], expected: set[str], label: str) -> None:
     actual = set(value)
     if actual != expected:
         raise SurfaceEvidenceError(
-            f"{label} keys mismatch; missing={sorted(expected-actual)} extra={sorted(actual-expected)}"
+            f"{label} keys mismatch; missing={sorted(expected - actual)} "
+            f"extra={sorted(actual - expected)}"
         )
 
 
@@ -135,6 +156,18 @@ def _finite(value: Any, label: str) -> float:
         raise SurfaceEvidenceError(f"{label} must be finite")
     result = round(result, 9)
     return 0.0 if result == -0.0 else result
+
+
+def _f32(value: Any, label: str) -> float:
+    """Return the exact finite Python value represented by serialized float32."""
+    number = _finite(value, label)
+    try:
+        result = struct.unpack("<f", struct.pack("<f", number))[0]
+    except (OverflowError, struct.error) as exc:
+        raise SurfaceEvidenceError(f"{label} exceeds float32 range") from exc
+    if not math.isfinite(result):
+        raise SurfaceEvidenceError(f"{label} is not finite after float32 conversion")
+    return _finite(result, label)
 
 
 def _sha(value: Any, label: str) -> str:
@@ -159,33 +192,80 @@ def _file_identity(path: Path) -> tuple[int, int]:
 def _quality(support: int, source_count: int, spread: float, cell_size: float) -> int:
     support_term = min(support, 16) / 16.0
     source_term = min(source_count, 4) / 4.0
-    spread_term = min(max(spread / max(cell_size, 1.0e-9), 0.0), 4.0) / 4.0
-    value = round(255.0 * (0.55 * support_term + 0.35 * source_term + 0.10 * (1.0 - spread_term)))
+    spread_term = min(
+        max(spread / max(cell_size, 1.0e-9), 0.0),
+        QUALITY_ALGORITHM["verticalSpreadPenaltyCells"],
+    ) / QUALITY_ALGORITHM["verticalSpreadPenaltyCells"]
+    value = round(
+        255.0
+        * (
+            0.55 * support_term
+            + 0.35 * source_term
+            + 0.10 * (1.0 - spread_term)
+        )
+    )
     return max(1, min(255, int(value)))
 
 
-def _iter_lab_points(path: Path, frame: dict[str, Any], *, chunk_vertices: int) -> Any:
+def _iter_lab_points(
+    path: Path,
+    frame: dict[str, Any],
+    *,
+    chunk_vertices: int,
+) -> Iterator[tuple[float, float, float]]:
     header = scan_ply.read_ply_header(path)
-    for chunk in scan_ply.iter_vertex_chunks(path, header, chunk_vertices=chunk_vertices):
+    for chunk in scan_ply.iter_vertex_chunks(
+        path,
+        header,
+        chunk_vertices=chunk_vertices,
+    ):
         for x, y, z in zip(chunk.x, chunk.y, chunk.z):
-            yield scan_preview_pack._source_to_lab(frame, (float(x), float(y), float(z)))
+            point = scan_preview_pack._source_to_lab(
+                frame,
+                (float(x), float(y), float(z)),
+            )
+            if not all(math.isfinite(component) for component in point):
+                raise SurfaceEvidenceError("PLY contains non-finite transformed point")
+            yield point
+
+
+def _safe_source_path(source_root: Path, source_label: Any, tile_id: int) -> Path:
+    if not isinstance(source_label, str) or not source_label:
+        raise SurfaceEvidenceError(f"invalid PLY sourceLabel for tile {tile_id}")
+    logical = PurePosixPath(source_label)
+    if logical.is_absolute() or len(logical.parts) != 1 or logical.name != source_label:
+        raise SurfaceEvidenceError(f"unsafe PLY sourceLabel for tile {tile_id}")
+    path = source_root / logical.name
+    try:
+        if path.resolve().parent != source_root.resolve():
+            raise SurfaceEvidenceError(f"PLY path escapes source root for tile {tile_id}")
+    except OSError as exc:
+        raise SurfaceEvidenceError(f"cannot resolve PLY path for tile {tile_id}") from exc
+    return path
 
 
 def _source_files(
-    source_package: dict[str, Any], source_root: Path
-) -> list[tuple[int, Path, dict[str, Any]]]:
-    result: list[tuple[int, Path, dict[str, Any]]] = []
+    source_package: dict[str, Any],
+    source_root: Path,
+) -> list[tuple[int, Path, dict[str, Any], tuple[int, int]]]:
+    result: list[tuple[int, Path, dict[str, Any], tuple[int, int]]] = []
     for tile in source_package["tiles"]:
         tile_id = int(tile["tileId"])
         source = tile["ply"]
-        path = source_root / source["sourceLabel"]
+        path = _safe_source_path(source_root, source["sourceLabel"], tile_id)
         if not path.is_file() or path.is_symlink():
             raise SurfaceEvidenceError(f"missing real PLY for tile {tile_id}")
-        if path.stat().st_size != int(source["byteLength"]):
-            raise SurfaceEvidenceError(f"source PLY byteLength mismatch for tile {tile_id}")
+        expected_bytes = int(source["byteLength"])
+        if expected_bytes <= 0 or path.stat().st_size != expected_bytes:
+            raise SurfaceEvidenceError(
+                f"source PLY byteLength mismatch for tile {tile_id}"
+            )
+        identity = _file_identity(path)
         if _sha256_file(path) != source["sha256"]:
             raise SurfaceEvidenceError(f"source PLY SHA-256 mismatch for tile {tile_id}")
-        result.append((tile_id, path, source))
+        if _file_identity(path) != identity:
+            raise SurfaceEvidenceError(f"source PLY changed while hashing: {path.name}")
+        result.append((tile_id, path, source, identity))
     result.sort(key=lambda item: item[0])
     if not 0 < len(result) <= MAX_TILES:
         raise SurfaceEvidenceError("source package tile count is invalid")
@@ -201,7 +281,7 @@ def _write(path: Path, data: bytes) -> None:
 
 
 def _build_binary(
-    files: list[tuple[int, Path, dict[str, Any]]],
+    files: list[tuple[int, Path, dict[str, Any], tuple[int, int]]],
     frame: dict[str, Any],
     *,
     cell_size: float,
@@ -209,40 +289,59 @@ def _build_binary(
 ) -> tuple[bytes, dict[str, Any], list[dict[str, int]]]:
     minimum = [math.inf, math.inf, math.inf]
     maximum = [-math.inf, -math.inf, -math.inf]
-    identities = {path: _file_identity(path) for _, path, _ in files}
     point_count = 0
-    for _, path, _ in files:
-        for point in _iter_lab_points(path, frame, chunk_vertices=chunk_vertices):
-            if not all(math.isfinite(component) for component in point):
-                raise SurfaceEvidenceError("PLY contains non-finite transformed point")
+    for _, path, _, _ in files:
+        for point in _iter_lab_points(
+            path,
+            frame,
+            chunk_vertices=chunk_vertices,
+        ):
             for axis in range(3):
                 minimum[axis] = min(minimum[axis], point[axis])
                 maximum[axis] = max(maximum[axis], point[axis])
             point_count += 1
     if point_count == 0:
         raise SurfaceEvidenceError("surface evidence requires at least one point")
-    width = int(math.floor((maximum[0] - minimum[0]) / cell_size)) + 1
-    height = int(math.floor((maximum[2] - minimum[2]) / cell_size)) + 1
+
+    cell_size_f32 = _f32(cell_size, "cellSizeMeters")
+    if cell_size_f32 <= 0.0:
+        raise SurfaceEvidenceError("cellSizeMeters must remain positive as float32")
+    origin_x = _f32(minimum[0], "origin.x")
+    origin_z = _f32(minimum[2], "origin.z")
+    width = int(math.floor((maximum[0] - origin_x) / cell_size_f32)) + 1
+    height = int(math.floor((maximum[2] - origin_z) / cell_size_f32)) + 1
     cell_count = width * height
     if width <= 0 or height <= 0 or cell_count > MAX_CELLS:
         raise SurfaceEvidenceError(
             f"surface grid exceeds safety limit: {width}x{height}={cell_count} cells"
         )
+
     mins = array("f", [CANONICAL_NAN]) * cell_count
     maxs = array("f", [CANONICAL_NAN]) * cell_count
     support = array("I", [0]) * cell_count
     masks = array("Q", [0]) * cell_count
     tile_bits = [
         {"bitOrdinal": ordinal, "tileId": tile_id}
-        for ordinal, (tile_id, _, _) in enumerate(files)
+        for ordinal, (tile_id, _, _, _) in enumerate(files)
     ]
-    for ordinal, (_, path, _) in enumerate(files):
+
+    for ordinal, (_, path, _, _) in enumerate(files):
         bit = 1 << ordinal
-        for point in _iter_lab_points(path, frame, chunk_vertices=chunk_vertices):
-            ix = min(width - 1, max(0, int(math.floor((point[0] - minimum[0]) / cell_size))))
-            iz = min(height - 1, max(0, int(math.floor((point[2] - minimum[2]) / cell_size))))
+        for point in _iter_lab_points(
+            path,
+            frame,
+            chunk_vertices=chunk_vertices,
+        ):
+            ix = min(
+                width - 1,
+                max(0, int(math.floor((point[0] - origin_x) / cell_size_f32))),
+            )
+            iz = min(
+                height - 1,
+                max(0, int(math.floor((point[2] - origin_z) / cell_size_f32))),
+            )
             index = iz * width + ix
-            vertical = float(point[1])
+            vertical = _f32(point[1], "point.y")
             if support[index] == 0:
                 mins[index] = vertical
                 maxs[index] = vertical
@@ -253,50 +352,99 @@ def _build_binary(
                 raise SurfaceEvidenceError("surface support counter overflow")
             support[index] += 1
             masks[index] |= bit
-    for path, identity in identities.items():
+
+    for _, path, _, identity in files:
         if _file_identity(path) != identity:
             raise SurfaceEvidenceError(f"source PLY changed during build: {path.name}")
 
-    payload = bytearray(HEADER.pack(MAGIC, BINARY_VERSION, width, height, float(cell_size), float(minimum[0]), float(minimum[2])))
-    observed = multi = max_support = 0
+    payload = bytearray(
+        HEADER.pack(
+            MAGIC,
+            BINARY_VERSION,
+            width,
+            height,
+            cell_size_f32,
+            origin_x,
+            origin_z,
+        )
+    )
+    observed = 0
+    multi = 0
+    max_support = 0
     observed_min = math.inf
     observed_max = -math.inf
+    support_total = 0
     for index in range(cell_count):
         count = int(support[index])
         if count == 0:
-            payload.extend(CELL.pack(CANONICAL_NAN, CANONICAL_NAN, 0, 0, 0, UNKNOWN, 0))
+            payload.extend(
+                CELL.pack(
+                    CANONICAL_NAN,
+                    CANONICAL_NAN,
+                    0,
+                    0,
+                    0,
+                    UNKNOWN,
+                    0,
+                )
+            )
             continue
         observed += 1
+        support_total += count
         source_count = int(masks[index]).bit_count()
         if source_count > 1:
             multi += 1
         max_support = max(max_support, count)
-        observed_min = min(observed_min, float(mins[index]))
-        observed_max = max(observed_max, float(maxs[index]))
-        quality = _quality(count, source_count, float(maxs[index] - mins[index]), cell_size)
-        payload.extend(CELL.pack(float(mins[index]), float(maxs[index]), count, int(masks[index]), quality, OBSERVED_SURFACE_EVIDENCE, 0))
+        low = _f32(mins[index], "cell.low")
+        high = _f32(maxs[index], "cell.high")
+        observed_min = min(observed_min, low)
+        observed_max = max(observed_max, high)
+        quality = _quality(count, source_count, high - low, cell_size_f32)
+        payload.extend(
+            CELL.pack(
+                low,
+                high,
+                count,
+                int(masks[index]),
+                quality,
+                OBSERVED_SURFACE_EVIDENCE,
+                0,
+            )
+        )
+    if support_total != point_count:
+        raise SurfaceEvidenceError("surface support total differs from source point count")
     if len(payload) > MAX_BINARY_BYTES:
         raise SurfaceEvidenceError("surface binary exceeds byte budget")
-    stats = {
-        "sourcePointCount": point_count,
-        "observedCellCount": observed,
-        "unknownCellCount": cell_count - observed,
-        "multiSourceCellCount": multi,
-        "maxSupportCount": max_support,
-        "heightMinLabMeters": _finite(observed_min, "heightMin"),
-        "heightMaxLabMeters": _finite(observed_max, "heightMax"),
+
+    metadata = {
+        "grid": {
+            "originLabXZ": [origin_x, origin_z],
+            "cellSizeMeters": cell_size_f32,
+            "width": width,
+            "height": height,
+            "upAxis": "+Y",
+        },
+        "statistics": {
+            "sourcePointCount": point_count,
+            "observedCellCount": observed,
+            "unknownCellCount": cell_count - observed,
+            "multiSourceCellCount": multi,
+            "maxSupportCount": max_support,
+            "heightMinLabMeters": _f32(observed_min, "heightMin"),
+            "heightMaxLabMeters": _f32(observed_max, "heightMax"),
+        },
     }
-    grid = {
-        "originLabXZ": [_finite(minimum[0], "origin.x"), _finite(minimum[2], "origin.z")],
-        "cellSizeMeters": _finite(cell_size, "cellSizeMeters"),
-        "width": width,
-        "height": height,
-        "upAxis": "+Y",
-    }
-    return bytes(payload), {"grid": grid, "statistics": stats}, tile_bits
+    return bytes(payload), metadata, tile_bits
 
 
-def _manifest_core(*, bundle_summary: dict[str, Any], source_package: dict[str, Any], metadata: dict[str, Any], tile_bits: list[dict[str, int]], binary: bytes) -> dict[str, Any]:
+def _manifest_core(
+    *,
+    bundle_summary: dict[str, Any],
+    source_package: dict[str, Any],
+    metadata: dict[str, Any],
+    tile_bits: list[dict[str, int]],
+    binary: bytes,
+) -> dict[str, Any]:
     return {
         "schema": SCHEMA,
         "schemaVersion": SCHEMA_VERSION,
@@ -320,15 +468,26 @@ def _manifest_core(*, bundle_summary: dict[str, Any], source_package: dict[str, 
 
 def _validate_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
     _exact_keys(manifest, _MANIFEST_KEYS, "surface manifest")
-    if manifest["schema"] != SCHEMA or _uint(manifest["schemaVersion"], "schemaVersion") != SCHEMA_VERSION or manifest["status"] != "COMPLETE" or manifest["privacyClass"] != PRIVACY_CLASS or manifest["purpose"] != PURPOSE:
+    if (
+        manifest["schema"] != SCHEMA
+        or _uint(manifest["schemaVersion"], "schemaVersion") != SCHEMA_VERSION
+        or manifest["status"] != "COMPLETE"
+        or manifest["privacyClass"] != PRIVACY_CLASS
+        or manifest["purpose"] != PURPOSE
+    ):
         raise SurfaceEvidenceError("invalid surface manifest identity")
     _sha(manifest["sourceBundleContentSha256"], "sourceBundleContentSha256")
+    try:
+        scan_world_contracts._stable_id(manifest["packageId"], "packageId")
+    except scan_world_contracts.WorldContractError as exc:
+        raise SurfaceEvidenceError(str(exc)) from exc
     _revision(manifest["sourceRevisionId"])
     _sha(manifest["sourceFrameContractSha256"], "sourceFrameContractSha256")
     if manifest["capabilities"] != _CAPABILITIES:
         raise SurfaceEvidenceError("surface capability boundary mismatch")
     if manifest["qualityAlgorithm"] != QUALITY_ALGORITHM:
         raise SurfaceEvidenceError("surface quality algorithm mismatch")
+
     grid = manifest["grid"]
     if not isinstance(grid, dict):
         raise SurfaceEvidenceError("grid must be an object")
@@ -336,11 +495,26 @@ def _validate_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
     origin = grid["originLabXZ"]
     if not isinstance(origin, list) or len(origin) != 2:
         raise SurfaceEvidenceError("grid.originLabXZ must contain two values")
-    _finite(origin[0], "grid.origin.x"); _finite(origin[1], "grid.origin.z")
-    cell_size = _finite(grid["cellSizeMeters"], "grid.cellSizeMeters")
-    width = _uint(grid["width"], "grid.width"); height = _uint(grid["height"], "grid.height")
-    if cell_size <= 0 or width == 0 or height == 0 or width * height > MAX_CELLS or grid["upAxis"] != "+Y":
+    canonical_origin = [
+        _f32(origin[0], "grid.origin.x"),
+        _f32(origin[1], "grid.origin.z"),
+    ]
+    if origin != canonical_origin:
+        raise SurfaceEvidenceError("grid origin must be canonical float32")
+    cell_size = _f32(grid["cellSizeMeters"], "grid.cellSizeMeters")
+    if grid["cellSizeMeters"] != cell_size:
+        raise SurfaceEvidenceError("grid cell size must be canonical float32")
+    width = _uint(grid["width"], "grid.width")
+    height = _uint(grid["height"], "grid.height")
+    if (
+        cell_size <= 0
+        or width == 0
+        or height == 0
+        or width * height > MAX_CELLS
+        or grid["upAxis"] != "+Y"
+    ):
         raise SurfaceEvidenceError("invalid surface grid")
+
     bits = manifest["tileBitOrdinals"]
     if not isinstance(bits, list) or not bits or len(bits) > MAX_TILES:
         raise SurfaceEvidenceError("invalid tile bit mapping")
@@ -352,28 +526,65 @@ def _validate_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
         if _uint(item["bitOrdinal"], "bitOrdinal") != ordinal:
             raise SurfaceEvidenceError("tile bit ordinals must be contiguous")
         observed_ids.append(_uint(item["tileId"], "tileId"))
-    if observed_ids != sorted(observed_ids) or len(observed_ids) != len(set(observed_ids)):
+    if observed_ids != sorted(observed_ids) or len(observed_ids) != len(
+        set(observed_ids)
+    ):
         raise SurfaceEvidenceError("tile ids must be sorted and unique")
+
     stats = manifest["statistics"]
     if not isinstance(stats, dict):
         raise SurfaceEvidenceError("statistics must be an object")
     _exact_keys(stats, _STATS_KEYS, "statistics")
-    for key in ("sourcePointCount", "observedCellCount", "unknownCellCount", "multiSourceCellCount", "maxSupportCount"):
+    for key in (
+        "sourcePointCount",
+        "observedCellCount",
+        "unknownCellCount",
+        "multiSourceCellCount",
+        "maxSupportCount",
+    ):
         _uint(stats[key], f"statistics.{key}")
-    _finite(stats["heightMinLabMeters"], "heightMinLabMeters"); _finite(stats["heightMaxLabMeters"], "heightMaxLabMeters")
-    if stats["observedCellCount"] + stats["unknownCellCount"] != width * height or stats["multiSourceCellCount"] > stats["observedCellCount"]:
+    for key in ("heightMinLabMeters", "heightMaxLabMeters"):
+        if stats[key] != _f32(stats[key], f"statistics.{key}"):
+            raise SurfaceEvidenceError(f"statistics.{key} must be canonical float32")
+    if (
+        stats["sourcePointCount"] == 0
+        or stats["observedCellCount"] == 0
+        or stats["observedCellCount"] + stats["unknownCellCount"]
+        != width * height
+        or stats["multiSourceCellCount"] > stats["observedCellCount"]
+        or stats["heightMinLabMeters"] > stats["heightMaxLabMeters"]
+    ):
         raise SurfaceEvidenceError("surface statistics do not cover grid")
+
     if manifest["surfacePath"] != "surface.bin":
         raise SurfaceEvidenceError("surface path must be canonical")
     expected_length = HEADER.size + width * height * CELL.size
-    if _uint(manifest["surfaceByteLength"], "surfaceByteLength") != expected_length or expected_length > MAX_BINARY_BYTES:
+    if (
+        _uint(manifest["surfaceByteLength"], "surfaceByteLength")
+        != expected_length
+        or expected_length > MAX_BINARY_BYTES
+    ):
         raise SurfaceEvidenceError("surface byte length mismatch")
     _sha(manifest["surfaceSha256"], "surfaceSha256")
-    expected_hash = _sha(manifest["surfaceEvidenceContentSha256"], "surfaceEvidenceContentSha256")
-    unsigned = dict(manifest); unsigned.pop("surfaceEvidenceContentSha256")
+    expected_hash = _sha(
+        manifest["surfaceEvidenceContentSha256"],
+        "surfaceEvidenceContentSha256",
+    )
+    unsigned = dict(manifest)
+    unsigned.pop("surfaceEvidenceContentSha256")
     if _sha256_bytes(_canonical_json_bytes(unsigned)) != expected_hash:
         raise SurfaceEvidenceError("surfaceEvidenceContentSha256 mismatch")
     return manifest
+
+
+def _pack_files(root: Path) -> set[str]:
+    files: set[str] = set()
+    for path in root.rglob("*"):
+        if path.is_symlink():
+            raise SurfaceEvidenceError(f"surface pack contains symlink: {path}")
+        if path.is_file():
+            files.add(path.relative_to(root).as_posix())
+    return files
 
 
 def verify_surface_evidence_pack(root: Path) -> dict[str, Any]:
@@ -382,104 +593,212 @@ def verify_surface_evidence_pack(root: Path) -> dict[str, Any]:
         raise SurfaceEvidenceError("surface root must be a real directory")
     complete = root / "COMPLETE.json"
     binary_path = root / "surface.bin"
-    if not complete.is_file() or complete.is_symlink() or not binary_path.is_file() or binary_path.is_symlink():
+    if (
+        not complete.is_file()
+        or complete.is_symlink()
+        or not binary_path.is_file()
+        or binary_path.is_symlink()
+    ):
         raise SurfaceEvidenceError("surface pack is incomplete")
-    files = {path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file()}
-    if files != {"COMPLETE.json", "surface.bin"}:
+    if _pack_files(root) != {"COMPLETE.json", "surface.bin"}:
         raise SurfaceEvidenceError("surface pack contains missing or unexpected files")
+
     manifest = _validate_manifest(_strict_json(complete))
-    if binary_path.stat().st_size != manifest["surfaceByteLength"] or _sha256_file(binary_path) != manifest["surfaceSha256"]:
+    if (
+        binary_path.stat().st_size != manifest["surfaceByteLength"]
+        or _sha256_file(binary_path) != manifest["surfaceSha256"]
+    ):
         raise SurfaceEvidenceError("surface binary identity mismatch")
+
     valid_mask = (1 << len(manifest["tileBitOrdinals"])) - 1
-    observed = unknown = multi = max_support = 0
-    min_height = math.inf; max_height = -math.inf
+    observed = 0
+    unknown = 0
+    multi = 0
+    max_support = 0
+    support_total = 0
+    min_height = math.inf
+    max_height = -math.inf
     with binary_path.open("rb") as handle:
         raw = handle.read(HEADER.size)
         if len(raw) != HEADER.size:
             raise SurfaceEvidenceError("surface header is truncated")
-        magic, version, width, height, cell_size, origin_x, origin_z = HEADER.unpack(raw)
+        magic, version, width, height, cell_size, origin_x, origin_z = HEADER.unpack(
+            raw
+        )
         grid = manifest["grid"]
-        if magic != MAGIC or version != BINARY_VERSION or width != grid["width"] or height != grid["height"] or _finite(cell_size, "header.cellSize") != grid["cellSizeMeters"] or [_finite(origin_x, "header.originX"), _finite(origin_z, "header.originZ")] != grid["originLabXZ"]:
+        if (
+            magic != MAGIC
+            or version != BINARY_VERSION
+            or width != grid["width"]
+            or height != grid["height"]
+            or _f32(cell_size, "header.cellSize") != grid["cellSizeMeters"]
+            or [
+                _f32(origin_x, "header.originX"),
+                _f32(origin_z, "header.originZ"),
+            ]
+            != grid["originLabXZ"]
+        ):
             raise SurfaceEvidenceError("surface binary header mismatch")
+
         for _ in range(width * height):
             raw = handle.read(CELL.size)
             if len(raw) != CELL.size:
                 raise SurfaceEvidenceError("surface cell payload is truncated")
-            low, high, support, mask, quality, classification, reserved = CELL.unpack(raw)
+            low, high, support, mask, quality, classification, reserved = CELL.unpack(
+                raw
+            )
             if reserved != 0 or mask & ~valid_mask:
-                raise SurfaceEvidenceError("surface cell contains invalid reserved data or source mask")
+                raise SurfaceEvidenceError(
+                    "surface cell contains invalid reserved data or source mask"
+                )
             if classification == UNKNOWN:
-                if support != 0 or mask != 0 or quality != 0 or struct.unpack("<I", struct.pack("<f", low))[0] != CANONICAL_NAN_BITS or struct.unpack("<I", struct.pack("<f", high))[0] != CANONICAL_NAN_BITS:
+                if (
+                    support != 0
+                    or mask != 0
+                    or quality != 0
+                    or struct.unpack("<I", struct.pack("<f", low))[0]
+                    != CANONICAL_NAN_BITS
+                    or struct.unpack("<I", struct.pack("<f", high))[0]
+                    != CANONICAL_NAN_BITS
+                ):
                     raise SurfaceEvidenceError("UNKNOWN cell is not canonical")
                 unknown += 1
-            elif classification == OBSERVED_SURFACE_EVIDENCE:
-                if support == 0 or mask == 0 or quality == 0 or not math.isfinite(low) or not math.isfinite(high) or low > high:
-                    raise SurfaceEvidenceError("observed surface cell is invalid")
-                source_count = int(mask).bit_count()
-                if quality != _quality(support, source_count, high - low, cell_size):
-                    raise SurfaceEvidenceError("surface evidence quality mismatch")
-                observed += 1
-                multi += int(source_count > 1)
-                max_support = max(max_support, support)
-                min_height = min(min_height, low); max_height = max(max_height, high)
-            else:
+                continue
+            if classification != OBSERVED_SURFACE_EVIDENCE:
                 raise SurfaceEvidenceError("unknown surface classification")
+            if (
+                support == 0
+                or mask == 0
+                or quality == 0
+                or not math.isfinite(low)
+                or not math.isfinite(high)
+                or low > high
+            ):
+                raise SurfaceEvidenceError("observed surface cell is invalid")
+            source_count = int(mask).bit_count()
+            if quality != _quality(support, source_count, high - low, cell_size):
+                raise SurfaceEvidenceError("surface evidence quality mismatch")
+            observed += 1
+            support_total += int(support)
+            multi += int(source_count > 1)
+            max_support = max(max_support, int(support))
+            min_height = min(min_height, float(low))
+            max_height = max(max_height, float(high))
         if handle.read(1):
             raise SurfaceEvidenceError("surface binary has trailing bytes")
+
     stats = manifest["statistics"]
     actual = {
-        "observedCellCount": observed, "unknownCellCount": unknown,
-        "multiSourceCellCount": multi, "maxSupportCount": max_support,
-        "heightMinLabMeters": _finite(min_height, "actualMin"),
-        "heightMaxLabMeters": _finite(max_height, "actualMax"),
+        "sourcePointCount": support_total,
+        "observedCellCount": observed,
+        "unknownCellCount": unknown,
+        "multiSourceCellCount": multi,
+        "maxSupportCount": max_support,
+        "heightMinLabMeters": _f32(min_height, "actualMin"),
+        "heightMaxLabMeters": _f32(max_height, "actualMax"),
     }
     for key, value in actual.items():
         if stats[key] != value:
             raise SurfaceEvidenceError(f"surface statistics mismatch: {key}")
     return {
-        "surfaceEvidenceContentSha256": manifest["surfaceEvidenceContentSha256"],
+        "surfaceEvidenceContentSha256": manifest[
+            "surfaceEvidenceContentSha256"
+        ],
         "sourceRevisionId": manifest["sourceRevisionId"],
-        "width": width, "height": height, "observedCellCount": observed,
+        "width": width,
+        "height": height,
+        "observedCellCount": observed,
         "path": str(root),
     }
 
 
-def build_surface_evidence_pack(*, bundle: Path, owner_gate_receipt: Path, source_root: Path, output_root: Path, cell_size_meters: float = 1.0, chunk_vertices: int = scan_ply.DEFAULT_CHUNK_VERTICES, label: str = "surface-evidence") -> Path:
+def build_surface_evidence_pack(
+    *,
+    bundle: Path,
+    owner_gate_receipt: Path,
+    source_root: Path,
+    output_root: Path,
+    cell_size_meters: float = 1.0,
+    chunk_vertices: int = scan_ply.DEFAULT_CHUNK_VERTICES,
+    label: str = "surface-evidence",
+) -> Path:
     try:
         label = scan_import_bundle._label(label, "surfaceLabel")
     except scan_import_bundle.ImportBundleError as exc:
         raise SurfaceEvidenceError(str(exc)) from exc
-    cell_size = _finite(cell_size_meters, "cellSizeMeters")
+    cell_size = _f32(cell_size_meters, "cellSizeMeters")
     if cell_size <= 0.0:
         raise SurfaceEvidenceError("cellSizeMeters must be positive")
-    bundle = Path(bundle); source_root = Path(source_root); output_root = Path(output_root)
+    if chunk_vertices <= 0:
+        raise SurfaceEvidenceError("chunkVertices must be positive")
+
+    bundle = Path(bundle)
+    source_root = Path(source_root)
+    output_root = Path(output_root)
     bundle_summary = scan_import_bundle.verify_bundle(bundle)
-    source_package = scan_world_contracts.validate_source_package(_strict_json(bundle / "private/source_package.json"))
-    frame = scan_frames.validate_frame_contract(_strict_json(bundle / "private/source_frame.json"))
-    if not frame["confirmed"] or source_package["sourceFrameContract"] != frame or source_package["revisionId"] != bundle_summary["sourceRevisionId"]:
-        raise SurfaceEvidenceError("surface evidence requires the exact owner-confirmed bundle frame")
-    scan_preview_pack._validate_owner_gate_receipt(owner_gate_receipt, bundle_summary=bundle_summary, source_package=source_package)
+    source_package = scan_world_contracts.validate_source_package(
+        _strict_json(bundle / "private/source_package.json")
+    )
+    frame = scan_frames.validate_frame_contract(
+        _strict_json(bundle / "private/source_frame.json")
+    )
+    if (
+        not frame["confirmed"]
+        or source_package["sourceFrameContract"] != frame
+        or source_package["revisionId"] != bundle_summary["sourceRevisionId"]
+    ):
+        raise SurfaceEvidenceError(
+            "surface evidence requires the exact owner-confirmed bundle frame"
+        )
+    scan_preview_pack._validate_owner_gate_receipt(
+        owner_gate_receipt,
+        bundle_summary=bundle_summary,
+        source_package=source_package,
+    )
     if not source_root.is_dir() or source_root.is_symlink():
         raise SurfaceEvidenceError("source root must be a real directory")
     files = _source_files(source_package, source_root)
-    binary, metadata, tile_bits = _build_binary(files, frame, cell_size=cell_size, chunk_vertices=chunk_vertices)
-    core = _manifest_core(bundle_summary=bundle_summary, source_package=source_package, metadata=metadata, tile_bits=tile_bits, binary=binary)
+    binary, metadata, tile_bits = _build_binary(
+        files,
+        frame,
+        cell_size=cell_size,
+        chunk_vertices=chunk_vertices,
+    )
+    core = _manifest_core(
+        bundle_summary=bundle_summary,
+        source_package=source_package,
+        metadata=metadata,
+        tile_bits=tile_bits,
+        binary=binary,
+    )
     manifest = dict(core)
-    manifest["surfaceEvidenceContentSha256"] = _sha256_bytes(_canonical_json_bytes(core))
+    manifest["surfaceEvidenceContentSha256"] = _sha256_bytes(
+        _canonical_json_bytes(core)
+    )
     _validate_manifest(manifest)
+
     output_root.mkdir(parents=True, exist_ok=True)
     if output_root.is_symlink():
         raise SurfaceEvidenceError("output root must not be a symlink")
-    staging = output_root / f".{label}.staging-{os.getpid()}-{uuid.uuid4().hex}"
+    staging = output_root / (
+        f".{label}.staging-{os.getpid()}-{uuid.uuid4().hex}"
+    )
     staging.mkdir()
     try:
         _write(staging / "surface.bin", binary)
         _write(staging / "COMPLETE.json", _canonical_json_bytes(manifest))
-        final = output_root / f"{label}-{manifest['surfaceEvidenceContentSha256'][:16]}"
+        final = output_root / (
+            f"{label}-{manifest['surfaceEvidenceContentSha256'][:16]}"
+        )
         if final.exists():
             existing = verify_surface_evidence_pack(final)
-            if existing["surfaceEvidenceContentSha256"] != manifest["surfaceEvidenceContentSha256"]:
-                raise SurfaceEvidenceError("existing content-addressed surface pack is inconsistent")
+            if (
+                existing["surfaceEvidenceContentSha256"]
+                != manifest["surfaceEvidenceContentSha256"]
+            ):
+                raise SurfaceEvidenceError(
+                    "existing content-addressed surface pack is inconsistent"
+                )
             shutil.rmtree(staging)
             return final
         os.replace(staging, final)
@@ -497,22 +816,54 @@ def main(argv: Sequence[str] | None = None) -> int:
     build.add_argument("--bundle", required=True, type=Path)
     build.add_argument("--owner-gate-receipt", required=True, type=Path)
     build.add_argument("--source-root", required=True, type=Path)
-    build.add_argument("--output-root", type=Path, default=Path("build/scan_pipeline/surface-evidence"))
+    build.add_argument(
+        "--output-root",
+        type=Path,
+        default=Path("build/scan_pipeline/surface-evidence"),
+    )
     build.add_argument("--cell-size-meters", type=float, default=1.0)
-    build.add_argument("--chunk-vertices", type=int, default=scan_ply.DEFAULT_CHUNK_VERTICES)
+    build.add_argument(
+        "--chunk-vertices",
+        type=int,
+        default=scan_ply.DEFAULT_CHUNK_VERTICES,
+    )
     build.add_argument("--label", default="surface-evidence")
     verify = sub.add_parser("verify")
     verify.add_argument("surface", type=Path)
     args = parser.parse_args(argv)
     try:
         if args.command == "build":
-            path = build_surface_evidence_pack(bundle=args.bundle, owner_gate_receipt=args.owner_gate_receipt, source_root=args.source_root, output_root=args.output_root, cell_size_meters=args.cell_size_meters, chunk_vertices=args.chunk_vertices, label=args.label)
+            path = build_surface_evidence_pack(
+                bundle=args.bundle,
+                owner_gate_receipt=args.owner_gate_receipt,
+                source_root=args.source_root,
+                output_root=args.output_root,
+                cell_size_meters=args.cell_size_meters,
+                chunk_vertices=args.chunk_vertices,
+                label=args.label,
+            )
             summary = verify_surface_evidence_pack(path)
         else:
             summary = verify_surface_evidence_pack(args.surface)
-        print("scan_surface_evidence: OK | " f"path={summary['path']} surface_sha256={summary['surfaceEvidenceContentSha256']} " f"grid={summary['width']}x{summary['height']} observed={summary['observedCellCount']} revision={summary['sourceRevisionId']}")
+        print(
+            "scan_surface_evidence: OK | "
+            f"path={summary['path']} "
+            f"surface_sha256={summary['surfaceEvidenceContentSha256']} "
+            f"grid={summary['width']}x{summary['height']} "
+            f"observed={summary['observedCellCount']} "
+            f"revision={summary['sourceRevisionId']}"
+        )
         return 0
-    except (OSError, SurfaceEvidenceError, scan_import_bundle.ImportBundleError, scan_world_contracts.WorldContractError, scan_frames.FrameContractError, scan_owner_gate.OwnerGateError, scan_preview_pack.PreviewPackError, scan_ply.PlyInspectionError) as exc:
+    except (
+        OSError,
+        SurfaceEvidenceError,
+        scan_import_bundle.ImportBundleError,
+        scan_world_contracts.WorldContractError,
+        scan_frames.FrameContractError,
+        scan_owner_gate.OwnerGateError,
+        scan_preview_pack.PreviewPackError,
+        scan_ply.PlyInspectionError,
+    ) as exc:
         print(f"scan_surface_evidence: ERROR: {exc}", file=sys.stderr)
         return 2
 
