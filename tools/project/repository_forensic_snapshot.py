@@ -17,6 +17,65 @@ from typing import Any, Iterable
 ROOT = Path(__file__).resolve().parents[2]
 INVENTORY_PATH = ROOT / "docs" / "PROJECT_INVENTORY.json"
 
+ROOT_BUILD_AND_HYGIENE = {
+    ".clang-format",
+    ".gitattributes",
+    ".gitignore",
+    "CMakeLists.txt",
+    "CMakePresets.json",
+    "LICENSE",
+    "SECURITY.md",
+    "build.sh",
+    "build_vs2026.bat",
+    "deploy_docs.sh",
+}
+SHARED_RENDERER_FILES = {
+    "samples/earcut.h",
+    "samples/jsmn.h",
+    "samples/mesh_loader.cpp",
+    "samples/mesh_loader.h",
+    "samples/tiny_obj_loader.h",
+}
+VEHICLE_TOOL_FILES = {
+    "tools/asset_audit.py",
+    "tools/asset_contract_audit.py",
+    "tools/doc_drift_check.ps1",
+    "tools/gate.ps1",
+    "tools/quad_shot.ps1",
+}
+UPSTREAM_DOC_FILES = {
+    "docs/CMakeLists.txt",
+    "docs/extra.css",
+    "docs/layout.xml",
+}
+UPSTREAM_GITHUB_FILES = {
+    ".github/FUNDING.yml",
+    ".github/issue_template.md",
+    ".github/workflows/build.yml",
+}
+REPOSITORY_GOVERNANCE_FILES = {
+    "AGENTS.md",
+    "AI_PROJECT_MEMORY.md",
+    "CONTRIBUTING.md",
+    "README.md",
+    ".github/workflows/repository-governance.yml",
+    ".github/PULL_REQUEST_TEMPLATE/manual.md",
+    "docs/README.md",
+    "docs/REPOSITORY_STRUCTURE_PL.md",
+    "docs/PROJECT_OPERATING_PLAN_PL.md",
+    "docs/PROJECT_CHARTER_PL.md",
+    "docs/PROJECT_REFOUNDATION_AUDIT_2026_07_22_PL.md",
+    "docs/PROJECT_FORENSIC_INVENTORY_2026_07_22_PL.md",
+    "docs/PROJECT_INVENTORY.json",
+    "docs/BRANCH_RETENTION_PLAN_2026_07_22.json",
+}
+VEHICLE_DOCUMENTATION_FILES = {
+    "README_FOR_AGENTS.md",
+    "JOZZ_VEHICLE_README_PL.md",
+    "docs/CURRENT_STATE_INDEX_PL.md",
+    "docs/TECH_DEBT_PL.md",
+}
+
 
 def _run_git(arguments: list[str], *, timeout: int = 60) -> str:
     completed = subprocess.run(
@@ -42,13 +101,23 @@ def _load_inventory() -> dict[str, Any]:
     return value
 
 
+def _is_upstream_doc(path: str) -> bool:
+    if path in UPSTREAM_DOC_FILES or path.startswith("docs/images/"):
+        return True
+    if not path.startswith("docs/"):
+        return False
+    name = path.removeprefix("docs/")
+    return name and name[0].islower()
+
+
 def _classify_path(path: str) -> str:
     if path.startswith(("src/", "include/")):
         return "upstream-engine-core"
     if path.startswith(("test/", "benchmark/", "shared/", "data/", "extern/")):
         return "upstream-support"
-    if path in {"CMakeLists.txt", "LICENSE", "SECURITY.md"} or path.startswith("cmake/"):
-        return "upstream-build-and-policy"
+    if path in ROOT_BUILD_AND_HYGIENE or path.startswith("cmake/"):
+        return "repository-build-and-hygiene"
+
     if path.startswith("samples/host/") or path in {
         "samples/main.cpp",
         "samples/sample.cpp",
@@ -56,12 +125,22 @@ def _classify_path(path: str) -> str:
         "samples/CMakeLists.txt",
     }:
         return "shared-native-host"
-    if path.startswith("samples/sample_") and path != "samples/sample_jozz_vehicle_lab.cpp":
+    if path.startswith(("samples/gfx/", "samples/shaders/")) or path in SHARED_RENDERER_FILES:
+        return "shared-native-renderer"
+    if path == "samples/sample_jozz_vehicle_lab.cpp":
+        return "vehicle-registration"
+    if path.startswith("samples/sample_"):
         return "upstream-samples"
+
     if path.startswith(("samples/jozz_vehicle_", "samples/validation/")):
-        return "vehicle-physics-and-rig"
+        return "vehicle-physics-rig-and-world"
     if path.startswith(("assets/contracts/", "assets/vehicle_presets/", "assets/source/")):
         return "vehicle-assets-and-contracts"
+    if path.startswith("assets/"):
+        return "vehicle-asset-evidence"
+    if path in VEHICLE_TOOL_FILES:
+        return "vehicle-tooling-and-gates"
+
     if path.startswith("samples/jozz_scan_preview_"):
         return "scan-source-geometry-preview-v1"
     if path.startswith(("tools/scan_pipeline/", "tests/scan_pipeline/", "docs/scan_import/")):
@@ -70,6 +149,7 @@ def _classify_path(path: str) -> str:
         return "scan-historical-evidence"
     if path == ".github/workflows/p1-scan-inspector.yml":
         return "scan-ci"
+
     if path.startswith((".automation/", "tools/automation/", "tests/automation/")):
         return "automation-and-governance"
     if path in {
@@ -79,38 +159,27 @@ def _classify_path(path: str) -> str:
         return "automation-and-governance"
     if path.startswith(("tools/project/", "tests/project/")):
         return "repository-governance"
-    if path in {
-        "AGENTS.md",
-        "AI_PROJECT_MEMORY.md",
-        "CONTRIBUTING.md",
-        "README.md",
-        ".github/workflows/repository-governance.yml",
-        ".github/PULL_REQUEST_TEMPLATE/manual.md",
-        "docs/README.md",
-        "docs/REPOSITORY_STRUCTURE_PL.md",
-        "docs/PROJECT_OPERATING_PLAN_PL.md",
-        "docs/PROJECT_CHARTER_PL.md",
-        "docs/PROJECT_REFOUNDATION_AUDIT_2026_07_22_PL.md",
-        "docs/PROJECT_FORENSIC_INVENTORY_2026_07_22_PL.md",
-        "docs/PROJECT_INVENTORY.json",
-    }:
+    if path in REPOSITORY_GOVERNANCE_FILES:
         return "repository-governance"
-    if path in {"README_FOR_AGENTS.md", "docs/CURRENT_STATE_INDEX_PL.md", "docs/TECH_DEBT_PL.md"}:
+
+    if path == ".github/pull_request_template.md":
+        return "legacy-conflicting-governance"
+    if path in UPSTREAM_GITHUB_FILES:
+        return "upstream-github-metadata-and-ci"
+    if path.startswith(".github/"):
+        return "repository-github-metadata"
+
+    if path in VEHICLE_DOCUMENTATION_FILES:
         return "vehicle-documentation"
     if path.startswith(("docs/SUBSYSTEM_", "docs/M7_", "docs/M8_", "docs/M9_")):
         return "vehicle-documentation"
     if path == "docs/CHECKPOINTS_PL.md" or path.startswith(("docs/archive/", "docs/adr/")):
         return "historical-documentation"
+    if _is_upstream_doc(path):
+        return "upstream-documentation"
     if path.startswith("docs/"):
-        return "unclassified-documentation"
-    if path.startswith("assets/"):
-        return "unclassified-assets"
-    if path.startswith(".github/"):
-        return "unclassified-github"
-    if path.startswith("tools/"):
-        return "unclassified-tools"
-    if path.startswith("tests/"):
-        return "unclassified-tests"
+        return "vehicle-world-and-project-history"
+
     return "unclassified-root-or-other"
 
 
@@ -144,8 +213,7 @@ def _parse_remote_refs(output: str, prefix: str) -> list[dict[str, str]]:
         sha, ref = parts
         if not ref.startswith(prefix):
             continue
-        name = ref[len(prefix) :]
-        records.append({"name": name, "sha": sha})
+        records.append({"name": ref[len(prefix) :], "sha": sha})
     return sorted(records, key=lambda record: record["name"])
 
 
@@ -184,10 +252,24 @@ def _lineage_by_branch(inventory: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return result
 
 
+def _branch_plan_by_name() -> dict[str, dict[str, Any]]:
+    path = ROOT / "docs" / "BRANCH_RETENTION_PLAN_2026_07_22.json"
+    if not path.is_file():
+        return {}
+    value = json.loads(path.read_text(encoding="utf-8"))
+    records = value.get("branches", []) if isinstance(value, dict) else []
+    return {
+        record["name"]: record
+        for record in records
+        if isinstance(record, dict) and isinstance(record.get("name"), str)
+    }
+
+
 def _annotate_branches(
     branches: list[dict[str, str]], inventory: dict[str, Any]
 ) -> list[dict[str, Any]]:
     lineage = _lineage_by_branch(inventory)
+    exact_plan = _branch_plan_by_name()
     reduction = inventory.get("branchReduction", {})
     preferred = set(reduction.get("preferredFinalBranches", [])) if isinstance(reduction, dict) else set()
     annotated: list[dict[str, Any]] = []
@@ -195,20 +277,14 @@ def _annotate_branches(
         name = branch["name"]
         record: dict[str, Any] = dict(branch)
         record["preferredKeep"] = name in preferred or name in {"main", "jozz-vehicle-sandbox-m0"}
-        if name in lineage:
+        if name in exact_plan:
+            planned = exact_plan[name]
+            record["retention"] = planned.get("retention")
+            record["proof"] = planned.get("proof")
+            record["requiredTag"] = planned.get("requiredTag")
+            record["plannedShaMatches"] = planned.get("sha") == branch["sha"]
+        elif name in lineage:
             record.update(lineage[name])
-        elif name == inventory.get("snapshot", {}).get("auditBranch"):
-            record["retention"] = "DELETE_AFTER_INTEGRATION"
-            record["roles"] = ["current re-foundation review branch"]
-            record["prs"] = [inventory.get("snapshot", {}).get("refoundationPr")]
-        elif name == inventory.get("snapshot", {}).get("authoritativeProductBranch"):
-            record["retention"] = "KEEP_ACTIVE"
-            record["roles"] = ["current authoritative product integration"]
-            record["prs"] = [inventory.get("snapshot", {}).get("activeProductPr")]
-        elif name in {"main", "jozz-vehicle-sandbox-m0"}:
-            record["retention"] = "KEEP_BASELINE"
-            record["roles"] = ["durable baseline"]
-            record["prs"] = []
         else:
             record["retention"] = "UNCLASSIFIED_REMOTE_BRANCH"
             record["roles"] = []
@@ -238,15 +314,17 @@ def build_snapshot(remote: str, require_remote: bool) -> dict[str, Any]:
     reduction = inventory.get("branchReduction", {})
     hard_max = reduction.get("ownerTargetMaximum") if isinstance(reduction, dict) else None
     preferred_count = reduction.get("preferredFinalCount") if isinstance(reduction, dict) else None
-    annotated_branches = _annotate_branches(branches, inventory)
+    annotated = _annotate_branches(branches, inventory)
     unclassified_branches = [
-        record["name"]
-        for record in annotated_branches
+        record["name"] for record in annotated
         if record.get("retention") == "UNCLASSIFIED_REMOTE_BRANCH"
     ]
+    mismatched_planned_shas = [
+        record["name"] for record in annotated
+        if record.get("plannedShaMatches") is False
+    ]
     unclassified_paths = {
-        group: paths
-        for group, paths in groups.items()
+        group: paths for group, paths in groups.items()
         if group.startswith("unclassified-")
     }
 
@@ -274,8 +352,9 @@ def build_snapshot(remote: str, require_remote: bool) -> dict[str, Any]:
             "hardMaximum": hard_max,
             "preferredFinalCount": preferred_count,
             "overHardMaximum": isinstance(hard_max, int) and len(branches) > hard_max,
-            "branches": annotated_branches,
+            "branches": annotated,
             "unclassifiedBranches": unclassified_branches,
+            "plannedShaMismatches": mismatched_planned_shas,
             "tagCount": len(tags),
             "tags": tags,
             "deletionAuthorized": False,
@@ -323,6 +402,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         f"preferred={remote['preferredFinalCount']} over_max={str(remote['overHardMaximum']).lower()}"
     )
     print(f"unclassified_remote_branches={len(remote['unclassifiedBranches'])}")
+    print(f"planned_sha_mismatches={len(remote['plannedShaMismatches'])}")
     print(f"output={args.output.as_posix()}")
     return 0
 
