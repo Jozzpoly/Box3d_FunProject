@@ -12,9 +12,11 @@ AGENTS.md
 → właściwy docs/*/CURRENT_STATE.md
 → aktywny PR i remote head
 → docs/PROJECT_OPERATING_PLAN_PL.md
+→ docs/PROJECT_CHARTER_PL.md
 ```
 
-Exact mutable SHA pochodzi wyłącznie z Control Issue.
+Exact mutable SHA pochodzi wyłącznie z Control Issue. Charter pomaga interpretować
+cel produktu, ale nie nadpisuje policy, current state ani evidence.
 
 ## 2. Globalne źródła prawdy
 
@@ -22,66 +24,136 @@ Exact mutable SHA pochodzi wyłącznie z Control Issue.
 |---|---|---|
 | `AGENTS.md` | globalna polityka i routing agentów | tylko przy zmianie governance |
 | `.automation/CONTROL.yaml` | ścisły control contract | owner-directed A3 |
-| `AI_PROJECT_MEMORY.md` | router aktywnej kampanii | campaign/authority/gates |
-| `docs/PROJECT_OPERATING_PLAN_PL.md` | workflow i roadmapa krytycznej ścieżki | stage/workflow/strategy |
+| `AI_PROJECT_MEMORY.md` | krótki router aktywnej kampanii i gate'ów | campaign/authority/gates |
+| `docs/PROJECT_OPERATING_PLAN_PL.md` | jedna krytyczna ścieżka i workflow | stage/workflow/strategy |
+| `docs/PROJECT_CHARTER_PL.md` | trwała dusza, wizja i zasady produktu | tylko przy realnej zmianie intencji ownera |
 | `CONTRIBUTING.md` | manualny branch/PR/evidence workflow | przy zmianie procesu pracy |
 | `docs/REPOSITORY_STRUCTURE_PL.md` | ownership katalogów i walidacja | przy zmianie architektury repo |
+
+Charter nie przechowuje mutable brancha, SHA, current gates ani task queue.
 
 ## 3. Aktywne current-state documents
 
 ### Scan import
 
-- `docs/scan_import/CURRENT_STATE.md` — jedyny current state aktywnej kampanii scan;
+- `docs/scan_import/CURRENT_STATE.md` — jedyny current state domeny scan;
 - `docs/scan_import/00_START_HERE.md` — wejście do architektury scan;
-- `docs/scan_import/ARCHITECTURE.md` — trwałe kontrakty domeny;
-- `docs/scan_import/P2A_SOURCE_VISUAL_PREVIEW.md` — exact render-only preview;
+- `docs/scan_import/ARCHITECTURE.md` — trwałe kontrakty evidence/import;
+- `docs/scan_import/P2A_SOURCE_VISUAL_PREVIEW.md` — zamknięty geometry-only preview v1;
 - `docs/scan_import/STATUS.md` — krótki pointer, nie drugi current state.
+
+Najwyższy current scan capability:
+
+```text
+TERRAIN_VISIBLE_PASS
+```
+
+Następny gate:
+
+```text
+TEXTURED_SOURCE_PREVIEW
+→ VEHICLE_SCALE_REFERENCE_SCENE
+→ dopiero potem collision research
+```
 
 ### Vehicle
 
 - `README_FOR_AGENTS.md` — zaakceptowane reguły domeny pojazdu;
-- `docs/CURRENT_STATE_INDEX_PL.md` — szczegółowy ledger milestone'ów pojazdu;
+- `docs/CURRENT_STATE_INDEX_PL.md` — szczegółowy vehicle milestone ledger;
 - `docs/SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md` — rig/damper/mount;
 - `docs/SUBSYSTEM_UI_PRESETS_PL.md` — UI/presets/persistence.
 
 Vehicle docs nie aktywują kampanii samodzielnie.
 
-## 4. Roadmapa i decyzje
+## 4. Milestone evidence
+
+Pełny redacted checkpoint pierwszego realnego native preview:
+
+```text
+docs/scan_import/TERRAIN_VISIBLE_PASS_2026_07_22_PL.md
+```
+
+Dokument zapisuje:
+
+- wykonane lokalne bramki;
+- realny seven-tile native load;
+- owner visual acceptance;
+- same-revision restart;
+- zaakceptowane source limitations;
+- jawne non-capabilities, szczególnie brak finalnego scale/collision/drive pass.
+
+Prywatne ścieżki, lokalizacja, raw data i source hashes nie należą do milestone doc.
+
+## 5. Project re-foundation
+
+Aktualny owner-directed audyt całego projektu:
+
+```text
+docs/PROJECT_REFOUNDATION_AUDIT_2026_07_22_PL.md
+```
+
+Jego status to `PHASE_0_STARTED`, nie „pełny audyt zakończony”. Audyt obejmuje:
+
+- Git/PR/Issue topology;
+- documentation authority i archive;
+- vehicle i synthetic world;
+- scan evidence, preview i textures;
+- surface/collision experiments;
+- authoring/editor tooling;
+- build/tests/CI;
+- automation/governance;
+- privacy i granicę z JES.
+
+Nie jest produkcyjną zgodą na cleanup ani kolizję.
+
+## 6. Roadmapa i decyzje
 
 - `docs/PROJECT_OPERATING_PLAN_PL.md` — jedyna globalna roadmapa operacyjna;
+- `docs/PROJECT_CHARTER_PL.md` — trwały kompas, nie roadmapa;
 - `docs/adr/**` — trwałe decyzje architektoniczne;
 - `docs/TECH_DEBT_PL.md` — znane ryzyka i odłożona praca;
 - `docs/CHECKPOINTS_PL.md` — historyczny ledger handoffów.
 
-Nie twórz drugiej globalnej roadmapy. Aktualizuj istniejący plan albo utwórz
-lokalny plan kampanii tylko wtedy, gdy ma wyraźny scope i lifecycle.
+Nie twórz drugiej globalnej roadmapy. Lokalny campaign brief może powstać tylko dla
+jednego jasno ograniczonego etapu i musi wskazywać lifecycle.
 
-## 5. Materiały historyczne
+## 7. Materiały historyczne i eksperymentalne
 
-Dokumenty milestone, audyty i plany z datą są kontekstem historycznym. Mogą zawierać
-wartościowe reasoning i evidence, ale nie są task queue.
+Dokumenty milestone, audyty i plany z datą są kontekstem historycznym, chyba że indeks
+jawnie oznacza je jako aktywny audit/brief.
 
 `docs/archive/**` przechowuje starsze handoffy i raporty, których nie należy czytać
-przed current state. Historyczne scan/photogrammetry raporty pozostają w `docs/`,
-ponieważ nadal dokumentują lineage; ich rolę określa ten indeks.
+przed current state.
 
-## 6. Reguły aktualizacji
+Szczególnie ważne historyczne scan evidence:
 
-Aktualizuj dokument tylko wtedy, gdy jego własna odpowiedzialność naprawdę się
-zmieniła:
+- `docs/PHOTOGRAMMETRY_ROADMAP_EXPERIMENT_REPORT_2026_07_15_PL.md` — offline
+  geometry/ground/chunk/texture experiments;
+- `docs/PHOTOGRAMMETRY_WORLD_IMPORT_PL.md` — wcześniejsza architektura i zmieniona
+  kolejność prac;
+- P1/P1B checkpointy — evidence lineage, nie current task queue.
 
+Wcześniejsze texture experiments są materiałem do odzyskania. Nie są automatycznie
+finalnym contractem dla obecnego seven-tile packa.
+
+## 8. Reguły aktualizacji
+
+Aktualizuj dokument tylko wtedy, gdy jego odpowiedzialność naprawdę się zmieniła:
+
+- owner philosophy/product intent → `PROJECT_CHARTER_PL.md`;
 - campaign/authority/gates → `AI_PROJECT_MEMORY.md`;
 - stan domeny/evidence boundary → matching `CURRENT_STATE.md`;
 - workflow/roadmap stage → `PROJECT_OPERATING_PLAN_PL.md`;
 - accepted vehicle rules → `README_FOR_AGENTS.md`;
 - subsystem contract → właściwy `SUBSYSTEM_*` lub ADR;
-- historyczny milestone → checkpoint/report.
+- realny milestone → checkpoint/report;
+- pełna reorganizacja → jawny re-foundation audit z uczciwym statusem.
 
 Rutynowy CI PASS, niezmieniony gate i cykliczny raport nie wymagają commitu.
 
-## 7. Nazewnictwo statusów
+## 9. Nazewnictwo statusów
 
-Status musi opisywać najwyższy poziom faktycznie udowodniony. Przykładowe granice:
+Status opisuje najwyższy poziom faktycznie udowodniony:
 
 ```text
 PASS_CODE_AND_CI
@@ -89,28 +161,53 @@ PASS_OWNER_PRIVATE_EVIDENCE
 REAL_PREVIEW_PIPELINE_CODE_READY
 REAL_PREVIEW_PACK_READY / VISUAL_REVIEW_PENDING
 TERRAIN_VISIBLE_PASS
+TEXTURED_SOURCE_PREVIEW_READY
+WORLD_SCALE_VALIDATED
+COLLISION_PROJECTION_READY
+FIRST_REAL_SCAN_DRIVE_PASS
 ```
 
 Nie promuj capability na podstawie nazwy pliku, planu, kompilacji albo intentu.
 
-## 8. Prywatność dokumentacji
+`TERRAIN_VISIBLE_PASS` nie oznacza automatycznie `WORLD_SCALE_VALIDATED`.
+
+## 10. Warstwy prawdy świata
+
+Dokumentacja musi zachować rozdział:
+
+```text
+PRIVATE_SOURCE_EVIDENCE
+SOURCE_GEOMETRY_PREVIEW
+SOURCE_TEXTURE_PREVIEW
+AUTHORED_WORLD_ASSETS
+RENDER_DERIVATIVES
+PHYSICS_SURFACE
+SURFACE_MATERIAL_MAP
+GAMEPLAY_SEMANTICS
+WORLD_COMPOSITION_AND_STREAMING
+```
+
+Dokument jednej warstwy nie może przyznać capability innej bez jawnej promocji i
+właściwego evidence.
+
+## 11. Prywatność dokumentacji
 
 W żadnym dokumencie, Issue ani PR nie umieszczaj:
 
 - prywatnych ścieżek ownera;
 - współrzędnych i lokalizacji;
-- raw scan data;
+- raw scan data ani original texture payloads;
 - prywatnych source hashes i receipts;
 - credentials.
 
-Dokumentuj logical IDs, publiczne kontrakty, wyniki redacted i granice capability.
+Dokumentuj logical IDs, publiczne kontrakty, redacted wyniki i granice capability.
 
-## 9. Walidacja driftu
+## 12. Walidacja driftu
 
 ```powershell
 python tools/project/repository_audit.py
 python -m unittest discover -s tests/project -p "test_*.py"
 ```
 
-Audit sprawdza routing, wymagane pliki, spójność aktywnego brancha/PR/statusu,
-workflowy CI oraz brak ponownego uznania vehicle manual za globalną politykę.
+Audit sprawdza routing, wymagane pliki, spójność active branch/PR/statusu, workflowy
+CI, obecność charteru i teksturowanego gate'u przed scale/collision.
