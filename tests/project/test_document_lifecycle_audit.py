@@ -82,10 +82,7 @@ class DocumentLifecycleAuditTests(unittest.TestCase):
         self.write_manifest(root, manifest)
         errors = document_lifecycle_audit.audit_document_lifecycle(root)
         self.assertIn(
-            "DOCUMENT_STATUS_INVALID:docs/PLAN_WIELKI_REFACTOR_2026_07_09_PL.md:CURRENT_AUTHORITY",
-            errors,
-        ) if False else self.assertIn(
-            "HISTORICAL_DOCUMENT_CAN_ACTIVATE_WORK:docs/PLAN_WIELKI_REFACTOR_2026_07_09_PL.md",
+            "PROJECT_DOCUMENT_STATUS_INVALID:docs/PLAN_WIELKI_REFACTOR_2026_07_09_PL.md:CURRENT_AUTHORITY",
             errors,
         )
 
@@ -96,7 +93,10 @@ class DocumentLifecycleAuditTests(unittest.TestCase):
         manifest["coverage"]["projectAuthoredDocumentCount"] = 24
         self.write_manifest(root, manifest)
         errors = document_lifecycle_audit.audit_document_lifecycle(root)
-        self.assertIn("DOCUMENT_COUNT_DRIFT:24", errors)
+        self.assertIn(
+            "DOCUMENT_COVERAGE_DRIFT:projectAuthoredDocumentCount:24",
+            errors,
+        )
 
     def test_completion_marker_cannot_be_removed(self) -> None:
         temporary, root = self.fixture()
@@ -129,6 +129,20 @@ class DocumentLifecycleAuditTests(unittest.TestCase):
         errors = document_lifecycle_audit.audit_document_lifecycle(root)
         self.assertIn(
             "CURRENT_DOCUMENTS_MISSING:docs/scan_import/CURRENT_STATE.md",
+            errors,
+        )
+
+    def test_current_front_door_cannot_be_demoted_to_history(self) -> None:
+        temporary, root = self.fixture()
+        self.addCleanup(temporary.cleanup)
+        manifest = self.load_manifest(root)
+        for record in manifest["currentDocuments"]:
+            if record["path"] == "AGENTS.md":
+                record["status"] = "HISTORICAL_EVIDENCE"
+        self.write_manifest(root, manifest)
+        errors = document_lifecycle_audit.audit_document_lifecycle(root)
+        self.assertIn(
+            "CURRENT_DOCUMENT_STATUS_INVALID:AGENTS.md:HISTORICAL_EVIDENCE",
             errors,
         )
 
