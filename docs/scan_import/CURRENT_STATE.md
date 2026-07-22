@@ -4,7 +4,8 @@
 **Authoritative branch:** `agent/scan-terrain-r1b-consolidated-integration`  
 **Active draft PR:** #13  
 **Exact current head:** read from GitHub Control Issue #11  
-**Integration base:** `jozz-vehicle-sandbox-m0`
+**Integration base:** `jozz-vehicle-sandbox-m0`  
+**Repository-readiness layer:** PR #15 — draft, stacked, not authoritative
 
 ## Product target
 
@@ -12,10 +13,10 @@ Display the real seven source GLB tiles in the native render-only P2A preview an
 manually confirm orientation, scale, up axis, mirror state, coverage, seams and
 same-revision restart.
 
-## Consolidation state
+## Product integration state
 
-PR #13 is the single current integration surface for the P0–R1B campaign. It
-preserves the existing linear ancestry from the vehicle sandbox through:
+PR #13 is the single current product integration surface for P0–R1B. It preserves
+the existing linear ancestry:
 
 ```text
 photogrammetry/import-v2-foundation
@@ -30,10 +31,26 @@ photogrammetry/import-v2-foundation
 ```
 
 The consolidation used no rebase, squash, force-push or history rewrite.
+Historical PRs #1–#5, #8 and #9 are superseded by #13 with branches preserved. The
+divergent surface-evidence line is parked in Issue #14.
 
-Historical PRs #1–#5, #8 and #9 are superseded by PR #13. Their branches remain
-preserved. PR #7 is a divergent surface-evidence experiment and is parked in
-Issue #14 rather than included in the visual-preview critical path.
+## Repository-readiness state
+
+PR #15 is an owner-directed governance layer based on the exact head of PR #13.
+It proposes:
+
+- truthful root README and fork contribution workflow;
+- unambiguous global policy routing through `AGENTS.md`;
+- documentation index and repository ownership map;
+- manual PR template;
+- fail-closed repository authority/workflow audit with sabotage tests;
+- CI routing to the consolidated campaign;
+- removal of obsolete duplicate P2A workflow.
+
+PR #15 changes no scan implementation, asset format, native sample or capability.
+It is not authoritative until separately reviewed and integrated. Issue #11
+therefore continues to point at the validated PR #13 head rather than at an
+unreviewed change to the agent's own policy.
 
 ## Validation lineage
 
@@ -45,11 +62,17 @@ workflow 29881749220: 9/9 PASS
 pre-consolidation automation/docs integration merge:
 0078257cab632510ddf3cca8c449fd44e2327a3a
 
+consolidated product integration:
+PR #13 — workflow 29888259464: 6/6 PASS
+
 current exact authoritative head:
 GitHub Control Issue #11
+
+repository-readiness validation:
+PR #15 — pending final exact-head CI at this update
 ```
 
-The later automation, documentation and stack-cleanup changes do not add product
+Automation, documentation, stack cleanup and repository polish do not add product
 capability and do not clear private or visual gates.
 
 ## Evidence table
@@ -67,7 +90,8 @@ capability and do not clear private or visual gates.
 | Owner-flow orchestration | `PASS_CODE_AND_CI` | receipt-bound resume/selection | real private run |
 | One-command runner | `PASS_CODE_AND_CI` | contracts and PowerShell parse | real private run |
 | Automation foundation | `INTEGRATED_PLAN_ONLY` | strict contracts/adversarial tests | observe |
-| Stack consolidation | `DRAFT_PR_13` | ancestry audit; no rewrite | keep draft |
+| Product stack consolidation | `DRAFT_PR_13_CI_GREEN` | ancestry audit; no rewrite | keep draft |
+| Repository readiness | `DRAFT_PR_15_UNDER_REVIEW` | governance/docs/workflow only | exact-head CI and review |
 | Real preview pack | `NOT_CREATED` | private evidence absent | run owner entrypoint |
 | Native load | `NOT_PROVEN` | compile is not runtime proof | launch exact selected pack |
 | Visual review | `NOT_RUN` | owner decision required | inspect seven tiles |
@@ -93,8 +117,8 @@ verified P1B bundle + exact completed owner-gate receipt
 → TERRAIN_VISIBLE_PASS
 ```
 
-`ScanSourcePackage` remains the authority for expected byte identity. The private
-resolution receipt is the authority for physical local source location. Neither
+`ScanSourcePackage` remains authority for expected byte identity. The private
+resolution receipt is authority for physical local source location. Neither
 accepted-world nor collision authority exists in this stage.
 
 ## Supported owner entrypoint
@@ -108,7 +132,7 @@ root. Later runs resume through persisted private state. The owner must not be
 asked to copy hashes, coordinates or internal paths between tools.
 
 Private paths, coordinates, source hashes and raw scan data must not enter Git,
-public logs, PR bodies or the control issue.
+public logs, PR bodies or the Control Issue.
 
 ## Current gates
 
@@ -144,16 +168,17 @@ TERRAIN_VISIBLE_PASS
 
 ## Next critical path
 
-1. Keep PR #13 draft and treat Issue #11 as exact authority.
-2. Run the supported owner-local flow once against existing private evidence.
-3. Verify the exact preview pack and selected revision.
-4. Launch it in the native preview.
-5. Perform owner visual review.
-6. Restart the same revision and confirm repeatability.
-7. Record the truthful result before selecting surface, collision, map or vehicle
-   work.
+1. Keep PR #13 draft and treat Issue #11 as exact product authority.
+2. Validate and review PR #15 independently as governance-only work.
+3. Run the owner-local flow once against existing private evidence.
+4. Verify the exact preview pack and selected revision.
+5. Launch it in the native preview.
+6. Perform owner visual review.
+7. Restart the same revision and confirm repeatability.
+8. Record PASS, a bounded correction need or an invalidated assumption.
+9. Only then decide integration order and the next product campaign.
 
-Project-wide workflow and roadmap:
+Project-wide workflow, O1 readiness gate and later roadmap:
 
 ```text
 docs/PROJECT_OPERATING_PLAN_PL.md
