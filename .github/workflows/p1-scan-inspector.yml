@@ -205,7 +205,8 @@ jobs:
         run: |
           $paths = @(
             "tools/gate.ps1",
-            "tools/scan_pipeline/run_p2a_local_gate.ps1"
+            "tools/scan_pipeline/run_p2a_local_gate.ps1",
+            "tools/scan_pipeline/run_real_terrain_flow.ps1"
           )
           foreach ($path in $paths) {
             $tokens = $null
