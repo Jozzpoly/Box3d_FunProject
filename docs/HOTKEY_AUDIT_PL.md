@@ -1,194 +1,140 @@
-# Hotkey Audit — Jozz Vehicle Box3D Native
+# Hotkey contract — shared sample host, Jozz Vehicle i scan preview
 
-Date: 2026-07-05  
-Branch: `jozz-vehicle-sandbox-m0`  
-Status: active reference for sample-host and Jozz Vehicle lab hotkeys  
-Last checked against: `samples/main.cpp`, `samples/gfx/keycodes.h`, `samples/sample_jozz_vehicle_lab.cpp`, `samples/jozz_vehicle_primitive_corner_lab.cpp`, `samples/jozz_vehicle_m5_drivable_lab.cpp`
+**Status:** `CURRENT_CONFLICT_AVOIDANCE_CONTRACT`  
+**Ostatni audyt kodu:** 2026-07-22  
+**Źródła:** `samples/main.cpp`, `samples/jozz_vehicle_m6_rig_lab.cpp`,
+`samples/jozz_scan_preview_lab.cpp`, `samples/gfx/keycodes.h`.
 
-## Why this exists
+Ten dokument chroni przed przejęciem klawisza używanego już przez shared host albo
+aktywny lab. Nie wybiera aktywnej kampanii i nie jest zgodą na dodanie skrótu.
 
-M2.5 initially used `[` and `]` for live root movement. Jozz correctly noticed that these keys are already used by the Box3D samples program.
+## 1. Reguła przed każdą nową akcją
 
-This document prevents that mistake from returning.
+Przed dodaniem skrótu:
 
-Rule:
+1. sprawdź `samples/main.cpp`;
+2. sprawdź `samples/gfx/keycodes.h`;
+3. sprawdź `Keyboard(...)` i `IsKeyDown(...)` w konkretnym sample;
+4. sprawdź konflikt z modyfikatorami oraz zachowanie, gdy UI przechwytuje input;
+5. dodaj lub zaktualizuj test/kontrakt;
+6. uruchom pełny samples build i realny input review, gdy akcja zmienia UX.
+
+Nie zakładaj, że lista z historycznego M2.5/M5 nadal jest kompletna.
+
+## 2. Globalne skróty shared hosta
+
+Obsługiwane przed sample-specific `Keyboard(...)`:
 
 ```text
-No new keyboard shortcut may be added before checking this file, samples/main.cpp, samples/gfx/keycodes.h, and the current Jozz sample source.
-```
-
-## Current global sample-host hotkeys
-
-These are handled by the sample host before sample-specific controls.
-
-```text
-Tab        show/hide UI
-Esc        clear selection / close controls window
-Ctrl+Q     quit
-Ctrl+O     open fuzzy sample picker
+Tab        pokaż/ukryj UI
+Esc        zamknij controls window albo wyczyść selection
+Ctrl+Q     wyjście z aplikacji
+Ctrl+O     fuzzy sample picker
 O          single step
-Shift+O    larger single step
-P          pause
+Shift+O    większy single step
+P          pauza
 M          metrics drawer
-R          restart current sample
-[          previous sample
-]          next sample
-F          frame/focus view
-?          controls help window
+R          restart bieżącego sample
+[          poprzedni sample
+]          następny sample
+F          frame selection albo whole-scene FocusBounds/FocusHome
+?          pokaż/ukryj controls window
 ```
 
-Important consequence:
+Konsekwencje:
+
+- `[` i `]` nie są dostępne dla Jozz Vehicle;
+- `R` jest globalnym restartem, nie lokalnym przyciskiem pojazdu;
+- `Space` celowo nie jest globalną pauzą, aby sample mogły używać go jako brake/jump;
+- `Q` bez Ctrl może trafić do sample, ale `Ctrl+Q` zawsze oznacza wyjście;
+- UI-captured event nie trafia do sample; release/focus-loss nadal dociera do kamery.
+
+## 3. Aktualny M6 Suspension Rig Lab
+
+Input ciągły:
 
 ```text
-Do not use [ or ] for Jozz Vehicle controls.
-```
-
-## Current Jozz Vehicle Lab M2.5 hotkeys
-
-```text
-W      wheel motor forward
-S      wheel motor reverse
+W      drive +1
+S      drive -1
+A      steer +1
+D      steer -1
 Space  brake
-Q      live root down
-E      live root up
 ```
 
-Notes:
-
-- `Q` without Ctrl is usable by the sample.
-- `Ctrl+Q` remains the global quit shortcut.
-- `E` is present as a key alias in `samples/gfx/keycodes.h`.
-- Live root can also be controlled by the `Live root offset` ImGui slider, so keyboard control is not mandatory.
-- `R` is still global restart and should not be described as a Jozz-specific action even if it is useful during testing.
-
-## Current Jozz Vehicle M5 First Drivable hotkeys
-
-Added 2026-07-05 with the M5 sample, taken from the pre-approved candidate
-list below after re-checking `samples/main.cpp` and `samples/gfx/keycodes.h`:
+Input pojedynczy:
 
 ```text
-W      drive forward
-S      drive reverse
-A      steer left
-D      steer right
-Space  brake
-T      toggle third-person camera (same convention as the stock Driving sample)
-```
-
-Notes:
-
-- `A/D/T` were on the candidate list and are not consumed by the sample host.
-- The stock third-person `CharacterMover` also reads `W/A/S/D`, but only in
-  character samples; it does not run in the Jozz samples.
-- In third-person mode the camera follows the chassis pivot; mouse owns yaw.
-- All tuning (torque, suspension, steering limits) stays in ImGui sliders per
-  the control policy below.
-
-## Current Jozz Vehicle M6 Suspension Rig Lab hotkeys (2026-07-06)
-
-Identical to M5 First Drivable on purpose — no new keys were added:
-
-```text
-W/S    drive forward/reverse
-A/D    steer left/right
-Space  brake
 T      toggle third-person camera
 ```
 
-Everything M6-specific (rig type per axle, wishbone geometry, self-align
-assist, wheel envelope, rack servo force) is ImGui-only, per the control
-policy below.
+`R` odtwarza sample przez shared host. M6 zachowuje third-person mode, tuning session,
+debug/view state, terrain seed i ostatni checkpoint zgodnie z własnym persistence
+contractem.
 
-### `R` restart and Debug-tab view toggles (2026-07-08 fix)
+Wszystkie pozostałe ustawienia fizyki, rigów, świata, presetów i debug view są
+sterowane przez ImGui albo jawne env-hooks dla testów. Nie dodawaj skrótów dla suwaków
+bez konkretnego owner UX problemu.
 
-`R` is still the global sample-host restart (destroy + reconstruct the whole
-sample). The constructor already restores saved vehicle tuning from
-`build/jozz_vehicle_m6_session.json` (see `jozz_vehicle_m6_config_io`), but the
-Debug tab's view checkboxes (rig diagnostic lines, wheel/mount 3D models,
-wheel-collision-shape overlay, arm tint) were hardcoded back to fixed defaults
-on every construction, independent of that config file. Effect: pressing `R`
-silently re-enabled "Linie geometrii zawieszenia" (and any other Debug
-checkbox) even after Jozz had turned it off — reported as "R kasuje ustawienia
-debug".
+## 4. M5 i wcześniejsze laby
 
-Fix: those toggles now round-trip through their own auto-save,
-`build/jozz_vehicle_m6_debug_session.txt` (plain `key=value` lines, not JSON —
-deliberately not folded into `JozzVehicleM6Config` so they can never leak into
-a named preset or get wiped by "Przywróć wszystkie ustawienia domyślne").
-Loaded in the constructor right after the hardcoded defaults, saved in the
-destructor alongside the vehicle config.
-
-Also added: a "Zresetuj świat" button (Świat tab) that does a full
-in-place reset — vehicle respawn, test-course props, telemetry buffers —
-without going through the sample-host's destroy/reconstruct path at all. It is
-the recommended way to get a clean world state; `R` remains available for
-cases that need the full engine-level restart.
-
-## Current code ownership summary
-
-`Q/E` live root control is implemented inside `JozzVehiclePrimitiveCornerM2::Step()`.
-
-`W/S/Space` motor/brake control is also handled by the Jozz sample step path.
-
-The sample host still owns `[`, `]`, `Tab`, `Esc`, `Ctrl+Q`, `Ctrl+O`, `O`, `Shift+O`, `P`, `M`, `R`, `F`, and `?`.
-
-This means future Jozz sample controls should prefer ImGui first unless the control genuinely needs a held key for realtime stress testing.
-
-## Preferred future control policy
-
-For debug lab features:
-
-1. Prefer ImGui sliders/buttons for controls that may conflict with global host keys.
-2. Use keyboard only for realtime stress actions where holding a key matters.
-3. Before adding a key, check:
-   - `samples/main.cpp` global handler;
-   - `samples/gfx/keycodes.h` aliases;
-   - current Jozz sample code;
-   - this document.
-4. Update this document in the same commit as any hotkey change.
-5. When possible, document the control in the relevant milestone doc and in `docs/CURRENT_STATE_INDEX_PL.md`.
-
-## Reserved / avoid list
-
-Avoid for Jozz Vehicle sample controls unless there is a very strong reason:
+M5 używa tego samego podstawowego zestawu jazdy:
 
 ```text
-Tab
-Esc
-Ctrl+Q
-Ctrl+O
-O
-Shift+O
-P
-M
-R
-[
-]
-F
-?
+W/S  napęd
+A/D  skręt
+Space hamulec
+T    kamera trzeciej osoby
 ```
 
-Also avoid overloading `W/S/Space` unless it is clearly vehicle driving/braking behavior.
+M2.5 używał historycznie `Q/E` do przesuwania root debug rig. To nie jest wzorzec dla
+nowych globalnych skrótów i nie powinno być kopiowane do nowych sample’i.
 
-## Candidate future keys
+## 5. P2A Source Visual Preview
 
-Possible future keys after checking conflicts:
+Preview nie definiuje sample-specific keyboard handlera. Kontrole są w ImGui:
 
 ```text
-A/D      steering left/right — TAKEN by M5 First Drivable (2026-07-05)
-Q/E      vertical debug/root controls, currently used by M2.5
-T        third-person toggle — TAKEN by M5 First Drivable (2026-07-05)
-Y        debug toggles only if documented
-V/B/N    visual/debug toggles only if documented
+Show geometry
+Show tile bounds
+Show metre grid
+Show lab axes
+Frame whole preview
+per-tile visibility
 ```
 
-Do not treat this candidate list as permission. It is only a shortlist for review.
+Globalne `F` kadruje cały załadowany pack przez `FocusBounds()`. `R` restartuje preview
+na tej samej ogólnej zasadzie shared hosta. Tekstury ani collision nie są kontrolowane
+hotkeyem, ponieważ nie istnieją w geometry-only preview v1.
 
-## Foundation grounding verdict
+## 6. Kamera i mysz
 
-The current audit is consistent with M2.5:
+Shared camera otrzymuje mouse release oraz focus loss nawet wtedy, gdy UI przejęło
+zdarzenie. Chroni to przed utknięciem orbit/pan po puszczeniu przycisku nad panelem.
 
-- live root uses `Q/E`, not `[ ]`;
-- `[ ]` remain reserved for global sample switching;
-- the panel/HUD should describe Q/E root movement;
-- new hotkeys are blocked until this audit is updated again.
+Third-person vehicle mode zmienia routing kamery i powinien być testowany realnym
+inputem; automatyzacja pulpitu może nie odtworzyć raw-input zachowania wiarygodnie.
+
+## 7. Zakazane skróty i antywzorce
+
+- nowe znaczenie dla `[` lub `]`;
+- sample-specific przejęcie globalnego `R`, `F`, `P`, `M`, `Tab`, `Esc` bez zmiany
+  shared-host contractu;
+- ukryty shortcut zmieniający accepted physics/defaulty;
+- skrót dostępny tylko w kodzie, bez controls/UI dokumentacji;
+- poleganie na samym key-down bez poprawnego release/focus-loss lifecycle;
+- dodanie skrótu podczas niezwiązanej kampanii scan/governance.
+
+## 8. Walidacja zmiany
+
+Minimalnie:
+
+```text
+compile
+→ full project gate
+→ sprawdzenie konfliktów host/sample
+→ controls text update
+→ real interactive confirmation dla istotnej akcji
+```
+
+Zmiana shared hosta wymaga sprawdzenia unrelated samples. Zmiana prowadzenia lub
+kamery pojazdu wymaga owner review.
