@@ -72,7 +72,26 @@ jobs:
           python-version: "3.11"
 
       - name: Compile governance tools
-        run: python -m py_compile tools/project/repository_audit.py tools/project/refoundation_inventory_audit.py
+        run: >-
+          python -m py_compile
+          tools/project/repository_audit.py
+          tools/project/refoundation_inventory_audit.py
+          tools/project/repository_forensic_snapshot.py
+
+      - name: Produce tracked-tree and remote-branch forensic snapshot
+        run: >-
+          python tools/project/repository_forensic_snapshot.py
+          --remote origin
+          --require-remote
+          --output build/governance/repository_forensic_snapshot.json
+
+      - name: Upload forensic snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: repository-forensic-snapshot-${{ github.run_id }}
+          path: build/governance/repository_forensic_snapshot.json
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Validate automation control contract
         run: python tools/automation/validate_control.py
