@@ -2,7 +2,8 @@
 
 **Updated:** 2026-07-22  
 **Active branch:** `agent/r1b-source-resolution-owner-integration`  
-**Base:** PR #5 exact preview head `f20357ba10618ddecfdd2e274e93917fe508a983`
+**Base:** PR #5 exact preview head `f20357ba10618ddecfdd2e274e93917fe508a983`  
+**Green functional head:** `b6d9f5b6559f3b82616a1ff6ef737ef89457f8e2` — hosted workflow 9/9 PASS
 
 ## Product target
 
@@ -15,12 +16,13 @@ manually confirm orientation, scale, up axis, mirror state, coverage and seams.
 |---|---|---|---|
 | Inspection machinery | `PASS_CODE_AND_CI` | repository contracts | preserve |
 | Real 7+7 inspection | `PASS_OWNER_PRIVATE_EVIDENCE` | owner-local artifacts | do not repeat unnecessarily |
-| Source-frame machinery | `RESTACKED_ON_EXACT_PREVIEW` | R1A code and tests | validate on new branch |
+| Source-frame machinery | `PASS_CI_RESTACKED_ON_EXACT_PREVIEW` | R1A code, tests and matrix | preserve |
 | Real source frame | `PASS_OWNER_PRIVATE_EVIDENCE` | owner-confirmed local contract | reuse exact contract |
 | P1B bundle machinery | `PASS_CODE_AND_CI` | transactional bundle contracts | preserve |
-| Real P1B bundle/privacy receipt | `PASS_OWNER_PRIVATE_EVIDENCE` | owner-local bundle and receipt | auto-discover |
-| Exact preview code | `PASS_CODE_ONLY` | builder/verifier/native compile | integrate resolver |
-| Source asset resolution | `IMPLEMENTED_PENDING_CI_AND_REAL_RUN` | R1B resolver and nested fixture | run CI, then owner-local flow |
+| Real P1B bundle/privacy receipt | `PASS_OWNER_PRIVATE_EVIDENCE` | owner-local bundle and receipt | auto-discover by exact binding |
+| Exact preview code | `PASS_CODE_AND_CI` | builder/verifier contracts and native compile | real private run |
+| Source asset resolution | `PASS_CODE_AND_CI` | nested 7+7 and adversarial resolver tests | real private run |
+| Owner-flow orchestration | `PASS_CODE_AND_CI` | receipt-bound discovery, resume state and active selection | real private run |
 | Real preview pack | `NOT_CREATED` | no real pack yet | orchestrator `continue` |
 | Native load | `NOT_PROVEN` | compile is not runtime proof | launch selected verified pack |
 | Visual review | `NOT_RUN` | owner decision required | inspect seven tiles |
@@ -32,7 +34,8 @@ manually confirm orientation, scale, up axis, mirror state, coverage and seams.
 ## Active architecture
 
 ```text
-verified P1B bundle
+verified P1B bundle + exact completed owner-gate receipt
+→ receipt-bound automatic artifact discovery
 → recursive private source resolution
 → immutable canonical source view
 → exact preview build
@@ -50,7 +53,7 @@ accepted-world nor collision authority exists in this stage.
 
 ## Current status vocabulary
 
-Until the real pack is built and shown, the maximum honest code status is:
+The current highest honest status is:
 
 ```text
 REAL_PREVIEW_PIPELINE_CODE_READY
