@@ -16,9 +16,12 @@ import common  # noqa: E402
 
 ACTIVE_BRANCH = "agent/scan-terrain-r1b-consolidated-integration"
 ACTIVE_PR = "#13"
-CURRENT_STATUS = "REAL_PREVIEW_PIPELINE_CODE_READY"
+CURRENT_STATUS = "TERRAIN_VISIBLE_PASS"
 CONTROL_HEAD_AUTHORITY = "GitHub Control Issue #11"
 LEGACY_WORKFLOW = ".github/workflows/p2a-source-visual-preview.yml"
+CHARTER_FILE = "docs/PROJECT_CHARTER_PL.md"
+REFOUNDATION_FILE = "docs/PROJECT_REFOUNDATION_AUDIT_2026_07_22_PL.md"
+MILESTONE_FILE = "docs/scan_import/TERRAIN_VISIBLE_PASS_2026_07_22_PL.md"
 
 REQUIRED_FILES = (
     "README.md",
@@ -33,7 +36,10 @@ REQUIRED_FILES = (
     "docs/README.md",
     "docs/REPOSITORY_STRUCTURE_PL.md",
     "docs/PROJECT_OPERATING_PLAN_PL.md",
+    CHARTER_FILE,
+    REFOUNDATION_FILE,
     "docs/scan_import/CURRENT_STATE.md",
+    MILESTONE_FILE,
     ".github/PULL_REQUEST_TEMPLATE/manual.md",
     ".github/PULL_REQUEST_TEMPLATE/automation.md",
     ".github/workflows/automation-foundation.yml",
@@ -83,6 +89,29 @@ def normalize_head_authority(value: str) -> str:
     return normalized
 
 
+def check_texture_before_collision(text: str, label: str, errors: list[str]) -> None:
+    """Require the owner-selected product ordering in each current router.
+
+    This is intentionally a prose/order tripwire, not a product implementation gate.
+    It prevents documentation from silently moving collision ahead of textured visual
+    context and the vehicle scale-reference scene.
+    """
+    markers = (
+        "TEXTURED_SOURCE_PREVIEW",
+        "VEHICLE_SCALE_REFERENCE_SCENE",
+        "COLLISION",
+    )
+    positions: list[int] = []
+    for marker in markers:
+        position = text.find(marker)
+        if position < 0:
+            errors.append(f"MISSING_PRODUCT_ORDER_MARKER:{label}:{marker}")
+            return
+        positions.append(position)
+    if not positions[0] < positions[1] < positions[2]:
+        errors.append(f"PRODUCT_ORDER_DRIFT:{label}:TEXTURE_SCALE_COLLISION")
+
+
 def audit_repository(root: Path = ROOT) -> list[str]:
     root = Path(root)
     errors: list[str] = []
@@ -118,6 +147,9 @@ def audit_repository(root: Path = ROOT) -> list[str]:
     memory = read_text(root, "AI_PROJECT_MEMORY.md")
     current = read_text(root, "docs/scan_import/CURRENT_STATE.md")
     operating = read_text(root, "docs/PROJECT_OPERATING_PLAN_PL.md")
+    charter = read_text(root, CHARTER_FILE)
+    refoundation = read_text(root, REFOUNDATION_FILE)
+    milestone = read_text(root, MILESTONE_FILE)
     issue_template = read_text(root, ".automation/CONTROL_ISSUE_TEMPLATE.md")
 
     check_contains(
@@ -151,7 +183,13 @@ def audit_repository(root: Path = ROOT) -> list[str]:
     )
     check_contains(
         docs_index,
-        ("Globalne źródła prawdy", "Aktywne current-state documents", "Walidacja driftu"),
+        (
+            "Globalne źródła prawdy",
+            "Aktywne current-state documents",
+            "Walidacja driftu",
+            "PROJECT_CHARTER_PL.md",
+            "PROJECT_REFOUNDATION_AUDIT_2026_07_22_PL.md",
+        ),
         "DOCS_INDEX",
         errors,
     )
@@ -159,6 +197,39 @@ def audit_repository(root: Path = ROOT) -> list[str]:
         structure,
         ("Upstream Box3D core", "Scan terrain pipeline", "Repository governance"),
         "REPOSITORY_STRUCTURE",
+        errors,
+    )
+    check_contains(
+        charter,
+        (
+            "Drążymy skałę kropla po kropli",
+            "Kontekst wizualny przed promocją do fizyki",
+            "TEXTURED_SOURCE_PREVIEW",
+            "Warstwy prawdy świata",
+        ),
+        "PROJECT_CHARTER",
+        errors,
+    )
+    check_contains(
+        refoundation,
+        (
+            "PHASE_0_STARTED",
+            "TEXTURED_SOURCE_PREVIEW",
+            "forensic inventory",
+            "nie jest jeszcze zakończona",
+        ),
+        "REFOUNDATION_AUDIT",
+        errors,
+    )
+    check_contains(
+        milestone,
+        (
+            "TERRAIN_VISIBLE_PASS",
+            "SAME_REVISION_RESTART_PASS",
+            "WORLD_SCALE_VALIDATED = false",
+            "TEXTURED_PREVIEW_REQUIRED_BEFORE_SCALE_OR_COLLISION",
+        ),
+        "TERRAIN_VISIBLE_MILESTONE",
         errors,
     )
 
@@ -189,13 +260,17 @@ def audit_repository(root: Path = ROOT) -> list[str]:
         if value is not None and normalize_head_authority(value) != CONTROL_HEAD_AUTHORITY:
             errors.append(f"EXACT_HEAD_AUTHORITY_DRIFT:{source}:{value}")
 
-    for relative, text in (
+    current_documents = (
         ("AI_PROJECT_MEMORY.md", memory),
         ("docs/scan_import/CURRENT_STATE.md", current),
         ("docs/PROJECT_OPERATING_PLAN_PL.md", operating),
-    ):
+    )
+    for relative, text in current_documents:
         if CURRENT_STATUS not in text:
             errors.append(f"STATUS_DRIFT:{relative}")
+        if "WORLD_SCALE_VALIDATED" not in text:
+            errors.append(f"SCALE_BOUNDARY_MISSING:{relative}")
+        check_texture_before_collision(text, relative, errors)
 
     if ACTIVE_BRANCH in issue_template or "3a0d63e" in issue_template:
         errors.append("CONTROL_TEMPLATE_CONTAINS_LIVE_OR_STALE_BRANCH")
@@ -238,6 +313,7 @@ def main() -> int:
         return 1
     print("REPOSITORY_AUDIT_PASS")
     print(f"authority={ACTIVE_BRANCH} pr={ACTIVE_PR} status={CURRENT_STATUS}")
+    print("next_gate=TEXTURED_SOURCE_PREVIEW_BEFORE_SCALE_AND_COLLISION")
     return 0
 
 
