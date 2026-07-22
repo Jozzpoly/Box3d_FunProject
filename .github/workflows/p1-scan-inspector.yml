@@ -3,13 +3,10 @@ name: P1 Scan Inspector
 on:
   pull_request:
     branches:
-      - photogrammetry/import-v2-foundation
-      - agent/p1-dataset-inspector-staging
-      - agent/p1b-world-import-contract-staging
-      - agent/p1b-inspector-bundle-staging
-      - agent/p1b-owner-gate-hardening
-      - "agent/p2a-*"
+      - jozz-vehicle-sandbox-m0
+      - agent/scan-terrain-r1b-consolidated-integration
       - "agent/r1b-*"
+      - "agent/scan-terrain-*"
     paths:
       - "tools/scan_pipeline/scan_*.py"
       - "tools/scan_pipeline/run_p1_contracts.py"
@@ -22,9 +19,9 @@ on:
       - ".github/workflows/p1-scan-inspector.yml"
   push:
     branches:
-      - "agent/p1b-*"
-      - "agent/p2a-*"
+      - agent/scan-terrain-r1b-consolidated-integration
       - "agent/r1b-*"
+      - "agent/scan-terrain-*"
     paths:
       - "tools/scan_pipeline/scan_*.py"
       - "tools/scan_pipeline/run_p1_contracts.py"
