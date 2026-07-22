@@ -2,22 +2,16 @@
 
 **Status:** current operating map  
 **Updated:** 2026-07-22  
-**Scope:** authority, milestone closure, project re-foundation and next product gates  
-**Product code changed by this document:** no
+**Scope:** three-branch integration, milestone closure and next product gates
 
-## 1. Purpose
+## Purpose
 
-This is the single project-wide operating plan. It connects:
+This is the single project-wide operating plan. It connects the accepted vehicle,
+synthetic engineering world, completed real-geometry milestone, repository authority
+and the next textured-preview campaign.
 
-- the accepted vehicle foundation;
-- the synthetic engineering world;
-- the completed geometry-preview milestone;
-- the upcoming textured-source preview;
-- future scale, collision and real-drive proof;
-- repository authority, integration and recurring governance.
-
-It is not a work-item queue, exact SHA authority, private evidence, owner visual
-approval or permission to merge.
+It is not an exact SHA authority, private evidence store, work-item queue or merge
+permission.
 
 Durable product intent:
 
@@ -25,48 +19,58 @@ Durable product intent:
 docs/PROJECT_CHARTER_PL.md
 ```
 
-## 2. Policy and authority
+## Authority
 
-Load hard policy first:
+Read in this order:
 
 1. `AGENTS.md`;
 2. `.automation/CONTROL.yaml`;
-3. `.automation/POLICY.md`.
+3. `.automation/POLICY.md`;
+4. GitHub Issue #11;
+5. `AI_PROJECT_MEMORY.md`;
+6. matching `docs/*/CURRENT_STATE.md`;
+7. active draft PR and exact remote head;
+8. this plan;
+9. matching contracts, code and tests.
 
-Resolve mutable state and facts:
-
-1. GitHub Control Issue #11;
-2. `AI_PROJECT_MEMORY.md`;
-3. matching `docs/*/CURRENT_STATE.md`;
-4. active campaign PR and remote head;
-5. this operating plan;
-6. `docs/PROJECT_CHARTER_PL.md` for durable intent;
-7. matching domain manual, checkpoints, technical debt, contracts, code and tests.
-
-A mutable Issue cannot legalize an operation forbidden by policy. A versioned plan
-cannot safely claim its own commit as timelessly current.
-
-## 3. Current operating snapshot
+## Current operating snapshot
 
 ```text
-repository:                   Jozzpoly/Box3d_FunProject
-control campaign:             scan-terrain-r1b milestone closure
-authoritative branch:         agent/scan-terrain-r1b-consolidated-integration
-exact head:                   GitHub Control Issue #11
-active campaign PR:           #13 (draft)
-integration base:             jozz-vehicle-sandbox-m0
-surface parking issue:        #14
-project re-foundation branch: agent/project-refoundation-audit-v1
-recurring mode:               PLAN_ONLY
+repository:            Jozzpoly/Box3d_FunProject
+authoritative branch: agent/project-refoundation-audit-v1
+exact head:            GitHub Control Issue #11
+active campaign PR:    #17 (draft)
+integration base:      jozz-vehicle-sandbox-m0
+remote branches:       3
+recurring mode:        PLAN_ONLY
 ```
 
-PR #15 repository-readiness work has been owner-reviewed and merged into the
-current PR #13 authority. It is no longer a separate pending layer.
+PR #17 is the only current review surface. Closed PR #13 and #16 remain lineage and
+historical discussion, not active authority.
 
-The re-foundation branch is a manual review surface. It does not become authority
-until owner-reviewed integration and an explicit Issue #11 update.
+## Branch topology
 
-## 4. Highest honest product state
+```text
+main
+└─ upstream/history baseline
+
+jozz-vehicle-sandbox-m0
+└─ accepted vehicle + synthetic-world baseline
+   └─ PR #17: integrated scan milestone + re-foundation review
+```
+
+The third branch is the single current project head. No fourth campaign branch may be
+created before the integration/base decision for PR #17.
+
+```text
+branch cleanup:       COMPLETE_TO_3
+further deletion:     FORBIDDEN
+retention tag debt:   3
+```
+
+Missing tags remain a real retention debt; exact commits are still recoverable.
+
+## Highest honest product state
 
 ```text
 TERRAIN_VISIBLE_PASS
@@ -74,13 +78,12 @@ TERRAIN_VISIBLE_PASS
 
 Completed:
 
-- real private seven-tile source resolution;
-- exact geometry preview pack;
-- independent verification;
-- native first load;
-- owner visual recognition and acceptance of geometry proof;
+- exact private source resolution for seven GLB + seven PLY;
+- deterministic geometry pack and independent verifier;
+- native seven-tile load;
+- owner recognition and acceptance of known source limitations;
 - same-revision restart;
-- 949-frame restart run with zero Sokol errors.
+- 949 frames / zero Sokol errors.
 
 Not completed:
 
@@ -94,21 +97,13 @@ FIRST_REAL_SCAN_DRIVE
 OWNER_FUN_VERDICT
 ```
 
-Milestone record:
+## Owner doctrine controlling the critical path
 
-```text
-docs/scan_import/TERRAIN_VISIBLE_PASS_2026_07_22_PL.md
-```
+The first scan is intentionally imperfect but sufficient in its centre. The goal is
+not to clean the whole source before learning whether a real familiar place can become
+a fun driving surface.
 
-## 5. Owner doctrine now controlling the critical path
-
-The first scan is intentionally imperfect but sufficient in its centre. The nearest
-product question is not whether the entire source can be cleaned automatically. It is
-whether a real, recognizable place can become a fun driving surface for the accepted
-vehicle.
-
-However, the owner requires real colour before final scale and collision work.
-The canonical product-gate sequence is:
+Real colour is required before final scale and collision:
 
 ```text
 TERRAIN_VISIBLE_PASS
@@ -120,243 +115,40 @@ TERRAIN_VISIBLE_PASS
 → OWNER_FUN_VERDICT
 ```
 
-Human interpretation:
+No agent may move collision ahead of texture and scale because geometry filters or
+surface experiments already exist.
 
-```text
-geometry proof
-→ textured recognition
-→ vehicle as scale reference
-→ owner-selected road region
-→ collision research
-→ drive and fun proof
-```
+## Domain status
 
-No agent may reorder collision ahead of texture/scale merely because geometry and
-ground-filter experiments already exist.
+### Vehicle simulation — FOUNDATION_PRESERVE
 
-## 6. Project domains and status
+Accepted M7/M8 behavior stays unchanged. It later becomes the visual scale reference
+and physical drive probe.
 
-### A. Vehicle simulation — FOUNDATION_PRESERVE
+### Synthetic engineering world — FOUNDATION_PRESERVE
 
-The accepted M7/M8 architecture remains stable:
+The accepted deterministic world remains the regression laboratory. It is not
+replaced by real scans.
 
-- emergent multi-body suspension;
-- back-drivable steering;
-- torque drive/braking;
-- accepted rig/persistence/diagnostics;
-- full Windows gate and owner feel boundaries.
+### Scan evidence and geometry preview — FOUNDATION_PRESERVE
 
-The vehicle will become the scale reference and later the drive probe. Scan work must
-not silently change accepted vehicle physics.
+Inspection, frame, bundle, privacy, source resolution and preview v1 contracts remain
+canonical. Geometry preview v1 stays closed and texture-free.
 
-### B. Synthetic engineering world — FOUNDATION_PRESERVE
-
-The accepted Etap 1 terrain remains the deterministic laboratory for:
-
-- regression tests;
-- controlled obstacles;
-- reproducible suspension comparisons;
-- performance baselines.
-
-The rejected six-lane layout remains historical/recovery material. The central-campus
-plan is paused unless separately selected.
-
-### C. Scan source/evidence — FOUNDATION_PRESERVE
-
-Inspection, source-frame, bundle, receipt, source resolution and privacy boundaries
-are proven and remain canonical for exact source identity.
-
-### D. Geometry preview v1 — MILESTONE_COMPLETE
-
-Geometry-only pack and native lab produced `TERRAIN_VISIBLE_PASS`. Version 1 remains
-closed: no textures, accepted-world or collision claims may be inserted into it.
-
-### E. Textured source preview — ACTIVE_NEXT_AFTER_REFOUNDATION
+### Textured Source Preview — ACTIVE_NEXT
 
 Goal:
 
-> Display the same verified source geometry with authenticated colour/material
-> bindings and obtain owner visual approval before scale/collision promotion.
+> Show the same authenticated geometry with recognizable source colour, bounded
+> memory and deterministic verification.
 
-Initial evidence favours max-1K textures as baseline and max-2K as quality A/B. The
-final contract must be re-designed against the current seven-tile source set.
+Initial baseline: max-1K. Optional comparison: max-2K. Compression is not a blocker
+before the first working native render.
 
-### F. Scale-reference scene — BLOCKED_ON_TEXTURES
+### Scale-reference scene — BLOCKED_ON_TEXTURES
 
-The accepted vehicle is rendered on the road or beside a known object without yet
-promoting terrain collision. The owner evaluates physical plausibility of scale.
-
-### G. Surface/collision — PARKED_FOR_COMPARATIVE_REVIEW
-
-Issue #14 preserves historical surface evidence. Existing DEM, morphology, drive
-probe and seam experiments are evidence, not authority.
-
-Collision starts only after:
-
-- textured preview acceptance;
-- scale-reference acceptance;
-- owner-selected Golden Drive Region;
-- comparative representation brief.
-
-### H. Authoring/world production — LONG_HORIZON
-
-Future Blender and creator workflow may separate:
-
-- roads and ground;
-- buildings;
-- trees and vegetation;
-- render LODs;
-- collision proxies;
-- asphalt/grass/mud maps;
-- world sectors and streaming.
-
-Do not build the full pipeline before first drive proof.
-
-### I. Automation/governance — PLAN_ONLY_SUPPORT
-
-The recurring operator audits authority and gates. It must not become the product or
-force manual owner work through unnecessary scheduler ceremony.
-
-## 7. Critical-path roadmap
-
-### Stage R0 — consolidated scan integration — COMPLETE
-
-- historical scan stack consolidated into PR #13;
-- governance/readiness integrated;
-- exact authority and CI established;
-- no history rewrite.
-
-### Stage R1 — owner-local source activation — COMPLETE
-
-- verified private evidence found;
-- fourteen source assets resolved exactly;
-- pack built transactionally.
-
-### Stage R2 — native geometry preview — COMPLETE
-
-- independent verifier passed;
-- seven tiles loaded;
-- owner observed recognizable terrain.
-
-### Stage R3 — same-revision visual proof — COMPLETE
-
-- owner accepted geometry visibility and known source limitations;
-- same revision restarted;
-- deterministic pack selection/layout repeated;
-- `TERRAIN_VISIBLE_PASS` earned.
-
-### Stage F0 — milestone evidence seal — IN PROGRESS
-
-Outputs:
-
-- Project Charter;
-- redacted milestone checkpoint;
-- current-state truth correction;
-- explicit boundary that scale is not yet final;
-- texture-before-collision rule.
-
-### Stage F1 — project re-foundation inventory — NEXT GOVERNANCE GATE
-
-Perform a repository-wide forensic inventory covering:
-
-- branches/PRs/issues;
-- documentation and authority;
-- vehicle and synthetic world;
-- scan/evidence/preview;
-- textures;
-- surface/collision experiments;
-- authoring/editor tooling;
-- build/tests/CI;
-- automation/governance;
-- privacy and JES boundary.
-
-Every item receives one classification:
-
-```text
-ACTIVE_NEXT
-FOUNDATION_PRESERVE
-PARKED_WITH_REACTIVATION_GATE
-HISTORICAL_EVIDENCE
-SUPERSEDED
-KNOWN_DEBT
-EXPERIMENTAL_NOT_AUTHORITY
-OWNER_DECISION_REQUIRED
-REMOVE_AFTER_VERIFICATION
-```
-
-No product implementation is permitted merely to make the inventory look cleaner.
-
-### Stage F2 — documentation and workflow re-foundation
-
-Targets:
-
-- one concise global route;
-- one durable charter;
-- one mutable project router;
-- one global operating plan;
-- one current state per active domain;
-- machine-readable documentation/inventory manifest;
-- explicit history/archive roles;
-- manual workflow kept simpler than recurring automation workflow.
-
-Protected governance changes are manual A3 and require separate review.
-
-### Stage F3 — integration decision for PR #13
-
-Choose exactly one:
-
-```text
-A. owner-review and merge into the vehicle baseline
-B. bounded correction before merge
-C. preserve as milestone branch while re-planning integration
-```
-
-Do not rebase, squash or force-push merely to beautify the 185-commit lineage.
-
-### Stage T0 — textured preview campaign brief
-
-Before implementation define:
-
-- exact source image/material/UV identity;
-- pack/version boundary;
-- privacy and manifest claims;
-- texture cook profiles;
-- colour-space and sampler policy;
-- memory/performance budget;
-- independent verification;
-- native fallback and error semantics;
-- fixed-camera screenshot matrix;
-- owner acceptance criteria;
-- same-revision restart proof.
-
-### Stage T1 — textured source preview implementation
-
-Minimal first target:
-
-```text
-same seven source tiles
-+ unlit/authentic base colour
-+ max-1K profile
-+ deterministic pack
-+ independent verifier
-+ native render
-+ no physics
-```
-
-2K is an A/B profile, not the baseline. GPU compression is deferred until a working
-render can be measured.
-
-### Stage S0 — vehicle scale-reference scene
-
-After texture acceptance:
-
-- render the accepted vehicle on/near a recognizable road or house;
-- preserve terrain as render-only;
-- record fixed cameras;
-- owner confirms or rejects scale;
-- no collision claim.
-
-Result vocabulary:
+Render the unchanged accepted vehicle on the road or beside a known object. Terrain
+remains render-only. Owner returns either:
 
 ```text
 WORLD_SCALE_VALIDATED
@@ -364,137 +156,116 @@ or
 WORLD_SCALE_CORRECTION_REQUIRED
 ```
 
-### Stage D0 — Golden Drive Region selection
+### Surface/collision — PARKED
 
-Owner chooses one small, visually understood road region. Selection must be stored as
-logical/redacted evidence without publishing private location data.
+Former PR #7 evidence remains recoverable by exact SHA but has no authority. Compare
+source triangle mesh, PLY/DEM heightfield, parked evidence and Blender-authored proxy
+only after texture, scale and owner ROI gates.
 
-### Stage D1 — collision representation comparison
+### Authoring/world production — LONG_HORIZON
 
-Compare at least:
+Future Blender workflow may separate roads, terrain, buildings, trees, LODs,
+collision proxies and asphalt/grass/mud maps. Do not build the full world-production
+pipeline before the first fun drive proof.
 
-- bounded source triangle mesh;
-- PLY/DEM-derived heightfield;
-- parked surface-evidence approach;
-- manually authored Blender collision proxy.
+### Automation/governance — PLAN_ONLY_SUPPORT
 
-Evaluate fidelity, wheel stability, CPU/memory, authoring cost and future chunking.
+Governance supports the project; it is not the product. The recurring operator may
+audit and recommend one next action, but cannot implement or move authority.
 
-### Stage D2 — static wheel/contact proof
+## Current transition stages
 
-- same transform as render;
-- contact at four wheels;
-- no catastrophic penetration;
-- measured surface steps/noise;
-- visual render/collision difference overlay.
+### F0 — milestone evidence seal — COMPLETE
 
-### Stage D3 — vehicle drop and low-speed drive
+Charter, redacted checkpoint, capability boundary and texture-before-collision rule
+are recorded.
 
-- spawn over selected road;
-- settle suspension;
-- move at controlled speed;
-- monitor contacts, solver stability and frame cost.
+### F1/F2 — forensic inventory and documentation lifecycle — COMPLETE
 
-### Stage D4 — owner fun verdict
+Major domains, 25 project-authored documents and branch lineage are classified.
+Tracked history remains available; old plans cannot activate work by themselves.
 
-The real milestone:
+### F3 — three-branch integration review — ACTIVE
 
-> Does driving the accepted vehicle on the real scan make Jozz want to launch a
-> higher-quality scan campaign?
+Required outcomes:
 
-CI cannot answer this gate.
+- exact-head governance and native CI green on PR #17;
+- Issue #11 points to the existing current branch and head;
+- no stale PR #13/#16 authority remains;
+- missing retention tags remain explicit debt;
+- owner decides whether PR #17 becomes the next durable baseline.
 
-## 8. Integration topology
+No merge is implied by green CI.
 
-```text
-main
-└─ preserved upstream/history line
+### T0 — Textured Source Preview brief — NEXT AFTER F3
 
-jozz-vehicle-sandbox-m0
-└─ accepted vehicle + synthetic-world baseline
-   └─ PR #13 consolidated geometry-preview milestone
-      └─ project re-foundation review branch
-```
+Before implementation define:
 
-The future textured-preview implementation must use a new isolated product branch
-after the milestone/integration decision. It must not grow indefinitely from the
-current audit branch.
+- source primitive/material/UV/image identity;
+- new pack/version boundary;
+- privacy and manifest claims;
+- 1K baseline and optional 2K A/B;
+- colour-space, sampler, mip and memory policy;
+- independent verifier;
+- fallback/error semantics;
+- fixed-camera screenshot matrix;
+- same-revision restart;
+- owner acceptance criteria.
 
-## 9. Manual work workflow
+### T1 — Textured Source Preview implementation — NOT STARTED
 
-1. Read policy, Issue, memory, current state and charter.
-2. Verify exact remote head.
-3. Inspect open PRs, CI and overlapping paths.
-4. Declare one scope, allowed/forbidden paths, evidence and STOP conditions.
-5. Create an isolated branch.
-6. Implement or audit one coherent unit.
-7. Run existing canonical gates; do not clone their logic.
-8. Inspect visual evidence when relevant.
-9. Update documents only when their responsibility moved.
-10. Open a draft PR and stop before merge.
-
-Manual work must not be made artificially difficult only because recurring automation
-needs lease and queue machinery.
-
-## 10. Recurring PLAN_ONLY workflow
-
-Each scheduled run may:
-
-- validate control and authority;
-- inspect Issue/PR/CI/gates/lease;
-- report material change or no safe work;
-- recommend one bounded next action.
-
-It may not:
-
-- implement re-foundation;
-- add or promote its own work item;
-- modify protected control plane;
-- infer texture/scale/feel acceptance;
-- merge or move authority.
-
-## 11. Current gates
+Minimal result:
 
 ```text
-milestone evidence:  TERRAIN_VISIBLE_PASS_EARNED
-project transition:  REFOUNDATION_REVIEW_REQUIRED
-visual:               TEXTURED_SOURCE_PREVIEW_REQUIRED
-scale:                VEHICLE_SCALE_REFERENCE_SCENE_REQUIRED
-ROI:                  OWNER_SELECTION_REQUIRED
-physics:              BLOCKED_UNTIL_TEXTURE_SCALE_AND_ROI
-merge:                OWNER_DECISION_REQUIRED
+same seven authenticated tiles
++ source base colour
++ max-1K baseline
++ deterministic pack
++ independent verifier
++ native render
++ no physics
 ```
 
-## 12. Definition of Ready for textured implementation
+### S0 — vehicle scale-reference — BLOCKED_ON_T1
 
-Implementation is ready only when:
+### D0 — Golden Drive Region owner selection — BLOCKED_ON_S0
 
-- milestone/integration base is explicitly selected;
-- textured-preview contract is written;
-- source image/material/UV assumptions are inspected on the real seven-tile set;
+### D1–D4 — collision comparison, contact, drive and fun — BLOCKED_ON_D0
+
+## Manual workflow
+
+1. Resolve policy and Issue #11.
+2. Verify exact remote head and clean isolated workspace.
+3. Inspect PR/CI/path overlap.
+4. Declare one bounded scope and STOP conditions.
+5. Use an isolated branch only after the current integration decision permits it.
+6. Run canonical gates rather than reimplementing them.
+7. Obtain owner visual/feel evidence when required.
+8. Update only documents whose responsibility moved.
+9. Open or update one draft PR; stop before merge.
+
+## Current gates
+
+```text
+milestone:     TERRAIN_VISIBLE_PASS_EARNED
+integration:   PR_17_OWNER_REVIEW_REQUIRED
+retention:     THREE_TAGS_PENDING
+visual:        TEXTURED_SOURCE_PREVIEW_REQUIRED
+scale:         VEHICLE_SCALE_REFERENCE_SCENE_REQUIRED
+ROI:           OWNER_SELECTION_REQUIRED
+physics:       BLOCKED_UNTIL_TEXTURE_SCALE_AND_ROI
+merge:         OWNER_DECISION_REQUIRED
+```
+
+## Definition of Ready for textured implementation
+
+- PR #17 integration/base decision is explicit;
+- Issue #11 authority is valid and current;
+- textured-preview contract exists;
+- real seven-tile UV/material/image assumptions are inspected;
 - memory budget and 1K/2K profiles are defined;
-- manifest/verifier/privacy boundaries are explicit;
-- allowed/forbidden paths and tests are observable;
-- no overlapping PR exists;
-- owner approves the campaign brief.
+- verifier/privacy boundaries are explicit;
+- no overlapping product PR exists;
+- owner approves the brief.
 
 Planning text alone is not implementation authority.
-
-## 13. Definition of Done for the current re-foundation
-
-- milestone evidence is recorded without private data;
-- versioned state no longer claims the real preview is unrun;
-- scale remains explicitly unproven;
-- texture-before-collision is enforced in current docs and audit;
-- PR #15 integration state is truthful;
-- every major project area has an inventory classification or explicit unreviewed
-  status;
-- PR #13 has an owner-reviewed integration outcome;
-- next campaign has one bounded brief;
-- no collision code or accepted-physics change is smuggled into governance work.
-
-## 14. Maintenance rule
-
-Update this document only when the critical path, authority strategy, evidence
-boundary, integration topology or project-wide workflow changes. Routine CI and
-unchanged gate reports do not belong here.
