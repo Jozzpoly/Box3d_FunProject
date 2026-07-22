@@ -5,8 +5,7 @@ on:
   pull_request:
     branches:
       - jozz-vehicle-sandbox-m0
-      - agent/scan-terrain-r1b-consolidated-integration
-      - "agent/r1b-*"
+      - agent/project-refoundation-audit-v1
     paths:
       - "README.md"
       - "CONTRIBUTING.md"
@@ -34,9 +33,7 @@ on:
       - ".github/PULL_REQUEST_TEMPLATE/**"
   push:
     branches:
-      - agent/scan-terrain-r1b-consolidated-integration
-      - "agent/r1b-*"
-      - "agent/project-*"
+      - agent/project-refoundation-audit-v1
       - "automation/**"
     paths:
       - "README.md"
