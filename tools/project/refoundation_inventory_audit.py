@@ -247,7 +247,7 @@ def audit_refoundation_inventory(root: Path = ROOT) -> list[str]:
         "hard maximum after cleanup: 5 branches",
         "preferred final state:       3 branches",
         "git ls-remote --heads origin",
-        "PRESERVE_BY_TAG_OR_COMMIT",
+        "Divergent heads — tag przed usunięciem brancha",
         "TEXTURED_SOURCE_PREVIEW",
     ):
         if marker not in report:
