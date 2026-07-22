@@ -1,24 +1,37 @@
-# AI Project Memory — Box3d_FunProject scan terrain
+# AI Project Memory — Box3d_FunProject
 
-## Active objective
+## Rola tego pliku
 
-Show the real seven photogrammetry GLB tiles in the native render-only preview,
-then obtain an honest owner visual review of orientation, scale, up axis, mirror
-state, coverage and seams.
+Ten plik jest globalnym routerem aktualnego stanu projektu. Wskazuje aktywną
+kampanię, jej domenowy `CURRENT_STATE.md`, aktywny branch/PR i najważniejsze STOP
+gates. Nie jest szczegółową dokumentacją subsystemu, historią milestone'ów ani
+kolejką zadań automatyzacji.
 
-## Active integration branch
+Hierarchia dla przyszłych agentów:
 
-`agent/r1b-source-resolution-owner-integration`
+1. właścicielski GitHub Issue `[AUTOMATION CONTROL] Box3d_FunProject recurring agent`;
+2. ten plik jako wybór kampanii;
+3. domenowy `docs/*/CURRENT_STATE.md`;
+4. aktualny PR kampanii i jego exact head SHA;
+5. `README_FOR_AGENTS.md` jako globalne reguły produktu;
+6. checkpointy, tech debt, subsystem docs, kod i testy.
 
-Base: exact PR #5 head `f20357ba10618ddecfdd2e274e93917fe508a983`.
-The branch intentionally does not contain PR #7 surface-evidence or derivative
-catalog work.
+Historyczne checkpointy nie mogą samodzielnie wybrać aktywnego zadania.
 
-Green functional head: `7d3c0f20f4bc82fd893f3b4bd0e87a2acc57f1d1`.
-Hosted workflow `29881749220`: 9/9 jobs PASS, including Windows PowerShell
-parsing and native samples build.
+## Aktywna kampania produktu
 
-## Current private evidence reported by the owner
+Cel: pokazać siedem rzeczywistych kafli fotogrametrycznych GLB w natywnym,
+render-only preview i uzyskać uczciwy owner visual review orientacji, skali, osi
+up, mirror state, coverage i seams.
+
+- domenowy stan: `docs/scan_import/CURRENT_STATE.md`;
+- aktywny branch: `agent/r1b-source-resolution-owner-integration`;
+- aktywny draft PR: #9;
+- exact authoritative head: `3a0d63e700108155886e1e00df7293f9c3d52db7`;
+- base kampanii: exact PR #5 head `f20357ba10618ddecfdd2e274e93917fe508a983`;
+- PR #7 pozostaje zamrożony do exact visual proof.
+
+## Aktualny stan prywatny zgłoszony przez właściciela
 
 - real 7 GLB + 7 PLY inspection: passed;
 - real owner-confirmed source frame: passed;
@@ -26,37 +39,56 @@ parsing and native samples build.
 - real preview pack: not yet produced;
 - native load and visual proof: not yet performed.
 
-Private paths, coordinates, source file hashes and raw scan data must remain
-outside GitHub and public logs.
+Prywatne ścieżki, współrzędne, hashe źródeł i surowe skany pozostają poza
+GitHubem i publicznymi logami.
 
-## Current blocker and solution
+## Najbliższa realna granica produktu
 
-The original filesystem-layout blocker is resolved in code. R1B provides a shared
-source resolver which finds exact assets recursively by kind, tile ID, byte
-length and SHA-256, rejects missing/ambiguous/linked matches, and publishes a
-private content-addressed canonical source view under ignored `build/`.
+Kod R1B rozwiązuje wcześniejszy blocker filesystem-layout i ma zieloną hosted
+walidację. Pozostaje nieautomatyzowalny owner-local run na prywatnych danych,
+natywne uruchomienie oraz visual review. Uczciwy status maksymalny przed tymi
+bramkami to:
 
-The remaining boundary is the unavoidable owner-local run against private data.
+```text
+REAL_PREVIEW_PIPELINE_CODE_READY
+```
 
-## Owner workflow rule
+Nigdy nie wyprowadzaj `TERRAIN_VISIBLE_PASS` z samego CI, kompilacji, bundle'a,
+preview packa ani uruchomionego executable.
 
-The owner is not a manual pipeline orchestrator. Technical state, artifact
-binding, hashes and paths are persisted by `scan_real_terrain_flow.py`.
-The supported owner entrypoint is `run_real_terrain_flow.ps1`: one resumable
-command plus the genuine visual decision. The source root is required only on
-the first successful run and is then persisted privately.
+## Równoległa kampania infrastrukturalna
 
-## Hard capability boundary
+Przygotowanie przyszłej cyklicznej pętli agentowej odbywa się wyłącznie na:
 
-Never claim `TERRAIN_VISIBLE_PASS` from tests, CI, a bundle, a preview pack or a
-launched executable. It requires all seven real tiles loaded, manual visual
-review and a same-revision restart. Accepted surface, collision and drive
-readiness remain blocked and are not part of R1B.
+- branch: `agent/autonomous-loop-foundation-v1`;
+- draft PR: #10;
+- control issue: #11;
+- szczegółowa polityka: `.automation/POLICY.md`;
+- maszynowy kontrakt: `.automation/CONTROL.yaml`;
+- operacyjna mapa: `AGENTS.md`.
+
+Ta kampania nie zmienia produktu. Domyślny tryb pozostaje `PLAN_ONLY`, control
+issue ma `enabled=false`, a żaden harmonogram nie został utworzony.
+
+## Reguła właścicielskiego workflow skanów
+
+Właściciel nie jest manualnym orkiestratorem technicznej sekwencji. R1B zapisuje
+bindingi, hashe i ścieżki prywatnie przez `scan_real_terrain_flow.py`, a wspieranym
+wejściem jest `run_real_terrain_flow.ps1`. Właściciel wykonuje tylko niezbędne
+wskazanie source root przy pierwszym runie i rzeczywistą ocenę wizualną.
+
+## Hard capability boundaries
+
+- accepted surface, collision i drive readiness nie są częścią R1B;
+- A3/A4 nie są autonomicznie implementowane;
+- merge, zamykanie PR-ów, force-push i retargetowanie wymagają właściciela;
+- `src/` i `include/` Box3D pozostają poza autonomicznym zakresem;
+- przyszły agent nie może zmieniać własnego control plane w tym samym runie.
 
 ## Branch rules
 
-- never merge or close PRs without owner approval;
-- never force-push or rewrite existing branch history;
-- PR #7 remains frozen until exact visual proof;
-- never use Git_Diff_Patcher_Bridge;
-- work only through safe GitHub branch operations.
+- nigdy nie merge'uj ani nie zamykaj PR bez zgody właściciela;
+- nigdy nie force-pushuj ani nie przepisuj istniejącej historii;
+- nie zapisuj bezpośrednio na `main`, `jozz-vehicle-sandbox-m0` ani aktywny branch kampanii;
+- nie używaj Git_Diff_Patcher_Bridge;
+- operacje repozytorium wykonuj przez bezpieczne, jawne operacje GitHub.

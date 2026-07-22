@@ -1,0 +1,123 @@
+name: Automation Foundation Safety
+
+# Deliberately no schedule trigger. This workflow validates infrastructure only.
+on:
+  pull_request:
+    branches:
+      - "agent/r1b-*"
+      - jozz-vehicle-sandbox-m0
+    paths:
+      - "AGENTS.md"
+      - ".automation/**"
+      - "tools/automation/**"
+      - "tests/automation/**"
+      - ".github/workflows/automation-foundation.yml"
+      - ".github/PULL_REQUEST_TEMPLATE/automation.md"
+      - "AI_PROJECT_MEMORY.md"
+      - "README_FOR_AGENTS.md"
+      - "docs/CHECKPOINTS_PL.md"
+  push:
+    branches:
+      - "agent/autonomous-loop-*"
+    paths:
+      - "AGENTS.md"
+      - ".automation/**"
+      - "tools/automation/**"
+      - "tests/automation/**"
+      - ".github/workflows/automation-foundation.yml"
+      - ".github/PULL_REQUEST_TEMPLATE/automation.md"
+      - "AI_PROJECT_MEMORY.md"
+      - "README_FOR_AGENTS.md"
+      - "docs/CHECKPOINTS_PL.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  automation-contracts:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }} / automation contracts
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.13"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Compile automation tools
+        run: >-
+          python -m py_compile
+          tools/automation/common.py
+          tools/automation/validate_control.py
+          tools/automation/preflight.py
+          tools/automation/lease.py
+          tools/automation/select_work_item.py
+          tools/automation/validate_scope.py
+          tools/automation/postflight.py
+          tools/automation/simulate_scenarios.py
+
+      - name: Validate strict control plane
+        run: python tools/automation/validate_control.py
+
+      - name: Run adversarial automation tests
+        run: python -m unittest discover -s tests/automation -p "test_*.py" -v
+
+      - name: Run required synthetic scenarios
+        run: python tools/automation/simulate_scenarios.py
+
+      - name: Parse existing and automation PowerShell gates
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $paths = @(
+            "tools/gate.ps1",
+            "tools/scan_pipeline/run_p2a_local_gate.ps1",
+            "tools/scan_pipeline/run_real_terrain_flow.ps1"
+          )
+          foreach ($path in $paths) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $path),
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if ($errors.Count -ne 0) {
+              $errors | ForEach-Object { Write-Error $_ }
+              exit 1
+            }
+          }
+
+  active-campaign-regression:
+    name: Active scan campaign contracts / Ubuntu
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run existing scan-pipeline contracts
+        run: python tools/scan_pipeline/run_p1_contracts.py
+
+  windows-project-gate:
+    name: Existing project gate / Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run existing project gate unchanged
+        shell: pwsh
+        run: .\tools\gate.ps1
