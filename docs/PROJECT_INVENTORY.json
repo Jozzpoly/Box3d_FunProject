@@ -1,37 +1,25 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "snapshot": {
     "date": "2026-07-22",
     "repository": "Jozzpoly/Box3d_FunProject",
-    "auditBranch": "agent/project-refoundation-audit-v1",
-    "authoritativeProductBranch": "agent/scan-terrain-r1b-consolidated-integration",
+    "authoritativeProductBranch": "agent/project-refoundation-audit-v1",
     "authoritativeHeadSource": "GitHub Control Issue #11",
-    "activeProductPr": 13,
-    "refoundationPr": 16,
+    "activeProductPr": 17,
+    "integrationBase": "jozz-vehicle-sandbox-m0",
     "highestProvenCapability": "TERRAIN_VISIBLE_PASS",
     "nextProductGate": "TEXTURED_SOURCE_PREVIEW",
-    "status": "F2_FORENSIC_INVENTORY_SEALED_FOR_OWNER_REVIEW",
-    "trackedTreeSnapshot": {
-      "workflowRunId": 29934584305,
-      "artifactId": 8535521167,
-      "artifactDigest": "sha256:cbb7eba44b91ef5889c4adcfcbde53e1045d23a2f1ad47ea1d0f9892ab1a7178",
-      "trackedFileCountAtSnapshot": 616,
-      "coverageComplete": true,
-      "unclassifiedPathCount": 0
-    },
-    "remoteRefSnapshot": {
-      "workflowRunId": 29934584305,
-      "artifactId": 8535521167,
-      "artifactDigest": "sha256:cbb7eba44b91ef5889c4adcfcbde53e1045d23a2f1ad47ea1d0f9892ab1a7178",
-      "enumerationCommand": "git ls-remote --heads origin",
-      "enumerationSucceeded": true,
-      "branchCount": 18,
+    "status": "F3_THREE_BRANCH_TOPOLOGY_RECONCILED_PENDING_INTEGRATION_REVIEW",
+    "remoteRefState": {
+      "branchCount": 3,
       "tagCount": 0,
-      "unclassifiedBranchCount": 0,
-      "unexpectedExactShaMismatchCount": 0,
-      "dynamicReviewBranches": [
+      "branches": [
+        "main",
+        "jozz-vehicle-sandbox-m0",
         "agent/project-refoundation-audit-v1"
       ],
+      "coverageComplete": true,
+      "retentionTagDebtCount": 3,
       "exactPlan": "docs/BRANCH_RETENTION_PLAN_2026_07_22.json"
     },
     "documentLifecycle": {
@@ -67,7 +55,7 @@
     },
     {
       "id": "upstream-support-and-ci",
-      "paths": ["test/**", "benchmark/**", "shared/**", "data/**", "extern/**", ".github/workflows/build.yml", "upstream docs"],
+      "paths": ["test/**", "benchmark/**", "shared/**", "data/**", "extern/**", ".github/workflows/build.yml"],
       "responsibility": "Retained upstream support, tests, docs and main-only CI",
       "authority": "Upstream baseline",
       "status": "FOUNDATION_PRESERVE",
@@ -133,7 +121,7 @@
     },
     {
       "id": "scan-source-geometry-preview-v1",
-      "paths": ["scan preview builders/verifiers", "samples/jozz_scan_preview_*"],
+      "paths": ["tools/scan_pipeline/scan_preview_pack*.py", "samples/jozz_scan_preview_*"],
       "responsibility": "Exact render-only geometry preview",
       "authority": "Closed v1 contract plus TERRAIN_VISIBLE_PASS evidence",
       "status": "FOUNDATION_PRESERVE",
@@ -144,8 +132,8 @@
     },
     {
       "id": "scan-textured-source-preview",
-      "paths": ["historical texture evidence", "future adjacent textured pack"],
-      "responsibility": "Recognizable real-color source preview",
+      "paths": ["tools/scan_pipeline/scan_texture_quality_probe.py", "future adjacent textured pack"],
+      "responsibility": "Recognizable real-colour source preview",
       "authority": "Not established yet",
       "status": "ACTIVE_NEXT",
       "owner": "Jozz-plus-scan-campaign",
@@ -156,7 +144,7 @@
     {
       "id": "vehicle-scale-reference-scene",
       "paths": ["future bounded native scene"],
-      "responsibility": "Accepted vehicle beside recognizable terrain/object",
+      "responsibility": "Accepted vehicle beside recognizable terrain or object",
       "authority": "Owner visual judgment",
       "status": "OWNER_DECISION_REQUIRED",
       "owner": "Jozz",
@@ -166,7 +154,7 @@
     },
     {
       "id": "surface-and-collision-research",
-      "paths": ["parked PR #7", "ground filters", "drive probes", "future cookers"],
+      "paths": ["closed PR #7 exact commit", "ground filters", "drive probes", "future cookers"],
       "responsibility": "Compare mesh, heightfield and authored Blender proxy",
       "authority": "None until explicit promotion",
       "status": "PARKED_WITH_REACTIVATION_GATE",
@@ -188,9 +176,9 @@
     },
     {
       "id": "automation-and-governance",
-      "paths": [".automation/**", "tools/automation/**", "tools/project/**", "tests/** governance", ".github/workflows/**"],
+      "paths": [".automation/**", "tools/automation/**", "tools/project/**", "tests/project/**", ".github/workflows/**"],
       "responsibility": "Authority routing, safe automation and forensic integrity",
-      "authority": "AGENTS.md, CONTROL.yaml and owner-directed A3 review",
+      "authority": "AGENTS.md, CONTROL.yaml and owner-directed review",
       "status": "FOUNDATION_PRESERVE",
       "owner": "Jozz",
       "canonicalValidation": ["control", "repository", "inventory", "document lifecycle audits"],
@@ -210,51 +198,30 @@
     }
   ],
   "pullRequestLineage": [
-    {"pr": 1, "branch": "agent/p1-dataset-inspector-staging", "role": "inspection foundation", "integration": "exact ancestor of PR #13", "retention": "DELETE_AFTER_VERIFICATION"},
-    {"pr": 2, "branch": "agent/p1b-world-import-contract-staging", "role": "world import contracts", "integration": "linear P1B ancestor", "retention": "DELETE_AFTER_VERIFICATION"},
-    {"pr": 3, "branch": "agent/p1b-inspector-bundle-staging", "role": "evidence bundle", "integration": "linear P1B ancestor", "retention": "DELETE_AFTER_VERIFICATION"},
-    {"pr": 4, "branch": "agent/p1b-owner-gate-hardening", "role": "owner gate", "integration": "linear P2A base", "retention": "DELETE_AFTER_VERIFICATION"},
-    {"pr": 5, "branch": "agent/p2a-source-visual-preview", "role": "geometry preview", "integration": "exact ancestor of PR #13", "retention": "DELETE_AFTER_VERIFICATION"},
-    {"pr": 6, "branch": "agent/p2a-source-visual-preview", "role": "temporary CI trigger", "integration": "never merge", "retention": "DELETE_AFTER_VERIFICATION"},
-    {"pr": 7, "branch": "agent/p2a-scan-derivatives-foundation", "role": "divergent surface evidence", "integration": "parked in Issue #14", "retention": "PRESERVE_BY_TAG_OR_COMMIT"},
-    {"pr": 8, "branch": "agent/p2a-real-owner-flow", "role": "divergent owner-flow history", "integration": "functional work restacked", "retention": "PRESERVE_BY_TAG_OR_COMMIT"},
-    {"pr": 9, "branch": "agent/r1b-source-resolution-owner-integration", "role": "source resolution flow", "integration": "exact ancestor of PR #13", "retention": "DELETE_AFTER_VERIFICATION"},
-    {"pr": 10, "branch": "agent/autonomous-loop-foundation-v1", "role": "automation foundation", "integration": "exact ancestor of PR #13", "retention": "DELETE_AFTER_VERIFICATION"},
-    {"pr": 12, "branch": "agent/project-operating-polish-v1", "role": "operating docs", "integration": "exact ancestor of PR #13", "retention": "DELETE_AFTER_VERIFICATION"},
-    {"pr": 13, "branch": "agent/scan-terrain-r1b-consolidated-integration", "role": "authoritative product integration", "integration": "owner decision pending", "retention": "KEEP_ACTIVE"},
-    {"pr": 15, "branch": "agent/r1b-repository-readiness-polish-v1", "role": "governance layer", "integration": "merged into PR #13 head", "retention": "DELETE_AFTER_VERIFICATION"},
-    {"pr": 16, "branch": "agent/project-refoundation-audit-v1", "role": "temporary re-foundation review", "integration": "open dynamic review head", "retention": "DELETE_AFTER_INTEGRATION"}
+    {"pr": 1, "role": "inspection foundation", "status": "CLOSED_SUPERSEDED_ANCESTOR"},
+    {"pr": 2, "role": "world import contracts", "status": "CLOSED_SUPERSEDED_ANCESTOR"},
+    {"pr": 3, "role": "evidence bundle", "status": "CLOSED_SUPERSEDED_ANCESTOR"},
+    {"pr": 4, "role": "owner gate", "status": "CLOSED_SUPERSEDED_ANCESTOR"},
+    {"pr": 5, "role": "geometry preview", "status": "CLOSED_SUPERSEDED_ANCESTOR"},
+    {"pr": 6, "role": "temporary CI trigger", "status": "CLOSED_NEVER_MERGE"},
+    {"pr": 7, "role": "divergent surface evidence", "status": "CLOSED_EXACT_COMMIT_RECOVERABLE_TAG_PENDING"},
+    {"pr": 8, "role": "divergent owner flow", "status": "CLOSED_EXACT_COMMIT_RECOVERABLE_TAG_PENDING"},
+    {"pr": 9, "role": "source resolution flow", "status": "CLOSED_SUPERSEDED_ANCESTOR"},
+    {"pr": 10, "role": "automation foundation", "status": "CLOSED_SUPERSEDED_ANCESTOR"},
+    {"pr": 12, "role": "operating docs", "status": "CLOSED_SUPERSEDED_ANCESTOR"},
+    {"pr": 13, "role": "former consolidated integration", "status": "CLOSED_UNMERGED_CONTENT_IN_CURRENT_BRANCH"},
+    {"pr": 15, "role": "governance readiness", "status": "MERGED_IN_CURRENT_HISTORY"},
+    {"pr": 16, "role": "former re-foundation review", "status": "CLOSED_UNMERGED_CONTENT_IN_CURRENT_BRANCH"},
+    {"pr": 17, "role": "single current integration and re-foundation review", "status": "ACTIVE_DRAFT_EXPECTED"}
   ],
   "branchReduction": {
     "ownerTargetMaximum": 5,
     "preferredFinalCount": 3,
-    "preferredFinalBranches": ["main", "jozz-vehicle-sandbox-m0", "ONE_CURRENT_INTEGRATED_PROJECT_BRANCH"],
-    "exactPlan": "docs/BRANCH_RETENTION_PLAN_2026_07_22.json",
-    "requiredRemoteEnumeration": "git ls-remote --heads origin",
-    "remotePresence": "VERIFIED_BY_CI_SNAPSHOT",
-    "verifiedBranchCount": 18,
-    "verifiedTagCount": 0,
-    "linearOrDuplicateBranchesToDelete": 12,
-    "divergentBranchesToTagThenDelete": 2,
-    "temporaryReviewBranchesToDeleteAfterIntegration": 1,
-    "projectedFinalBranchCount": 3,
-    "preservationTags": [
-      {"name": "milestone/terrain-visible-2026-07-22", "target": "33099413bf8f44adbe1d635f9e10bdf2d0b5c321"},
-      {"name": "evidence/surface-foundation-pr7", "target": "9aacc752f331d0d47c4c9c3f6fe82c63466f592c"},
-      {"name": "evidence/owner-flow-pr8", "target": "a36e3d2f4c76f35d138a7e8b0aa11f7889e69e90"}
-    ],
-    "deletionAuthorized": false
-  },
-  "references": {
-    "branchRetention": "docs/BRANCH_RETENTION_PLAN_2026_07_22.json",
-    "documentLifecycle": "docs/DOCUMENT_LIFECYCLE_2026_07_22.json",
-    "forensicReport": "docs/PROJECT_FORENSIC_INVENTORY_2026_07_22_PL.md",
-    "milestone": "docs/scan_import/TERRAIN_VISIBLE_PASS_2026_07_22_PL.md"
-  },
-  "unresolved": [
-    "Owner decision for PR #13 and PR #16 integration strategy.",
-    "Create and verify preservation tags before branch cleanup.",
-    "Write the bounded textured-preview campaign brief after integration authority is selected.",
-    "Keep scale, surface and collision blocked until the required owner gates."
-  ]
+    "currentBranchCount": 3,
+    "currentBranches": ["main", "jozz-vehicle-sandbox-m0", "agent/project-refoundation-audit-v1"],
+    "cleanupStatus": "COMPLETED_TO_PREFERRED_COUNT_WITH_RETENTION_DEBT",
+    "retentionTagDebtCount": 3,
+    "furtherDeletionAuthorized": false,
+    "exactPlan": "docs/BRANCH_RETENTION_PLAN_2026_07_22.json"
+  }
 }
