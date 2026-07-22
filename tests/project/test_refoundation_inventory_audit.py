@@ -46,7 +46,7 @@ class RefoundationInventoryAuditTests(unittest.TestCase):
     def test_current_repository_passes(self) -> None:
         self.assertEqual(refoundation_inventory_audit.audit_refoundation_inventory(ROOT), [])
 
-    def test_inventory_branch_hard_maximum_cannot_be_raised(self) -> None:
+    def test_branch_hard_maximum_cannot_be_raised(self) -> None:
         temporary, root = self.fixture()
         self.addCleanup(temporary.cleanup)
         inventory = self.load_json(root, refoundation_inventory_audit.INVENTORY_PATH)
@@ -55,102 +55,97 @@ class RefoundationInventoryAuditTests(unittest.TestCase):
         errors = refoundation_inventory_audit.audit_refoundation_inventory(root)
         self.assertIn("BRANCH_REDUCTION_DRIFT:ownerTargetMaximum:12", errors)
 
-    def test_inventory_deletion_cannot_be_pre_authorized(self) -> None:
+    def test_further_deletion_cannot_be_pre_authorized(self) -> None:
         temporary, root = self.fixture()
         self.addCleanup(temporary.cleanup)
         inventory = self.load_json(root, refoundation_inventory_audit.INVENTORY_PATH)
-        inventory["branchReduction"]["deletionAuthorized"] = True
+        inventory["branchReduction"]["furtherDeletionAuthorized"] = True
         self.write_json(root, refoundation_inventory_audit.INVENTORY_PATH, inventory)
         errors = refoundation_inventory_audit.audit_refoundation_inventory(root)
-        self.assertIn("BRANCH_REDUCTION_DRIFT:deletionAuthorized:True", errors)
+        self.assertIn("BRANCH_REDUCTION_DRIFT:furtherDeletionAuthorized:True", errors)
 
-    def test_verified_remote_presence_cannot_be_downgraded(self) -> None:
+    def test_fourth_branch_cannot_be_smuggled_into_current_state(self) -> None:
         temporary, root = self.fixture()
         self.addCleanup(temporary.cleanup)
         inventory = self.load_json(root, refoundation_inventory_audit.INVENTORY_PATH)
-        inventory["branchReduction"]["remotePresence"] = "UNVERIFIED"
+        inventory["snapshot"]["remoteRefState"]["branches"].append("agent/old-branch")
+        inventory["snapshot"]["remoteRefState"]["branchCount"] = 4
         self.write_json(root, refoundation_inventory_audit.INVENTORY_PATH, inventory)
         errors = refoundation_inventory_audit.audit_refoundation_inventory(root)
-        self.assertIn("BRANCH_REDUCTION_DRIFT:remotePresence:UNVERIFIED", errors)
+        self.assertIn("INVENTORY_REMOTE_REF_COUNT_DRIFT", errors)
+        self.assertTrue(any(error.startswith("INVENTORY_REMOTE_BRANCH_SET_DRIFT:") for error in errors))
 
-    def test_tracked_tree_coverage_cannot_be_relaxed(self) -> None:
+    def test_deleted_authority_branch_cannot_return(self) -> None:
         temporary, root = self.fixture()
         self.addCleanup(temporary.cleanup)
         inventory = self.load_json(root, refoundation_inventory_audit.INVENTORY_PATH)
-        inventory["snapshot"]["trackedTreeSnapshot"]["coverageComplete"] = False
-        inventory["snapshot"]["trackedTreeSnapshot"]["unclassifiedPathCount"] = 1
-        self.write_json(root, refoundation_inventory_audit.INVENTORY_PATH, inventory)
-        errors = refoundation_inventory_audit.audit_refoundation_inventory(root)
-        self.assertIn("INVENTORY_TRACKED_TREE_COVERAGE_INCOMPLETE", errors)
-
-    def test_inventory_divergent_preservation_tag_target_is_exact(self) -> None:
-        temporary, root = self.fixture()
-        self.addCleanup(temporary.cleanup)
-        inventory = self.load_json(root, refoundation_inventory_audit.INVENTORY_PATH)
-        inventory["branchReduction"]["preservationTags"][1]["target"] = "0" * 40
+        inventory["snapshot"]["authoritativeProductBranch"] = (
+            "agent/scan-terrain-r1b-consolidated-integration"
+        )
         self.write_json(root, refoundation_inventory_audit.INVENTORY_PATH, inventory)
         errors = refoundation_inventory_audit.audit_refoundation_inventory(root)
         self.assertIn(
-            "INVENTORY_PRESERVATION_TAG_DRIFT:evidence/surface-foundation-pr7:" + "0" * 40,
+            "INVENTORY_SNAPSHOT_DRIFT:authoritativeProductBranch:agent/scan-terrain-r1b-consolidated-integration",
             errors,
         )
 
-    def test_exact_branch_plan_cannot_drop_one_remote_branch(self) -> None:
+    def test_current_project_branch_cannot_disappear(self) -> None:
         temporary, root = self.fixture()
         self.addCleanup(temporary.cleanup)
         plan = self.load_json(root, refoundation_inventory_audit.BRANCH_PLAN_PATH)
-        plan["branches"] = [
-            record for record in plan["branches"]
-            if record["name"] != "agent/p2a-scan-derivatives-foundation"
+        plan["currentBranches"] = [
+            record
+            for record in plan["currentBranches"]
+            if record["name"] != refoundation_inventory_audit.CURRENT_PROJECT_BRANCH
         ]
         self.write_json(root, refoundation_inventory_audit.BRANCH_PLAN_PATH, plan)
         errors = refoundation_inventory_audit.audit_refoundation_inventory(root)
-        self.assertIn("BRANCH_PLAN_COUNT_DRIFT:17", errors)
-        self.assertIn(
-            "BRANCH_PLAN_REMOTE_BRANCHES_MISSING:agent/p2a-scan-derivatives-foundation",
-            errors,
-        )
+        self.assertTrue(any(error.startswith("BRANCH_PLAN_CURRENT_SET_DRIFT:") for error in errors))
 
-    def test_branch_plan_deletion_cannot_be_pre_authorized(self) -> None:
+    def test_current_project_branch_must_remain_dynamic_until_integration(self) -> None:
         temporary, root = self.fixture()
         self.addCleanup(temporary.cleanup)
         plan = self.load_json(root, refoundation_inventory_audit.BRANCH_PLAN_PATH)
-        plan["ownerPolicy"]["deletionAuthorized"] = True
-        self.write_json(root, refoundation_inventory_audit.BRANCH_PLAN_PATH, plan)
-        errors = refoundation_inventory_audit.audit_refoundation_inventory(root)
-        self.assertIn("BRANCH_PLAN_AUTHORITY_OVERCLAIM:deletionAuthorized", errors)
-
-    def test_only_refoundation_review_branch_may_have_dynamic_sha(self) -> None:
-        temporary, root = self.fixture()
-        self.addCleanup(temporary.cleanup)
-        plan = self.load_json(root, refoundation_inventory_audit.BRANCH_PLAN_PATH)
-        for record in plan["branches"]:
-            if record["name"] == "agent/p1-dataset-inspector-staging":
-                record["shaPolicy"] = "DYNAMIC_REVIEW_HEAD_UNTIL_INTEGRATION"
-        self.write_json(root, refoundation_inventory_audit.BRANCH_PLAN_PATH, plan)
-        errors = refoundation_inventory_audit.audit_refoundation_inventory(root)
-        self.assertIn(
-            "BRANCH_PLAN_EXACT_SHA_POLICY_MISSING:agent/p1-dataset-inspector-staging:DYNAMIC_REVIEW_HEAD_UNTIL_INTEGRATION",
-            errors,
-        )
-
-    def test_refoundation_review_branch_must_remain_dynamic_until_integration(self) -> None:
-        temporary, root = self.fixture()
-        self.addCleanup(temporary.cleanup)
-        plan = self.load_json(root, refoundation_inventory_audit.BRANCH_PLAN_PATH)
-        for record in plan["branches"]:
-            if record["name"] == "agent/project-refoundation-audit-v1":
+        for record in plan["currentBranches"]:
+            if record["name"] == refoundation_inventory_audit.CURRENT_PROJECT_BRANCH:
                 record["shaPolicy"] = "EXACT_REMOTE_SHA"
         self.write_json(root, refoundation_inventory_audit.BRANCH_PLAN_PATH, plan)
         errors = refoundation_inventory_audit.audit_refoundation_inventory(root)
-        self.assertIn("BRANCH_PLAN_DYNAMIC_REVIEW_POLICY_DRIFT", errors)
+        self.assertIn("BRANCH_PLAN_CURRENT_HEAD_POLICY_DRIFT", errors)
+
+    def test_retention_tag_debt_cannot_be_hidden(self) -> None:
+        temporary, root = self.fixture()
+        self.addCleanup(temporary.cleanup)
+        plan = self.load_json(root, refoundation_inventory_audit.BRANCH_PLAN_PATH)
+        plan["retentionDebt"]["missingTags"] = []
+        plan["finalState"]["retentionTaggingComplete"] = True
+        self.write_json(root, refoundation_inventory_audit.BRANCH_PLAN_PATH, plan)
+        errors = refoundation_inventory_audit.audit_refoundation_inventory(root)
+        self.assertIn(
+            "BRANCH_PLAN_RETENTION_TAG_DRIFT:milestone/terrain-visible-2026-07-22:None",
+            errors,
+        )
+        self.assertIn("BRANCH_PLAN_FINAL_STATE_DRIFT:retentionTaggingComplete:True", errors)
+
+    def test_retention_tag_target_is_exact(self) -> None:
+        temporary, root = self.fixture()
+        self.addCleanup(temporary.cleanup)
+        plan = self.load_json(root, refoundation_inventory_audit.BRANCH_PLAN_PATH)
+        plan["retentionDebt"]["missingTags"][1]["target"] = "0" * 40
+        self.write_json(root, refoundation_inventory_audit.BRANCH_PLAN_PATH, plan)
+        errors = refoundation_inventory_audit.audit_refoundation_inventory(root)
+        self.assertIn(
+            "BRANCH_PLAN_RETENTION_TAG_DRIFT:evidence/surface-foundation-pr7:" + "0" * 40,
+            errors,
+        )
 
     def test_required_domain_cannot_disappear(self) -> None:
         temporary, root = self.fixture()
         self.addCleanup(temporary.cleanup)
         inventory = self.load_json(root, refoundation_inventory_audit.INVENTORY_PATH)
         inventory["domains"] = [
-            domain for domain in inventory["domains"]
+            domain
+            for domain in inventory["domains"]
             if domain["id"] != "synthetic-engineering-world"
         ]
         self.write_json(root, refoundation_inventory_audit.INVENTORY_PATH, inventory)
@@ -159,6 +154,28 @@ class RefoundationInventoryAuditTests(unittest.TestCase):
             "INVENTORY_REQUIRED_DOMAINS_MISSING:synthetic-engineering-world",
             errors,
         )
+
+    def test_pr_lineage_cannot_drop_parked_surface_evidence(self) -> None:
+        temporary, root = self.fixture()
+        self.addCleanup(temporary.cleanup)
+        inventory = self.load_json(root, refoundation_inventory_audit.INVENTORY_PATH)
+        inventory["pullRequestLineage"] = [
+            record for record in inventory["pullRequestLineage"] if record["pr"] != 7
+        ]
+        self.write_json(root, refoundation_inventory_audit.INVENTORY_PATH, inventory)
+        errors = refoundation_inventory_audit.audit_refoundation_inventory(root)
+        self.assertIn("INVENTORY_PR_LINEAGE_INCOMPLETE:7", errors)
+
+    def test_current_integration_pr_cannot_disappear(self) -> None:
+        temporary, root = self.fixture()
+        self.addCleanup(temporary.cleanup)
+        inventory = self.load_json(root, refoundation_inventory_audit.INVENTORY_PATH)
+        inventory["pullRequestLineage"] = [
+            record for record in inventory["pullRequestLineage"] if record["pr"] != 17
+        ]
+        self.write_json(root, refoundation_inventory_audit.INVENTORY_PATH, inventory)
+        errors = refoundation_inventory_audit.audit_refoundation_inventory(root)
+        self.assertIn("INVENTORY_PR_LINEAGE_INCOMPLETE:17", errors)
 
     def test_historical_scan_tutorial_cannot_become_current_again(self) -> None:
         temporary, root = self.fixture()
@@ -189,17 +206,6 @@ class RefoundationInventoryAuditTests(unittest.TestCase):
         )
         errors = refoundation_inventory_audit.audit_refoundation_inventory(root)
         self.assertIn("TECH_DEBT_STALE_OPERATIONAL_RULE", errors)
-
-    def test_pr_lineage_cannot_drop_parked_surface_branch(self) -> None:
-        temporary, root = self.fixture()
-        self.addCleanup(temporary.cleanup)
-        inventory = self.load_json(root, refoundation_inventory_audit.INVENTORY_PATH)
-        inventory["pullRequestLineage"] = [
-            record for record in inventory["pullRequestLineage"] if record["pr"] != 7
-        ]
-        self.write_json(root, refoundation_inventory_audit.INVENTORY_PATH, inventory)
-        errors = refoundation_inventory_audit.audit_refoundation_inventory(root)
-        self.assertIn("INVENTORY_PR_LINEAGE_INCOMPLETE:7", errors)
 
     def test_conflicting_upstream_default_pr_template_cannot_return(self) -> None:
         temporary, root = self.fixture()
