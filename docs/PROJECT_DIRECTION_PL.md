@@ -1,121 +1,123 @@
-# Project direction — Jozz Vehicle Box3D Native
+# Project direction — historyczny origin record Jozz Vehicle
 
-Date: 2026-07-03  
-Status: active direction, corrected after M2.5 sample-host path
+**Pierwotna data:** 2026-07-03  
+**Status obecny:** `HISTORICAL_EVIDENCE / SUPERSEDED_AS_CURRENT_ROADMAP`  
+**Nie jest:** current state, active direction, task queue ani zgodą na rozpoczęcie M3/M4.
 
-## Werdykt
-
-Startujemy nową grę/sandbox pojazdów na fundamencie Box3D, ale robimy to małymi, twardymi krokami. Nie zaczynamy od pełnego buildera, pełnego renderera glTF ani fizycznie dokładnego zawieszenia wielowahaczowego.
-
-Najpierw ma powstać **Jozz Vehicle Lab**: miejsce do testowania fizyki narożnika zawieszenia, koła, później asset-derived dimensions i visual-only attachment modeli.
-
-## Korekta po M2.5: sample host zamiast osobnego executable na teraz
-
-Pierwotny kierunek zakładał szybkie stworzenie osobnego `jozz_vehicle_lab` executable.
-
-Po praktycznej pracy M1/M2/M2.5 aktualna rzeczywistość jest inna i lepsza dla tego etapu:
+Aktualna trwała wizja projektu znajduje się w:
 
 ```text
-Jozz Vehicle Lab działa teraz w istniejącym Box3D samples host.
+docs/PROJECT_CHARTER_PL.md
 ```
 
-To nie jest cofnięcie celu projektu. To pragmatyczny krok: sample host już daje okno, kamerę, ImGui, debug draw, input i integrację CMake. Dzięki temu praca mogła skupić się na właściwym problemie: czy `b3WheelJoint` daje sensowny fundament dla jednego narożnika zawieszenia.
-
-Osobny executable może wrócić później, ale nie jest obecnie blokadą. Nie wolno zaczynać od nowa tylko dlatego, że starszy dokument mówił o własnym executable jako najbliższym kroku.
-
-## Feedback Jozza z 2026-07-03
-
-Jozz przyjął, że orientację modeli w Blockbenchu dostosuje później, dopiero kiedy modele będą widoczne w grze. To jest ważna decyzja projektowa.
-
-Konsekwencja:
-
-- nie blokujemy M0/M1/M2 na finalnym ustawianiu osi w Blockbenchu;
-- importer/kontrakt assetu musi pozwalać na tymczasowe korekty orientacji per asset;
-- finalna orientacja authoringowa stanie się osobną pracą po uruchomieniu podglądu modeli w grze;
-- kod fizyki nie może mieć porozrzucanych magicznych obrotów per model.
-
-## Aktualny milestone baseline
-
-Aktualny baseline to:
+Aktualna kolejność pracy i exact authority znajdują się w:
 
 ```text
-Jozz Vehicle / Lab M2 Primitive Corner
-Panel: Jozz Vehicle Lab M2.5
+AGENTS.md
+→ GitHub Control Issue #11
+→ AI_PROJECT_MEMORY.md
+→ właściwy current state i aktywny PR
+→ docs/PROJECT_OPERATING_PLAN_PL.md
 ```
 
-M2.5 potwierdza:
+## 1. Dlaczego ten dokument pozostaje
 
-- primitive one-corner wheel-joint lab;
-- centered wheel pivot;
-- poprawny rest-anchor model dla `b3WheelJoint`;
-- rest drop;
-- rebound/compression travel;
-- collision on/off;
-- live root stress mover przez slider oraz Q/E;
-- rozdział pending structural setup od runtime live root controls.
+Ten zapis dokumentuje moment, w którym projekt przestał być abstrakcyjnym planem
+„pełnej gry” i zaczął rosnąć przez małe fizyczne laboratoria w istniejącym Box3D
+sample host. To ważna część duszy projektu, ale jego milestone’y M2.5/M3A/M3B zostały
+wielokrotnie przekroczone.
 
-## Kierunek techniczny
+## 2. Historyczna decyzja: sample host jako pragmatyczne laboratorium
 
-Trzy warstwy muszą pozostać rozdzielone:
+Pierwotny plan zakładał szybkie stworzenie osobnego executable. Praktyka M1/M2/M2.5
+pokazała, że istniejący sample host dawał od razu:
+
+- natywne okno;
+- kamerę i input;
+- ImGui;
+- debug draw;
+- integrację CMake;
+- szybki dostęp do prawdziwej fizyki Box3D.
+
+Decyzja brzmiała:
 
 ```text
-Authoring asset  -> glTF + sidecar metadata
-Game asset       -> render mesh + visual rig + material data
-Physics prefab   -> bodies + shapes + joints + tuning parameters
+najpierw udowodnić fizykę i feel w produktywnym laboratorium
+zamiast zaczynać od budowania całej infrastruktury gry
 ```
 
-Nie wolno traktować jednego glTF jako naraz:
+Ta zasada pozostaje aktualna. Nie oznacza jednak, że sample host jest finalną
+architekturą produktu albo automatycznie przechodzi do JES.
 
-- finalnego render mesha;
-- fizycznej kolizji;
-- rigu proceduralnego;
-- prefab systemu;
-- gameplayowego kontraktu montażu.
+## 3. Historyczna decyzja ownera o authoringu modeli
 
-## Najważniejsze ryzyka
+Jozz świadomie nie blokował pierwszych etapów na idealnej orientacji modeli w
+Blockbenchu. Najpierw modele miały stać się widoczne w grze, a dopiero potem authoring
+miał zostać poprawiony na podstawie realnego feedbacku.
 
-### 1. Zbyt szybkie wejście w renderer glTF
+Trwałe konsekwencje:
 
-Renderer modeli jest potrzebny, ale może łatwo zjeść kilka dni zanim powstanie jakikolwiek feel jazdy. Dlatego aktualny lab fizyczny nadal używa primitive renderingu/debug draw.
+- tymczasowa korekta renderowa per asset może istnieć jawnie;
+- finalne authored axes nie powinny być zgadywane bez render review;
+- magiczne obroty nie mogą rozlewać się po kodzie fizyki;
+- visual transform nie staje się automatycznie physics frame.
 
-### 2. Zbyt skomplikowane zawieszenie za wcześnie
+## 4. Trwały rozdział warstw vehicle
 
-Multi-body suspension brzmi kusząco, bo pasuje do modelu, ale na start grozi niestabilnością, trudnym tuningiem i brakiem szybkiego feedbacku. V0 powinno użyć jednego wheel jointa na narożnik.
+```text
+Authoring asset  → glTF + sidecar metadata
+Game visual      → render mesh + visual rig + material data
+Physics prefab   → bodies + shapes + joints + tuning parameters
+```
 
-### 3. Zgadywanie po nazwach node'ów
+Jeden glTF nie jest automatycznie jednocześnie:
 
-Aktualne glTF-y mają duplicate root/node names. Importer musi używać node index/path/parent chain i composed transforms, a nazwa jest tylko semantycznym hintem.
+- finalnym render meshem;
+- kolizją;
+- proceduralnym rigem;
+- physics prefabem;
+- gameplayowym kontraktem montażu.
 
-### 4. Skala i orientacja
+Ta lekcja później stała się częścią szerszego rozdziału warstw prawdy świata w
+`PROJECT_CHARTER_PL.md`.
 
-Skala musi być jawna w sidecar `.asset.json`. Orientacja authoringowa pozostaje tymczasowo "not final", ale runtime/game-space musi mieć jedną spójną konwencję.
+## 5. Trwały rest-anchor model
 
-### 5. Powrót do błędnego modelu M2.3
-
-Nie wolno traktować wizualnego chassis/damper mountu jako body-A frame dla `b3WheelJoint`.
-
-Aktualna reguła:
+Historyczny M2.5 ustalił zasadę, której nie wolno cofać:
 
 ```text
 Frame A = rest wheel-center anchor na chassis
 Frame B = centrum koła
 spring rest = translation 0
+rest drop = jawna decyzja konfiguracji
 ```
 
-## Aktualna rekomendowana kolejność
+Wizualny damper/chassis mount nie jest automatycznie frame’em `b3WheelJoint`.
+Historyczny model M2.3 był błędny.
 
-1. Seed branch z dokumentami, assetami, kontraktami i audytem. — zrobione.
-2. Minimalny native lab w Box3D sample host. — zrobione przez M1/M2.
-3. Primitive physics smoke test. — zrobione przez M1.
-4. Single wheel-corner physics lab. — M2.5 zwalidowane ręcznie.
-5. Foundation Grounding Phase. — aktualnie wykonywane.
-6. M3A: asset-derived primitive dimensions.
-7. M3B: pierwszy visual-only glTF wheel mesh attachment.
-8. Visual rig wheel/suspension/damper/cardan.
-9. Dopiero potem pełny vehicle assembly.
+## 6. Co wydarzyło się później
 
-## Aktualna zasada decyzyjna
+Po tym dokumencie projekt osiągnął między innymi:
 
-Jeżeli następny krok wymaga wyboru między szybkim efektem wizualnym a zachowaniem stabilnego baseline'u fizyki, wybierz baseline.
+- asset-derived visuals i kontrakty;
+- pierwszy jeżdżący pojazd;
+- M7 honest real-forces suspension/steering foundation;
+- M8 rig, poza, persistence, presety i owner UI;
+- syntetyczny engineering world;
+- realny scan inspection/evidence pipeline;
+- seven-tile native geometry preview i `TERRAIN_VISIBLE_PASS`;
+- repository governance oraz project re-foundation.
 
-Najpierw projekt ma być trudny do zepsucia, dopiero potem efektowny.
+Dlatego dawna kolejność M3A → M3B → visual rig → full vehicle assembly jest wyłącznie
+historycznym śladem rozwoju, nie aktualną roadmapą.
+
+## 7. Niezmienna zasada decyzyjna
+
+Jedno zdanie z pierwotnego dokumentu pozostaje w pełni aktualne:
+
+> Gdy szybki efekt wizualny konkuruje z zachowaniem wiarygodnego fundamentu, najpierw
+> chronimy fundament — ale nie używamy tej zasady jako wymówki przed zbudowaniem małego,
+> grywalnego proofu.
+
+Obecnym małym proofem jest teksturowany realny teren, zaakceptowany samochód jako
+referencja skali, następnie ograniczona kolizja i pierwszy owner fun verdict.
