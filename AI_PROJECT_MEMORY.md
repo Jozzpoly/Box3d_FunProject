@@ -1,47 +1,60 @@
 # AI Project Memory — Box3d_FunProject
 
-## Rola tego pliku
+## Rola
 
-Ten plik jest globalnym routerem bieżącego projektu. Wskazuje aktywną kampanię,
-matching current state, produktowy branch/PR, gate'y, równoległe warstwy governance
-i najbliższą realną granicę.
+Ten plik jest krótkim routerem bieżącego projektu. Wskazuje:
 
-Nie jest:
+- aktywny mutable control plane;
+- authoritative branch/PR;
+- najwyższy uczciwy capability;
+- najbliższy product gate;
+- dokumenty, które należy przeczytać dalej.
 
-- twardą polityką — ta zaczyna się w `AGENTS.md` i `.automation/CONTROL.yaml`;
-- szczegółową dokumentacją subsystemu;
-- historią milestone'ów;
-- work-item queue;
-- źródłem mutable lease lub exact current SHA;
-- zgodą na implementację albo merge.
+Nie jest twardą polityką, historią milestone'ów, dokładnym current SHA, prywatnym
+evidence store, work-item queue ani zgodą na implementację albo merge.
 
-## Policy i kolejność faktów
+## Kolejność odczytu
 
-Najpierw odczytaj twardą politykę:
+Najpierw twarda polityka:
 
 1. `AGENTS.md`;
 2. `.automation/CONTROL.yaml`;
 3. `.automation/POLICY.md`.
 
-Następnie rozwiąż mutable state i fakty:
+Następnie fakty i intencja:
 
 1. GitHub Issue #11 `[AUTOMATION CONTROL] Box3d_FunProject recurring agent`;
 2. ten plik;
 3. właściwy `docs/*/CURRENT_STATE.md`;
-4. aktywny PR kampanii i jego remote head;
+4. aktywny PR i jego remote head;
 5. `docs/PROJECT_OPERATING_PLAN_PL.md`;
-6. właściwy podręcznik domeny, np. `README_FOR_AGENTS.md` dla pojazdu;
-7. checkpointy, tech debt, subsystem docs, kod i testy.
+6. `docs/PROJECT_CHARTER_PL.md`;
+7. matching domain manual, checkpointy, tech debt, subsystem docs, kod i testy.
 
-Exact mutable `authoritative_head` zawsze odczytuj z Issue #11. Nie kopiuj go jako
-trwałego current SHA do wersjonowanego dokumentu. Historyczny checkpoint, stary
-roadmap ani zamknięty PR nie wybiera pracy.
+Exact mutable `authoritative_head` zawsze pochodzi z Issue #11. Historyczny SHA w
+checkpointcie opisuje dowód, nie bieżącą authority.
 
-## Aktywna kampania produktu
+## Trwała intencja produktu
+
+Karta projektu:
 
 ```text
-campaign:             scan-terrain-r1b
-goal:                 real seven-tile native render-only preview
+docs/PROJECT_CHARTER_PL.md
+```
+
+Najkrótsza dewiza:
+
+> Drążymy skałę kropla po kropli — ale każda kropla ma zostawić działający,
+> powtarzalny fundament.
+
+Box3d_FunProject łączy własne pojazdy, uczciwą fizykę, narzędzia twórcy oraz prawdziwe
+miejsca. Najpierw powstaje mały grywalny proof, dopiero potem produkcyjny system.
+
+## Authority i bieżąca powierzchnia integracji
+
+```text
+campaign:             scan-terrain-r1b milestone closure / project re-foundation
+goal:                 seal geometry preview proof and define textured-preview gate
 state document:       docs/scan_import/CURRENT_STATE.md
 authoritative branch: agent/scan-terrain-r1b-consolidated-integration
 active draft PR:      #13
@@ -49,166 +62,155 @@ exact current head:   GitHub Control Issue #11
 integration base:     jozz-vehicle-sandbox-m0
 ```
 
-PR #13 jest jedyną bieżącą powierzchnią **produktowej integracji** P0–R1B. Zachowuje
-liniową historię wcześniejszych etapów bez rebase'u, squashowania ani force-pusha.
+PR #13 pozostaje jedyną bieżącą powierzchnią integracji P0–R1B i nie jest automatycznie
+powierzchnią następnej kampanii. Nie dopisuj do niego kolizji ani nieograniczonego
+textured-world work.
 
-Historyczne PR-y #1–#5, #8 i #9 są zastąpione przez #13, ale ich branche i commity
-pozostają zachowane. PR #7 jest rozbieżną linią surface-evidence, zaparkowaną w
-Issue #14 i wyłączoną z bieżącego preview path.
+PR #15 został owner-reviewed i zintegrowany do authoritative head PR #13. Starsze
+opisy przedstawiające go jako niezintegrowany draft są historycznym driftem.
 
-## Warstwa gotowości repozytorium
+Historyczne PR-y #1–#5, #8 i #9 są zastąpione przez #13 z zachowaniem branchy i
+commitów. Divergent surface-evidence line pozostaje zaparkowana w Issue #14 i nie
+jest automatycznie reaktywowana.
 
-```text
-repository readiness PR: #15
-branch:                  agent/r1b-repository-readiness-polish-v1
-base:                    active product integration PR #13
-state:                   DRAFT_UNDER_REVIEW
-product capability:      UNCHANGED
-```
-
-PR #15 porządkuje globalną politykę, front door repo, contribution workflow,
-dokumentację, ownership map, mechaniczny authority audit i routing CI.
-
-Nie jest jeszcze authoritative i nie zmienia Issue #11. Recurring scheduler nadal
-czyta zwalidowany head PR #13, dopóki governance layer nie zostanie osobno
-zreviewowany i owner-approved zintegrowany. To zapobiega kierowaniu automatu na
-niezatwierdzoną zmianę własnej polityki.
-
-## Aktualny uczciwy stan produktu
-
-```text
-REAL_PREVIEW_PIPELINE_CODE_READY
-```
-
-Potwierdzone:
-
-- real 7 GLB + 7 PLY inspection istnieje jako owner-private evidence;
-- owner-confirmed source-frame contract istnieje prywatnie;
-- real P1B bundle i privacy receipt istnieją prywatnie;
-- R1B source resolution i owner flow przeszły hosted contracts;
-- native sample build przeszedł na integrowanej linii;
-- recurring-agent foundation jest zintegrowany bez zmiany produktu;
-- stack ma jedną produktową powierzchnię review w PR #13;
-- repository-readiness layer jest odseparowany w draft PR #15.
-
-Nieudowodnione:
-
-- real preview pack z prywatnego zestawu siedmiu kafli;
-- native runtime load dokładnie tego packa;
-- owner visual review;
-- same-revision restart;
-- `TERRAIN_VISIBLE_PASS`.
-
-Prywatne ścieżki, współrzędne, hashe źródeł i surowe skany pozostają poza
-GitHubem i publicznymi logami.
-
-## Najbliższa realna granica produktu
-
-Następna realna akcja to jedno owner-local uruchomienie:
-
-```text
-run_real_terrain_flow.ps1
-```
-
-Runner ma odnaleźć exact historical bundle/receipt, rozwiązać siedem par GLB/PLY,
-zbudować i niezależnie zweryfikować preview pack, wybrać go i zatrzymać się na
-visual review.
-
-Owner podaje wyłącznie nieunikniony prywatny source root oraz wykonuje rzeczywistą
-decyzję wizualną. Nie jest ręcznym orkiestratorem technicznej sekwencji.
-
-Oczekiwany stan po poprawnym prywatnym runie:
-
-```text
-REAL_PREVIEW_PACK_READY / VISUAL_REVIEW_PENDING
-```
-
-Tylko jawna ocena orientacji, skali, osi, mirror state, coverage, seams i
-same-revision restart może ustanowić:
+## Najwyższy uczciwy stan produktu
 
 ```text
 TERRAIN_VISIBLE_PASS
 ```
 
-CI, kompilacja, wygenerowany pack, governance polish lub uruchomiony proces nie są
-visual proof.
+Publiczny redacted evidence record:
+
+```text
+docs/scan_import/TERRAIN_VISIBLE_PASS_2026_07_22_PL.md
+```
+
+Potwierdzone owner-locally na historycznej rewizji milestone'u:
+
+- realny zestaw 7 GLB + 7 PLY został rozwiązany względem zweryfikowanego bundle'a;
+- exact seven-tile preview pack został zbudowany i niezależnie zweryfikowany;
+- native host załadował 7 kafli;
+- owner rozpoznał rzeczywisty teren i zaakceptował geometry-only preview;
+- same-revision restart ponownie załadował pack;
+- restart przepracował 949 klatek bez błędów Sokol;
+- artefakty obrzeży są świadomie zaakceptowanym ograniczeniem pierwszego źródła.
+
+Prywatne ścieżki, lokalizacja, source hashes, receipts i raw scan data pozostają poza
+Gitem, Issue, PR-em i publicznym CI.
+
+## Ważna granica: skala nie jest jeszcze finalnie zwalidowana
+
+```text
+WORLD_SCALE_VALIDATED = false
+```
+
+Metre grid i spójny transform wspierają hipotezę skali, ale finalna walidacja wymaga
+zaakceptowanego samochodu stojącego na drodze lub obok znanego domu/innego obiektu.
+
+Nie promuj skali na podstawie geometry-only preview.
+
+## Najbliższy product gate
+
+```text
+TEXTURED_SOURCE_PREVIEW
+```
+
+Obowiązująca kolejność:
+
+```text
+TERRAIN_VISIBLE_PASS
+→ TEXTURED_SOURCE_PREVIEW
+→ VEHICLE_SCALE_REFERENCE_SCENE
+→ GOLDEN_DRIVE_REGION_OWNER_SELECTION
+→ COLLISION_REPRESENTATION_RESEARCH
+→ FIRST_REAL_SCAN_DRIVE
+→ OWNER_FUN_VERDICT
+```
+
+Tekstury są warunkiem świadomego rozpoznania drogi, pobocza, trawy, zabudowy i
+właściwego ROI. Nie są kosmetycznym etapem po kolizji.
+
+Historyczne eksperymenty wskazują profil 1K jako pierwszy rozsądny runtime baseline,
+2K jako quality A/B i BC7 dopiero po działającym renderze. Te wnioski wymagają
+ponownego audytu względem obecnych siedmiu źródeł i native preview v1.
 
 ## Current gates
 
 ```text
-owner gate:    explicit decision at visual review
-private gate:  OWNER_LOCAL_REAL_SCAN_RUN_REQUIRED
-visual gate:   REAL_TERRAIN_PREVIEW_REVIEW_PENDING
+owner gate:    textured preview and scale-reference visual review
+private gate:  no new private source discovery required for milestone closure
+visual gate:   TEXTURED_SOURCE_PREVIEW_REQUIRED
+physics gate:  COLLISION_BLOCKED_UNTIL_TEXTURE_AND_SCALE_REVIEW
 ```
 
-Nie czyść ani nie reinterpretuj gate'ów tylko po to, aby wykazać aktywność.
+Mutable Issue #11 musi zostać zsynchronizowany owner-directed po review tej zmiany.
+Nie przesuwaj authority na niezreviewowany branch tylko po to, aby scheduler zobaczył
+nowe dokumenty.
+
+## Project re-foundation
+
+Aktywny manualny zakres reorganizacji:
+
+```text
+docs/PROJECT_REFOUNDATION_AUDIT_2026_07_22_PL.md
+```
+
+Jego zadaniem jest:
+
+- zapieczętować milestone;
+- sklasyfikować każdą domenę, branch, PR, dokument i tool family;
+- naprawić authority/documentation drift;
+- oddzielić scan evidence, textured preview, authored world, render, collision,
+  surface materials i gameplay semantics;
+- przygotować mały brief następnej kampanii.
+
+Audyt nie jest pozwoleniem na produktowy cleanup, merge starego PR #7 ani rozpoczęcie
+kolizji.
+
+## Inne domeny
+
+### Vehicle sandbox
+
+M7/M8 pozostaje zaakceptowanym stabilnym baseline'em. Accepted vehicle behavior nie
+może zostać przypadkowo zmienione podczas integracji skanu. Manual:
+`README_FOR_AGENTS.md`.
+
+### Synthetic engineering world
+
+Zaakceptowany Etap 1 pozostaje deterministycznym laboratorium fizyki. Odrzucony
+6-lane layout i plan central-campus nie są automatycznie aktywne. Synthetic world nie
+jest zastępowany przez skany.
+
+### Surface evidence / collision
+
+Issue #14 zachowuje dokładny parking state. Po `TERRAIN_VISIBLE_PASS` wolno go
+przeanalizować, lecz nie wolno automatycznie merge'ować, rebase'ować ani promować do
+accepted surface. Najpierw tekstury, scale reference i owner-selected drive region.
+
+### JES
+
+JES może później współdzielić world pipeline albo pozostać osobnym odbiorcą. Nie
+sprzęgaj obecnego projektu z jego przyszłą architekturą przed realnym drive/authoring
+proofem.
 
 ## Recurring operator
 
 ```text
 control issue: #11
-enabled:       true
+enabled:       read from Issue #11
 mode:          PLAN_ONLY
-cadence:       every 6 hours, Europe/Warsaw
 active lease:  read from Issue #11
 ```
 
-W `PLAN_ONLY` operator może audytować authority, PR-y, CI, gate'y, lease i kolejkę.
-Może proponować ograniczony następny krok, ale nie tworzy product branch, commitu
-ani PR-a i nie przełącza się na `IMPLEMENT_SAFE`.
+W `PLAN_ONLY` operator audytuje i raportuje. Nie tworzy product branch, commitu ani
+PR-a, nie podnosi mode i nie modyfikuje własnego control plane.
 
-PR #15 jest manualną owner-directed zmianą A3. Recurring agent może ją zauważyć i
-raportować, ale nie może sam wdrażać, modyfikować ani czynić authoritative.
+## Hard boundaries
 
-Pełny workflow i roadmapa:
-
-```text
-docs/PROJECT_OPERATING_PLAN_PL.md
-```
-
-Indeks i ownership repo:
-
-```text
-docs/README.md
-docs/REPOSITORY_STRUCTURE_PL.md
-```
-
-## Inne domeny projektu
-
-### Vehicle sandbox
-
-M7/M8 pozostaje zaakceptowanym stabilnym baseline'em, nie aktywną kampanią.
-Podręcznik domeny: `README_FOR_AGENTS.md`.
-
-### Map
-
-Odrzucony sześciopasmowy Etap 2 i central-campus pozostają wstrzymane, dopóki owner
-nie wybierze mapy jako osobnej kampanii.
-
-### Surface evidence / collision
-
-Dokładny parking state znajduje się w Issue #14. Nie reaktywuj go przed
-`TERRAIN_VISIBLE_PASS` i osobną decyzją ownera. Accepted surface, collision i drive
-readiness nie są częścią R1B.
-
-## Hard capability boundaries
-
-- `src/` i `include/` Box3D są poza autonomicznym zakresem;
-- accepted physics, feel, UX i defaults wymagają decyzji ownera;
-- A3/A4 nigdy nie są autonomiczne;
-- visual/private evidence nie może być wyprowadzone z CI;
+- `src/` i `include/` Box3D są poza zwykłym zakresem;
+- visual, scale, feel, fun i accepted behavior wymagają owner evidence;
+- raw scan i geometry preview nie są automatycznie collision truth;
 - bez zgody ownera nie ma merge, auto-merge, force-push, rebase, retarget, zamykania
   PR-ów ani branch deletion;
-- nie zapisuj bezpośrednio na `main`, `jozz-vehicle-sandbox-m0` ani aktywny branch;
-- nie używaj `Git_Diff_Patcher_Bridge`;
-- recurring run nie zmienia własnego control plane.
-
-## Branch i handoff rule
-
-Manualna praca startuje z exact remote head na nowym izolowanym branchu, ma jeden
-czytelny zakres i kończy w draft PR. Dokumentację aktualizuj tylko, gdy stan naprawdę
-się przesunął albo naprawiono realny konflikt autorytetu.
-
-Po owner-approved integracji Issue #11 musi wskazywać wynikowy branch i pełny SHA,
-zanim scheduler uzna nowe pliki za authoritative. Nie aktualizuj Issue na head
-niezreviewowanego governance PR tylko po to, aby scheduler zobaczył go wcześniej.
+- manualna praca startuje na nowym branchu z exact remote SHA;
+- dokumentacja ma opisywać wyłącznie udowodniony stan.
