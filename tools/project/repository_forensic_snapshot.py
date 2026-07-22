@@ -18,7 +18,7 @@ from typing import Any, Iterable
 ROOT = Path(__file__).resolve().parents[2]
 INVENTORY_PATH = ROOT / "docs" / "PROJECT_INVENTORY.json"
 BRANCH_PLAN_PATH = ROOT / "docs" / "BRANCH_RETENTION_PLAN_2026_07_22.json"
-DYNAMIC_REVIEW_POLICY = "DYNAMIC_REVIEW_HEAD_UNTIL_INTEGRATION"
+DYNAMIC_CURRENT_POLICY = "DYNAMIC_CURRENT_PROJECT_HEAD_UNTIL_INTEGRATION"
 
 ROOT_BUILD_AND_HYGIENE = {
     ".clang-format",
@@ -67,6 +67,7 @@ REPOSITORY_GOVERNANCE_FILES = {
     "docs/PROJECT_FORENSIC_INVENTORY_2026_07_22_PL.md",
     "docs/PROJECT_INVENTORY.json",
     "docs/BRANCH_RETENTION_PLAN_2026_07_22.json",
+    "docs/DOCUMENT_LIFECYCLE_2026_07_22.json",
 }
 VEHICLE_DOCUMENTATION_FILES = {
     "README_FOR_AGENTS.md",
@@ -232,28 +233,8 @@ def _remote_tags(remote: str) -> list[dict[str, str]]:
     return [record for record in records if not record["name"].endswith("^{}")]
 
 
-def _lineage_by_branch(inventory: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    result: dict[str, dict[str, Any]] = {}
-    lineage = inventory.get("pullRequestLineage", [])
-    if not isinstance(lineage, list):
-        return result
-    for item in lineage:
-        if not isinstance(item, dict) or not isinstance(item.get("branch"), str):
-            continue
-        branch = item["branch"]
-        current = result.setdefault(
-            branch,
-            {"prs": [], "roles": [], "retention": item.get("retention")},
-        )
-        current["prs"].append(item.get("pr"))
-        current["roles"].append(item.get("role"))
-        if current.get("retention") != item.get("retention"):
-            current["retention"] = "MIXED_REVIEW_REQUIRED"
-    return result
-
-
 def _branch_plan_by_name() -> dict[str, dict[str, Any]]:
-    records = _load_branch_plan().get("branches", [])
+    records = _load_branch_plan().get("currentBranches", [])
     if not isinstance(records, list):
         return {}
     return {
@@ -266,52 +247,43 @@ def _branch_plan_by_name() -> dict[str, dict[str, Any]]:
 def _annotate_branches(
     branches: list[dict[str, str]], inventory: dict[str, Any]
 ) -> list[dict[str, Any]]:
-    lineage = _lineage_by_branch(inventory)
     exact_plan = _branch_plan_by_name()
-    reduction = inventory.get("branchReduction", {})
-    preferred = (
-        set(reduction.get("preferredFinalBranches", []))
-        if isinstance(reduction, dict)
-        else set()
-    )
     annotated: list[dict[str, Any]] = []
     for remote in branches:
         name = remote["name"]
         record: dict[str, Any] = dict(remote)
-        record["preferredKeep"] = name in preferred or name in {
-            "main",
-            "jozz-vehicle-sandbox-m0",
-        }
         planned = exact_plan.get(name)
-        if planned is not None:
-            sha_policy = planned.get("shaPolicy")
-            record.update(
-                retention=planned.get("retention"),
-                proof=planned.get("proof"),
-                requiredTag=planned.get("requiredTag"),
-                shaPolicy=sha_policy,
-            )
-            if sha_policy == DYNAMIC_REVIEW_POLICY:
-                record["plannedShaMatches"] = None
-                record["dynamicReviewHead"] = True
-                record["snapshotSha"] = planned.get("snapshotSha")
-            else:
-                record["plannedShaMatches"] = planned.get("sha") == remote["sha"]
-                record["dynamicReviewHead"] = False
-        elif name in lineage:
-            record.update(lineage[name])
-        else:
+        if planned is None:
             record.update(
                 retention="UNCLASSIFIED_REMOTE_BRANCH",
-                roles=[],
-                prs=[],
+                preferredKeep=False,
+                plannedShaMatches=None,
+                dynamicCurrentHead=False,
             )
+            annotated.append(record)
+            continue
+
+        sha_policy = planned.get("shaPolicy")
+        retention = planned.get("retention")
+        record.update(
+            retention=retention,
+            role=planned.get("role"),
+            shaPolicy=sha_policy,
+            preferredKeep=retention in {"KEEP_BASELINE", "KEEP_ACTIVE"},
+        )
+        if sha_policy == DYNAMIC_CURRENT_POLICY:
+            record["plannedShaMatches"] = None
+            record["dynamicCurrentHead"] = True
+        else:
+            record["plannedShaMatches"] = planned.get("sha") == remote["sha"]
+            record["dynamicCurrentHead"] = False
         annotated.append(record)
     return annotated
 
 
 def build_snapshot(remote: str, require_remote: bool) -> dict[str, Any]:
     inventory = _load_inventory()
+    branch_plan = _load_branch_plan()
     tracked = _tracked_paths()
     groups: dict[str, list[str]] = {}
     for path in tracked:
@@ -340,17 +312,19 @@ def build_snapshot(remote: str, require_remote: bool) -> dict[str, Any]:
     exact_mismatches = [
         item["name"] for item in annotated if item.get("plannedShaMatches") is False
     ]
-    dynamic_review_branches = [
-        item["name"] for item in annotated if item.get("dynamicReviewHead") is True
+    dynamic_current_branches = [
+        item["name"] for item in annotated if item.get("dynamicCurrentHead") is True
     ]
     unclassified_paths = {
         group: paths
         for group, paths in groups.items()
         if group.startswith("unclassified-")
     }
+    debt = branch_plan.get("retentionDebt", {})
+    missing_tags = debt.get("missingTags", []) if isinstance(debt, dict) else []
 
     return {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "repository": "Jozzpoly/Box3d_FunProject",
         "generatedFrom": {
             "head": _run_git(["rev-parse", "HEAD"]).strip(),
@@ -376,10 +350,12 @@ def build_snapshot(remote: str, require_remote: bool) -> dict[str, Any]:
             "branches": annotated,
             "unclassifiedBranches": unclassified_branches,
             "plannedShaMismatches": exact_mismatches,
-            "dynamicReviewBranches": dynamic_review_branches,
+            "dynamicCurrentBranches": dynamic_current_branches,
             "tagCount": len(tags),
             "tags": tags,
-            "deletionAuthorized": False,
+            "retentionTagDebtCount": len(missing_tags),
+            "retentionTagDebt": missing_tags,
+            "furtherDeletionAuthorized": False,
         },
         "privacy": {
             "ignoredFilesRead": False,
@@ -431,7 +407,8 @@ def main(argv: Iterable[str] | None = None) -> int:
     )
     print(f"unclassified_remote_branches={len(refs['unclassifiedBranches'])}")
     print(f"unexpected_sha_mismatches={len(refs['plannedShaMismatches'])}")
-    print(f"dynamic_review_branches={len(refs['dynamicReviewBranches'])}")
+    print(f"dynamic_current_branches={len(refs['dynamicCurrentBranches'])}")
+    print(f"retention_tag_debt={refs['retentionTagDebtCount']}")
     print(f"output={args.output.as_posix()}")
     return 0
 
