@@ -1,100 +1,161 @@
-# Contributing to Box3D
+# Contributing to Box3d_FunProject
 
-This project is open source under the [MIT License](LICENSE). Please read this document
-before opening a pull request — **PRs that skip these steps will be closed.**
+Ten dokument opisuje manualną pracę ownera i agentów nad forkiem Jozza. Nie
+zastępuje `AGENTS.md`, Control Issue ani dokumentacji aktywnej domeny.
 
----
+## 1. Przed rozpoczęciem
 
-## TL;DR
+1. Przeczytaj `AGENTS.md` i `.automation/CONTROL.yaml`.
+2. Odczytaj GitHub Control Issue i zapisz authoritative branch oraz pełny head SHA.
+3. Przeczytaj `AI_PROJECT_MEMORY.md` i właściwy `docs/*/CURRENT_STATE.md`.
+4. Sprawdź aktywne PR-y, pending CI, gate'y i możliwe nakładanie zakresu.
+5. Sklasyfikuj pracę jako A0–A4.
 
-1. **Discuss first.** Open an issue (or a [Discussion](../../discussions)) and
-   wait for it to be labeled `ready-for-pr` before writing code.
-2. **Sign the CLA.** A bot will prompt you on your first PR. One signature
-   covers all future contributions.
-3. **Link the issue.** Put `Closes #123` in your PR description. A required
-   check enforces this.
-4. **Follow the style.** C17, no compiler warnings, formatted with
-   `clang-format`.
+Nie rozpoczynaj implementacji, jeżeli prawdziwym acceptance jest prywatny run,
+visual review, decyzja feel/UX/default, zmiana polityki lub Box3D core.
 
----
+## 2. Branch
 
-## 1. Discuss before you build
+Manualna praca:
 
-Open an issue or discussion before creating a PR.
+```text
+agent/<campaign>-<short-scope>-vN
+```
 
-I will review the issue or discussion and apply the **`ready-for-pr`** label. Please don't open
-a PR until you get the label.
+Recurring agent używa wyłącznie:
 
-Please wait follow this process. I don't want people wasting time writing a PR that won't be accepted.
+```text
+automation/<work-item-id>/<run-id>
+```
 
----
+Branch musi powstać z exact remote SHA. Nie używaj lokalnego brancha bez ponownego
+porównania z remote.
 
-## 2. Contributor License Agreement (CLA)
+Zakazane bez jawnej zgody ownera:
 
-Before your first contribution can be merged, you must sign the project's
-**Individual Contributor License Agreement**. When you open your first pull
-request, a bot will post a link; signing takes about a minute and covers all
-your future contributions.
+- direct push do `main`, `jozz-vehicle-sandbox-m0` lub aktywnej kampanii;
+- force-push, rebase cudzej historii i retarget;
+- merge lub auto-merge;
+- zamykanie cudzych PR-ów;
+- branch deletion;
+- przypadkowa zmiana `src/` albo `include/`.
 
-**What this means:** you retain the copyright to your contribution. The CLA
-grants the project maintainer a broad, perpetual, irrevocable license to use,
-modify, sublicense, and **relicense** your contribution. This lets the project
-adapt its licensing in the future (for example, offering a commercial edition)
-without having to track down every past contributor.
+## 3. Zakres
 
-If you're contributing on behalf of an employer, make sure you have the right
-to do so — some employment agreements assign your work to your employer, in
-which case a Corporate CLA may be required. Contact the maintainer if you're
-unsure.
+Jeden PR powinien mieć jeden czytelny cel. Przed zapisem określ:
 
-By submitting a contribution you also confirm that it is your original work and
-that you have the right to submit it under these terms.
+- exact base SHA;
+- dozwolone i zabronione ścieżki;
+- acceptance criteria;
+- wymagane testy;
+- capability, której nie da się uruchomić;
+- owner/visual/private gate'y;
+- warunki STOP.
 
----
+Jeżeli zadanie rozrosło się do kilku niezależnych subsystemów, rozbij je przed
+implementacją. Nie ukrywaj zmiany zachowania jako cleanupu.
 
-## 3. Opening a pull request
+## 4. Commity
 
-Once your issue is labeled `ready-for-pr`:
+Commity powinny być logiczne i możliwe do osobnego zrozumienia. Preferowany format:
 
-1. **Fork** the repository and create a branch from `main`:
+```text
+<SCOPE-ID>: krótki opis wyniku
+```
 
-   ```bash
-   git checkout -b fix/short-description
-   ```
+Dokumentacja opisuje wyłącznie stan udowodniony. Nie commituj cyklicznych raportów,
+prywatnych rezultatów ani chwilowych build outputs.
 
-2. Make your change in small, focused commits.
-3. **Reference the issue** in your PR description using a closing keyword:
+## 5. Walidacja
 
-   ```text
-   Closes #(Issue Number)
-   ```
+Minimalna walidacja governance:
 
-   A required status check parses this and will fail if no linked, approved
-   issue is found — the PR cannot be merged without it.
-4. Ensure the full test suite and CI pass.
-5. Fill out the PR template completely.
+```powershell
+python tools/automation/validate_control.py
+python tools/project/repository_audit.py
+python -m unittest discover -s tests/automation -p "test_*.py"
+python -m unittest discover -s tests/project -p "test_*.py"
+```
 
-Keep PRs scoped to a single logical change. If you find yourself touching
-unrelated things, split them into separate PRs (each with its own approved
-issue).
+Scan pipeline:
 
----
+```powershell
+python tools/scan_pipeline/run_p1_contracts.py
+```
 
-## 4. Coding conventions
+Pełna bramka Windows:
 
-Source files must be in C17. Samples use C++20. Please follow existing coding
-conventions and use clang format.
+```powershell
+.\tools\gate.ps1
+```
 
----
+W PR podaj dokładnie, co wykonano i czego nie dało się wykonać. `NOT_RUN` i
+`UNAVAILABLE` nie są PASS.
 
-## 5. Tests and documentation
+## 6. Evidence discipline
 
-- Comment your code.
-- Public API must have Doxygen comments.
+- Reproduce before fix.
+- Build success nie jest render proof.
+- Process exit nie jest owner acceptance.
+- CI nie zna prywatnych danych.
+- Test threshold nie może zostać rozluźniony dla uzyskania green.
+- Zmiana validator output, screenshotu, defaultu lub feel nie jest move-only.
 
----
+## 7. Prywatność
 
-## Questions?
+Nie umieszczaj w GitHubie:
 
-Open a [Discussion](../../discussions) — that's the best place for anything not
-covered here. Thanks for helping make PROJECT_NAME better!
+- prywatnych ścieżek i nazw katalogów ownera;
+- współrzędnych i prywatnego georeferencing;
+- hashy prywatnych źródeł, jeśli mogą identyfikować zestaw;
+- raw GLB/PLY, receipts private-only lub resumable state;
+- credentials i tokenów.
+
+Używaj logicznych ID i redakcji. Prywatne outputy pozostają pod ignorowanym
+`build/`.
+
+## 8. Pull request
+
+Manualny PR korzysta z `.github/PULL_REQUEST_TEMPLATE/manual.md`. Musi zawierać:
+
+- purpose i non-goals;
+- base branch/SHA oraz head branch/SHA;
+- changed paths i diff budget;
+- testy, evidence i ograniczenia;
+- owner/visual/private gates;
+- migration/rollback;
+- listę potwierdzonych non-actions.
+
+PR pozostaje draftem, dopóki wymagane testy i review nie są uczciwie opisane. Draft
+nie jest zgodą na merge.
+
+## 9. Dokumentacja
+
+Używaj `docs/README.md` jako indeksu. Nowy długi dokument powstaje tylko dla:
+
+- current state nowej domeny;
+- decyzji architektonicznej;
+- realnego milestone'u;
+- trwałego subsystem contract;
+- jawnie potrzebnego planu kampanii.
+
+Nie twórz kolejnego roadmapu, jeżeli istniejący `PROJECT_OPERATING_PLAN_PL.md` może
+zostać jednoznacznie zaktualizowany.
+
+## 10. Definition of Done
+
+Zmiana jest gotowa do review, gdy:
+
+- diff mieści się w zadeklarowanym zakresie;
+- acceptance criteria są spełnione bez rozluźnienia bramek;
+- wszystkie dostępne testy przeszły;
+- niedostępne capability są jawne;
+- prywatność została sprawdzona;
+- dokumenty mówią wyłącznie prawdę;
+- PR jest draftem i nie wykonano merge/rebase/force-push/retarget.
+
+## Upstream contributions
+
+Ten fork pozostaje oparty na `erincatto/box3d`. Zmiany przeznaczone dla upstreamu
+mogą podlegać innym zasadom, CLA i branch modelowi upstream repository. Nie mieszaj
+workflowu tego forka z workflowem upstream bez osobnej decyzji ownera.

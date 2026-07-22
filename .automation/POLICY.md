@@ -2,257 +2,234 @@
 
 ## 1. Cel i granice
 
-Ta infrastruktura przygotowuje repozytorium do cyklicznej pętli agentowej.
-Nie jest zgodą na autonomiczny rozwój produktu. Harmonogram nie jest częścią tej
-zmiany, a domyślny tryb pozostaje `PLAN_ONLY`.
+Ta infrastruktura ogranicza cyklicznego agenta repozytorium. Nie jest zgodą na
+samodzielny rozwój produktu.
+
+Stan harmonogramu, `enabled`, tryb, kampania, exact branch/head, gate'y i lease są
+zmienne i pochodzą z GitHub Control Issue. Repozytorium celowo nie zawiera triggera
+GitHub Actions `schedule:`; zewnętrzny scheduler uruchamia prompt, a repozytorium
+weryfikuje każdy przebieg fail-closed.
 
 Control plane obejmuje:
 
-- `.automation/CONTROL.yaml`;
-- trwały GitHub Issue `[AUTOMATION CONTROL] Box3d_FunProject recurring agent`;
-- `.automation/WORK_ITEMS.json` i schema work itemów;
-- `AGENTS.md`, ten dokument i `RUNTIME_PROMPT.md`;
-- `tools/automation/**` oraz dedykowany workflow CI.
+- `AGENTS.md` i `.automation/CONTROL.yaml`;
+- tę politykę, `RUNTIME_PROMPT.md`, kolejkę i schemat work itemów;
+- jedno trwałe GitHub Control Issue;
+- `tools/automation/**`, `tests/automation/**` i workflow safety;
+- pliki governance wymienione w `scope.protected_control_paths`.
 
-Work plane obejmuje wyłącznie branch i draft PR jednego zatwierdzonego work itemu.
-Control plane i work plane nie mogą być zmieniane w tym samym autonomicznym runie.
+Work plane obejmuje wyłącznie nowy branch i draft PR jednego wcześniej
+zatwierdzonego work itemu. Control plane i work plane nie mogą być zmieniane w tym
+samym autonomicznym runie.
 
 ## 2. Model zagrożeń
 
 System zakłada możliwość:
 
 - równoległego uruchomienia dwóch agentów;
-- pozostawienia porzuconego lub stale locka;
-- przesunięcia branch head podczas pracy;
+- porzuconego lub stale locka;
+- przesunięcia authoritative head podczas pracy;
 - równoległej pracy właściciela lub innego agenta;
 - nieaktualnych albo sprzecznych dokumentów;
+- pomylenia upstream `main` z aktywną linią projektu;
 - próby podniesienia własnych uprawnień;
-- stworzenia przez agenta zadania i natychmiastowego wdrożenia go;
-- ukrycia zmiany zachowania jako refaktoru;
-- rozluźnienia testu lub progu w celu uzyskania PASS;
-- przypadkowego zapisania prywatnych danych w logu, commicie albo PR;
-- wymyślenia zastępczej pracy, gdy bezpiecznej pracy nie ma.
+- stworzenia zadania i natychmiastowego wdrożenia go przez ten sam run;
+- ukrycia zmiany zachowania jako refaktoru lub cleanupu;
+- rozluźnienia testu, progu albo acceptance criteria dla uzyskania PASS;
+- przypadkowego zapisania prywatnych danych w logu, commicie, Issue lub PR;
+- wymyślenia zastępczej pracy, gdy kolejka jest pusta lub zablokowana;
+- driftu między Control Issue, dokumentacją, PR-em i workflowami CI.
 
 Zasada nadrzędna: niepewność obniża zdolność działania. Nigdy jej nie podnosi.
 
-## 3. Hierarchia autorytetu
+## 3. Polityka a mutable state
 
-Dokładna kolejność jest zakodowana w `CONTROL.yaml`:
+### Twarda polityka
 
-1. control issue — owner-controlled enable/mode/campaign/branch/head/gates/lease;
-2. `AI_PROJECT_MEMORY.md` — globalna mapa aktualnej kampanii;
-3. domenowy `docs/*/CURRENT_STATE.md` — bieżący stan tej kampanii;
-4. aktualny PR kampanii — exact branch/head i realne zależności;
-5. `README_FOR_AGENTS.md` — reguły globalne produktu i istniejące bramki;
-6. `docs/CHECKPOINTS_PL.md` — najnowszy ledger, ale nie task queue;
-7. `docs/TECH_DEBT_PL.md` — ryzyka i świadomie odłożona praca;
+`AGENTS.md`, `.automation/CONTROL.yaml` i ta polityka ograniczają wszystkie runy.
+Control Issue nie może zalegalizować operacji zabronionej w repozytorium.
+
+### Zmienny stan
+
+Control Issue jest najwyższym źródłem dla:
+
+- `enabled` i `mode` w granicach polityki;
+- aktywnej kampanii;
+- authoritative branch i pełnego head SHA;
+- owner/visual/private gate'ów;
+- active lease, branch i PR runu;
+- ostatniego wyniku operacyjnego.
+
+Jeżeli Issue przeczy polityce, wynik to `POLICY_CONFLICT / NO_IMPLEMENTATION`.
+
+## 4. Hierarchia faktów projektu
+
+Po załadowaniu twardej polityki agent rozwiązuje fakty w kolejności zakodowanej w
+`CONTROL.yaml`:
+
+1. Control Issue — mutable campaign/branch/head/gates/lease;
+2. `AI_PROJECT_MEMORY.md` — router aktywnej kampanii;
+3. domenowy `docs/*/CURRENT_STATE.md` — uczciwy stan tej kampanii;
+4. aktywny PR kampanii — realna topologia i remote head;
+5. właściwy podręcznik domeny, np. `README_FOR_AGENTS.md` dla pojazdu;
+6. checkpoint ledger;
+7. technical debt;
 8. subsystem docs;
 9. kod i testy.
 
-Dokument historyczny nie może sam aktywować kampanii, work itemu ani podnieść
-statusu. Przy konflikcie agent raportuje `POLICY_CONFLICT` lub `OWNER_GATE`.
+`docs/PROJECT_OPERATING_PLAN_PL.md` opisuje workflow i roadmapę, ale nie może
+nadpisać policy, mutable state ani evidence boundary. Historyczny dokument lub
+zamknięty PR nigdy sam nie aktywuje pracy.
 
-## 4. Poziomy autonomii
+## 5. Poziomy autonomii
 
-- `DISABLED`: brak runów poza inspekcją stanu kontrolnego.
-- `READ_ONLY`: A0 — odczyt, audyt, raport bez zapisu.
-- `PLAN_ONLY`: A0 oraz plan/propozycja A1/A2; zero implementacji.
-- `IMPLEMENT_SAFE`: A0, A1 i wyłącznie owner-approved `AGENT_READY` klasy A2.
+- `DISABLED`: brak pracy poza sprawdzeniem control state.
+- `READ_ONLY`: A0 — odczyt, audyt i raport bez zapisu produktu.
+- `PLAN_ONLY`: A0 oraz plan/propozycja; zero implementacji.
+- `IMPLEMENT_SAFE`: A0, A1 oraz wyłącznie owner-approved `AGENT_READY` klasy A2.
 
-Tylko właściciel może zmienić tryb na wyższy. Agent nie może modyfikować ani
-pliku `CONTROL.yaml`, ani pola `mode` w control issue. Rozbieżność między nimi to
-`POLICY_CONFLICT` i zero implementacji.
+Tylko właściciel może podnieść tryb. Agent nie zmienia własnego `CONTROL.yaml`,
+mode, risk modelu, scope ani merge policy.
 
-## 5. Klasy ryzyka
+## 6. Klasy ryzyka
 
 ### A0 — odczyt, audyt, raport
 
-Bez zmian w repo. Dozwolone w `READ_ONLY`, `PLAN_ONLY` i `IMPLEMENT_SAFE`.
+Bez zmian produktu. Dozwolone we wszystkich aktywnych trybach.
 
-### A1 — dokumentacja, testy, diagnostyka, drift check
+### A1 — dokumentacja, testy i diagnostyka
 
-Niskie ryzyko, bez zmiany zaakceptowanego zachowania. Może zostać wykonane tylko
-w `IMPLEMENT_SAFE`, jeżeli work item i allowed paths jawnie na to pozwalają.
+Niskie ryzyko i brak zmiany zaakceptowanego zachowania. Autonomicznie wykonywalne
+dopiero w `IMPLEMENT_SAFE` i wyłącznie przy jawnym allowed scope.
 
 ### A2 — ograniczona implementacja
 
-Mały, izolowany zakres, jednoznaczne acceptance criteria, dokładny base SHA,
-required tests i owner-approved status `AGENT_READY`. Tylko `IMPLEMENT_SAFE`.
+Mały izolowany zakres, exact base SHA, jednoznaczne acceptance criteria, required
+tests oraz wcześniej ustawiony przez właściciela status `AGENT_READY`.
 
-### A3 — decyzja właściciela lub zmiana produktu/polityki
+### A3 — decyzja właściciela albo zmiana produktu/polityki
 
-Obejmuje fizykę, feel, UX, domyślne wartości, realistic-vs-arcade, progi testów,
-rozluźnianie walidacji, zmianę control plane, merge i zamykanie PR-ów. Nigdy nie
-jest implementowane autonomicznie.
+Obejmuje fizykę, feel, UX, defaults, realistic-vs-arcade, progi testów, control
+plane, workflowy, merge, retarget i zamykanie PR-ów. Nigdy autonomicznie.
 
-### A4 — zabronione/prywatne/ręczne
+### A4 — prywatne, wizualne, ręczne lub zabronione
 
-Prywatne skany i ścieżki, visual acceptance, ręczny runtime, Box3D `src/` i
-`include/`, dane uwierzytelniające oraz operacje, których nie da się wiarygodnie
-zwalidować. Zawsze STOP.
+Prywatne skany i ścieżki, visual acceptance, owner-local runtime, credentials,
+Box3D `src/` i `include/` oraz operacje niewiarygodnie walidowalne. Zawsze STOP.
 
-## 6. Kolejka pracy
+## 7. Kolejka pracy
 
-`.automation/WORK_ITEMS.json` jest kontrolowaną kolejką. Każdy item musi przejść
-ścisłą walidację i zawierać wszystkie pola ze schematu.
+`.automation/WORK_ITEMS.json` jest jedyną wersjonowaną kolejką recurring agenta.
+Każdy item musi przejść ścisły schema validation.
 
-Stany:
-
-- `PROPOSED`: pomysł do oceny, nieimplementowalny;
+- `PROPOSED`: pomysł, niewykonywalny;
 - `AGENT_READY`: owner-approved A2, jedyny implementowalny stan;
 - `ACTIVE`: przypisany do potwierdzonego lease/runu;
 - `BLOCKED`, `OWNER_NEEDED`, `VISUAL_REVIEW`: STOP;
 - `DONE`, `REJECTED`: niewybieralne.
 
-Agent nie może w tym samym runie dopisać work itemu, ustawić `AGENT_READY` i go
-wykonać. Zmiana kolejki jest zmianą control plane klasy A3 i wymaga osobnego
-brancha, draft PR oraz akceptacji właściciela.
+Run nie może dopisać itemu, wypromować go i wykonać w tej samej iteracji. Zmiana
+kolejki jest control-plane A3.
 
-Selekcja jest deterministyczna: zero lub jeden item, najpierw najniższe `priority`,
-potem `id`. Dependencies muszą być `DONE`; konflikt z aktywnym itemem blokuje.
+## 8. Lock/lease
 
-## 7. Lock/lease w control issue
+Mutable lock istnieje wyłącznie w Control Issue. Commitowany plik nie zapewnia
+wyłączności.
 
-Repo przechowuje politykę, ale zmienny lock znajduje się w jednym GitHub Issue.
-Commitowany `LOCK.json` nie jest źródłem wyłączności.
+Przed implementacją agent:
 
-Claim przed implementacją:
+1. odczytuje dokładnie jedno otwarte Control Issue;
+2. sprawdza identity/schema, `enabled`, mode, campaign, authoritative branch/head i
+   gate'y;
+3. sprawdza brak aktywnego lub stale lease;
+4. sprawdza brak drugiego automation PR i nakładającej się pracy;
+5. zapisuje run ID, start i expiration;
+6. odczytuje Issue ponownie;
+7. czeka configured settle interval i odczytuje ponownie;
+8. rewaliduje lease oraz exact remote head przed branchem i przed pierwszym zapisem.
 
-1. odczytaj dokładnie jeden otwarty control issue;
-2. sprawdź `enabled`, `mode`, active campaign, authoritative branch/head i gates;
-3. sprawdź brak aktywnego albo stale lease;
-4. sprawdź brak innego automation PR;
-5. zapisz własny `run_id`, exact base SHA, start i expiration;
-6. ponownie odczytaj issue;
-7. odczekaj configured settle interval i odczytaj drugi raz;
-8. przed utworzeniem brancha i bezpośrednio przed pierwszym zapisem ponownie
-   sprawdź, czy claim nadal należy do tego runu i base SHA się nie przesunął.
+GitHub Issue edit nie jest atomowym compare-and-swap. Dlatego każdy niepewny claim
+kończy się bez implementacji. Stale lease nie jest automatycznie przejmowany.
 
-GitHub Issue edit nie daje atomowego compare-and-swap. Dlatego:
+## 9. Branch i PR policy
 
-- niepotwierdzony claim => `LOCK_UNCERTAIN / NO_IMPLEMENTATION`;
-- dwa widoczne aktywne claimy => `LOCK_UNCERTAIN`;
-- unexpired lease innego runu => `ACTIVE_AGENT_DETECTED`;
-- expired lease => `LOCK_UNAVAILABLE`; automat nie przejmuje go sam;
-- właściciel ręcznie rozstrzyga stale lease po sprawdzeniu brancha/PR/logów.
-
-Lease jest zwalniany tylko przez run, którego `active_run_id` nadal widnieje w
-Issue. Przerwany run pozostawia diagnozowalny run ID, czas, branch i PR.
-
-## 8. Branch i PR policy
-
-Każdy work item zaczyna z ponownie sprawdzonego exact SHA i używa:
+Automatyczny work item używa:
 
 ```text
 automation/<work-item-id>/<run-id>
 ```
 
-Zakazane:
+Manualna owner-directed praca również używa nowego izolowanego brancha z dokładnego
+remote SHA. Nigdy nie zakładaj, że `main` jest aktywną linią; odczytaj Control Issue.
 
-- push do `main`, `jozz-vehicle-sandbox-m0`, aktywnego brancha kampanii lub cudzego brancha;
-- aktualizacja istniejącego produktu PR bez jawnego przypisania;
-- rebase cudzej historii, force-push, retargetowanie, merge, auto-merge;
-- zamykanie PR-ów lub issue’ów produktu.
+Zakazane bez osobnej jawnej zgody właściciela:
 
-Jeden run tworzy najwyżej jeden draft PR. PR zawiera Run ID, Work item ID, mode,
-risk, exact base SHA, allowed/changed files, acceptance criteria, tests, unavailable
-tests, gates, limitations i uzasadnienie bezpieczeństwa.
+- push do `main`, `jozz-vehicle-sandbox-m0`, aktywnego lub cudzego brancha;
+- aktualizacja istniejącego product PR przez recurring run;
+- rebase, force-push, retarget, merge i auto-merge;
+- zamykanie produktu PR/Issue;
+- branch deletion lub rewrite history.
 
-Jeżeli base się przesunął, automat nie rebase’uje. Kończy `BASE_MOVED`.
+Jeden run tworzy najwyżej jeden draft PR. PR podaje exact base, scope, kryteria,
+testy, niedostępne capability, gate'y i non-actions.
 
-## 9. Scope validation
+## 10. Scope validation
 
-`validate_scope.py` porównuje diff z itemem i odrzuca:
+`validate_scope.py` odrzuca:
 
-- pliki poza `allowed_paths`;
-- `forbidden_paths` oraz globalne `src/**` i `include/**`;
-- przekroczenie max files/changed lines;
-- zmianę chronionego control plane;
-- zmianę progów/tolerancji/limitów na threshold-sensitive paths;
-- branch niespełniający formatu runu.
+- pliki poza allowed paths;
+- forbidden paths i globalne `src/**` / `include/**`;
+- przekroczenie max files lub changed lines;
+- zmianę chronionego governance/control plane;
+- zmianę progów, tolerancji lub limitów na threshold-sensitive paths;
+- zły branch runu.
 
-Mechaniczna walidacja nie potrafi dowieść semantycznego związku każdej linii z
-zadaniem. Dlatego mały zakres, exact allowed paths, acceptance criteria i review
-pozostają obowiązkowe. Przy wątpliwości wynik to `POLICY_CONFLICT`.
+Mechaniczna walidacja nie dowodzi semantycznego związku każdej linii z zadaniem.
+Mały zakres, testy, exact allowed paths i review pozostają obowiązkowe.
 
-## 10. Testy i capability
+## 11. Testy i capability
 
-Automat używa istniejących bramek, zwłaszcza `tools/gate.ps1`; nie kopiuje ich
-logiki. Na pełnym Windows uruchamia właściwą gate.
+Agent używa istniejących bramek, przede wszystkim `tools/gate.ps1`; nie kopiuje ich
+logiki. Cloud uruchamia tylko rzeczywiście dostępne testy. Brak Windows/native/
+render/private capability jest jawnie raportowany, nigdy zaliczany.
 
-W cloud/Linux uruchamia wyłącznie testy rzeczywiście dostępne. Brak Windows,
-native runtime lub obrazu jest raportowany jako:
+Zielone CI nie zastępuje visual gate, prywatnego owner flow ani owner acceptance.
+Zmiana testu lub progu dla uzyskania PASS jest A3 i STOP.
 
-```text
-PARTIAL_CLOUD_VALIDATION
-LOCAL_WINDOWS_GATE_PENDING
-```
+## 12. No-op i STOP semantics
 
-Zielone CI nie zastępuje visual gate ani prywatnego owner flow.
+Poprawne bezpieczne wyniki bez implementacji:
 
-Zmiana testu, progu, tolerancji lub acceptance criteria w celu uzyskania PASS jest
-A3 i STOP. Test niedostępny nie jest testem zaliczonym.
-
-## 11. No-op i STOP semantics
-
-Poprawne końcowe wyniki bez implementacji:
-
-- `NO_MATERIAL_CHANGE`
-- `NO_SAFE_WORK`
-- `ACTIVE_AGENT_DETECTED`
-- `LOCK_UNAVAILABLE`
-- `LOCK_UNCERTAIN`
-- `OWNER_GATE`
-- `VISUAL_GATE`
-- `PRIVATE_DATA_REQUIRED`
-- `CI_PENDING`
-- `BASE_MOVED`
-- `TASK_TOO_LARGE`
-- `POLICY_CONFLICT`
+`NO_MATERIAL_CHANGE`, `NO_SAFE_WORK`, `ACTIVE_AGENT_DETECTED`, `LOCK_UNAVAILABLE`,
+`LOCK_UNCERTAIN`, `OWNER_GATE`, `VISUAL_GATE`, `PRIVATE_DATA_REQUIRED`, `CI_PENDING`,
+`BASE_MOVED`, `TASK_TOO_LARGE`, `POLICY_CONFLICT`.
 
 Żaden z nich nie uruchamia zastępczego refaktoru, cleanupu ani funkcji.
 
-## 12. Raportowanie
+## 13. Raportowanie i prywatność
 
-Stan runu trafia do control issue. Szczegółowy raport roboczy trafia do
-`build/automation/latest-report.json`, który jest lokalny i niecommitowany.
-Dokumentacja projektu jest aktualizowana tylko, gdy realny stan kampanii się
-zmienił. Cykliczny brak zmian nie generuje commitów.
+Stan runu trafia do Control Issue. Szczegółowy raport roboczy może istnieć pod
+`build/automation/` i nie jest commitowany. Dokumentacja projektu zmienia się tylko
+przy realnym przesunięciu stanu albo naprawie konfliktu autorytetu.
 
-Prywatne ścieżki, współrzędne, hashe prywatnych źródeł i surowe dane nie trafiają
-do Issue, PR, CI ani commitu. Raport używa redakcji i identyfikatorów logicznych.
+Prywatne ścieżki, współrzędne, hashe prywatnych źródeł, credentials i raw data nie
+trafiają do Issue, PR, CI ani Git.
 
-## 13. Recovery
+## 14. Recovery
 
-### Przerwany run
+- Przerwany run pozostawia diagnozowalny run ID, branch/PR i lease state.
+- Automat nie kontynuuje na cudzym branchu.
+- Stale lease rozstrzyga ręcznie właściciel po sprawdzeniu runu, brancha i PR.
+- Po zmianie kampanii właściciel aktualizuje Issue, a osobna manualna zmiana
+  synchronizuje wersjonowane mapy projektu.
+- Rozbieżność między Issue a dokumentami blokuje implementację, nie jest naprawiana
+  przez recurring run.
 
-Sprawdź control issue, branch `automation/...`, draft PR i ostatni commit. Nie
-kontynuuj automatycznie na cudzym branchu. Właściciel może zamknąć/odrzucić run,
-wyczyścić lease lub jawnie utworzyć nowy work item recovery.
+## 15. Samomodyfikacja
 
-### Stale lock
+Recurring agent może wykryć wadę governance i ją opisać. Nie może zmieniać własnej
+polityki, narzędzi, workflowów, cadence, locka, risk classification, scope, test
+requirements ani merge policy.
 
-Automat raportuje `LOCK_UNAVAILABLE`. Właściciel sprawdza, czy proces/branch/PR
-nadal istnieje, po czym ręcznie czyści lease albo przedłuża go. Brak automatycznego takeover.
-
-### Zmiana aktywnej kampanii
-
-Właściciel aktualizuje control issue: campaign, authoritative branch/head i gates.
-Następny run porównuje to z `AI_PROJECT_MEMORY.md` oraz domenowym current state.
-Rozbieżność blokuje implementację do czasu synchronizacji dokumentów.
-
-### Wyłączenie
-
-Właściciel ustawia `enabled=false` i/lub `mode=DISABLED` w control issue oraz
-oddzielnie zatwierdza odpowiadającą zmianę `CONTROL.yaml`, jeżeli ma być trwała.
-Każda rozbieżność fail-closed.
-
-## 14. Samomodyfikacja
-
-Automat może wykryć wadę workflow i opisać ją w raporcie. Nie może w tym samym
-runie zmieniać własnej polityki, locka, risk classification, cadence, scope,
-test requirements ani merge policy.
-
-Control-plane change wymaga osobnego work itemu A3, osobnego brancha, osobnego
-draft PR i jawnej akceptacji właściciela. Produkt i reguły oceny produktu nie
-mogą być zmieniane razem.
+Naprawa governance wymaga osobnej owner-directed pracy A3, osobnego brancha i draft
+PR. Produkt i reguły oceny produktu nie mogą być zmieniane w tej samej paczce.

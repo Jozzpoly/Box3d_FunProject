@@ -1,0 +1,72 @@
+name: Repository Governance
+
+# No GitHub schedule. The external recurring operator is controlled by Issue #11.
+on:
+  pull_request:
+    branches:
+      - jozz-vehicle-sandbox-m0
+      - agent/scan-terrain-r1b-consolidated-integration
+      - "agent/r1b-*"
+    paths:
+      - "README.md"
+      - "CONTRIBUTING.md"
+      - "AGENTS.md"
+      - "AI_PROJECT_MEMORY.md"
+      - ".automation/**"
+      - "docs/README.md"
+      - "docs/REPOSITORY_STRUCTURE_PL.md"
+      - "docs/PROJECT_OPERATING_PLAN_PL.md"
+      - "docs/*/CURRENT_STATE.md"
+      - "tools/project/**"
+      - "tests/project/**"
+      - ".github/workflows/**"
+      - ".github/PULL_REQUEST_TEMPLATE/**"
+  push:
+    branches:
+      - agent/scan-terrain-r1b-consolidated-integration
+      - "agent/r1b-*"
+      - "agent/project-*"
+      - "automation/**"
+    paths:
+      - "README.md"
+      - "CONTRIBUTING.md"
+      - "AGENTS.md"
+      - "AI_PROJECT_MEMORY.md"
+      - ".automation/**"
+      - "docs/README.md"
+      - "docs/REPOSITORY_STRUCTURE_PL.md"
+      - "docs/PROJECT_OPERATING_PLAN_PL.md"
+      - "docs/*/CURRENT_STATE.md"
+      - "tools/project/**"
+      - "tests/project/**"
+      - ".github/workflows/**"
+      - ".github/PULL_REQUEST_TEMPLATE/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repository-contract:
+    name: Repository authority and workflow contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile governance tools
+        run: python -m py_compile tools/project/repository_audit.py
+
+      - name: Validate automation control contract
+        run: python tools/automation/validate_control.py
+
+      - name: Audit repository authority and CI routing
+        run: python tools/project/repository_audit.py
+
+      - name: Run adversarial governance tests
+        run: python -m unittest discover -s tests/project -p "test_*.py" -v

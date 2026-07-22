@@ -4,8 +4,9 @@ name: Automation Foundation Safety
 on:
   pull_request:
     branches:
-      - "agent/r1b-*"
       - jozz-vehicle-sandbox-m0
+      - agent/scan-terrain-r1b-consolidated-integration
+      - "agent/r1b-*"
     paths:
       - "AGENTS.md"
       - ".automation/**"
@@ -18,7 +19,11 @@ on:
       - "docs/CHECKPOINTS_PL.md"
   push:
     branches:
+      - agent/scan-terrain-r1b-consolidated-integration
+      - "agent/r1b-*"
+      - "agent/project-*"
       - "agent/autonomous-loop-*"
+      - "automation/**"
     paths:
       - "AGENTS.md"
       - ".automation/**"

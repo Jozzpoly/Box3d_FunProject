@@ -11,7 +11,7 @@
   },
   "authority": {
     "root_memory": "AI_PROJECT_MEMORY.md",
-    "global_agent_rules": "README_FOR_AGENTS.md",
+    "global_agent_rules": "AGENTS.md",
     "domain_state_pattern": "docs/*/CURRENT_STATE.md",
     "checkpoint_ledger": "docs/CHECKPOINTS_PL.md",
     "technical_debt": "docs/TECH_DEBT_PL.md",
@@ -84,11 +84,18 @@
       "include/**"
     ],
     "protected_control_paths": [
+      "README.md",
+      "CONTRIBUTING.md",
       "AGENTS.md",
       ".automation/**",
       "tools/automation/**",
-      ".github/workflows/automation-foundation.yml",
-      ".github/PULL_REQUEST_TEMPLATE/automation.md"
+      "tools/project/**",
+      "tests/automation/**",
+      "tests/project/**",
+      ".github/workflows/**",
+      ".github/PULL_REQUEST_TEMPLATE/**",
+      "docs/README.md",
+      "docs/REPOSITORY_STRUCTURE_PL.md"
     ],
     "threshold_sensitive_patterns": [
       "tests/**",

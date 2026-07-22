@@ -1,29 +1,55 @@
-# AGENTS.md — mapa operacyjna
+# AGENTS.md — globalna mapa operacyjna
 
-Ten plik jest krótkim wejściem dla agentów. Szczegółowe reguły automatyzacji są
-w [`.automation/POLICY.md`](.automation/POLICY.md). Nie traktuj tego pliku jako
-kolejki zadań ani zgody na zmianę produktu.
+Ten plik jest **globalnym wejściem dla agentów pracujących nad repozytorium**.
+Nie jest kolejką zadań ani zgodą na zmianę produktu. Szczegółowy threat model i
+reguły recurring agenta znajdują się w [`.automation/POLICY.md`](.automation/POLICY.md).
 
-## Kolejność odczytu
+## 1. Dwa rodzaje autorytetu
 
-1. `.automation/CONTROL.yaml` oraz GitHub Issue
-   `[AUTOMATION CONTROL] Box3d_FunProject recurring agent`.
-2. `AI_PROJECT_MEMORY.md` — wybór aktualnej kampanii i mapowanie do domeny.
-3. właściwy `docs/*/CURRENT_STATE.md` — bieżący stan wybranej kampanii.
-4. aktualny otwarty PR kampanii — branch, exact head SHA i zależności.
-5. `README_FOR_AGENTS.md` — globalne reguły produktu i istniejące bramki.
-6. `docs/CHECKPOINTS_PL.md` oraz `docs/TECH_DEBT_PL.md` — historia i ryzyka.
-7. subsystem docs, kod i testy właściwe dla wybranego work itemu.
+Najpierw rozdziel politykę od zmiennego stanu:
 
-W razie konfliktu obowiązuje kolejność `authority.precedence` z
-`.automation/CONTROL.yaml`. Historyczny checkpoint nigdy sam nie wybiera zadania.
+1. `AGENTS.md` i `.automation/CONTROL.yaml` określają twardą politykę. Control Issue
+   nie może zalegalizować merge'a, force-pusha, samomodyfikacji ani pracy A3/A4.
+2. GitHub Issue `[AUTOMATION CONTROL] Box3d_FunProject recurring agent` przechowuje
+   zmienny stan mieszczący się w tej polityce: enable/mode, aktywną kampanię,
+   authoritative branch/head, gate'y i lease.
 
-## Komendy
+Jeżeli mutable Issue przeczy twardej polityce, wynik to `POLICY_CONFLICT` i zero
+implementacji.
+
+## 2. Kolejność odczytu
+
+1. `AGENTS.md` oraz `.automation/CONTROL.yaml` — twarde ograniczenia.
+2. GitHub Control Issue — dokładny mutable branch/head, tryb, gate'y i lease.
+3. `AI_PROJECT_MEMORY.md` — router bieżącej kampanii.
+4. właściwy `docs/*/CURRENT_STATE.md` — uczciwy stan domeny.
+5. aktualny PR kampanii i jego remote head.
+6. `docs/PROJECT_OPERATING_PLAN_PL.md` — workflow i roadmapa.
+7. podręcznik właściwej domeny, np. `README_FOR_AGENTS.md` dla pojazdu.
+8. checkpointy, tech debt, subsystem docs, kod i testy.
+
+Historyczny checkpoint, zamknięty PR ani stary roadmap nigdy sam nie wybiera pracy.
+
+## 3. Aktualna organizacja repozytorium
+
+- mapa katalogów i odpowiedzialności: `docs/REPOSITORY_STRUCTURE_PL.md`;
+- indeks dokumentacji: `docs/README.md`;
+- zasady manualnych zmian i PR-ów: `CONTRIBUTING.md`;
+- aktywna kampania i stan: `AI_PROJECT_MEMORY.md` oraz domenowy `CURRENT_STATE.md`;
+- globalna roadmapa operacyjna: `docs/PROJECT_OPERATING_PLAN_PL.md`;
+- pojazd: `README_FOR_AGENTS.md` — **podręcznik domeny, nie globalna polityka**.
+
+`main` jest zachowaną linią upstream. Nie zakładaj, że domyślny branch GitHuba jest
+bieżącym branchem projektu. Dokładny branch zawsze pochodzi z Control Issue.
+
+## 4. Minimalny preflight
 
 ```powershell
 python tools/automation/validate_control.py
+python tools/project/repository_audit.py
 python tools/automation/preflight.py
 python -m unittest discover -s tests/automation -p "test_*.py"
+python -m unittest discover -s tests/project -p "test_*.py"
 ```
 
 Pełna bramka produktu pozostaje bez zmian:
@@ -35,40 +61,44 @@ Pełna bramka produktu pozostaje bez zmian:
 Automatyzacja może ją orkiestracyjnie uruchomić, ale nie może reimplementować ani
 rozluźniać jej logiki.
 
-## Twarde reguły
+## 5. Twarde reguły pracy
 
-- Domyślny tryb to `PLAN_ONLY`; agent nie podnosi własnych uprawnień.
-- Nigdy nie pracuj bez potwierdzonego lease w control issue.
-- Przy `LOCK_UNCERTAIN` lub zmianie base SHA: zero implementacji.
-- Jeden przebieg wybiera zero albo jeden work item.
-- Implementować wolno tylko `AGENT_READY`, A2, jawnie zatwierdzone przez właściciela.
+- Domyślny tryb recurring agenta to `PLAN_ONLY`; agent nie podnosi uprawnień.
+- Bez potwierdzonego lease nie ma implementacji.
+- Przy `LOCK_UNCERTAIN`, pending CI lub zmianie exact base SHA: zero zapisu.
+- Jeden przebieg wybiera zero albo jeden istniejący work item.
+- Implementować wolno tylko owner-approved `AGENT_READY` klasy A2 i tylko w
+  `IMPLEMENT_SAFE`.
 - A3 i A4 zawsze kończą się STOP.
 - Jeden work item = nowy branch `automation/<work-item-id>/<run-id>`.
-- Jeden przebieg = najwyżej jeden draft PR; bez merge, rebase, force-push,
-  retargetowania i zamykania innych PR-ów.
-- Nie zapisuj bezpośrednio na `main`, `jozz-vehicle-sandbox-m0` ani aktywnym
-  branchu kampanii/człowieka.
-- Raporty cykliczne trafiają do control issue lub `build/automation/`, nie do Git.
-- Brak bezpiecznej pracy jest poprawnym wynikiem; nie wymyślaj zastępczego refaktoru.
+- Jeden run = najwyżej jeden draft PR; bez merge, rebase, force-push, retargetowania
+  i zamykania cudzych PR-ów.
+- Manualna praca również zaczyna się na nowym izolowanym branchu z exact remote SHA.
+- Nie zapisuj bezpośrednio na `main`, `jozz-vehicle-sandbox-m0` ani aktywnym branchu.
+- Raporty cykliczne trafiają do Control Issue lub `build/automation/`, nie do Git.
+- Brak bezpiecznej pracy jest poprawnym wynikiem; nie wymyślaj zastępczego cleanupu.
 
-## STOP gates
+## 6. STOP gates
 
 Natychmiast zatrzymaj implementację przy: decyzji właściciela, visual review,
-prywatnych danych, zmianie progów testów, zaakceptowanego zachowania/defaultów,
+prywatnych danych, zmianie testowych progów, zaakceptowanego zachowania/defaultów,
 fizyki/UX, Box3D `src/` lub `include/`, konflikcie polityki, aktywnym agencie,
 niepewnym locku, przesuniętym base SHA, pending CI albo zbyt dużym zadaniu.
 
-## Ochrona control plane
+## 7. Ochrona governance i control plane
 
-Automatyczny run nie może zmieniać `AGENTS.md`, `.automation/**`,
-`tools/automation/**`, workflow automatyzacji, klasyfikacji ryzyka, locka,
-STOP gates, cadence ani merge policy. Może wyłącznie zaproponować osobny work
-item klasy A3 do ręcznej akceptacji właściciela.
+Automatyczny run nie może zmieniać plików wymienionych w
+`scope.protected_control_paths` z `.automation/CONTROL.yaml`. Obejmuje to politykę,
+workflowy, narzędzia governance, szablony PR i główne mapy repozytorium.
 
-## Szczegóły
+Wadę governance wolno wykryć i opisać. Jej naprawa wymaga osobnej, jawnie
+owner-directed zmiany A3 — nigdy samomodyfikacji recurring runu.
 
-- polityka i threat model: `.automation/POLICY.md`
-- gotowy prompt runtime: `.automation/RUNTIME_PROMPT.md`
-- kolejka: `.automation/WORK_ITEMS.json`
-- schema work itemu: `.automation/WORK_ITEM_SCHEMA.json`
-- draft PR: `.github/PULL_REQUEST_TEMPLATE/automation.md`
+## 8. Szczegóły recurring agenta
+
+- policy i threat model: `.automation/POLICY.md`;
+- prompt runtime: `.automation/RUNTIME_PROMPT.md`;
+- kolejka: `.automation/WORK_ITEMS.json`;
+- schema work itemu: `.automation/WORK_ITEM_SCHEMA.json`;
+- template automatycznego PR: `.github/PULL_REQUEST_TEMPLATE/automation.md`;
+- template manualnego PR: `.github/PULL_REQUEST_TEMPLATE/manual.md`.
