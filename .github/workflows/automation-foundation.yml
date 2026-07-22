@@ -5,8 +5,7 @@ on:
   pull_request:
     branches:
       - jozz-vehicle-sandbox-m0
-      - agent/scan-terrain-r1b-consolidated-integration
-      - "agent/r1b-*"
+      - agent/project-refoundation-audit-v1
     paths:
       - "AGENTS.md"
       - ".automation/**"
@@ -19,10 +18,7 @@ on:
       - "docs/CHECKPOINTS_PL.md"
   push:
     branches:
-      - agent/scan-terrain-r1b-consolidated-integration
-      - "agent/r1b-*"
-      - "agent/project-*"
-      - "agent/autonomous-loop-*"
+      - agent/project-refoundation-audit-v1
       - "automation/**"
     paths:
       - "AGENTS.md"
