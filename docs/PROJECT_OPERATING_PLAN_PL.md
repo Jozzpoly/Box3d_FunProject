@@ -2,367 +2,487 @@
 
 **Status:** current operating map  
 **Updated:** 2026-07-22  
-**Scope:** project workflow, authority, roadmap and evidence gates  
+**Scope:** authority, milestone closure, project re-foundation and next product gates  
 **Product code changed by this document:** no
 
 ## 1. Purpose
 
 This is the single project-wide operating plan. It connects:
 
-- the active scan-terrain product campaign;
-- product integration PR #13;
-- repository-readiness PR #15;
-- the recurring `PLAN_ONLY` operator;
-- stable vehicle, paused map and parked surface-evidence domains.
+- the accepted vehicle foundation;
+- the synthetic engineering world;
+- the completed geometry-preview milestone;
+- the upcoming textured-source preview;
+- future scale, collision and real-drive proof;
+- repository authority, integration and recurring governance.
 
-It is not a work-item queue, implementation authority, visual/private approval or
-permission to merge either PR.
+It is not a work-item queue, exact SHA authority, private evidence, owner visual
+approval or permission to merge.
+
+Durable product intent:
+
+```text
+docs/PROJECT_CHARTER_PL.md
+```
 
 ## 2. Policy and authority
 
-Hard policy is loaded first:
+Load hard policy first:
 
 1. `AGENTS.md`;
 2. `.automation/CONTROL.yaml`;
 3. `.automation/POLICY.md`.
 
-Mutable state and project facts are then resolved in this order:
+Resolve mutable state and facts:
 
-1. GitHub Control Issue #11 — `enabled`, mode, campaign, exact branch/head, gate'y
-   and lease;
-2. `AI_PROJECT_MEMORY.md` — current project router;
+1. GitHub Control Issue #11;
+2. `AI_PROJECT_MEMORY.md`;
 3. matching `docs/*/CURRENT_STATE.md`;
-4. active campaign PR and its remote head;
+4. active campaign PR and remote head;
 5. this operating plan;
-6. matching domain manual, for example `README_FOR_AGENTS.md` for vehicle work;
-7. checkpoints, tech debt, subsystem docs, code and tests.
+6. `docs/PROJECT_CHARTER_PL.md` for durable intent;
+7. matching domain manual, checkpoints, technical debt, contracts, code and tests.
 
-A mutable Issue cannot legalize an operation forbidden by hard policy. Exact
-current SHA belongs in Issue #11; a versioned document cannot safely claim its own
-commit SHA as timelessly current.
+A mutable Issue cannot legalize an operation forbidden by policy. A versioned plan
+cannot safely claim its own commit as timelessly current.
 
 ## 3. Current operating snapshot
 
 ```text
 repository:                   Jozzpoly/Box3d_FunProject
-active campaign:              scan-terrain-r1b
+control campaign:             scan-terrain-r1b milestone closure
 authoritative branch:         agent/scan-terrain-r1b-consolidated-integration
 exact head:                   GitHub Control Issue #11
 active campaign PR:           #13 (draft)
-repository readiness PR:      #15 (draft, stacked on #13)
 integration base:             jozz-vehicle-sandbox-m0
-control issue:                #11 (open)
-automation enabled:           true
-automation mode:              PLAN_ONLY
-schedule:                     every 6 hours, Europe/Warsaw
 surface parking issue:        #14
+project re-foundation branch: agent/project-refoundation-audit-v1
+recurring mode:               PLAN_ONLY
 ```
 
-PR #13 remains product authority until PR #15 is separately reviewed and
-integrated. Opening #15 does not move the scheduler, product state or evidence
-gates to an unreviewed control-plane branch.
+PR #15 repository-readiness work has been owner-reviewed and merged into the
+current PR #13 authority. It is no longer a separate pending layer.
 
-## 4. Honest product state
+The re-foundation branch is a manual review surface. It does not become authority
+until owner-reviewed integration and an explicit Issue #11 update.
 
-Highest supported state:
+## 4. Highest honest product state
 
 ```text
-REAL_PREVIEW_PIPELINE_CODE_READY
+TERRAIN_VISIBLE_PASS
 ```
 
-Confirmed:
+Completed:
 
-- code contracts and native build are green on the consolidated campaign;
-- real inspection, source frame and P1B evidence exist owner-locally;
-- exact preview builder/verifier and resumable owner flow are implemented;
-- product history is consolidated in one draft PR #13.
+- real private seven-tile source resolution;
+- exact geometry preview pack;
+- independent verification;
+- native first load;
+- owner visual recognition and acceptance of geometry proof;
+- same-revision restart;
+- 949-frame restart run with zero Sokol errors.
 
-Still missing:
-
-- a real preview pack from the owner's private seven-tile source set;
-- proven native load of that exact pack;
-- owner visual review of orientation, scale, axes, mirror state, coverage and seams;
-- same-revision restart proof;
-- `TERRAIN_VISIBLE_PASS`.
-
-Current gates:
+Not completed:
 
 ```text
-private: OWNER_LOCAL_REAL_SCAN_RUN_REQUIRED
-visual:  REAL_TERRAIN_PREVIEW_REVIEW_PENDING
-owner:   explicit decision at visual review
+TEXTURED_SOURCE_PREVIEW
+WORLD_SCALE_VALIDATED
+GOLDEN_DRIVE_REGION_SELECTED
+ACCEPTED_SURFACE
+COLLISION_REPRESENTATION_SELECTED
+FIRST_REAL_SCAN_DRIVE
+OWNER_FUN_VERDICT
 ```
 
-CI, documentation completeness and repository polish do not clear these gates.
+Milestone record:
 
-## 5. Workstream registry
+```text
+docs/scan_import/TERRAIN_VISIBLE_PASS_2026_07_22_PL.md
+```
 
-### A. Scan terrain R1B — ACTIVE PRODUCT CAMPAIGN
+## 5. Owner doctrine now controlling the critical path
 
-**Goal:** produce and visually review the exact seven-tile native preview.
+The first scan is intentionally imperfect but sufficient in its centre. The nearest
+product question is not whether the entire source can be cleaned automatically. It is
+whether a real, recognizable place can become a fun driving surface for the accepted
+vehicle.
 
-**Authority:** Issue #11, `docs/scan_import/CURRENT_STATE.md`, PR #13 and the exact
-remote head declared in Issue #11.
+However, the owner requires real colour before final scale and collision work.
+Therefore:
 
-**Next real action:** one owner-local execution of `run_real_terrain_flow.ps1`, then
-native visual review.
+```text
+geometry proof
+→ textured recognition
+→ vehicle as scale reference
+→ owner-selected road region
+→ collision research
+→ drive and fun proof
+```
 
-### B. Repository readiness — UNDER REVIEW
+No agent may reorder collision ahead of texture/scale merely because geometry and
+ground-filter experiments already exist.
 
-PR #15 is an owner-directed governance package stacked on PR #13. It prepares:
+## 6. Project domains and status
 
-- a truthful root README and contribution workflow;
-- a documentation index and repository ownership map;
-- unambiguous policy-vs-mutable-state routing;
-- manual and automation PR templates;
-- mechanical authority/workflow drift audit;
-- canonical CI routing after closure of the historical stack.
+### A. Vehicle simulation — FOUNDATION_PRESERVE
 
-It changes no product capability and remains non-authoritative until separately
-reviewed and integrated.
+The accepted M7/M8 architecture remains stable:
 
-### C. Recurring operator — ACTIVE, PLAN_ONLY
+- emergent multi-body suspension;
+- back-drivable steering;
+- torque drive/braking;
+- accepted rig/persistence/diagnostics;
+- full Windows gate and owner feel boundaries.
 
-Every six hours it may audit authority, PRs, CI, gates, lease and queue state. It
-may recommend one bounded next action. It may not create product branches,
-commits, PRs or `AGENT_READY` items; it cannot merge or raise its own mode.
+The vehicle will become the scale reference and later the drive probe. Scan work must
+not silently change accepted vehicle physics.
 
-### D. Vehicle sandbox — STABLE BASELINE, NOT CURRENT CAMPAIGN
+### B. Synthetic engineering world — FOUNDATION_PRESERVE
 
-The accepted M7/M8 foundation remains valuable and must not be casually reworked.
-Its domain manual is `README_FOR_AGENTS.md`.
+The accepted Etap 1 terrain remains the deterministic laboratory for:
 
-### E. Map / central test campus — PAUSED
+- regression tests;
+- controlled obstacles;
+- reproducible suspension comparisons;
+- performance baselines.
 
-The rejected six-lane layout and central-campus redesign remain future campaign
-material. Do not resume them while scan visual proof is the nearest product gate.
+The rejected six-lane layout remains historical/recovery material. The central-campus
+plan is paused unless separately selected.
 
-### F. Surface evidence / derivatives — PARKED
+### C. Scan source/evidence — FOUNDATION_PRESERVE
 
-The exact parked branch/head and reactivation gates live in Issue #14. Closing PR
-#7 did not reject or delete that work. Accepted surface, collision and drive
-readiness remain separate owner-gated campaigns.
+Inspection, source-frame, bundle, receipt, source resolution and privacy boundaries
+are proven and remain canonical for exact source identity.
 
-## 6. Integration topology
+### D. Geometry preview v1 — MILESTONE_COMPLETE
+
+Geometry-only pack and native lab produced `TERRAIN_VISIBLE_PASS`. Version 1 remains
+closed: no textures, accepted-world or collision claims may be inserted into it.
+
+### E. Textured source preview — ACTIVE_NEXT_AFTER_REFOUNDATION
+
+Goal:
+
+> Display the same verified source geometry with authenticated colour/material
+> bindings and obtain owner visual approval before scale/collision promotion.
+
+Initial evidence favours max-1K textures as baseline and max-2K as quality A/B. The
+final contract must be re-designed against the current seven-tile source set.
+
+### F. Scale-reference scene — BLOCKED_ON_TEXTURES
+
+The accepted vehicle is rendered on the road or beside a known object without yet
+promoting terrain collision. The owner evaluates physical plausibility of scale.
+
+### G. Surface/collision — PARKED_FOR_COMPARATIVE_REVIEW
+
+Issue #14 preserves historical surface evidence. Existing DEM, morphology, drive
+probe and seam experiments are evidence, not authority.
+
+Collision starts only after:
+
+- textured preview acceptance;
+- scale-reference acceptance;
+- owner-selected Golden Drive Region;
+- comparative representation brief.
+
+### H. Authoring/world production — LONG_HORIZON
+
+Future Blender and creator workflow may separate:
+
+- roads and ground;
+- buildings;
+- trees and vegetation;
+- render LODs;
+- collision proxies;
+- asphalt/grass/mud maps;
+- world sectors and streaming.
+
+Do not build the full pipeline before first drive proof.
+
+### I. Automation/governance — PLAN_ONLY_SUPPORT
+
+The recurring operator audits authority and gates. It must not become the product or
+force manual owner work through unnecessary scheduler ceremony.
+
+## 7. Critical-path roadmap
+
+### Stage R0 — consolidated scan integration — COMPLETE
+
+- historical scan stack consolidated into PR #13;
+- governance/readiness integrated;
+- exact authority and CI established;
+- no history rewrite.
+
+### Stage R1 — owner-local source activation — COMPLETE
+
+- verified private evidence found;
+- fourteen source assets resolved exactly;
+- pack built transactionally.
+
+### Stage R2 — native geometry preview — COMPLETE
+
+- independent verifier passed;
+- seven tiles loaded;
+- owner observed recognizable terrain.
+
+### Stage R3 — same-revision visual proof — COMPLETE
+
+- owner accepted geometry visibility and known source limitations;
+- same revision restarted;
+- deterministic pack selection/layout repeated;
+- `TERRAIN_VISIBLE_PASS` earned.
+
+### Stage F0 — milestone evidence seal — IN PROGRESS
+
+Outputs:
+
+- Project Charter;
+- redacted milestone checkpoint;
+- current-state truth correction;
+- explicit boundary that scale is not yet final;
+- texture-before-collision rule.
+
+### Stage F1 — project re-foundation inventory — NEXT GOVERNANCE GATE
+
+Perform a repository-wide forensic inventory covering:
+
+- branches/PRs/issues;
+- documentation and authority;
+- vehicle and synthetic world;
+- scan/evidence/preview;
+- textures;
+- surface/collision experiments;
+- authoring/editor tooling;
+- build/tests/CI;
+- automation/governance;
+- privacy and JES boundary.
+
+Every item receives one classification:
+
+```text
+ACTIVE_NEXT
+FOUNDATION_PRESERVE
+PARKED_WITH_REACTIVATION_GATE
+HISTORICAL_EVIDENCE
+SUPERSEDED
+KNOWN_DEBT
+EXPERIMENTAL_NOT_AUTHORITY
+OWNER_DECISION_REQUIRED
+REMOVE_AFTER_VERIFICATION
+```
+
+No product implementation is permitted merely to make the inventory look cleaner.
+
+### Stage F2 — documentation and workflow re-foundation
+
+Targets:
+
+- one concise global route;
+- one durable charter;
+- one mutable project router;
+- one global operating plan;
+- one current state per active domain;
+- machine-readable documentation/inventory manifest;
+- explicit history/archive roles;
+- manual workflow kept simpler than recurring automation workflow.
+
+Protected governance changes are manual A3 and require separate review.
+
+### Stage F3 — integration decision for PR #13
+
+Choose exactly one:
+
+```text
+A. owner-review and merge into the vehicle baseline
+B. bounded correction before merge
+C. preserve as milestone branch while re-planning integration
+```
+
+Do not rebase, squash or force-push merely to beautify the 185-commit lineage.
+
+### Stage T0 — textured preview campaign brief
+
+Before implementation define:
+
+- exact source image/material/UV identity;
+- pack/version boundary;
+- privacy and manifest claims;
+- texture cook profiles;
+- colour-space and sampler policy;
+- memory/performance budget;
+- independent verification;
+- native fallback and error semantics;
+- fixed-camera screenshot matrix;
+- owner acceptance criteria;
+- same-revision restart proof.
+
+### Stage T1 — textured source preview implementation
+
+Minimal first target:
+
+```text
+same seven source tiles
++ unlit/authentic base colour
++ max-1K profile
++ deterministic pack
++ independent verifier
++ native render
++ no physics
+```
+
+2K is an A/B profile, not the baseline. GPU compression is deferred until a working
+render can be measured.
+
+### Stage S0 — vehicle scale-reference scene
+
+After texture acceptance:
+
+- render the accepted vehicle on/near a recognizable road or house;
+- preserve terrain as render-only;
+- record fixed cameras;
+- owner confirms or rejects scale;
+- no collision claim.
+
+Result vocabulary:
+
+```text
+WORLD_SCALE_VALIDATED
+or
+WORLD_SCALE_CORRECTION_REQUIRED
+```
+
+### Stage D0 — Golden Drive Region selection
+
+Owner chooses one small, visually understood road region. Selection must be stored as
+logical/redacted evidence without publishing private location data.
+
+### Stage D1 — collision representation comparison
+
+Compare at least:
+
+- bounded source triangle mesh;
+- PLY/DEM-derived heightfield;
+- parked surface-evidence approach;
+- manually authored Blender collision proxy.
+
+Evaluate fidelity, wheel stability, CPU/memory, authoring cost and future chunking.
+
+### Stage D2 — static wheel/contact proof
+
+- same transform as render;
+- contact at four wheels;
+- no catastrophic penetration;
+- measured surface steps/noise;
+- visual render/collision difference overlay.
+
+### Stage D3 — vehicle drop and low-speed drive
+
+- spawn over selected road;
+- settle suspension;
+- move at controlled speed;
+- monitor contacts, solver stability and frame cost.
+
+### Stage D4 — owner fun verdict
+
+The real milestone:
+
+> Does driving the accepted vehicle on the real scan make Jozz want to launch a
+> higher-quality scan campaign?
+
+CI cannot answer this gate.
+
+## 8. Integration topology
 
 ```text
 main
 └─ preserved upstream/history line
 
 jozz-vehicle-sandbox-m0
-└─ stable vehicle baseline
-   └─ P0–R1B lineage
-      └─ PR #13 consolidated product integration
-         └─ PR #15 repository-readiness governance layer
+└─ accepted vehicle + synthetic-world baseline
+   └─ PR #13 consolidated geometry-preview milestone
+      └─ project re-foundation review branch
 ```
 
-Historical PRs #1–#5, #8 and #9 remain closed as superseded by #13. Their branches
-and commits are preserved. The #7/#8 divergent surface branch remains parked in
-Issue #14.
+The future textured-preview implementation must use a new isolated product branch
+after the milestone/integration decision. It must not grow indefinitely from the
+current audit branch.
 
-No current plan requires rebase, squash, force-push, retarget or branch deletion.
+## 9. Manual work workflow
 
-## 7. Critical-path roadmap
+1. Read policy, Issue, memory, current state and charter.
+2. Verify exact remote head.
+3. Inspect open PRs, CI and overlapping paths.
+4. Declare one scope, allowed/forbidden paths, evidence and STOP conditions.
+5. Create an isolated branch.
+6. Implement or audit one coherent unit.
+7. Run existing canonical gates; do not clone their logic.
+8. Inspect visual evidence when relevant.
+9. Update documents only when their responsibility moved.
+10. Open a draft PR and stop before merge.
 
-### Stage O0 — authority and stack cleanup — COMPLETE
+Manual work must not be made artificially difficult only because recurring automation
+needs lease and queue machinery.
 
-- automation foundation integrated;
-- PR #12 merged after safety CI;
-- one consolidated product draft PR #13 created;
-- old stack classified as superseded or parked;
-- surface work preserved in Issue #14;
-- no product merge or history rewrite.
+## 10. Recurring PLAN_ONLY workflow
 
-### Stage O1 — durable repository readiness — UNDER REVIEW IN PR #15
+Each scheduled run may:
 
-Done in the proposed layer:
+- validate control and authority;
+- inspect Issue/PR/CI/gates/lease;
+- report material change or no safe work;
+- recommend one bounded next action.
 
-- global agent policy separated from vehicle-domain manual;
-- root README and CONTRIBUTING made truthful for this fork;
-- documentation and repository maps created;
-- governance drift checks and adversarial tests added;
-- CI routes updated to current/future campaign branches;
-- obsolete duplicate P2A workflow removed.
+It may not:
 
-Done only after review/integration:
+- implement re-foundation;
+- add or promote its own work item;
+- modify protected control plane;
+- infer texture/scale/feel acceptance;
+- merge or move authority.
 
-- exact final CI is green;
-- diff contains governance/docs/workflows only;
-- Issue #11 is updated to the resulting integrated head;
-- scheduler observes the new files without policy conflict.
-
-O1 may be reviewed in parallel with preparing the private R1 run, but it must not
-be mistaken for product progress.
-
-### Stage R1 — owner-local preview activation — NEXT PRODUCT GATE
-
-**Input:** existing verified private P1B bundle/receipt and seven GLB/PLY sources.
-
-**Action:** run the supported owner entrypoint once. Owner supplies only the
-necessary private source root; technical orchestration remains automated.
-
-**Expected:** exact verified preview pack plus private resumable state.
-
-**STOP:** source ambiguity, hash/revision mismatch, symlink, mutation, missing
-receipt, private-data exposure or inferred approval.
-
-### Stage R2 — native preview proof
-
-Launch the exact selected pack in the native sample host.
-
-Required evidence:
-
-- selected pack identity;
-- successful native load;
-- visible seven-tile geometry.
-
-Compilation, generated files or process exit alone are insufficient.
-
-### Stage R3 — owner visual review and restart proof
-
-Owner reviews:
-
-- orientation and signed axes;
-- scale/metres conversion;
-- up axis and mirror state;
-- coverage, tile placement and seams;
-- same-revision restart.
-
-Only explicit owner acceptance may produce `TERRAIN_VISIBLE_PASS`.
-
-### Stage R4 — bounded decision after evidence
-
-After R3, choose exactly one outcome:
+## 11. Current gates
 
 ```text
-A. PASS
-   → record TERRAIN_VISIBLE_PASS
-   → review integration readiness of PR #13/#15
-
-B. BOUNDED CORRECTION
-   → create one isolated corrective PR
-   → preserve exact failing evidence and retest
-
-C. INVALIDATED ASSUMPTION
-   → keep product PR draft
-   → document the disproven assumption
-   → re-plan before implementation
+milestone evidence:  TERRAIN_VISIBLE_PASS_EARNED
+project transition:  REFOUNDATION_REVIEW_REQUIRED
+visual:               TEXTURED_SOURCE_PREVIEW_REQUIRED
+scale:                VEHICLE_REFERENCE_SCENE_REQUIRED
+ROI:                  OWNER_SELECTION_REQUIRED
+physics:              BLOCKED_UNTIL_TEXTURE_SCALE_AND_ROI
+merge:                OWNER_DECISION_REQUIRED
 ```
 
-No autonomous merge or automatic reinterpretation of failure.
-
-### Stage R5 — select one next product campaign
-
-Candidates include:
-
-- surface evidence;
-- accepted-surface/collision research;
-- central test campus;
-- vehicle drivetrain/tire model;
-- rig/editor tooling.
-
-Do not start them in parallel merely because plans already exist.
-
-## 8. Manual work workflow
-
-1. Read hard policy, Issue #11, memory and matching current state.
-2. Fetch and verify the exact remote head.
-3. Inspect active PRs, CI, gates and overlapping paths.
-4. Classify risk A0–A4.
-5. Declare allowed/forbidden paths, acceptance criteria, tests and STOP conditions.
-6. Create a new isolated branch from the exact SHA.
-7. Implement one coherent scope.
-8. Run narrow checks plus unchanged project gate where applicable.
-9. Update state docs only when proven state moved.
-10. Commit logically and open a draft PR using the manual template.
-11. Stop before merge or owner acceptance.
-
-Never write directly to `main`, `jozz-vehicle-sandbox-m0` or active campaign
-branches. Never force-push or rewrite history without separate explicit approval.
-
-## 9. Recurring PLAN_ONLY workflow
-
-Each scheduled run should:
-
-1. load `AGENTS.md`, `CONTROL.yaml` and policy;
-2. validate repository/control contracts;
-3. read exactly one Control Issue;
-4. verify authoritative branch and exact remote head;
-5. inspect active PR, CI, gates, lease and queue;
-6. select zero implementation items in current `PLAN_ONLY` state;
-7. report the exact material change or STOP;
-8. make no product mutation;
-9. confirm no merge, rebase, force-push or policy self-modification.
-
-Preferred unchanged report:
-
-```text
-NO_MATERIAL_CHANGE
-<current gate or NO_SAFE_WORK>
-authority=<branch>@<sha>
-```
-
-## 10. Definition of Ready
+## 12. Definition of Ready for textured implementation
 
 Implementation is ready only when:
 
-- owner selected the campaign;
-- mode permits implementation;
-- a pre-existing work item is owner-approved `AGENT_READY` where automation applies;
-- risk class is eligible;
-- exact base SHA is current;
-- allowed and forbidden paths are explicit;
-- acceptance criteria and tests are observable;
-- owner, visual and private gates are resolved or outside scope;
-- no conflicting lease, PR or path overlap exists.
+- milestone/integration base is explicitly selected;
+- textured-preview contract is written;
+- source image/material/UV assumptions are inspected on the real seven-tile set;
+- memory budget and 1K/2K profiles are defined;
+- manifest/verifier/privacy boundaries are explicit;
+- allowed/forbidden paths and tests are observable;
+- no overlapping PR exists;
+- owner approves the campaign brief.
 
-Planning text alone is never implementation authority.
+Planning text alone is not implementation authority.
 
-## 11. Definition of Done
+## 13. Definition of Done for the current re-foundation
 
-A bounded change is done only when:
-
-- acceptance criteria pass without relaxed thresholds;
-- all available required tests pass;
-- unavailable capability is explicitly listed;
-- visual/private/owner evidence comes from the correct authority;
-- private data stays private;
-- docs claim only proven state;
-- exact base/head and actual diff are recorded;
-- no unauthorized merge, rebase, force-push, retarget or deletion occurred;
-- unresolved gates remain explicit.
-
-## 12. Owner decision queue
-
-1. Review PR #15 as a governance-only layer; do not confuse it with product proof.
-2. Execute the real private R1B runner when ready.
-3. Perform native visual review and same-revision restart.
-4. Decide PASS, bounded correction or invalidated assumption.
-5. Decide integration order for #15 and #13 based on actual evidence.
-6. Select exactly one next product campaign.
-
-The recurring operator may surface these decisions but cannot answer them for the
-owner.
-
-## 13. Known operating risks
-
-- **Authority drift:** exact SHA lives in Issue; mechanical repository audit checks
-  the versioned routing around it.
-- **Default-branch illusion:** GitHub `main` is not automatically the active project
-  line; all work resolves Issue #11 first.
-- **False green:** CI cannot inspect private assets, visual correctness or feel.
-- **Governance self-reference:** PR #15 changes policy and therefore remains a
-  manual A3 review, never recurring-agent self-modification.
-- **Historical opacity:** closed PRs are evidence lineage, not task queues.
-- **Parallelism pressure:** vehicle/map/surface work before R1B proof weakens causal
-  validation.
-- **Scheduler overlap:** external scheduling has no atomic GitHub lock; repository
-  lease stays fail-closed.
-- **Granular API commits:** contents API creates small sequential commits; preserve
-  them rather than rewriting shared history merely for aesthetics.
+- milestone evidence is recorded without private data;
+- versioned state no longer claims the real preview is unrun;
+- scale remains explicitly unproven;
+- texture-before-collision is enforced in current docs and audit;
+- PR #15 integration state is truthful;
+- every major project area has an inventory classification or explicit unreviewed
+  status;
+- PR #13 has an owner-reviewed integration outcome;
+- next campaign has one bounded brief;
+- no collision code or accepted-physics change is smuggled into governance work.
 
 ## 14. Maintenance rule
 
-Update this document only when active campaign, authority strategy, evidence
-boundary, roadmap stage, repository topology or project-wide workflow changes.
-Routine CI reports and unchanged gates do not belong in Git.
+Update this document only when the critical path, authority strategy, evidence
+boundary, integration topology or project-wide workflow changes. Routine CI and
+unchanged gate reports do not belong here.
