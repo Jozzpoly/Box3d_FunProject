@@ -1,13 +1,27 @@
 #!/usr/bin/env python3
-"""Create or validate explicit source-to-lab frame contracts.
+"""Create, propose, confirm or validate explicit source-to-lab frame contracts.
 
 The command derives handedness and the signed-permutation matrix from semantic
 axis roles. It never infers source axes from scan bounds and never marks a
-contract confirmed unless the owner passes ``--confirmed`` explicitly.
+contract confirmed without a separate explicit owner action.
+
+The owner-safe flow keeps private origin coordinates and local file paths out of
+command arguments and console output:
+
+1. ``propose-from-inspection`` derives only the local origin from verified global
+   bounds and writes an unconfirmed proposal.
+2. ``confirm`` requires the exact canonical proposal content hash and changes
+   only ``confirmed: false`` to ``confirmed: true``.
+
+Mirrored proposals are not accepted by this flow. They require a separate,
+explicitly reviewed procedure through the legacy ``create --mirror-approved``
+path so mirror approval can never be added during confirmation.
 """
 from __future__ import annotations
 
 import argparse
+import copy
+import hmac
 import importlib.util
 import json
 import math
@@ -21,6 +35,13 @@ import uuid
 MODULE_DIR = Path(__file__).resolve().parent
 _AXIS_PATTERN = re.compile(r"^([+-])([XYZ])$")
 _AXIS_ROLES = ("right", "forward", "up")
+_SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+_INSPECTION_SCHEMA = "jozz.scan-dataset-inspection"
+_MIN_INSPECTION_SCHEMA_VERSION = 3
+_ORIGIN_POLICY = "GLOBAL_BOUNDS_CENTER"
+_ORIGIN_POLICY_CLI = "global-bounds-center"
+_BASIC_BOUNDS_KEYS = frozenset({"min", "max"})
+_CANONICAL_BOUNDS_KEYS = frozenset({"min", "max", "extent", "center"})
 
 
 class SourceFrameCliError(ValueError):
@@ -29,7 +50,9 @@ class SourceFrameCliError(ValueError):
 
 def _load_scan_frames() -> Any:
     path = MODULE_DIR / "scan_frames.py"
-    spec = importlib.util.spec_from_file_location("_jozz_source_frame_cli_frames", path)
+    spec = importlib.util.spec_from_file_location(
+        "_jozz_source_frame_cli_frames", path
+    )
     if not spec or not spec.loader:
         raise RuntimeError(f"cannot load {path.name}")
     module = importlib.util.module_from_spec(spec)
@@ -48,6 +71,7 @@ def _strict_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 def load_json_strict(path: Path) -> dict[str, Any]:
+    """Legacy/pathful strict loader used by create/validate compatibility paths."""
     try:
         value = json.loads(
             Path(path).read_text(encoding="utf-8"),
@@ -59,14 +83,37 @@ def load_json_strict(path: Path) -> dict[str, Any]:
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise SourceFrameCliError(f"cannot read JSON from {path}: {exc}") from exc
     if not isinstance(value, dict):
-        raise SourceFrameCliError("source-frame file must contain a JSON object")
+        raise SourceFrameCliError(f"{path} must contain a JSON object")
     return value
+
+
+def _load_owner_safe_json(path: Path, label: str) -> dict[str, Any]:
+    """Read private JSON without echoing its local path on any failure."""
+    try:
+        return load_json_strict(path)
+    except SourceFrameCliError as exc:
+        text = str(exc)
+        if text.startswith("duplicate JSON key:") or text.startswith(
+            "non-standard JSON constant:"
+        ):
+            raise
+        raise SourceFrameCliError(f"cannot read private {label} JSON") from exc
+
+
+def load_private_inspection_json(path: Path) -> dict[str, Any]:
+    return _load_owner_safe_json(path, "inspection")
+
+
+def load_private_proposal_json(path: Path) -> dict[str, Any]:
+    return _load_owner_safe_json(path, "source-frame proposal")
 
 
 def _axis_vector(label: str, field: str) -> tuple[int, int, int]:
     match = _AXIS_PATTERN.fullmatch(label)
     if not match:
-        raise SourceFrameCliError(f"{field} must be a signed axis such as +X or -Z")
+        raise SourceFrameCliError(
+            f"{field} must be a signed axis such as +X or -Z"
+        )
     sign = 1 if match.group(1) == "+" else -1
     index = {"X": 0, "Y": 1, "Z": 2}[match.group(2)]
     result = [0, 0, 0]
@@ -75,20 +122,43 @@ def _axis_vector(label: str, field: str) -> tuple[int, int, int]:
 
 
 def _basis(axis_roles: Mapping[str, str], label: str) -> list[list[int]]:
-    vectors = [_axis_vector(str(axis_roles.get(role, "")), f"{label}.{role}") for role in _AXIS_ROLES]
-    coordinates = [next(i for i, value in enumerate(vector) if value) for vector in vectors]
+    vectors = [
+        _axis_vector(str(axis_roles.get(role, "")), f"{label}.{role}")
+        for role in _AXIS_ROLES
+    ]
+    coordinates = [
+        next(index for index, value in enumerate(vector) if value)
+        for vector in vectors
+    ]
     if len(set(coordinates)) != 3:
-        raise SourceFrameCliError(f"{label} must assign three distinct coordinate axes")
-    return [[vectors[column][row] for column in range(3)] for row in range(3)]
+        raise SourceFrameCliError(
+            f"{label} must assign three distinct coordinate axes"
+        )
+    return [
+        [vectors[column][row] for column in range(3)]
+        for row in range(3)
+    ]
 
 
 def _transpose(matrix: Sequence[Sequence[int]]) -> list[list[int]]:
-    return [[int(matrix[row][column]) for row in range(3)] for column in range(3)]
-
-
-def _matmul(a: Sequence[Sequence[int]], b: Sequence[Sequence[int]]) -> list[list[int]]:
     return [
-        [sum(int(a[row][k]) * int(b[k][column]) for k in range(3)) for column in range(3)]
+        [int(matrix[row][column]) for row in range(3)]
+        for column in range(3)
+    ]
+
+
+def _matmul(
+    a: Sequence[Sequence[int]],
+    b: Sequence[Sequence[int]],
+) -> list[list[int]]:
+    return [
+        [
+            sum(
+                int(a[row][k]) * int(b[k][column])
+                for k in range(3)
+            )
+            for column in range(3)
+        ]
         for row in range(3)
     ]
 
@@ -117,7 +187,124 @@ def _finite_origin(values: Sequence[float]) -> list[float]:
     result = [float(value) for value in values]
     if not all(math.isfinite(value) for value in result):
         raise SourceFrameCliError("local origin contains a non-finite value")
+    return [0.0 if value == -0.0 else value for value in result]
+
+
+def contract_sha256(contract: dict[str, Any]) -> str:
+    return _load_scan_frames().contract_sha256(contract)
+
+
+def _sha256(value: str, field: str) -> str:
+    if not isinstance(value, str) or not _SHA256_PATTERN.fullmatch(value):
+        raise SourceFrameCliError(f"{field} must be lowercase SHA-256")
+    return value
+
+
+def _finite_vector3(value: Any, field: str) -> list[float]:
+    if not isinstance(value, list) or len(value) != 3:
+        raise SourceFrameCliError(f"{field} must contain exactly three values")
+    result: list[float] = []
+    for index, raw in enumerate(value):
+        if isinstance(raw, bool):
+            raise SourceFrameCliError(f"{field}[{index}] must be numeric")
+        try:
+            number = float(raw)
+        except (TypeError, ValueError) as exc:
+            raise SourceFrameCliError(
+                f"{field}[{index}] must be numeric"
+            ) from exc
+        if not math.isfinite(number):
+            raise SourceFrameCliError(f"{field}[{index}] must be finite")
+        result.append(0.0 if number == -0.0 else number)
     return result
+
+
+def _rounded9(value: float) -> float:
+    result = round(float(value), 9)
+    return 0.0 if result == -0.0 else result
+
+
+def _inspection_global_bounds_center(
+    inspection: dict[str, Any],
+) -> list[float]:
+    if inspection.get("schema") != _INSPECTION_SCHEMA:
+        raise SourceFrameCliError("unexpected inspection report schema")
+    version = inspection.get("schemaVersion")
+    if isinstance(version, bool) or not isinstance(version, int):
+        raise SourceFrameCliError("inspection schemaVersion must be an integer")
+    if version < _MIN_INSPECTION_SCHEMA_VERSION:
+        raise SourceFrameCliError("inspection report schema is too old")
+    if inspection.get("datasetStatus") not in {
+        "compatible",
+        "compatible-review",
+    }:
+        raise SourceFrameCliError(
+            "inspection must be compatible or compatible-review"
+        )
+    automatic = inspection.get("automaticEvidenceGate")
+    if not isinstance(automatic, dict) or automatic.get("passed") is not True:
+        raise SourceFrameCliError(
+            "inspection automatic evidence gate must pass before frame proposal"
+        )
+
+    bounds = inspection.get("globalBounds")
+    if not isinstance(bounds, dict):
+        raise SourceFrameCliError("inspection globalBounds must be an object")
+    keys = frozenset(bounds)
+    if keys not in {_BASIC_BOUNDS_KEYS, _CANONICAL_BOUNDS_KEYS}:
+        raise SourceFrameCliError(
+            "inspection globalBounds must contain min/max or canonical "
+            "min/max/extent/center"
+        )
+
+    minimum = _finite_vector3(bounds["min"], "globalBounds.min")
+    maximum = _finite_vector3(bounds["max"], "globalBounds.max")
+    extent: list[float] = []
+    center: list[float] = []
+    for axis in range(3):
+        if minimum[axis] > maximum[axis]:
+            raise SourceFrameCliError(
+                f"globalBounds are reversed on axis {axis}"
+            )
+        axis_extent = _rounded9(maximum[axis] - minimum[axis])
+        axis_center = _rounded9(
+            minimum[axis] + 0.5 * (maximum[axis] - minimum[axis])
+        )
+        if not math.isfinite(axis_extent) or not math.isfinite(axis_center):
+            raise SourceFrameCliError("globalBounds derived values are not finite")
+        extent.append(axis_extent)
+        center.append(axis_center)
+
+    if keys == _CANONICAL_BOUNDS_KEYS:
+        declared_extent = _finite_vector3(
+            bounds["extent"], "globalBounds.extent"
+        )
+        declared_center = _finite_vector3(
+            bounds["center"], "globalBounds.center"
+        )
+        if declared_extent != extent:
+            raise SourceFrameCliError(
+                "globalBounds.extent disagrees with min/max"
+            )
+        if declared_center != center:
+            raise SourceFrameCliError(
+                "globalBounds.center disagrees with min/max"
+            )
+
+    return center
+
+
+def _require_canonical_contract(
+    document: dict[str, Any],
+    *,
+    label: str,
+) -> dict[str, Any]:
+    normalized = _load_scan_frames().validate_frame_contract(document)
+    if document != normalized:
+        raise SourceFrameCliError(
+            f"{label} must be an exact canonical source-frame document"
+        )
+    return normalized
 
 
 def build_contract(
@@ -131,7 +318,9 @@ def build_contract(
 ) -> dict[str, Any]:
     units = float(source_units_per_meter)
     if not math.isfinite(units) or units <= 0:
-        raise SourceFrameCliError("source units per meter must be finite and positive")
+        raise SourceFrameCliError(
+            "source units per meter must be finite and positive"
+        )
 
     source_basis = _basis(source_axis_roles, "source axis roles")
     lab_basis = _basis(lab_axis_roles, "lab axis roles")
@@ -140,7 +329,8 @@ def build_contract(
     orientation = "preserve" if determinant == 1 else "mirror"
     if orientation == "mirror" and not mirror_approved:
         raise SourceFrameCliError(
-            "derived transform mirrors orientation; rerun only after review with --mirror-approved"
+            "derived transform mirrors orientation; rerun only after review "
+            "with --mirror-approved"
         )
 
     contract = {
@@ -150,11 +340,17 @@ def build_contract(
         "sourceFrame": {
             "unitsPerMeter": units,
             "handedness": _handedness(source_basis),
-            "axisRoles": {role: str(source_axis_roles[role]) for role in _AXIS_ROLES},
+            "axisRoles": {
+                role: str(source_axis_roles[role])
+                for role in _AXIS_ROLES
+            },
         },
         "labFrame": {
             "handedness": _handedness(lab_basis),
-            "axisRoles": {role: str(lab_axis_roles[role]) for role in _AXIS_ROLES},
+            "axisRoles": {
+                role: str(lab_axis_roles[role])
+                for role in _AXIS_ROLES
+            },
         },
         "sourceToLab": {
             "axisMatrix": matrix,
@@ -166,13 +362,104 @@ def build_contract(
     return _load_scan_frames().validate_frame_contract(contract)
 
 
-def write_contract(path: Path, contract: dict[str, Any], *, force: bool) -> None:
+def propose_contract_from_inspection(
+    *,
+    inspection: dict[str, Any],
+    source_units_per_meter: float,
+    source_axis_roles: Mapping[str, str],
+    lab_axis_roles: Mapping[str, str],
+) -> dict[str, Any]:
+    """Build one unconfirmed, non-mirrored proposal from private report bounds."""
+    origin = _inspection_global_bounds_center(inspection)
+    contract = build_contract(
+        source_units_per_meter=source_units_per_meter,
+        source_axis_roles=source_axis_roles,
+        lab_axis_roles=lab_axis_roles,
+        local_origin_source=origin,
+        confirmed=False,
+        mirror_approved=False,
+    )
+    transform = contract["sourceToLab"]
+    if (
+        transform["orientationChange"] != "preserve"
+        or transform["mirrorApproved"] is not False
+        or transform["determinant"] != 1
+    ):
+        raise SourceFrameCliError(
+            "owner-safe proposal flow accepts only non-mirrored transforms"
+        )
+    return _require_canonical_contract(contract, label="proposal")
+
+
+def confirm_contract(
+    proposal: dict[str, Any],
+    *,
+    expected_sha256: str,
+) -> dict[str, Any]:
+    """Confirm the exact proposal while changing only its confirmed flag."""
+    expected = _sha256(expected_sha256, "expectedSha256")
+    normalized = _require_canonical_contract(proposal, label="proposal")
+    if normalized["confirmed"] is not False:
+        raise SourceFrameCliError("proposal is already confirmed")
+
+    transform = normalized["sourceToLab"]
+    if (
+        transform["orientationChange"] != "preserve"
+        or transform["mirrorApproved"] is not False
+        or transform["determinant"] != 1
+    ):
+        raise SourceFrameCliError(
+            "owner-safe confirmation refuses mirrored proposals"
+        )
+
+    observed = contract_sha256(normalized)
+    if not hmac.compare_digest(observed, expected):
+        raise SourceFrameCliError(
+            "proposal SHA-256 does not match expected value"
+        )
+
+    confirmed = copy.deepcopy(normalized)
+    confirmed["confirmed"] = True
+    confirmed = _load_scan_frames().validate_frame_contract(confirmed)
+
+    comparison = copy.deepcopy(confirmed)
+    comparison["confirmed"] = False
+    if comparison != normalized:
+        raise SourceFrameCliError(
+            "confirmation attempted to change fields other than confirmed"
+        )
+    return _require_canonical_contract(
+        confirmed,
+        label="confirmed contract",
+    )
+
+
+def write_contract(
+    path: Path,
+    contract: dict[str, Any],
+    *,
+    force: bool,
+) -> None:
+    """Legacy/pathful atomic writer retained for create and existing tests."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists() and not force:
-        raise SourceFrameCliError(f"refusing to overwrite existing file: {path}")
-    payload = (json.dumps(contract, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
-    temporary = path.with_name(f".{path.name}.tmp-{os.getpid()}-{uuid.uuid4().hex}")
+        raise SourceFrameCliError(
+            f"refusing to overwrite existing file: {path}"
+        )
+    payload = (
+        json.dumps(
+            contract,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+    temporary = path.with_name(
+        f".{path.name}.tmp-{os.getpid()}-{uuid.uuid4().hex}"
+    )
     try:
         with temporary.open("xb") as handle:
             handle.write(payload)
@@ -181,6 +468,27 @@ def write_contract(path: Path, contract: dict[str, Any], *, force: bool) -> None
         os.replace(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def write_owner_safe_contract(
+    path: Path,
+    contract: dict[str, Any],
+) -> None:
+    """Atomic owner-flow writer whose failures never reveal the local path."""
+    try:
+        write_contract(path, contract, force=False)
+    except SourceFrameCliError as exc:
+        if str(exc).startswith("refusing to overwrite existing file:"):
+            raise SourceFrameCliError(
+                "refusing to overwrite existing owner-safe output"
+            ) from exc
+        raise SourceFrameCliError(
+            "cannot write private owner-safe output"
+        ) from exc
+    except (OSError, ValueError) as exc:
+        raise SourceFrameCliError(
+            "cannot write private owner-safe output"
+        ) from exc
 
 
 def _axis_roles(args: argparse.Namespace, prefix: str) -> dict[str, str]:
@@ -204,47 +512,146 @@ def _create(args: argparse.Namespace) -> int:
     transform = contract["sourceToLab"]
     print(
         "scan_source_frame_contract: OK | "
-        f"path={args.output} confirmed={str(contract['confirmed']).lower()} "
-        f"determinant={transform['determinant']} orientation={transform['orientationChange']}"
+        f"path={args.output} "
+        f"confirmed={str(contract['confirmed']).lower()} "
+        f"determinant={transform['determinant']} "
+        f"orientation={transform['orientationChange']}"
     )
     if not contract["confirmed"]:
-        print("scan_source_frame_contract: REVIEW_REQUIRED | contract remains unconfirmed")
+        print(
+            "scan_source_frame_contract: REVIEW_REQUIRED | "
+            "contract remains unconfirmed"
+        )
+    return 0
+
+
+def _propose_from_inspection(args: argparse.Namespace) -> int:
+    if args.origin_policy != _ORIGIN_POLICY_CLI:
+        raise SourceFrameCliError("unsupported origin policy")
+    inspection = load_private_inspection_json(args.inspection)
+    contract = propose_contract_from_inspection(
+        inspection=inspection,
+        source_units_per_meter=args.source_units_per_meter,
+        source_axis_roles=_axis_roles(args, "source"),
+        lab_axis_roles=_axis_roles(args, "lab"),
+    )
+    write_owner_safe_contract(args.output, contract)
+    transform = contract["sourceToLab"]
+    proposal_hash = contract_sha256(contract)
+    print(
+        "scan_source_frame_contract: PROPOSAL_READY | "
+        "confirmed=false "
+        f"origin_policy={_ORIGIN_POLICY} "
+        f"units_per_meter={contract['sourceFrame']['unitsPerMeter']} "
+        f"determinant={transform['determinant']} "
+        f"orientation={transform['orientationChange']} "
+        f"proposal_sha256={proposal_hash}"
+    )
+    print(
+        "scan_source_frame_contract: REVIEW_REQUIRED | "
+        "review units, semantic axes, orientation and proposal SHA-256; "
+        "private origin values and local paths were not printed"
+    )
+    return 0
+
+
+def _confirm(args: argparse.Namespace) -> int:
+    proposal = load_private_proposal_json(args.proposal)
+    confirmed = confirm_contract(
+        proposal,
+        expected_sha256=args.expected_sha256,
+    )
+    write_owner_safe_contract(args.output, confirmed)
+    transform = confirmed["sourceToLab"]
+    print(
+        "scan_source_frame_contract: CONFIRMED | "
+        "confirmed=true "
+        f"proposal_sha256={args.expected_sha256} "
+        f"confirmed_sha256={contract_sha256(confirmed)} "
+        f"determinant={transform['determinant']} "
+        f"orientation={transform['orientationChange']}"
+    )
     return 0
 
 
 def _validate(args: argparse.Namespace) -> int:
-    contract = _load_scan_frames().validate_frame_contract(load_json_strict(args.contract))
+    contract = _load_scan_frames().validate_frame_contract(
+        load_json_strict(args.contract)
+    )
     if args.require_confirmed and not contract["confirmed"]:
-        raise SourceFrameCliError("source-frame contract is valid but not owner-confirmed")
+        raise SourceFrameCliError(
+            "source-frame contract is valid but not owner-confirmed"
+        )
     transform = contract["sourceToLab"]
     print(
         "scan_source_frame_contract: OK | "
-        f"path={args.contract} confirmed={str(contract['confirmed']).lower()} "
-        f"determinant={transform['determinant']} orientation={transform['orientationChange']}"
+        f"path={args.contract} "
+        f"confirmed={str(contract['confirmed']).lower()} "
+        f"determinant={transform['determinant']} "
+        f"orientation={transform['orientationChange']}"
     )
     return 0
+
+
+def _add_axis_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--source-units-per-meter", required=True, type=float)
+    parser.add_argument("--source-right", required=True)
+    parser.add_argument("--source-forward", required=True)
+    parser.add_argument("--source-up", required=True)
+    parser.add_argument("--lab-right", default="+X")
+    parser.add_argument("--lab-forward", default="-Z")
+    parser.add_argument("--lab-up", default="+Y")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    create = subparsers.add_parser("create", help="derive and write one frame contract")
+    create = subparsers.add_parser(
+        "create",
+        help="derive and write one frame contract",
+    )
+    _add_axis_arguments(create)
     create.add_argument("--output", required=True, type=Path)
-    create.add_argument("--source-units-per-meter", required=True, type=float)
-    create.add_argument("--source-right", required=True)
-    create.add_argument("--source-forward", required=True)
-    create.add_argument("--source-up", required=True)
-    create.add_argument("--local-origin-source", required=True, nargs=3, type=float, metavar=("X", "Y", "Z"))
-    create.add_argument("--lab-right", default="+X")
-    create.add_argument("--lab-forward", default="-Z")
-    create.add_argument("--lab-up", default="+Y")
+    create.add_argument(
+        "--local-origin-source",
+        required=True,
+        nargs=3,
+        type=float,
+        metavar=("X", "Y", "Z"),
+    )
     create.add_argument("--confirmed", action="store_true")
     create.add_argument("--mirror-approved", action="store_true")
     create.add_argument("--force", action="store_true")
     create.set_defaults(handler=_create)
 
-    validate = subparsers.add_parser("validate", help="validate an existing frame contract")
+    propose = subparsers.add_parser(
+        "propose-from-inspection",
+        help="derive a private unconfirmed frame proposal without printing origin",
+    )
+    _add_axis_arguments(propose)
+    propose.add_argument("--inspection", required=True, type=Path)
+    propose.add_argument("--output", required=True, type=Path)
+    propose.add_argument(
+        "--origin-policy",
+        required=True,
+        choices=[_ORIGIN_POLICY_CLI],
+    )
+    propose.set_defaults(handler=_propose_from_inspection)
+
+    confirm = subparsers.add_parser(
+        "confirm",
+        help="confirm one exact non-mirrored proposal by SHA-256",
+    )
+    confirm.add_argument("--proposal", required=True, type=Path)
+    confirm.add_argument("--expected-sha256", required=True)
+    confirm.add_argument("--output", required=True, type=Path)
+    confirm.set_defaults(handler=_confirm)
+
+    validate = subparsers.add_parser(
+        "validate",
+        help="validate an existing frame contract",
+    )
     validate.add_argument("contract", type=Path)
     validate.add_argument("--require-confirmed", action="store_true")
     validate.set_defaults(handler=_validate)
