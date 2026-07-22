@@ -1,17 +1,34 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "snapshot": {
     "date": "2026-07-22",
     "repository": "Jozzpoly/Box3d_FunProject",
     "auditBranch": "agent/project-refoundation-audit-v1",
-    "auditHeadAtCreation": "4052f49d3b3b3e60a61e8d17cd4a20d7eb67d1aa",
     "authoritativeProductBranch": "agent/scan-terrain-r1b-consolidated-integration",
     "authoritativeHeadSource": "GitHub Control Issue #11",
     "activeProductPr": 13,
     "refoundationPr": 16,
     "highestProvenCapability": "TERRAIN_VISIBLE_PASS",
     "nextProductGate": "TEXTURED_SOURCE_PREVIEW",
-    "status": "FORENSIC_INVENTORY_IN_PROGRESS"
+    "status": "F2_REMOTE_AND_TRACKED_TREE_INVENTORY_VERIFIED",
+    "trackedTreeSnapshot": {
+      "workflowRunId": 29931424750,
+      "artifactId": 8534202302,
+      "artifactDigest": "sha256:bf580c3193bc6a319e9c9ef49abeb553335d00a3d1ba98a70bee9f58661fa0e1",
+      "trackedFileCountAtSnapshot": 614,
+      "coverageComplete": true,
+      "unclassifiedPathCount": 0
+    },
+    "remoteRefSnapshot": {
+      "workflowRunId": 29930191424,
+      "artifactId": 8533681496,
+      "artifactDigest": "sha256:d1a32150cbc3e0a571dc1d56c7c66fff20a2b3d3b2796f9d7e7a017d7acaa3d6",
+      "enumerationCommand": "git ls-remote --heads origin",
+      "enumerationSucceeded": true,
+      "branchCount": 18,
+      "tagCount": 0,
+      "exactPlan": "docs/BRANCH_RETENTION_PLAN_2026_07_22.json"
+    }
   },
   "statusVocabulary": [
     "ACTIVE_NEXT",
@@ -35,24 +52,29 @@
       "owner": "upstream-and-owner",
       "canonicalValidation": ["Box3D unit tests", "full native project gate"],
       "privacyRisk": "NONE",
-      "notes": [
-        "Not a convenience patch surface for vehicle, scan or sample problems.",
-        "No product re-foundation change may silently modify this domain."
-      ]
+      "notes": ["Not a convenience patch surface for sample, vehicle or scan problems."]
     },
     {
-      "id": "shared-native-host",
-      "paths": ["samples/host/**", "samples/main.cpp", "samples/sample.*", "samples/CMakeLists.txt"],
-      "responsibility": "Native Sokol/ImGui sample host and shared registration/build hooks",
+      "id": "upstream-support-and-ci",
+      "paths": ["test/**", "benchmark/**", "shared/**", "data/**", "extern/**", ".github/workflows/build.yml", "docs lowercase upstream manuals"],
+      "responsibility": "Retained upstream tests, samples support, documentation and main-only CI",
+      "authority": "Upstream baseline",
+      "status": "FOUNDATION_PRESERVE",
+      "owner": "upstream-and-owner",
+      "canonicalValidation": ["main CI Build", "upstream test matrix"],
+      "privacyRisk": "NONE",
+      "notes": ["Main-only upstream CI is distinct from active project campaign CI and is not obsolete merely because it does not target agent branches."]
+    },
+    {
+      "id": "shared-native-host-and-renderer",
+      "paths": ["samples/host/**", "samples/gfx/**", "samples/shaders/**", "samples/main.cpp", "samples/sample.*", "samples/CMakeLists.txt", "samples mesh/helper dependencies"],
+      "responsibility": "Native Sokol/ImGui host, renderer, shaders and shared sample registration/build seams",
       "authority": "Shared host contract",
       "status": "FOUNDATION_PRESERVE",
       "owner": "project-shared-host",
       "canonicalValidation": ["Windows samples build", "boot smoke", "unrelated sample regression review"],
       "privacyRisk": "NONE",
-      "notes": [
-        "Only small additive opt-in hooks are acceptable.",
-        "Scan and vehicle samples currently share one executable and dependency surface."
-      ]
+      "notes": ["Scan and vehicle currently share one executable and renderer dependency surface.", "Only bounded additive hooks are acceptable."]
     },
     {
       "id": "vehicle-physics-and-rig",
@@ -63,55 +85,51 @@
       "owner": "Jozz",
       "canonicalValidation": ["tools/gate.ps1", "jozz_vehicle_validation", "Box3D tests", "render evidence", "owner drive/feel gate"],
       "privacyRisk": "OWNER_ASSET_REVIEW",
-      "notes": [
-        "Accepted behavior must not change during scan integration.",
-        "Known vehicle debt remains explicit in docs/TECH_DEBT_PL.md.",
-        "Final scan scale requires the accepted vehicle as a visible reference."
-      ]
+      "notes": ["Accepted behavior must not change during scan integration.", "Final scan scale requires this accepted vehicle as the visible reference."]
     },
     {
       "id": "synthetic-engineering-world",
-      "paths": ["samples/jozz_vehicle_world_*", "samples/jozz_vehicle_m5_test_course.*", "samples/jozz_vehicle_obstacle_kit.*"],
+      "paths": ["samples/jozz_vehicle_world_*", "samples/jozz_vehicle_m5_test_course.*", "samples/jozz_vehicle_obstacle_kit.*", "map plans and evidence"],
       "responsibility": "Deterministic engineering and regression laboratory",
-      "authority": "Accepted Etap 1 terrain plus owner-reviewed map decisions",
+      "authority": "Accepted Etap 1 terrain plus explicit owner-reviewed map decisions",
       "status": "FOUNDATION_PRESERVE",
       "owner": "Jozz",
       "canonicalValidation": ["vehicle gate", "world validators", "owner render/drive review"],
       "privacyRisk": "NONE",
-      "notes": [
-        "Must not be displaced by photogrammetry.",
-        "The rejected six-lane layout remains historical evidence, not current map authority.",
-        "Obstacle kit is reusable recovery material."
-      ]
+      "notes": ["Must not be displaced by photogrammetry.", "Rejected six-lane layout remains historical evidence; obstacle kit remains reusable material."]
+    },
+    {
+      "id": "vehicle-assets-tooling-and-evidence",
+      "paths": ["assets/README.md", "assets/reports/**", "tools/asset_audit.py", "tools/asset_contract_audit.py", "tools/doc_drift_check.ps1", "tools/quad_shot.ps1"],
+      "responsibility": "Owner asset inspection, sidecar validation, render capture and focused documentation drift tripwires",
+      "authority": "Vehicle asset contracts and generated evidence, never raw report freshness alone",
+      "status": "FOUNDATION_PRESERVE",
+      "owner": "Jozz",
+      "canonicalValidation": ["asset audit", "asset contract audit", "render comparison", "vehicle gate"],
+      "privacyRisk": "OWNER_ASSET_REVIEW",
+      "notes": ["Generated latest reports are diagnostics, not runtime or current project authority."]
     },
     {
       "id": "scan-inspection-and-evidence",
-      "paths": ["tools/scan_pipeline/scan_dataset_inspect.py", "tools/scan_pipeline/scan_inspect.py", "tools/scan_pipeline/scan_ply.py", "tools/scan_pipeline/scan_glb_quality.py", "tools/scan_pipeline/scan_frames.py", "tools/scan_pipeline/scan_world_contracts.py", "tools/scan_pipeline/scan_import_bundle*.py", "tools/scan_pipeline/scan_owner_gate.py", "tests/scan_pipeline/**"],
+      "paths": ["tools/scan_pipeline/** inspection/frame/bundle tools", "tests/scan_pipeline/**", "docs/scan_import/** contracts"],
       "responsibility": "Private source inspection, explicit frame, immutable evidence bundle and independent verification",
       "authority": "Scan contracts and exact owner-local evidence",
       "status": "FOUNDATION_PRESERVE",
       "owner": "scan-campaign",
       "canonicalValidation": ["tools/scan_pipeline/run_p1_contracts.py", "hosted stdlib/NumPy matrix", "owner-local privacy review"],
       "privacyRisk": "HIGH_PRIVATE_SOURCE",
-      "notes": [
-        "Evidence cannot manufacture authored-world or collision truth.",
-        "Private paths, coordinates, source hashes, receipts and raw assets remain local."
-      ]
+      "notes": ["Evidence cannot manufacture authored-world or collision truth.", "Private paths, coordinates, source hashes, receipts and raw assets remain local."]
     },
     {
       "id": "scan-source-geometry-preview-v1",
-      "paths": ["tools/scan_pipeline/scan_preview_pack.py", "tools/scan_pipeline/scan_preview_pack_verify.py", "tools/scan_pipeline/scan_source_assets.py", "tools/scan_pipeline/scan_real_terrain_flow.py", "tools/scan_pipeline/run_real_terrain_flow.ps1", "samples/jozz_scan_preview_*"],
+      "paths": ["tools/scan_pipeline/scan_preview_pack*.py", "tools/scan_pipeline/scan_source_assets.py", "tools/scan_pipeline/scan_real_terrain_flow.py", "tools/scan_pipeline/run_real_terrain_flow.ps1", "samples/jozz_scan_preview_*"],
       "responsibility": "Exact render-only geometry preview and resumable owner-local launch",
       "authority": "Closed geometry-only manifest v1 plus redacted TERRAIN_VISIBLE_PASS evidence",
       "status": "FOUNDATION_PRESERVE",
       "owner": "scan-campaign",
       "canonicalValidation": ["scan contracts", "native Windows build", "independent pack verification", "owner visual review", "same-revision restart"],
       "privacyRisk": "HIGH_PRIVATE_SOURCE",
-      "notes": [
-        "TERRAIN_VISIBLE_PASS is earned.",
-        "The v1 format intentionally contains no texture, accepted-world or collision authority.",
-        "Known peripheral reconstruction artifacts are accepted for this milestone only."
-      ]
+      "notes": ["TERRAIN_VISIBLE_PASS is earned.", "The v1 format intentionally contains no texture, accepted-world or collision authority."]
     },
     {
       "id": "scan-textured-source-preview",
@@ -122,11 +140,7 @@
       "owner": "Jozz-plus-scan-campaign",
       "canonicalValidation": ["new explicit manifest/capability", "1K baseline", "2K comparison", "fixed-camera screenshots", "decoded-memory measurement", "owner visual gate"],
       "privacyRisk": "HIGH_PRIVATE_TEXTURE_SOURCE",
-      "notes": [
-        "Must not mutate the closed geometry-only v1 contract.",
-        "Textures precede final scale validation and collision research.",
-        "Historical experiments are evidence inputs, not automatic implementation authority."
-      ]
+      "notes": ["Must not mutate the closed geometry-only v1 contract.", "Textures precede final scale validation and collision research."]
     },
     {
       "id": "vehicle-scale-reference-scene",
@@ -137,10 +151,7 @@
       "owner": "Jozz",
       "canonicalValidation": ["textured scene", "accepted vehicle unchanged", "fixed reference views", "owner scale verdict"],
       "privacyRisk": "LOCATION_REDACTION_REQUIRED",
-      "notes": [
-        "WORLD_SCALE_VALIDATED remains false.",
-        "This gate occurs before Golden Drive Region selection and collision."
-      ]
+      "notes": ["WORLD_SCALE_VALIDATED remains false.", "This gate occurs before Golden Drive Region selection and collision."]
     },
     {
       "id": "surface-and-collision-research",
@@ -151,11 +162,7 @@
       "owner": "Jozz-plus-physics-review",
       "canonicalValidation": ["textured preview", "scale reference", "owner-selected ROI", "resource measurement", "static contact probe", "drop test", "low-speed drive"],
       "privacyRisk": "PRIVATE_DERIVATIVE",
-      "notes": [
-        "PR #7 is evidence and contract material, not accepted surface.",
-        "Kinematic probe PASS is not semantic ground truth.",
-        "Collision is blocked until texture, scale and ROI gates are clear."
-      ]
+      "notes": ["PR #7 is evidence and contract material, not accepted surface.", "Collision is blocked until texture, scale and ROI gates are clear."]
     },
     {
       "id": "future-world-authoring",
@@ -166,25 +173,18 @@
       "owner": "Jozz",
       "canonicalValidation": ["reimportable authored IDs", "visual review", "surface material maps", "LOD and streaming evidence"],
       "privacyRisk": "OWNER_ASSET_AND_LOCATION",
-      "notes": [
-        "Long-term plan includes low-poly houses, trees and vegetation; separated roads/terrain; asphalt/grass/mud material maps.",
-        "Cloudy-day high-quality rescans begin only after the first fun driving proof justifies the campaign."
-      ]
+      "notes": ["Long-term plan includes low-poly houses, trees and vegetation; separated roads/terrain; asphalt/grass/mud material maps.", "Cloudy-day high-quality rescans begin only after the first fun driving proof justifies the campaign."]
     },
     {
       "id": "automation-and-governance",
-      "paths": [".automation/**", "tools/automation/**", "tests/automation/**", "tools/project/**", "tests/project/**", ".github/workflows/**", ".github/PULL_REQUEST_TEMPLATE/**", "AGENTS.md", "CONTRIBUTING.md"],
-      "responsibility": "Authority routing, fail-closed recurring operation, repository integrity and review discipline",
+      "paths": [".automation/**", "tools/automation/**", "tests/automation/**", "tools/project/**", "tests/project/**", ".github/workflows/automation-foundation.yml", ".github/workflows/repository-governance.yml", ".github/PULL_REQUEST_TEMPLATE/**", "AGENTS.md", "CONTRIBUTING.md"],
+      "responsibility": "Authority routing, fail-closed recurring operation, repository integrity, forensic inventory and review discipline",
       "authority": "AGENTS.md, CONTROL.yaml and owner-directed A3 review",
       "status": "FOUNDATION_PRESERVE",
       "owner": "Jozz",
-      "canonicalValidation": ["validate_control.py", "repository_audit.py", "automation tests", "project tests", "hosted workflows"],
+      "canonicalValidation": ["validate_control.py", "repository_audit.py", "refoundation_inventory_audit.py", "automation tests", "project tests", "hosted workflows"],
       "privacyRisk": "CONTROL_PLANE",
-      "notes": [
-        "PLAN_ONLY remains active.",
-        "Governance must not become the main product.",
-        "No recurring run may self-modify protected control paths."
-      ]
+      "notes": ["PLAN_ONLY remains active.", "Governance must protect product work without becoming the main product."]
     },
     {
       "id": "jes-boundary",
@@ -195,92 +195,110 @@
       "owner": "Jozz",
       "canonicalValidation": ["separate JES gates", "explicit schema/code adoption"],
       "privacyRisk": "CROSS_REPOSITORY_BOUNDARY",
-      "notes": [
-        "Box3d_FunProject remains a productive vehicle/scan laboratory.",
-        "Contracts and lessons may transfer; private scan data, sample-host coupling and accidental schemas do not transfer automatically."
-      ]
+      "notes": ["Box3d_FunProject remains a productive vehicle/scan laboratory.", "Contracts and lessons may transfer; private scan data, sample-host coupling and accidental schemas do not transfer automatically."]
     }
   ],
   "documentFindings": [
     {
       "path": "docs/TECH_DEBT_PL.md",
-      "status": "KNOWN_DEBT",
-      "finding": "Contains historical direct-push and global-front-door instructions that conflict with current AGENTS.md governance.",
-      "requiredAction": "Convert those statements to historical records and point to isolated branch plus draft PR policy."
+      "status": "FOUNDATION_PRESERVE",
+      "finding": "Historical direct-push and global-front-door instructions were removed; file is now a vehicle-only debt registry.",
+      "requiredAction": "Keep isolated-branch and draft-PR policy mechanically guarded."
     },
     {
       "path": "docs/scan_import/00_START_HERE.md",
+      "status": "FOUNDATION_PRESERVE",
+      "finding": "Stale P1B current tutorial was replaced with the current texture-first scan router.",
+      "requiredAction": "Keep TERRAIN_VISIBLE_PASS and texture-before-scale-before-collision markers guarded."
+    },
+    {
+      "path": ".github/pull_request_template.md",
+      "status": "REMOVE_AFTER_VERIFICATION",
+      "finding": "Upstream-only default template contradicted the fork's draft PR workflow and was removed on the audit branch.",
+      "requiredAction": "Repository audit must reject reintroduction."
+    },
+    {
+      "path": "JOZZ_VEHICLE_README_PL.md",
       "status": "SUPERSEDED",
-      "finding": "Still presents the P1B owner-gate stage as current and contains an obsolete next-step queue.",
-      "requiredAction": "Replace with a current router while preserving old commands in Git history and milestone docs."
+      "finding": "Stale root vehicle README was converted into a compatibility pointer preserving only durable rules.",
+      "requiredAction": "Do not promote it back to current authority."
+    },
+    {
+      "path": "docs/PROJECT_DIRECTION_PL.md",
+      "status": "HISTORICAL_EVIDENCE",
+      "finding": "Original M2.5 direction was converted into an origin record; stale milestone queue was removed.",
+      "requiredAction": "Current product intent remains in PROJECT_CHARTER_PL.md."
     },
     {
       "path": "docs/CURRENT_STATE_INDEX_PL.md",
       "status": "HISTORICAL_EVIDENCE",
-      "finding": "Valuable vehicle ledger with stale branch/date header and mixed historical/current wording.",
-      "requiredAction": "Add an explicit vehicle-only authority banner; retain detailed evidence."
+      "finding": "Detailed vehicle ledger remains useful but does not select the global campaign.",
+      "requiredAction": "Lifecycle manifest and docs index must keep this role explicit."
     },
     {
       "path": "docs/CHECKPOINTS_PL.md",
       "status": "HISTORICAL_EVIDENCE",
-      "finding": "Vehicle chronological ledger remains useful but must never select the global active campaign.",
-      "requiredAction": "Add a non-authority banner and keep newest entries bounded."
+      "finding": "Vehicle chronological ledger remains useful but never selects current work.",
+      "requiredAction": "Keep bounded as history and route through docs index."
     },
     {
       "path": "docs/scan_import/ARCHITECTURE.md",
       "status": "FOUNDATION_PRESERVE",
-      "finding": "Core evidence-versus-authored-truth boundary is sound, but status and future-gate vocabulary predate TERRAIN_VISIBLE_PASS.",
-      "requiredAction": "Review in a bounded architecture update; do not rewrite before inventory completion."
+      "finding": "Evidence-versus-authored-truth boundary is sound; status vocabulary predates TERRAIN_VISIBLE_PASS.",
+      "requiredAction": "Perform a bounded architecture wording update only after F2 inventory is sealed."
     }
   ],
   "pullRequestLineage": [
-    {"pr": 1, "branch": "agent/p1-dataset-inspector-staging", "role": "inspection foundation", "integration": "reachable through PR #13 lineage", "retention": "DELETE_AFTER_VERIFICATION"},
-    {"pr": 2, "branch": "agent/p1b-world-import-contract-staging", "role": "world import contracts", "integration": "reachable through PR #13 lineage", "retention": "DELETE_AFTER_VERIFICATION"},
-    {"pr": 3, "branch": "agent/p1b-inspector-bundle-staging", "role": "evidence bundle", "integration": "reachable through PR #13 lineage", "retention": "DELETE_AFTER_VERIFICATION"},
-    {"pr": 4, "branch": "agent/p1b-owner-gate-hardening", "role": "owner gate and reliable Windows gate", "integration": "reachable through PR #13 lineage", "retention": "DELETE_AFTER_VERIFICATION"},
-    {"pr": 5, "branch": "agent/p2a-source-visual-preview", "role": "geometry-only native preview", "integration": "reachable through PR #13 lineage", "retention": "DELETE_AFTER_VERIFICATION"},
+    {"pr": 1, "branch": "agent/p1-dataset-inspector-staging", "role": "inspection foundation", "integration": "exact ancestor of PR #13", "retention": "DELETE_AFTER_VERIFICATION"},
+    {"pr": 2, "branch": "agent/p1b-world-import-contract-staging", "role": "world import contracts", "integration": "exact P1B stack ancestor", "retention": "DELETE_AFTER_VERIFICATION"},
+    {"pr": 3, "branch": "agent/p1b-inspector-bundle-staging", "role": "evidence bundle", "integration": "exact P1B stack ancestor", "retention": "DELETE_AFTER_VERIFICATION"},
+    {"pr": 4, "branch": "agent/p1b-owner-gate-hardening", "role": "owner gate and reliable Windows gate", "integration": "exact P2A stack base", "retention": "DELETE_AFTER_VERIFICATION"},
+    {"pr": 5, "branch": "agent/p2a-source-visual-preview", "role": "geometry-only native preview", "integration": "exact ancestor of PR #13", "retention": "DELETE_AFTER_VERIFICATION"},
     {"pr": 6, "branch": "agent/p2a-source-visual-preview", "role": "temporary CI trigger", "integration": "never merge", "retention": "DELETE_AFTER_VERIFICATION"},
-    {"pr": 7, "branch": "agent/p2a-scan-derivatives-foundation", "role": "divergent surface evidence", "integration": "parked in Issue #14", "retention": "PRESERVE_BY_TAG_OR_COMMIT"},
-    {"pr": 8, "branch": "agent/p2a-real-owner-flow", "role": "historical owner-safe frame flow", "integration": "functional work restacked into PR #9; exact lineage still divergent", "retention": "PRESERVE_BY_TAG_OR_COMMIT"},
-    {"pr": 9, "branch": "agent/r1b-source-resolution-owner-integration", "role": "source resolution and resumable owner flow", "integration": "reachable through PR #13 lineage", "retention": "DELETE_AFTER_VERIFICATION"},
-    {"pr": 10, "branch": "agent/autonomous-loop-foundation-v1", "role": "automation foundation", "integration": "reachable through PR #13 lineage", "retention": "DELETE_AFTER_VERIFICATION"},
-    {"pr": 12, "branch": "agent/project-operating-polish-v1", "role": "operating docs", "integration": "reachable through PR #13 lineage", "retention": "DELETE_AFTER_VERIFICATION"},
+    {"pr": 7, "branch": "agent/p2a-scan-derivatives-foundation", "role": "divergent surface evidence", "integration": "parked in Issue #14; 17 unique commits relative to authoritative line", "retention": "PRESERVE_BY_TAG_OR_COMMIT"},
+    {"pr": 8, "branch": "agent/p2a-real-owner-flow", "role": "historical owner-safe frame flow", "integration": "functional work restacked; exact branch retains 26 divergent commits", "retention": "PRESERVE_BY_TAG_OR_COMMIT"},
+    {"pr": 9, "branch": "agent/r1b-source-resolution-owner-integration", "role": "source resolution and resumable owner flow", "integration": "exact ancestor of PR #13", "retention": "DELETE_AFTER_VERIFICATION"},
+    {"pr": 10, "branch": "agent/autonomous-loop-foundation-v1", "role": "automation foundation", "integration": "exact ancestor of PR #13", "retention": "DELETE_AFTER_VERIFICATION"},
+    {"pr": 12, "branch": "agent/project-operating-polish-v1", "role": "operating docs", "integration": "exact ancestor of PR #13", "retention": "DELETE_AFTER_VERIFICATION"},
     {"pr": 13, "branch": "agent/scan-terrain-r1b-consolidated-integration", "role": "current authoritative product integration", "integration": "open owner decision", "retention": "KEEP_ACTIVE"},
-    {"pr": 15, "branch": "agent/r1b-repository-readiness-polish-v1", "role": "merged governance layer", "integration": "merged into PR #13 branch", "retention": "DELETE_AFTER_VERIFICATION"},
-    {"pr": 16, "branch": "agent/project-refoundation-audit-v1", "role": "temporary re-foundation audit", "integration": "open and non-authoritative", "retention": "DELETE_AFTER_INTEGRATION"}
+    {"pr": 15, "branch": "agent/r1b-repository-readiness-polish-v1", "role": "merged governance layer", "integration": "one no-tree-delta merge commit below PR #13 head", "retention": "DELETE_AFTER_VERIFICATION"},
+    {"pr": 16, "branch": "agent/project-refoundation-audit-v1", "role": "temporary re-foundation audit", "integration": "open and non-authoritative; dynamic review head", "retention": "DELETE_AFTER_INTEGRATION"}
   ],
   "branchReduction": {
     "ownerTargetMaximum": 5,
     "preferredFinalCount": 3,
-    "preferredFinalBranches": [
-      "main",
-      "jozz-vehicle-sandbox-m0",
-      "ONE_CURRENT_INTEGRATED_PROJECT_BRANCH"
-    ],
-    "temporaryMaximumDuringReview": 5,
+    "preferredFinalBranches": ["main", "jozz-vehicle-sandbox-m0", "ONE_CURRENT_INTEGRATED_PROJECT_BRANCH"],
+    "exactPlan": "docs/BRANCH_RETENTION_PLAN_2026_07_22.json",
     "requiredRemoteEnumeration": "git ls-remote --heads origin",
+    "remotePresence": "VERIFIED_BY_CI_SNAPSHOT",
+    "verifiedBranchCount": 18,
+    "verifiedTagCount": 0,
+    "linearOrDuplicateBranchesToDelete": 12,
+    "divergentBranchesToTagThenDelete": 2,
+    "temporaryReviewBranchesToDeleteAfterIntegration": 1,
+    "projectedFinalBranchCount": 3,
     "requiredSafetyChecks": [
       "Record exact branch name and remote SHA.",
-      "Prove ancestry or content replacement against a kept branch.",
-      "For every divergent unique head, create and verify an annotated preservation tag before branch deletion.",
-      "Do not delete the branch checked out in any owner worktree.",
-      "Do not delete a branch while its PR is the active review surface.",
-      "Never use force deletion as a substitute for unresolved ancestry."
+      "Stop on any unexpected exact-pinned SHA movement.",
+      "Resolve the dynamic PR #16 review head only at final integration time.",
+      "Create and verify preservation tags before deleting divergent or milestone branches.",
+      "Do not delete a branch checked out in any owner worktree.",
+      "Do not delete a current authority or open review branch.",
+      "Delete one branch at a time; never use force or history rewrite."
     ],
-    "provisionalPreservationTags": [
-      {"name": "milestone/terrain-visible-2026-07-22", "target": "33099413bf8f44adbe1d635f9e10bdf2d0b5c321", "reason": "authoritative seven-tile geometry milestone"},
-      {"name": "evidence/surface-foundation-pr7", "target": "9aacc752f331d0d47c4c9c3f6fe82c63466f592c", "reason": "divergent parked surface-evidence lineage"},
-      {"name": "evidence/owner-flow-pr8", "target": "a36e3d2f4c76f35d138a7e8b0aa11f7889e69e90", "reason": "exact historical owner-flow evidence before restack"}
+    "preservationTags": [
+      {"name": "milestone/terrain-visible-2026-07-22", "target": "33099413bf8f44adbe1d635f9e10bdf2d0b5c321"},
+      {"name": "evidence/surface-foundation-pr7", "target": "9aacc752f331d0d47c4c9c3f6fe82c63466f592c"},
+      {"name": "evidence/owner-flow-pr8", "target": "a36e3d2f4c76f35d138a7e8b0aa11f7889e69e90"}
     ],
-    "remotePresence": "UNVERIFIED",
     "deletionAuthorized": false
   },
   "unresolved": [
-    "Complete exact remote branch enumeration and compare it with the PR-derived lineage list.",
-    "Decide PR #13 integration strategy before selecting the final current branch.",
-    "Review every current front door and dated plan for stale imperative language.",
-    "Classify all vehicle and map documents not yet opened during this audit.",
-    "Recover texture experiment evidence and design a new adjacent textured-preview contract.",
+    "Decide PR #13 and PR #16 integration strategy before selecting the final current branch.",
+    "Create and verify the three preservation tags before branch cleanup.",
+    "Complete document lifecycle classification for all project-authored plan/audit files.",
+    "Boundedly refresh scan ARCHITECTURE.md status vocabulary without weakening evidence boundaries.",
+    "Recover texture experiment evidence and write a new adjacent textured-preview campaign brief.",
     "Measure real texture and geometry budgets before selecting runtime strategy.",
     "Define the exact accepted-vehicle scale-reference scene without changing vehicle behavior.",
     "Keep collision and surface work blocked until texture, scale and owner ROI gates are complete."
