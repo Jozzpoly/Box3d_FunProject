@@ -20,7 +20,12 @@ on:
       - "docs/PROJECT_REFOUNDATION_AUDIT_2026_07_22_PL.md"
       - "docs/PROJECT_INVENTORY.json"
       - "docs/PROJECT_FORENSIC_INVENTORY_2026_07_22_PL.md"
+      - "docs/BRANCH_RETENTION_PLAN_2026_07_22.json"
+      - "docs/DOCUMENT_LIFECYCLE_2026_07_22.json"
       - "docs/TECH_DEBT_PL.md"
+      - "docs/HOTKEY_AUDIT_PL.md"
+      - "docs/PROJECT_DIRECTION_PL.md"
+      - "docs/PLAN_*_PL.md"
       - "docs/*/CURRENT_STATE.md"
       - "docs/scan_import/00_START_HERE.md"
       - "tools/project/**"
@@ -46,7 +51,12 @@ on:
       - "docs/PROJECT_REFOUNDATION_AUDIT_2026_07_22_PL.md"
       - "docs/PROJECT_INVENTORY.json"
       - "docs/PROJECT_FORENSIC_INVENTORY_2026_07_22_PL.md"
+      - "docs/BRANCH_RETENTION_PLAN_2026_07_22.json"
+      - "docs/DOCUMENT_LIFECYCLE_2026_07_22.json"
       - "docs/TECH_DEBT_PL.md"
+      - "docs/HOTKEY_AUDIT_PL.md"
+      - "docs/PROJECT_DIRECTION_PL.md"
+      - "docs/PLAN_*_PL.md"
       - "docs/*/CURRENT_STATE.md"
       - "docs/scan_import/00_START_HERE.md"
       - "tools/project/**"
@@ -76,6 +86,7 @@ jobs:
           python -m py_compile
           tools/project/repository_audit.py
           tools/project/refoundation_inventory_audit.py
+          tools/project/document_lifecycle_audit.py
           tools/project/repository_forensic_snapshot.py
 
       - name: Produce tracked-tree and remote-branch forensic snapshot
@@ -101,6 +112,9 @@ jobs:
 
       - name: Audit re-foundation inventory and branch retention
         run: python tools/project/refoundation_inventory_audit.py
+
+      - name: Audit project document lifecycle
+        run: python tools/project/document_lifecycle_audit.py
 
       - name: Run adversarial governance tests
         run: python -m unittest discover -s tests/project -p "test_*.py" -v
