@@ -11,6 +11,7 @@ import argparse
 import importlib.util
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 from typing import Any, Sequence
@@ -20,6 +21,9 @@ MODULE_DIR = Path(__file__).resolve().parent
 DEFAULT_ROOT = Path("build/scan_pipeline")
 STATE_SCHEMA = "jozz.scan-real-terrain-flow-state"
 ACTIVE_SCHEMA = "jozz.scan-active-preview"
+RECEIPT_SCHEMA = "jozz.scan-p1b-owner-gate-receipt"
+SHA256 = re.compile(r"^[0-9a-f]{64}$")
+REVISION = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 def _load(name: str) -> Any:
@@ -61,8 +65,6 @@ def _write(path: Path, value: dict[str, Any]) -> None:
 
 def _paths(root: Path) -> dict[str, Path]:
     return {
-        "bundles": root / "bundles",
-        "receipt": root / "p1b_owner_gate_receipt.local.json",
         "resolved": root / "resolved-sources",
         "previews": root / "previews",
         "config": root / "real-terrain-flow" / "CONFIG.local.json",
@@ -71,21 +73,98 @@ def _paths(root: Path) -> dict[str, Path]:
     }
 
 
-def _discover_bundle(root: Path) -> Path:
-    if not root.is_dir() or root.is_symlink():
-        raise RealTerrainFlowError("verified bundle directory is not available")
-    valid = []
-    for complete in sorted(root.glob("*/COMPLETE.json")):
+def _receipt_binding(path: Path) -> dict[str, str]:
+    path = Path(path)
+    if not path.is_file() or path.is_symlink():
+        raise RealTerrainFlowError("bundle-bound P1B owner-gate receipt is missing")
+    document = _json(path)
+    binding = document.get("bundle")
+    if (
+        document.get("schema") != RECEIPT_SCHEMA
+        or document.get("schemaVersion") != 2
+        or document.get("status") != "P1B_BUNDLE_PASS"
+        or document.get("privacyClass") != "PRIVATE_LOCAL_ONLY"
+        or not isinstance(binding, dict)
+        or binding.get("internalVerificationPassed") is not True
+        or binding.get("independentVerificationPassed") is not True
+    ):
+        raise RealTerrainFlowError("owner-gate receipt is not a completed P1B PASS receipt")
+    bundle_hash = binding.get("bundleContentSha256")
+    revision = binding.get("sourceRevisionId")
+    if not isinstance(bundle_hash, str) or not SHA256.fullmatch(bundle_hash):
+        raise RealTerrainFlowError("owner-gate receipt bundle hash is invalid")
+    if not isinstance(revision, str) or not REVISION.fullmatch(revision):
+        raise RealTerrainFlowError("owner-gate receipt source revision is invalid")
+    return {
+        "bundleContentSha256": bundle_hash,
+        "sourceRevisionId": revision,
+    }
+
+
+def _receipt_candidates(root: Path, explicit: Path | None) -> list[tuple[Path, dict[str, str]]]:
+    paths = [Path(explicit)] if explicit is not None else sorted(
+        {
+            path
+            for pattern in ("p1b_owner_gate_receipt.local.json", "*receipt*.json")
+            for path in root.rglob(pattern)
+        },
+        key=lambda path: path.as_posix().lower(),
+    )
+    valid: list[tuple[Path, dict[str, str]]] = []
+    for path in paths:
         try:
-            scan_import_bundle.verify_bundle(complete.parent)
+            valid.append((path, _receipt_binding(path)))
+        except (OSError, RealTerrainFlowError, scan_import_bundle.ImportBundleError):
+            if explicit is not None:
+                raise
+    if not valid:
+        raise RealTerrainFlowError("no completed bundle-bound P1B receipt was found")
+    return valid
+
+
+def _bundle_candidates(root: Path, explicit: Path | None) -> list[tuple[Path, dict[str, Any]]]:
+    paths = [Path(explicit)] if explicit is not None else [
+        complete.parent for complete in sorted(root.rglob("COMPLETE.json"))
+    ]
+    valid: list[tuple[Path, dict[str, Any]]] = []
+    for path in paths:
+        try:
+            valid.append((path, scan_import_bundle.verify_bundle(path)))
         except Exception:
-            continue
-        valid.append(complete.parent)
+            if explicit is not None:
+                raise RealTerrainFlowError("explicit P1B bundle failed verification")
     if not valid:
         raise RealTerrainFlowError("no verified P1B bundle was found")
-    if len(valid) != 1:
-        raise RealTerrainFlowError("multiple verified P1B bundles require explicit selection")
-    return valid[0]
+    return valid
+
+
+def _discover_bundle_and_receipt(
+    root: Path,
+    explicit_bundle: Path | None,
+    explicit_receipt: Path | None,
+) -> tuple[Path, Path]:
+    root = Path(root)
+    if not root.is_dir() or root.is_symlink():
+        raise RealTerrainFlowError("scan pipeline root is not available")
+    receipts = _receipt_candidates(root, explicit_receipt)
+    bundles = _bundle_candidates(root, explicit_bundle)
+    matches: list[tuple[Path, Path]] = []
+    for receipt_path, binding in receipts:
+        for bundle_path, summary in bundles:
+            if (
+                summary.get("bundleContentSha256") == binding["bundleContentSha256"]
+                and summary.get("sourceRevisionId") == binding["sourceRevisionId"]
+            ):
+                matches.append((bundle_path, receipt_path))
+    unique = sorted(
+        set(matches),
+        key=lambda pair: (pair[0].as_posix().lower(), pair[1].as_posix().lower()),
+    )
+    if not unique:
+        raise RealTerrainFlowError("no verified P1B bundle matches a completed owner-gate receipt")
+    if len(unique) != 1:
+        raise RealTerrainFlowError("multiple exact bundle/receipt pairs require explicit selection")
+    return unique[0]
 
 
 def _source_roots(config: Path, supplied: Sequence[Path]) -> list[Path]:
@@ -159,10 +238,11 @@ def launch(active_path: Path) -> None:
 
 def continue_flow(args: argparse.Namespace) -> int:
     paths = _paths(args.pipeline_root)
-    bundle = Path(args.bundle) if args.bundle else _discover_bundle(paths["bundles"])
-    receipt = Path(args.owner_gate_receipt) if args.owner_gate_receipt else paths["receipt"]
-    if not receipt.is_file() or receipt.is_symlink():
-        raise RealTerrainFlowError("bundle-bound P1B owner-gate receipt is missing")
+    bundle, receipt = _discover_bundle_and_receipt(
+        args.pipeline_root,
+        Path(args.bundle) if args.bundle else None,
+        Path(args.owner_gate_receipt) if args.owner_gate_receipt else None,
+    )
     roots = _source_roots(paths["config"], args.source_root or [])
     source_view = scan_source_assets.resolve_from_bundle(
         bundle=bundle,
@@ -199,6 +279,7 @@ def continue_flow(args: argparse.Namespace) -> int:
             "privacyClass": "PRIVATE_LOCAL_ONLY",
             "stage": "VISUAL_REVIEW_PENDING",
             "bundlePath": str(bundle.resolve()),
+            "ownerGateReceiptPath": str(receipt.resolve()),
             "sourceViewPath": str(source_view.resolve()),
             "previewPath": str(preview.resolve()),
             "previewContentSha256": summary["previewContentSha256"],
