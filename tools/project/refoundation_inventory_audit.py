@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed checks for the project re-foundation inventory and branch plan."""
+"""Fail-closed checks for the current project inventory and branch topology."""
 from __future__ import annotations
 
 import json
@@ -16,6 +16,19 @@ COMPATIBILITY_README_PATH = "JOZZ_VEHICLE_README_PL.md"
 PROJECT_DIRECTION_PATH = "docs/PROJECT_DIRECTION_PL.md"
 LEGACY_PR_TEMPLATE = ".github/pull_request_template.md"
 
+CURRENT_PROJECT_BRANCH = "agent/project-refoundation-audit-v1"
+INTEGRATION_BASE = "jozz-vehicle-sandbox-m0"
+CURRENT_PR = 17
+CURRENT_REMOTE_BRANCHES = {
+    "main",
+    INTEGRATION_BASE,
+    CURRENT_PROJECT_BRANCH,
+}
+REQUIRED_TAG_TARGETS = {
+    "milestone/terrain-visible-2026-07-22": "33099413bf8f44adbe1d635f9e10bdf2d0b5c321",
+    "evidence/surface-foundation-pr7": "9aacc752f331d0d47c4c9c3f6fe82c63466f592c",
+    "evidence/owner-flow-pr8": "a36e3d2f4c76f35d138a7e8b0aa11f7889e69e90",
+}
 REQUIRED_DOMAIN_IDS = {
     "upstream-engine-core",
     "upstream-support-and-ci",
@@ -44,32 +57,7 @@ REQUIRED_STATUS_VALUES = {
     "REMOVE_AFTER_VERIFICATION",
     "UNREVIEWED",
 }
-REQUIRED_PRS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 16}
-REQUIRED_REMOTE_BRANCHES = {
-    "Photogrametry_Import_experiment",
-    "agent/autonomous-loop-foundation-v1",
-    "agent/p1-dataset-inspector-staging",
-    "agent/p1b-inspector-bundle-staging",
-    "agent/p1b-owner-gate-hardening",
-    "agent/p1b-world-import-contract-staging",
-    "agent/p1b-world-import-contract-staging-copy",
-    "agent/p2a-real-owner-flow",
-    "agent/p2a-scan-derivatives-foundation",
-    "agent/p2a-source-visual-preview",
-    "agent/project-operating-polish-v1",
-    "agent/project-refoundation-audit-v1",
-    "agent/r1b-repository-readiness-polish-v1",
-    "agent/r1b-source-resolution-owner-integration",
-    "agent/scan-terrain-r1b-consolidated-integration",
-    "jozz-vehicle-sandbox-m0",
-    "main",
-    "photogrammetry/import-v2-foundation",
-}
-REQUIRED_TAG_TARGETS = {
-    "milestone/terrain-visible-2026-07-22": "33099413bf8f44adbe1d635f9e10bdf2d0b5c321",
-    "evidence/surface-foundation-pr7": "9aacc752f331d0d47c4c9c3f6fe82c63466f592c",
-    "evidence/owner-flow-pr8": "a36e3d2f4c76f35d138a7e8b0aa11f7889e69e90",
-}
+REQUIRED_PRS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 16, 17}
 DOMAIN_FIELDS = {
     "paths",
     "responsibility",
@@ -79,19 +67,6 @@ DOMAIN_FIELDS = {
     "canonicalValidation",
     "privacyRisk",
     "notes",
-}
-VALID_LINEAGE_RETENTION = {
-    "KEEP_ACTIVE",
-    "DELETE_AFTER_VERIFICATION",
-    "PRESERVE_BY_TAG_OR_COMMIT",
-    "DELETE_AFTER_INTEGRATION",
-}
-VALID_BRANCH_RETENTION = {
-    "KEEP_BASELINE",
-    "KEEP_ACTIVE_UNTIL_INTEGRATION_DECISION",
-    "KEEP_REVIEW_TEMPORARY",
-    "DELETE_AFTER_VERIFICATION",
-    "TAG_THEN_DELETE",
 }
 
 
@@ -133,6 +108,7 @@ def _audit_domains(inventory: dict[str, Any], errors: list[str]) -> None:
     if not isinstance(domains, list):
         errors.append("INVENTORY_DOMAINS_MISSING")
         return
+
     ids: list[str] = []
     for index, domain in enumerate(domains):
         if not isinstance(domain, dict):
@@ -150,6 +126,7 @@ def _audit_domains(inventory: dict[str, Any], errors: list[str]) -> None:
             )
         if domain.get("status") not in REQUIRED_STATUS_VALUES:
             errors.append(f"INVENTORY_DOMAIN_STATUS_INVALID:{domain_id}:{domain.get('status')}")
+
     duplicates = sorted({value for value in ids if ids.count(value) > 1})
     if duplicates:
         errors.append("INVENTORY_DUPLICATE_DOMAIN_IDS:" + ",".join(duplicates))
@@ -163,6 +140,7 @@ def _audit_lineage(inventory: dict[str, Any], errors: list[str]) -> None:
     if not isinstance(lineage, list):
         errors.append("INVENTORY_PR_LINEAGE_MISSING")
         return
+
     seen: set[int] = set()
     for record in lineage:
         if not isinstance(record, dict):
@@ -173,10 +151,11 @@ def _audit_lineage(inventory: dict[str, Any], errors: list[str]) -> None:
             errors.append("INVENTORY_PR_NUMBER_INVALID")
             continue
         seen.add(pr)
-        if not isinstance(record.get("branch"), str) or not record["branch"]:
-            errors.append(f"INVENTORY_PR_BRANCH_MISSING:{pr}")
-        if record.get("retention") not in VALID_LINEAGE_RETENTION:
-            errors.append(f"INVENTORY_PR_RETENTION_INVALID:{pr}:{record.get('retention')}")
+        if not isinstance(record.get("role"), str) or not record["role"]:
+            errors.append(f"INVENTORY_PR_ROLE_MISSING:{pr}")
+        if not isinstance(record.get("status"), str) or not record["status"]:
+            errors.append(f"INVENTORY_PR_STATUS_MISSING:{pr}")
+
     missing_prs = sorted(REQUIRED_PRS - seen)
     if missing_prs:
         errors.append("INVENTORY_PR_LINEAGE_INCOMPLETE:" + ",".join(map(str, missing_prs)))
@@ -197,135 +176,104 @@ def _audit_branch_reduction(inventory: dict[str, Any], errors: list[str]) -> Non
     if not isinstance(reduction, dict):
         errors.append("INVENTORY_BRANCH_REDUCTION_MISSING")
         return
+
     expected = {
         "ownerTargetMaximum": 5,
         "preferredFinalCount": 3,
+        "currentBranchCount": 3,
+        "cleanupStatus": "COMPLETED_TO_PREFERRED_COUNT_WITH_RETENTION_DEBT",
+        "retentionTagDebtCount": 3,
+        "furtherDeletionAuthorized": False,
         "exactPlan": BRANCH_PLAN_PATH,
-        "requiredRemoteEnumeration": "git ls-remote --heads origin",
-        "remotePresence": "VERIFIED_BY_CI_SNAPSHOT",
-        "verifiedBranchCount": 18,
-        "verifiedTagCount": 0,
-        "linearOrDuplicateBranchesToDelete": 12,
-        "divergentBranchesToTagThenDelete": 2,
-        "temporaryReviewBranchesToDeleteAfterIntegration": 1,
-        "projectedFinalBranchCount": 3,
-        "deletionAuthorized": False,
     }
     for field, value in expected.items():
         if reduction.get(field) != value:
             errors.append(f"BRANCH_REDUCTION_DRIFT:{field}:{reduction.get(field)}")
-    if reduction.get("preferredFinalBranches") != [
-        "main",
-        "jozz-vehicle-sandbox-m0",
-        "ONE_CURRENT_INTEGRATED_PROJECT_BRANCH",
-    ]:
-        errors.append("BRANCH_PREFERRED_SET_DRIFT")
-    tags = _tag_map(reduction.get("preservationTags"))
-    for name, target in REQUIRED_TAG_TARGETS.items():
-        if tags.get(name) != target:
-            errors.append(f"INVENTORY_PRESERVATION_TAG_DRIFT:{name}:{tags.get(name)}")
+
+    branches = reduction.get("currentBranches")
+    if not isinstance(branches, list) or set(branches) != CURRENT_REMOTE_BRANCHES:
+        errors.append(f"BRANCH_REDUCTION_CURRENT_SET_DRIFT:{branches}")
 
 
 def _audit_branch_plan(plan: dict[str, Any], errors: list[str]) -> None:
-    if plan.get("schemaVersion") != 2:
+    if plan.get("schemaVersion") != 3:
         errors.append("BRANCH_PLAN_SCHEMA_VERSION")
-    snapshot = plan.get("snapshot")
-    if not isinstance(snapshot, dict):
-        errors.append("BRANCH_PLAN_SNAPSHOT_MISSING")
-    else:
-        expected = {
-            "workflowRunId": 29930191424,
-            "artifactId": 8533681496,
-            "enumerationCommand": "git ls-remote --heads origin",
-            "branchCount": 18,
-            "tagCount": 0,
-            "enumerationSucceeded": True,
-        }
-        for field, value in expected.items():
-            if snapshot.get(field) != value:
-                errors.append(f"BRANCH_PLAN_SNAPSHOT_DRIFT:{field}:{snapshot.get(field)}")
+    if plan.get("cleanupStatus") != "COMPLETED_TO_PREFERRED_COUNT_WITH_RETENTION_DEBT":
+        errors.append("BRANCH_PLAN_CLEANUP_STATUS_DRIFT")
 
     policy = plan.get("ownerPolicy")
     if not isinstance(policy, dict):
         errors.append("BRANCH_PLAN_OWNER_POLICY_MISSING")
     else:
-        if policy.get("hardMaximumBranchesAfterCleanup") != 5:
-            errors.append("BRANCH_PLAN_HARD_MAX_DRIFT")
-        if policy.get("preferredFinalBranchCount") != 3:
-            errors.append("BRANCH_PLAN_PREFERRED_COUNT_DRIFT")
-        for field in (
-            "deletionAuthorized",
-            "forcePushAuthorized",
-            "historyRewriteAuthorized",
-            "bulkDeleteAuthorized",
-        ):
-            if policy.get(field) is not False:
-                errors.append(f"BRANCH_PLAN_AUTHORITY_OVERCLAIM:{field}")
-        if policy.get("unexpectedShaMismatchIsStop") is not True:
-            errors.append("BRANCH_PLAN_SHA_STOP_MISSING")
+        expected_policy = {
+            "hardMaximumBranches": 5,
+            "preferredBranchCount": 3,
+            "currentBranchCount": 3,
+            "furtherDeletionAuthorized": False,
+            "forcePushAuthorized": False,
+            "historyRewriteAuthorized": False,
+            "bulkDeleteAuthorized": False,
+        }
+        for field, value in expected_policy.items():
+            if policy.get(field) != value:
+                errors.append(f"BRANCH_PLAN_POLICY_DRIFT:{field}:{policy.get(field)}")
 
-    branches = plan.get("branches")
-    if not isinstance(branches, list):
-        errors.append("BRANCH_PLAN_BRANCHES_MISSING")
-        branches = []
+    current = plan.get("currentBranches")
+    if not isinstance(current, list):
+        errors.append("BRANCH_PLAN_CURRENT_BRANCHES_MISSING")
+        current = []
+
     names: list[str] = []
-    for record in branches:
+    for record in current:
         if not isinstance(record, dict):
-            errors.append("BRANCH_PLAN_RECORD_NOT_OBJECT")
+            errors.append("BRANCH_PLAN_CURRENT_RECORD_NOT_OBJECT")
             continue
         name = record.get("name")
         if not isinstance(name, str):
-            errors.append("BRANCH_PLAN_NAME_INVALID")
+            errors.append("BRANCH_PLAN_CURRENT_NAME_INVALID")
             continue
         names.append(name)
-        if record.get("retention") not in VALID_BRANCH_RETENTION:
-            errors.append(f"BRANCH_PLAN_RETENTION_INVALID:{name}:{record.get('retention')}")
-        policy_name = record.get("shaPolicy")
-        if name == "agent/project-refoundation-audit-v1":
-            if policy_name != "DYNAMIC_REVIEW_HEAD_UNTIL_INTEGRATION":
-                errors.append("BRANCH_PLAN_DYNAMIC_REVIEW_POLICY_DRIFT")
-            if not _full_sha(record.get("snapshotSha")):
-                errors.append("BRANCH_PLAN_DYNAMIC_SNAPSHOT_SHA_INVALID")
+        if name == CURRENT_PROJECT_BRANCH:
+            if record.get("shaPolicy") != "DYNAMIC_CURRENT_PROJECT_HEAD_UNTIL_INTEGRATION":
+                errors.append("BRANCH_PLAN_CURRENT_HEAD_POLICY_DRIFT")
+            if record.get("retention") != "KEEP_ACTIVE":
+                errors.append("BRANCH_PLAN_CURRENT_RETENTION_DRIFT")
         else:
-            if policy_name not in {"EXACT_REMOTE_SHA", "EXACT_REMOTE_SHA_UNTIL_INTEGRATION_DECISION"}:
-                errors.append(f"BRANCH_PLAN_EXACT_SHA_POLICY_MISSING:{name}:{policy_name}")
+            if record.get("shaPolicy") != "EXACT_REMOTE_SHA":
+                errors.append(f"BRANCH_PLAN_BASELINE_SHA_POLICY_DRIFT:{name}")
             if not _full_sha(record.get("sha")):
-                errors.append(f"BRANCH_PLAN_SHA_INVALID:{name}")
-    if len(names) != 18:
-        errors.append(f"BRANCH_PLAN_COUNT_DRIFT:{len(names)}")
-    if len(set(names)) != len(names):
-        errors.append("BRANCH_PLAN_DUPLICATE_NAMES")
-    missing = sorted(REQUIRED_REMOTE_BRANCHES - set(names))
-    extra = sorted(set(names) - REQUIRED_REMOTE_BRANCHES)
-    if missing:
-        errors.append("BRANCH_PLAN_REMOTE_BRANCHES_MISSING:" + ",".join(missing))
-    if extra:
-        errors.append("BRANCH_PLAN_UNEXPECTED_BRANCHES:" + ",".join(extra))
+                errors.append(f"BRANCH_PLAN_BASELINE_SHA_INVALID:{name}")
+            if record.get("retention") != "KEEP_BASELINE":
+                errors.append(f"BRANCH_PLAN_BASELINE_RETENTION_DRIFT:{name}")
 
-    tags = _tag_map(plan.get("preservationTagsRequiredBeforeDeletion"))
-    for name, target in REQUIRED_TAG_TARGETS.items():
-        actual = tags.get(name)
-        if actual != target:
-            errors.append(f"BRANCH_PLAN_PRESERVATION_TAG_DRIFT:{name}:{actual}")
-        if actual is not None and not _full_sha(actual):
-            errors.append(f"BRANCH_PLAN_PRESERVATION_TAG_SHA_INVALID:{name}")
+    if set(names) != CURRENT_REMOTE_BRANCHES or len(names) != 3:
+        errors.append("BRANCH_PLAN_CURRENT_SET_DRIFT:" + ",".join(names))
 
-    projection = plan.get("cleanupProjection")
-    if not isinstance(projection, dict):
-        errors.append("BRANCH_PLAN_PROJECTION_MISSING")
+    debt = plan.get("retentionDebt")
+    if not isinstance(debt, dict):
+        errors.append("BRANCH_PLAN_RETENTION_DEBT_MISSING")
     else:
-        expected_projection = {
-            "currentBranchCount": 18,
-            "linearOrDuplicateBranchesToDelete": 12,
-            "divergentBranchesToTagThenDelete": 2,
-            "temporaryReviewBranchToDeleteAfterIntegration": 1,
-            "projectedFinalBranchCount": 3,
-            "projectedFinalStateSatisfiesHardMaximum": True,
-            "projectedFinalStateSatisfiesPreferredCount": True,
+        if debt.get("status") != "OPEN_NON_BLOCKING_FOR_CURRENT_BRANCH_WORK":
+            errors.append("BRANCH_PLAN_RETENTION_DEBT_STATUS_DRIFT")
+        tags = _tag_map(debt.get("missingTags"))
+        for name, target in REQUIRED_TAG_TARGETS.items():
+            if tags.get(name) != target:
+                errors.append(f"BRANCH_PLAN_RETENTION_TAG_DRIFT:{name}:{tags.get(name)}")
+
+    final_state = plan.get("finalState")
+    if not isinstance(final_state, dict):
+        errors.append("BRANCH_PLAN_FINAL_STATE_MISSING")
+    else:
+        expected_final = {
+            "branchCount": 3,
+            "satisfiesHardMaximum": True,
+            "satisfiesPreferredCount": True,
+            "branchCleanupComplete": True,
+            "retentionTaggingComplete": False,
         }
-        for field, value in expected_projection.items():
-            if projection.get(field) != value:
-                errors.append(f"BRANCH_PLAN_PROJECTION_DRIFT:{field}:{projection.get(field)}")
+        for field, value in expected_final.items():
+            if final_state.get(field) != value:
+                errors.append(f"BRANCH_PLAN_FINAL_STATE_DRIFT:{field}:{final_state.get(field)}")
 
 
 def audit_refoundation_inventory(root: Path = ROOT) -> list[str]:
@@ -354,38 +302,38 @@ def audit_refoundation_inventory(root: Path = ROOT) -> list[str]:
     except Exception as exc:
         return [f"REFOUNDATION_JSON_INVALID:{exc}"]
 
-    if inventory.get("schemaVersion") != 2:
+    if inventory.get("schemaVersion") != 3:
         errors.append("INVENTORY_SCHEMA_VERSION")
     snapshot = inventory.get("snapshot")
     if not isinstance(snapshot, dict):
         errors.append("INVENTORY_SNAPSHOT_MISSING")
         snapshot = {}
+
     expected_snapshot = {
+        "authoritativeProductBranch": CURRENT_PROJECT_BRANCH,
+        "authoritativeHeadSource": "GitHub Control Issue #11",
+        "activeProductPr": CURRENT_PR,
+        "integrationBase": INTEGRATION_BASE,
         "highestProvenCapability": "TERRAIN_VISIBLE_PASS",
         "nextProductGate": "TEXTURED_SOURCE_PREVIEW",
-        "authoritativeProductBranch": "agent/scan-terrain-r1b-consolidated-integration",
-        "authoritativeHeadSource": "GitHub Control Issue #11",
-        "status": "F2_REMOTE_AND_TRACKED_TREE_INVENTORY_VERIFIED",
+        "status": "F3_THREE_BRANCH_TOPOLOGY_RECONCILED_PENDING_INTEGRATION_REVIEW",
     }
     for field, value in expected_snapshot.items():
         if snapshot.get(field) != value:
             errors.append(f"INVENTORY_SNAPSHOT_DRIFT:{field}:{snapshot.get(field)}")
-    tree = snapshot.get("trackedTreeSnapshot")
-    if not isinstance(tree, dict):
-        errors.append("INVENTORY_TRACKED_TREE_SNAPSHOT_MISSING")
-    else:
-        if tree.get("coverageComplete") is not True or tree.get("unclassifiedPathCount") != 0:
-            errors.append("INVENTORY_TRACKED_TREE_COVERAGE_INCOMPLETE")
-        if tree.get("trackedFileCountAtSnapshot") != 614:
-            errors.append(f"INVENTORY_TRACKED_FILE_COUNT_DRIFT:{tree.get('trackedFileCountAtSnapshot')}")
-    refs = snapshot.get("remoteRefSnapshot")
+
+    refs = snapshot.get("remoteRefState")
     if not isinstance(refs, dict):
-        errors.append("INVENTORY_REMOTE_REF_SNAPSHOT_MISSING")
+        errors.append("INVENTORY_REMOTE_REF_STATE_MISSING")
     else:
-        if refs.get("enumerationSucceeded") is not True:
-            errors.append("INVENTORY_REMOTE_ENUMERATION_NOT_VERIFIED")
-        if refs.get("branchCount") != 18 or refs.get("tagCount") != 0:
+        if refs.get("branchCount") != 3 or refs.get("tagCount") != 0:
             errors.append("INVENTORY_REMOTE_REF_COUNT_DRIFT")
+        if set(refs.get("branches", [])) != CURRENT_REMOTE_BRANCHES:
+            errors.append(f"INVENTORY_REMOTE_BRANCH_SET_DRIFT:{refs.get('branches')}")
+        if refs.get("coverageComplete") is not True:
+            errors.append("INVENTORY_REMOTE_REF_COVERAGE_INCOMPLETE")
+        if refs.get("retentionTagDebtCount") != 3:
+            errors.append("INVENTORY_RETENTION_TAG_DEBT_DRIFT")
         if refs.get("exactPlan") != BRANCH_PLAN_PATH:
             errors.append("INVENTORY_EXACT_BRANCH_PLAN_DRIFT")
 
@@ -447,10 +395,9 @@ def audit_refoundation_inventory(root: Path = ROOT) -> list[str]:
     _require_markers(
         report,
         (
-            "hard maximum after cleanup: 5 branches",
-            "preferred final state:       3 branches",
-            "git ls-remote --heads origin",
-            "Divergent heads — tag przed usunięciem brancha",
+            "3 branches",
+            "retention tag debt",
+            "agent/project-refoundation-audit-v1",
             "TEXTURED_SOURCE_PREVIEW",
         ),
         "FORENSIC_REPORT",
@@ -467,8 +414,9 @@ def main() -> int:
             print(f"- {error}")
         return 1
     print("REFOUNDATION_INVENTORY_AUDIT_PASS")
-    print("tracked_tree=verified remote_branches=18 remote_tags=0")
-    print("branch_target=3 hard_max=5 deletion_authorized=false")
+    print("remote_branches=3 remote_tags=0 retention_tag_debt=3")
+    print("branch_target=3 hard_max=5 further_deletion_authorized=false")
+    print("authority=agent/project-refoundation-audit-v1 pr=#17")
     print("next_gate=TEXTURED_SOURCE_PREVIEW")
     return 0
 
