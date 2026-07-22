@@ -51,8 +51,8 @@ EXPECTED_CURRENT_DOCUMENTS = {
     "docs/scan_import/ARCHITECTURE.md",
     "docs/scan_import/P2A_SOURCE_VISUAL_PREVIEW.md",
 }
-VALID_STATUSES = {
-    "CURRENT_AUTHORITY",
+CURRENT_STATUSES = {"CURRENT_AUTHORITY", "FOUNDATION_PRESERVE"}
+PROJECT_STATUSES = {
     "FOUNDATION_PRESERVE",
     "COMPLETED_RECORD",
     "PARKED_WITH_REACTIVATION_GATE",
@@ -70,7 +70,7 @@ REQUIRED_MARKERS = {
     ),
     "docs/PLAN_WIELKI_REFACTOR_2026_07_09_PL.md": (
         "R0_TO_R5_COMPLETED",
-        "R6",
+        "OPTIONAL_AESTHETIC",
         "OPEN_PHYSICS_CHANGE",
     ),
     "docs/PLAN_FINALIZACJA_NADWOZIA_I_RIGU_2026_07_11_PL.md": (
@@ -103,7 +103,7 @@ def _load_manifest(root: Path) -> dict:
     return value
 
 
-def _records_by_path(value: object, errors: list[str], label: str) -> dict[str, dict]:
+def _records_by_path(value: object, label: str, errors: list[str]) -> dict[str, dict]:
     if not isinstance(value, list):
         errors.append(f"{label}_MISSING")
         return {}
@@ -122,18 +122,27 @@ def _records_by_path(value: object, errors: list[str], label: str) -> dict[str, 
     return result
 
 
+def _check_exact_paths(
+    actual: dict[str, dict], expected: set[str], label: str, errors: list[str]
+) -> None:
+    missing = sorted(expected - set(actual))
+    extra = sorted(set(actual) - expected)
+    if missing:
+        errors.append(f"{label}_MISSING:" + ",".join(missing))
+    if extra:
+        errors.append(f"{label}_UNEXPECTED:" + ",".join(extra))
+
+
 def audit_document_lifecycle(root: Path = ROOT) -> list[str]:
     root = Path(root)
-    errors: list[str] = []
-    manifest_file = root / MANIFEST_PATH
-    if not manifest_file.is_file():
+    if not (root / MANIFEST_PATH).is_file():
         return [f"MISSING_REQUIRED_FILE:{MANIFEST_PATH}"]
-
     try:
         manifest = _load_manifest(root)
     except Exception as exc:
         return [f"DOCUMENT_LIFECYCLE_INVALID_JSON:{exc}"]
 
+    errors: list[str] = []
     if manifest.get("schemaVersion") != 1:
         errors.append("DOCUMENT_LIFECYCLE_SCHEMA_VERSION")
     if "No document in this manifest selects current work by itself" not in str(
@@ -141,34 +150,26 @@ def audit_document_lifecycle(root: Path = ROOT) -> list[str]:
     ):
         errors.append("DOCUMENT_LIFECYCLE_AUTHORITY_RULE_MISSING")
 
-    current = _records_by_path(manifest.get("currentDocuments"), errors, "CURRENT_DOCUMENTS")
+    current = _records_by_path(manifest.get("currentDocuments"), "CURRENT_DOCUMENTS", errors)
     project = _records_by_path(
-        manifest.get("projectAuthoredDocuments"), errors, "PROJECT_DOCUMENTS"
+        manifest.get("projectAuthoredDocuments"), "PROJECT_DOCUMENTS", errors
     )
+    _check_exact_paths(current, EXPECTED_CURRENT_DOCUMENTS, "CURRENT_DOCUMENTS", errors)
+    _check_exact_paths(project, EXPECTED_PROJECT_DOCUMENTS, "PROJECT_DOCUMENTS", errors)
 
-    missing_current = sorted(EXPECTED_CURRENT_DOCUMENTS - set(current))
-    extra_current = sorted(set(current) - EXPECTED_CURRENT_DOCUMENTS)
-    if missing_current:
-        errors.append("CURRENT_DOCUMENTS_MISSING:" + ",".join(missing_current))
-    if extra_current:
-        errors.append("CURRENT_DOCUMENTS_UNEXPECTED:" + ",".join(extra_current))
-
-    missing_project = sorted(EXPECTED_PROJECT_DOCUMENTS - set(project))
-    extra_project = sorted(set(project) - EXPECTED_PROJECT_DOCUMENTS)
-    if missing_project:
-        errors.append("PROJECT_DOCUMENTS_MISSING:" + ",".join(missing_project))
-    if extra_project:
-        errors.append("PROJECT_DOCUMENTS_UNEXPECTED:" + ",".join(extra_project))
-
-    for path, record in {**current, **project}.items():
-        if record.get("status") not in VALID_STATUSES:
-            errors.append(f"DOCUMENT_STATUS_INVALID:{path}:{record.get('status')}")
+    for path, record in current.items():
+        if record.get("status") not in CURRENT_STATUSES:
+            errors.append(f"CURRENT_DOCUMENT_STATUS_INVALID:{path}:{record.get('status')}")
         if not (root / path).is_file():
             errors.append(f"CLASSIFIED_DOCUMENT_NOT_TRACKED:{path}")
 
     for path, record in project.items():
+        if record.get("status") not in PROJECT_STATUSES:
+            errors.append(f"PROJECT_DOCUMENT_STATUS_INVALID:{path}:{record.get('status')}")
         if record.get("mayActivateWork") is not False:
             errors.append(f"HISTORICAL_DOCUMENT_CAN_ACTIVATE_WORK:{path}")
+        if not (root / path).is_file():
+            errors.append(f"CLASSIFIED_DOCUMENT_NOT_TRACKED:{path}")
         for field in ("domain", "role", "supersededBy", "reactivationGate"):
             if field not in record:
                 errors.append(f"DOCUMENT_FIELD_MISSING:{path}:{field}")
@@ -177,16 +178,15 @@ def audit_document_lifecycle(root: Path = ROOT) -> list[str]:
     if not isinstance(coverage, dict):
         errors.append("DOCUMENT_COVERAGE_MISSING")
     else:
-        if coverage.get("projectAuthoredDocumentCount") != 25:
-            errors.append(
-                f"DOCUMENT_COUNT_DRIFT:{coverage.get('projectAuthoredDocumentCount')}"
-            )
-        if coverage.get("allTrackedProjectAuthoredDocumentsClassified") is not True:
-            errors.append("DOCUMENT_COVERAGE_NOT_COMPLETE")
-        if coverage.get("unclassifiedProjectAuthoredDocuments") != []:
-            errors.append("DOCUMENT_UNCLASSIFIED_LIST_NOT_EMPTY")
-        if coverage.get("mayActivateWorkCount") != 0:
-            errors.append("DOCUMENT_ACTIVATION_COUNT_NOT_ZERO")
+        expected_coverage = {
+            "projectAuthoredDocumentCount": 25,
+            "allTrackedProjectAuthoredDocumentsClassified": True,
+            "unclassifiedProjectAuthoredDocuments": [],
+            "mayActivateWorkCount": 0,
+        }
+        for field, expected in expected_coverage.items():
+            if coverage.get(field) != expected:
+                errors.append(f"DOCUMENT_COVERAGE_DRIFT:{field}:{coverage.get(field)}")
 
     for path, markers in REQUIRED_MARKERS.items():
         text = (root / path).read_text(encoding="utf-8")
