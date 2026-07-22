@@ -33,6 +33,18 @@ class RepositoryAuditTests(unittest.TestCase):
     def test_current_repository_passes(self) -> None:
         self.assertEqual(repository_audit.audit_repository(ROOT), [])
 
+    def test_equivalent_exact_head_wording_passes(self) -> None:
+        temporary, root = self.fixture()
+        self.addCleanup(temporary.cleanup)
+        path = root / "docs" / "scan_import" / "CURRENT_STATE.md"
+        text = path.read_text(encoding="utf-8").replace(
+            "read from GitHub Control Issue #11",
+            "GitHub Control Issue #11",
+            1,
+        )
+        path.write_text(text, encoding="utf-8")
+        self.assertEqual(repository_audit.audit_repository(root), [])
+
     def test_wrong_global_rules_file_is_detected(self) -> None:
         temporary, root = self.fixture()
         self.addCleanup(temporary.cleanup)
