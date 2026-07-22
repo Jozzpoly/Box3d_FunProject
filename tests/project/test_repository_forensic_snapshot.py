@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 import sys
 import unittest
@@ -62,38 +61,48 @@ class RepositoryForensicSnapshotTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             repository_forensic_snapshot._parse_remote_refs("malformed\n", "refs/heads/")
 
-    def test_exact_branch_plan_covers_eighteen_remote_refs(self) -> None:
-        plan = json.loads(
-            (ROOT / "docs" / "BRANCH_RETENTION_PLAN_2026_07_22.json").read_text(encoding="utf-8")
+    def test_exact_branch_plan_contains_only_three_current_refs(self) -> None:
+        plan = repository_forensic_snapshot._load_branch_plan()
+        branches = plan["currentBranches"]
+        self.assertEqual(plan["schemaVersion"], 3)
+        self.assertEqual(plan["ownerPolicy"]["currentBranchCount"], 3)
+        self.assertEqual(len(branches), 3)
+        self.assertEqual(
+            {record["name"] for record in branches},
+            {"main", "jozz-vehicle-sandbox-m0", "agent/project-refoundation-audit-v1"},
         )
-        branches = plan["branches"]
-        self.assertEqual(plan["snapshot"]["branchCount"], 18)
-        self.assertEqual(len(branches), 18)
-        self.assertEqual(len({record["name"] for record in branches}), 18)
-        self.assertFalse(plan["ownerPolicy"]["deletionAuthorized"])
-        self.assertEqual(plan["cleanupProjection"]["projectedFinalBranchCount"], 3)
+        self.assertFalse(plan["ownerPolicy"]["furtherDeletionAuthorized"])
+        self.assertFalse(plan["finalState"]["retentionTaggingComplete"])
 
-    def test_inventory_lineage_preserves_divergent_surface_branch(self) -> None:
-        inventory = repository_forensic_snapshot._load_inventory()
-        lineage = repository_forensic_snapshot._lineage_by_branch(inventory)
-        surface = lineage["agent/p2a-scan-derivatives-foundation"]
-        self.assertEqual(surface["retention"], "PRESERVE_BY_TAG_OR_COMMIT")
-        self.assertIn(7, surface["prs"])
-
-    def test_exact_plan_requires_tag_before_divergent_branch_delete(self) -> None:
+    def test_current_three_branches_are_classified(self) -> None:
         inventory = repository_forensic_snapshot._load_inventory()
         annotated = repository_forensic_snapshot._annotate_branches(
             [
+                {"name": "main", "sha": "f84f8c32c7d5de17c3cf88f63029b242b115c9de"},
                 {
-                    "name": "agent/p2a-scan-derivatives-foundation",
-                    "sha": "9aacc752f331d0d47c4c9c3f6fe82c63466f592c",
-                }
+                    "name": "jozz-vehicle-sandbox-m0",
+                    "sha": "445db8801297714c4cb344cc9a6ce6cfe753cba7",
+                },
+                {
+                    "name": "agent/project-refoundation-audit-v1",
+                    "sha": "f" * 40,
+                },
             ],
             inventory,
         )
-        self.assertEqual(annotated[0]["retention"], "TAG_THEN_DELETE")
-        self.assertEqual(annotated[0]["requiredTag"], "evidence/surface-foundation-pr7")
-        self.assertTrue(annotated[0]["plannedShaMatches"])
+        self.assertEqual(
+            [record["retention"] for record in annotated],
+            ["KEEP_BASELINE", "KEEP_BASELINE", "KEEP_ACTIVE"],
+        )
+        self.assertTrue(all(record["preferredKeep"] for record in annotated))
+        self.assertEqual(
+            [record["plannedShaMatches"] for record in annotated],
+            [True, True, None],
+        )
+        self.assertEqual(
+            [record["dynamicCurrentHead"] for record in annotated],
+            [False, False, True],
+        )
 
     def test_unknown_remote_branch_is_not_assumed_deletable(self) -> None:
         inventory = repository_forensic_snapshot._load_inventory()
@@ -103,33 +112,28 @@ class RepositoryForensicSnapshotTests(unittest.TestCase):
         )
         self.assertEqual(annotated[0]["retention"], "UNCLASSIFIED_REMOTE_BRANCH")
         self.assertFalse(annotated[0]["preferredKeep"])
+        self.assertIsNone(annotated[0]["plannedShaMatches"])
 
-    def test_durable_baselines_are_kept_only_at_exact_planned_sha(self) -> None:
-        inventory = repository_forensic_snapshot._load_inventory()
-        annotated = repository_forensic_snapshot._annotate_branches(
-            [
-                {"name": "main", "sha": "f84f8c32c7d5de17c3cf88f63029b242b115c9de"},
-                {
-                    "name": "jozz-vehicle-sandbox-m0",
-                    "sha": "445db8801297714c4cb344cc9a6ce6cfe753cba7",
-                },
-            ],
-            inventory,
-        )
-        self.assertEqual(
-            [record["retention"] for record in annotated],
-            ["KEEP_BASELINE", "KEEP_BASELINE"],
-        )
-        self.assertTrue(all(record["preferredKeep"] for record in annotated))
-        self.assertTrue(all(record["plannedShaMatches"] for record in annotated))
-
-    def test_moved_remote_head_is_reported_as_plan_mismatch(self) -> None:
+    def test_moved_baseline_head_is_reported_as_plan_mismatch(self) -> None:
         inventory = repository_forensic_snapshot._load_inventory()
         annotated = repository_forensic_snapshot._annotate_branches(
             [{"name": "main", "sha": "0" * 40}],
             inventory,
         )
         self.assertFalse(annotated[0]["plannedShaMatches"])
+
+    def test_retention_tag_debt_remains_exact(self) -> None:
+        plan = repository_forensic_snapshot._load_branch_plan()
+        debt = plan["retentionDebt"]
+        targets = {record["name"]: record["target"] for record in debt["missingTags"]}
+        self.assertEqual(
+            targets,
+            {
+                "milestone/terrain-visible-2026-07-22": "33099413bf8f44adbe1d635f9e10bdf2d0b5c321",
+                "evidence/surface-foundation-pr7": "9aacc752f331d0d47c4c9c3f6fe82c63466f592c",
+                "evidence/owner-flow-pr8": "a36e3d2f4c76f35d138a7e8b0aa11f7889e69e90",
+            },
+        )
 
 
 if __name__ == "__main__":
