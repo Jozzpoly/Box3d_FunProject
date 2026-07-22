@@ -4,9 +4,7 @@ on:
   pull_request:
     branches:
       - jozz-vehicle-sandbox-m0
-      - agent/scan-terrain-r1b-consolidated-integration
-      - "agent/r1b-*"
-      - "agent/scan-terrain-*"
+      - agent/project-refoundation-audit-v1
     paths:
       - "tools/scan_pipeline/scan_*.py"
       - "tools/scan_pipeline/run_p1_contracts.py"
@@ -19,9 +17,7 @@ on:
       - ".github/workflows/p1-scan-inspector.yml"
   push:
     branches:
-      - agent/scan-terrain-r1b-consolidated-integration
-      - "agent/r1b-*"
-      - "agent/scan-terrain-*"
+      - agent/project-refoundation-audit-v1
     paths:
       - "tools/scan_pipeline/scan_*.py"
       - "tools/scan_pipeline/run_p1_contracts.py"
