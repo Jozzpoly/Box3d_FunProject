@@ -2,7 +2,6 @@
 """Fail-closed audit for repository authority, documentation and CI routing."""
 from __future__ import annotations
 
-import json
 from pathlib import Path
 import re
 import sys
@@ -18,6 +17,7 @@ import common  # noqa: E402
 ACTIVE_BRANCH = "agent/scan-terrain-r1b-consolidated-integration"
 ACTIVE_PR = "#13"
 CURRENT_STATUS = "REAL_PREVIEW_PIPELINE_CODE_READY"
+CONTROL_HEAD_AUTHORITY = "GitHub Control Issue #11"
 LEGACY_WORKFLOW = ".github/workflows/p2a-source-visual-preview.yml"
 
 REQUIRED_FILES = (
@@ -172,6 +172,15 @@ def audit_repository(root: Path = ROOT) -> list[str]:
         if value is not None and value != ACTIVE_PR:
             errors.append(f"ACTIVE_PR_DRIFT:{source}:{value}")
 
+    head_values = {
+        "memory": extract(r"exact current head:\s*([^\n]+)", memory, "memory.head", errors),
+        "current": extract(r"\*\*Exact current head:\*\* ([^\n]+)", current, "current.head", errors),
+        "operating": extract(r"exact head:\s*([^\n]+)", operating, "operating.head", errors),
+    }
+    for source, value in head_values.items():
+        if value is not None and value != CONTROL_HEAD_AUTHORITY:
+            errors.append(f"EXACT_HEAD_AUTHORITY_DRIFT:{source}:{value}")
+
     for relative, text in (
         ("AI_PROJECT_MEMORY.md", memory),
         ("docs/scan_import/CURRENT_STATE.md", current),
@@ -179,10 +188,6 @@ def audit_repository(root: Path = ROOT) -> list[str]:
     ):
         if CURRENT_STATUS not in text:
             errors.append(f"STATUS_DRIFT:{relative}")
-
-    check_contains(memory, ("exact current head:   GitHub Control Issue #11",), "MEMORY_HEAD", errors)
-    check_contains(current, ("**Exact current head:** read from GitHub Control Issue #11",), "CURRENT_HEAD", errors)
-    check_contains(operating, ("exact head:             GitHub Control Issue #11",), "OPERATING_HEAD", errors)
 
     if ACTIVE_BRANCH in issue_template or "3a0d63e" in issue_template:
         errors.append("CONTROL_TEMPLATE_CONTAINS_LIVE_OR_STALE_BRANCH")
