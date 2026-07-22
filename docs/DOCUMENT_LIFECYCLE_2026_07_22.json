@@ -1,0 +1,358 @@
+{
+  "schemaVersion": 1,
+  "repository": "Jozzpoly/Box3d_FunProject",
+  "snapshotDate": "2026-07-22",
+  "authorityRule": "No document in this manifest selects current work by itself. Read AGENTS.md, Control Issue #11, AI_PROJECT_MEMORY.md, the matching current state, active PR and PROJECT_OPERATING_PLAN_PL.md first.",
+  "statuses": [
+    "CURRENT_AUTHORITY",
+    "FOUNDATION_PRESERVE",
+    "COMPLETED_RECORD",
+    "PARKED_WITH_REACTIVATION_GATE",
+    "BLOCKED_BY_PREDECESSOR",
+    "HISTORICAL_EVIDENCE",
+    "HISTORICAL_FOUNDATION",
+    "DRAFT_NOT_AUTHORITY",
+    "SUPERSEDED_AS_FRONT_DOOR"
+  ],
+  "currentDocuments": [
+    {
+      "path": "AGENTS.md",
+      "domain": "global-governance",
+      "status": "CURRENT_AUTHORITY",
+      "role": "global agent policy and authority routing"
+    },
+    {
+      "path": "AI_PROJECT_MEMORY.md",
+      "domain": "global-project-state",
+      "status": "CURRENT_AUTHORITY",
+      "role": "short current campaign and gate router"
+    },
+    {
+      "path": "docs/PROJECT_OPERATING_PLAN_PL.md",
+      "domain": "global-project-state",
+      "status": "CURRENT_AUTHORITY",
+      "role": "single operational roadmap and workflow"
+    },
+    {
+      "path": "docs/PROJECT_CHARTER_PL.md",
+      "domain": "product-intent",
+      "status": "FOUNDATION_PRESERVE",
+      "role": "durable project soul and product principles"
+    },
+    {
+      "path": "README_FOR_AGENTS.md",
+      "domain": "vehicle",
+      "status": "CURRENT_AUTHORITY",
+      "role": "accepted vehicle-domain manual"
+    },
+    {
+      "path": "docs/CURRENT_STATE_INDEX_PL.md",
+      "domain": "vehicle",
+      "status": "FOUNDATION_PRESERVE",
+      "role": "detailed vehicle milestone and accepted-state ledger"
+    },
+    {
+      "path": "docs/TECH_DEBT_PL.md",
+      "domain": "vehicle",
+      "status": "FOUNDATION_PRESERVE",
+      "role": "vehicle-only debt, accepted limits and reactivation gates"
+    },
+    {
+      "path": "docs/SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md",
+      "domain": "vehicle",
+      "status": "FOUNDATION_PRESERVE",
+      "role": "current visual-rig versus physical-coilover boundary"
+    },
+    {
+      "path": "docs/SUBSYSTEM_UI_PRESETS_PL.md",
+      "domain": "vehicle",
+      "status": "FOUNDATION_PRESERVE",
+      "role": "current UI, presets and persistence contract"
+    },
+    {
+      "path": "docs/HOTKEY_AUDIT_PL.md",
+      "domain": "shared-host-and-vehicle",
+      "status": "FOUNDATION_PRESERVE",
+      "role": "current host/sample hotkey conflict contract"
+    },
+    {
+      "path": "docs/scan_import/00_START_HERE.md",
+      "domain": "scan",
+      "status": "CURRENT_AUTHORITY",
+      "role": "current scan-domain router"
+    },
+    {
+      "path": "docs/scan_import/CURRENT_STATE.md",
+      "domain": "scan",
+      "status": "CURRENT_AUTHORITY",
+      "role": "single scan current state"
+    },
+    {
+      "path": "docs/scan_import/ARCHITECTURE.md",
+      "domain": "scan",
+      "status": "FOUNDATION_PRESERVE",
+      "role": "evidence, proposal, authored truth and rebuildable projections boundary"
+    },
+    {
+      "path": "docs/scan_import/P2A_SOURCE_VISUAL_PREVIEW.md",
+      "domain": "scan",
+      "status": "FOUNDATION_PRESERVE",
+      "role": "closed geometry-only preview v1 contract"
+    }
+  ],
+  "projectAuthoredDocuments": [
+    {
+      "path": "docs/ASSET_CONTRACT_RUNTIME_V1_PL.md",
+      "domain": "vehicle-assets",
+      "status": "FOUNDATION_PRESERVE",
+      "role": "implemented sidecar runtime binding contract",
+      "mayActivateWork": false,
+      "supersededBy": null,
+      "reactivationGate": "separate asset-contract change with vehicle validation"
+    },
+    {
+      "path": "docs/ASSET_CONTRACT_V2_DRAFT_PL.md",
+      "domain": "vehicle-assets",
+      "status": "DRAFT_NOT_AUTHORITY",
+      "role": "early schema design input predating the implemented runtime v1 boundary",
+      "mayActivateWork": false,
+      "supersededBy": "docs/ASSET_CONTRACT_RUNTIME_V1_PL.md for current runtime behavior; future editor/importer requires a fresh reviewed schema",
+      "reactivationGate": "explicit editor/importer campaign and migration design"
+    },
+    {
+      "path": "docs/AUDIT_PHYSICS_STEERING_2026_07_08_PL.md",
+      "domain": "vehicle-physics",
+      "status": "HISTORICAL_EVIDENCE",
+      "role": "dated steering and physics investigation",
+      "mayActivateWork": false,
+      "supersededBy": "README_FOR_AGENTS.md and docs/TECH_DEBT_PL.md",
+      "reactivationGate": "new reproduced steering regression or owner feedback"
+    },
+    {
+      "path": "docs/AUDIT_WERYFIKACJA_P1_P6_2026_07_09_PL.md",
+      "domain": "vehicle-validation",
+      "status": "HISTORICAL_EVIDENCE",
+      "role": "dated independent verification of the completed P1-P6 campaign",
+      "mayActivateWork": false,
+      "supersededBy": "current validator, gate and completion record",
+      "reactivationGate": "specific regression requiring historical comparison"
+    },
+    {
+      "path": "docs/BOX3D_JOINT_SAMPLES_STUDY_PL.md",
+      "domain": "vehicle-research",
+      "status": "HISTORICAL_EVIDENCE",
+      "role": "joint/sample research used during vehicle architecture decisions",
+      "mayActivateWork": false,
+      "supersededBy": "accepted M7/M8 architecture and current code",
+      "reactivationGate": "new joint representation research"
+    },
+    {
+      "path": "docs/EDYTOR_RIGU_WYMAGANIA_I_AUDYT_PL.md",
+      "domain": "future-rig-editor",
+      "status": "PARKED_WITH_REACTIVATION_GATE",
+      "role": "preserved design authority for parent, pivot, socket, visual and collision-import requirements",
+      "mayActivateWork": false,
+      "supersededBy": null,
+      "reactivationGate": "owner decision on Box3d_FunProject versus JES boundary and one bounded editor vertical slice"
+    },
+    {
+      "path": "docs/FINALIZACJA_ETAP_1_MODEL_I_UI_PL.md",
+      "domain": "vehicle-visual-finalization",
+      "status": "HISTORICAL_EVIDENCE",
+      "role": "completed model registry and UI implementation stage",
+      "mayActivateWork": false,
+      "supersededBy": "completion umbrella and accepted vehicle docs",
+      "reactivationGate": "new owner-requested body/model UX change"
+    },
+    {
+      "path": "docs/FINALIZACJA_ETAP_2_PERSYSTENCJA_PL.md",
+      "domain": "vehicle-visual-finalization",
+      "status": "HISTORICAL_EVIDENCE",
+      "role": "completed persistence and preset implementation stage",
+      "mayActivateWork": false,
+      "supersededBy": "docs/SUBSYSTEM_UI_PRESETS_PL.md",
+      "reactivationGate": "specific persistence regression or new schema field"
+    },
+    {
+      "path": "docs/FINALIZACJA_ETAP_3_STAN_ZWALIDOWANY_PL.md",
+      "domain": "vehicle-visual-finalization",
+      "status": "HISTORICAL_EVIDENCE",
+      "role": "validated final stage evidence and owner decisions",
+      "mayActivateWork": false,
+      "supersededBy": "README_FOR_AGENTS.md and docs/CURRENT_STATE_INDEX_PL.md",
+      "reactivationGate": "new owner feedback that invalidates the accepted state"
+    },
+    {
+      "path": "docs/HOTKEY_AUDIT_PL.md",
+      "domain": "shared-host-and-vehicle",
+      "status": "FOUNDATION_PRESERVE",
+      "role": "current conflict-avoidance contract refreshed from code",
+      "mayActivateWork": false,
+      "supersededBy": null,
+      "reactivationGate": "any new or changed shortcut"
+    },
+    {
+      "path": "docs/M6_SUSPENSION_RIG_FOUNDATION_PL.md",
+      "domain": "vehicle-physics",
+      "status": "HISTORICAL_FOUNDATION",
+      "role": "M6 hardpoint and multi-body foundation report with pre-M7 behavior",
+      "mayActivateWork": false,
+      "supersededBy": "docs/M7_REAL_FORCES_FOUNDATION_PL.md and docs/M8_SUSPENSION_RIG_REPAIR_PLAN_PL.md",
+      "reactivationGate": "historical mechanism lookup only; current physics comes from M7/M8/code"
+    },
+    {
+      "path": "docs/MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md",
+      "domain": "synthetic-world",
+      "status": "FOUNDATION_PRESERVE",
+      "role": "accepted terrain and synthetic-world foundation",
+      "mayActivateWork": false,
+      "supersededBy": null,
+      "reactivationGate": "protect as deterministic regression world"
+    },
+    {
+      "path": "docs/MAPA_ETAP_2_PRZESZKODY_I_POLIGONY_PL.md",
+      "domain": "synthetic-world",
+      "status": "PARKED_WITH_REACTIVATION_GATE",
+      "role": "E2R central-campus replacement after owner rejection of the six-lane layout",
+      "mayActivateWork": false,
+      "supersededBy": "docs/PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md as umbrella",
+      "reactivationGate": "explicit map campaign activation and owner acceptance of the E2R skeleton"
+    },
+    {
+      "path": "docs/MAPA_ETAP_3_TOR_I_DRIFT_PL.md",
+      "domain": "synthetic-world",
+      "status": "BLOCKED_BY_PREDECESSOR",
+      "role": "future technical and drift track",
+      "mayActivateWork": false,
+      "supersededBy": null,
+      "reactivationGate": "E2R owner acceptance"
+    },
+    {
+      "path": "docs/MAPA_ETAP_4_PLAC_FIZYKI_PL.md",
+      "domain": "synthetic-world",
+      "status": "BLOCKED_BY_PREDECESSOR",
+      "role": "future Box3D physics courtyard",
+      "mayActivateWork": false,
+      "supersededBy": null,
+      "reactivationGate": "E2R owner acceptance"
+    },
+    {
+      "path": "docs/MAPA_ETAP_5_SPAWNER_I_STRESS_PL.md",
+      "domain": "synthetic-world",
+      "status": "BLOCKED_BY_PREDECESSOR",
+      "role": "future prop spawner and stress scenarios",
+      "mayActivateWork": false,
+      "supersededBy": null,
+      "reactivationGate": "E4 PropRegistry foundation"
+    },
+    {
+      "path": "docs/MAPA_ETAP_6_NAWIGACJA_POMIAR_POLISH_PL.md",
+      "domain": "synthetic-world",
+      "status": "BLOCKED_BY_PREDECESSOR",
+      "role": "future navigation, measurement and polish layer",
+      "mayActivateWork": false,
+      "supersededBy": null,
+      "reactivationGate": "E2R through E5 completion and owner review"
+    },
+    {
+      "path": "docs/PLAN_EDYTOR_RIGU_ROZGRZEWKA_2026_07_11_PL.md",
+      "domain": "future-rig-editor",
+      "status": "COMPLETED_RECORD",
+      "role": "completed real-vehicle research warm-up",
+      "mayActivateWork": false,
+      "supersededBy": "docs/EDYTOR_RIGU_WYMAGANIA_I_AUDYT_PL.md for future requirements",
+      "reactivationGate": "do not rerun; create a new bounded editor brief"
+    },
+    {
+      "path": "docs/PLAN_FINALIZACJA_NADWOZIA_I_RIGU_2026_07_11_PL.md",
+      "domain": "vehicle-visual-finalization",
+      "status": "COMPLETED_RECORD",
+      "role": "completed body, steering-rig and persistence umbrella",
+      "mayActivateWork": false,
+      "supersededBy": "accepted vehicle docs",
+      "reactivationGate": "new owner feedback and a separate bounded plan"
+    },
+    {
+      "path": "docs/PLAN_PORZADKI_FUNDAMENT_2026_07_09_PL.md",
+      "domain": "vehicle-governance-history",
+      "status": "COMPLETED_RECORD",
+      "role": "completed A-G foundation cleanup history",
+      "mayActivateWork": false,
+      "supersededBy": "current governance, documentation index and re-foundation inventory",
+      "reactivationGate": "none; new cleanup requires a new evidence-based plan"
+    },
+    {
+      "path": "docs/PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md",
+      "domain": "synthetic-world",
+      "status": "PARKED_WITH_REACTIVATION_GATE",
+      "role": "canonical map-domain rebase after the rejected six-lane layout",
+      "mayActivateWork": false,
+      "supersededBy": null,
+      "reactivationGate": "explicit map campaign activation; begin at E2R skeleton owner gate"
+    },
+    {
+      "path": "docs/PLAN_STABILNOSC_PROWADZENIE_PL.md",
+      "domain": "vehicle-physics",
+      "status": "COMPLETED_RECORD",
+      "role": "completed and owner-accepted P1-P6 stability campaign",
+      "mayActivateWork": false,
+      "supersededBy": "accepted vehicle docs and current probes",
+      "reactivationGate": "new reproduced regression or owner feedback"
+    },
+    {
+      "path": "docs/PLAN_WIELKI_REFACTOR_2026_07_09_PL.md",
+      "domain": "vehicle-structure",
+      "status": "COMPLETED_RECORD",
+      "role": "completed R0-R5 behavior-preserving structural series",
+      "mayActivateWork": false,
+      "supersededBy": "current code structure and docs/TECH_DEBT_PL.md for R7",
+      "reactivationGate": "R6 requires concrete navigation pain; R7 requires a separate physics-change campaign"
+    },
+    {
+      "path": "docs/PROJECT_DIRECTION_PL.md",
+      "domain": "product-history",
+      "status": "HISTORICAL_EVIDENCE",
+      "role": "origin record for the small-lab, owner-model and layered-asset philosophy",
+      "mayActivateWork": false,
+      "supersededBy": "docs/PROJECT_CHARTER_PL.md and docs/PROJECT_OPERATING_PLAN_PL.md",
+      "reactivationGate": "historical interpretation only"
+    },
+    {
+      "path": "docs/SUSPENSION_RIG_SPACE_CONVENTIONS_PL.md",
+      "domain": "vehicle-visual-history",
+      "status": "HISTORICAL_FOUNDATION",
+      "role": "M4 visual-only space convention and rest-anchor lesson",
+      "mayActivateWork": false,
+      "supersededBy": "current vehicle manual, rig subsystem docs and editor requirements",
+      "reactivationGate": "historical frame/space lookup; do not restore M4 non-goals as current limits"
+    }
+  ],
+  "familyRules": [
+    {
+      "pattern": "docs/archive/**",
+      "status": "HISTORICAL_EVIDENCE",
+      "rule": "Never read before current authority and never select work."
+    },
+    {
+      "pattern": "docs/adr/**",
+      "status": "FOUNDATION_PRESERVE",
+      "rule": "Durable decision records remain binding until explicitly superseded by a later ADR or current contract."
+    },
+    {
+      "pattern": "docs/PHOTOGRAMMETRY_* dated reports",
+      "status": "HISTORICAL_EVIDENCE",
+      "rule": "Evidence input only; current scan work comes from scan current state and active campaign brief."
+    },
+    {
+      "pattern": "lowercase upstream docs and docs/images/**",
+      "status": "FOUNDATION_PRESERVE",
+      "rule": "Upstream Box3D documentation; separate from Jozz project authority."
+    }
+  ],
+  "coverage": {
+    "projectAuthoredDocumentCount": 25,
+    "allTrackedProjectAuthoredDocumentsClassified": true,
+    "unclassifiedProjectAuthoredDocuments": [],
+    "mayActivateWorkCount": 0
+  }
+}
