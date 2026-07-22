@@ -224,13 +224,17 @@ def audit_refoundation_inventory(root: Path = ROOT) -> list[str]:
         "SCAN_START",
         errors,
     )
-    for stale in (
-        "P1B_OWNER_GATE_HARDENING",
-        "Brakuje realnego owner-confirmed source frame",
-        "Następne po tej bramce",
-    ):
-        if stale in scan_start:
-            errors.append(f"SCAN_START_STALE_IMPERATIVE:{stale}")
+    stale_scan_statuses = {
+        "Status: P1B_OWNER_GATE_HARDENING": "P1B_OWNER_GATE_HARDENING",
+        "**Status:** `P1A_REAL_INSPECTION_LOCAL_PASS / P1B_OWNER_GATE_HARDENING`":
+            "P1B_OWNER_GATE_HARDENING",
+        "Brakuje realnego owner-confirmed source frame":
+            "Brakuje realnego owner-confirmed source frame",
+        "Następne po tej bramce": "Następne po tej bramce",
+    }
+    for stale_text, error_label in stale_scan_statuses.items():
+        if stale_text in scan_start:
+            errors.append(f"SCAN_START_STALE_IMPERATIVE:{error_label}")
 
     tech_debt = _read_text(root, TECH_DEBT_PATH)
     _require_markers(
