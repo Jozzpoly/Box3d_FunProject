@@ -30,6 +30,7 @@ TEST_FILES = (
     "test_scan_p2a_local_gate_ps1.py",
     "test_scan_source_assets.py",
     "test_scan_real_terrain_flow.py",
+    "test_scan_real_terrain_flow_ps1.py",
 )
 
 
