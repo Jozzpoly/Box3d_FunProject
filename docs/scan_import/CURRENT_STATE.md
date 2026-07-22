@@ -69,11 +69,12 @@ current exact authoritative head:
 GitHub Control Issue #11
 
 repository-readiness validation:
-PR #15 — pending final exact-head CI at this update
+PR #15 live checks and PR body are authoritative for its exact head
 ```
 
-Automation, documentation, stack cleanup and repository polish do not add product
-capability and do not clear private or visual gates.
+Routine CI state is intentionally not mirrored here. Automation, documentation,
+stack cleanup and repository polish do not add product capability and do not clear
+private or visual gates.
 
 ## Evidence table
 
@@ -91,7 +92,7 @@ capability and do not clear private or visual gates.
 | One-command runner | `PASS_CODE_AND_CI` | contracts and PowerShell parse | real private run |
 | Automation foundation | `INTEGRATED_PLAN_ONLY` | strict contracts/adversarial tests | observe |
 | Product stack consolidation | `DRAFT_PR_13_CI_GREEN` | ancestry audit; no rewrite | keep draft |
-| Repository readiness | `DRAFT_PR_15_UNDER_REVIEW` | governance/docs/workflow only | exact-head CI and review |
+| Repository readiness | `DRAFT_PR_15_UNDER_REVIEW` | governance/docs/workflow only | live checks and review |
 | Real preview pack | `NOT_CREATED` | private evidence absent | run owner entrypoint |
 | Native load | `NOT_PROVEN` | compile is not runtime proof | launch exact selected pack |
 | Visual review | `NOT_RUN` | owner decision required | inspect seven tiles |
