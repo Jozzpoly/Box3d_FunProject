@@ -1,0 +1,234 @@
+{
+  "schemaVersion": 1,
+  "repository": "Jozzpoly/Box3d_FunProject",
+  "snapshot": {
+    "source": "Repository Governance artifact",
+    "workflowRunId": 29930191424,
+    "artifactId": 8533681496,
+    "artifactName": "repository-forensic-snapshot-29930191424",
+    "artifactDigest": "sha256:d1a32150cbc3e0a571dc1d56c7c66fff20a2b3d3b2796f9d7e7a017d7acaa3d6",
+    "head": "5c37cbce852cdf6298971970c49fee09f336db26",
+    "enumerationCommand": "git ls-remote --heads origin",
+    "branchCount": 18,
+    "tagCount": 0,
+    "enumerationSucceeded": true
+  },
+  "ownerPolicy": {
+    "hardMaximumBranchesAfterCleanup": 5,
+    "preferredFinalBranchCount": 3,
+    "deletionAuthorized": false,
+    "forcePushAuthorized": false,
+    "historyRewriteAuthorized": false,
+    "bulkDeleteAuthorized": false
+  },
+  "preferredFinalState": [
+    {
+      "name": "main",
+      "role": "upstream/history baseline",
+      "retention": "KEEP_BASELINE"
+    },
+    {
+      "name": "jozz-vehicle-sandbox-m0",
+      "role": "stable accepted vehicle baseline",
+      "retention": "KEEP_BASELINE"
+    },
+    {
+      "name": "ONE_CURRENT_INTEGRATED_PROJECT_BRANCH",
+      "role": "single current product branch selected after PR #13/#16 integration decision",
+      "retention": "KEEP_ACTIVE"
+    }
+  ],
+  "preservationTagsRequiredBeforeDeletion": [
+    {
+      "name": "milestone/terrain-visible-2026-07-22",
+      "target": "33099413bf8f44adbe1d635f9e10bdf2d0b5c321",
+      "protects": "authoritative seven-tile geometry milestone",
+      "requiredBefore": [
+        "renaming or deleting agent/scan-terrain-r1b-consolidated-integration",
+        "integrating the milestone into another durable branch"
+      ]
+    },
+    {
+      "name": "evidence/surface-foundation-pr7",
+      "target": "9aacc752f331d0d47c4c9c3f6fe82c63466f592c",
+      "protects": "divergent parked surface-evidence lineage from PR #7",
+      "requiredBefore": [
+        "deleting agent/p2a-scan-derivatives-foundation"
+      ]
+    },
+    {
+      "name": "evidence/owner-flow-pr8",
+      "target": "a36e3d2f4c76f35d138a7e8b0aa11f7889e69e90",
+      "protects": "divergent exact owner-flow evidence from PR #8 before restack",
+      "requiredBefore": [
+        "deleting agent/p2a-real-owner-flow"
+      ]
+    }
+  ],
+  "branches": [
+    {
+      "name": "main",
+      "sha": "f84f8c32c7d5de17c3cf88f63029b242b115c9de",
+      "retention": "KEEP_BASELINE",
+      "deletePhase": null,
+      "proof": "durable upstream/history baseline",
+      "requiredTag": null
+    },
+    {
+      "name": "jozz-vehicle-sandbox-m0",
+      "sha": "445db8801297714c4cb344cc9a6ce6cfe753cba7",
+      "retention": "KEEP_BASELINE",
+      "deletePhase": null,
+      "proof": "stable accepted vehicle baseline and PR #13 base",
+      "requiredTag": null
+    },
+    {
+      "name": "agent/scan-terrain-r1b-consolidated-integration",
+      "sha": "33099413bf8f44adbe1d635f9e10bdf2d0b5c321",
+      "retention": "KEEP_ACTIVE_UNTIL_INTEGRATION_DECISION",
+      "deletePhase": "only after milestone tag and durable integrated replacement exist",
+      "proof": "current Control Issue #11 authority and PR #13 head",
+      "requiredTag": "milestone/terrain-visible-2026-07-22"
+    },
+    {
+      "name": "agent/project-refoundation-audit-v1",
+      "sha": "5c37cbce852cdf6298971970c49fee09f336db26",
+      "retention": "KEEP_REVIEW_TEMPORARY",
+      "deletePhase": "after PR #16 integration and exact remote head re-enumeration",
+      "proof": "current open re-foundation review branch",
+      "requiredTag": null,
+      "note": "SHA is the exact snapshot head; final deletion must use the then-current merged/reviewed head."
+    },
+    {
+      "name": "Photogrametry_Import_experiment",
+      "sha": "f1c4919e501721749084210aea9b571e96b69bed",
+      "retention": "DELETE_AFTER_VERIFICATION",
+      "deletePhase": "linear-history cleanup",
+      "proof": "exact ancestor of photogrammetry/import-v2-foundation; latter is 7 commits ahead and 0 behind",
+      "requiredTag": null
+    },
+    {
+      "name": "photogrammetry/import-v2-foundation",
+      "sha": "36fcc91969c5d18d01abf3187d2c0ae7f49812bb",
+      "retention": "DELETE_AFTER_VERIFICATION",
+      "deletePhase": "linear-history cleanup",
+      "proof": "exact ancestor of authoritative head; authoritative head is 161 commits ahead and 0 behind",
+      "requiredTag": null
+    },
+    {
+      "name": "agent/p1-dataset-inspector-staging",
+      "sha": "dbbd065d9bbf8887b824e351e464dbbe60be1e68",
+      "retention": "DELETE_AFTER_VERIFICATION",
+      "deletePhase": "linear-history cleanup",
+      "proof": "exact ancestor of authoritative head; authoritative head is 139 commits ahead and 0 behind",
+      "requiredTag": null
+    },
+    {
+      "name": "agent/p1b-world-import-contract-staging-copy",
+      "sha": "dbbd065d9bbf8887b824e351e464dbbe60be1e68",
+      "retention": "DELETE_AFTER_VERIFICATION",
+      "deletePhase": "duplicate-ref cleanup",
+      "proof": "exact duplicate SHA of agent/p1-dataset-inspector-staging; name does not match its actual content lineage",
+      "requiredTag": null
+    },
+    {
+      "name": "agent/p1b-world-import-contract-staging",
+      "sha": "eac2327589ad799e270ed760cf7288696f4f50c3",
+      "retention": "DELETE_AFTER_VERIFICATION",
+      "deletePhase": "linear-history cleanup",
+      "proof": "exact PR #2 head based on P1 head and exact ancestor in the P1B to P2A stack",
+      "requiredTag": null
+    },
+    {
+      "name": "agent/p1b-inspector-bundle-staging",
+      "sha": "a7459be8ffad14a6bfaea04696750b1e18bd0b43",
+      "retention": "DELETE_AFTER_VERIFICATION",
+      "deletePhase": "linear-history cleanup",
+      "proof": "exact PR #3 head based on PR #2 and exact ancestor in the P1B to P2A stack",
+      "requiredTag": null
+    },
+    {
+      "name": "agent/p1b-owner-gate-hardening",
+      "sha": "2d91d17428292234c9b560a2ef855761f445f54f",
+      "retention": "DELETE_AFTER_VERIFICATION",
+      "deletePhase": "linear-history cleanup",
+      "proof": "exact PR #4 head based on PR #3 and exact P2A stack base",
+      "requiredTag": null
+    },
+    {
+      "name": "agent/p2a-source-visual-preview",
+      "sha": "f20357ba10618ddecfdd2e274e93917fe508a983",
+      "retention": "DELETE_AFTER_VERIFICATION",
+      "deletePhase": "linear-history cleanup",
+      "proof": "exact ancestor of authoritative head; authoritative head is 55 commits ahead and 0 behind",
+      "requiredTag": null
+    },
+    {
+      "name": "agent/r1b-source-resolution-owner-integration",
+      "sha": "0078257cab632510ddf3cca8c449fd44e2327a3a",
+      "retention": "DELETE_AFTER_VERIFICATION",
+      "deletePhase": "linear-history cleanup",
+      "proof": "exact ancestor of authoritative head; authoritative head is 27 commits ahead and 0 behind",
+      "requiredTag": null
+    },
+    {
+      "name": "agent/autonomous-loop-foundation-v1",
+      "sha": "33722127777248b3dcb228fb47f7de2fad847036",
+      "retention": "DELETE_AFTER_VERIFICATION",
+      "deletePhase": "linear-history cleanup",
+      "proof": "exact ancestor of authoritative head; authoritative head is 33 commits ahead and 0 behind",
+      "requiredTag": null
+    },
+    {
+      "name": "agent/project-operating-polish-v1",
+      "sha": "30ce83dce0035645c79d46eaeeac8ebfc9fa871b",
+      "retention": "DELETE_AFTER_VERIFICATION",
+      "deletePhase": "linear-history cleanup",
+      "proof": "exact ancestor of authoritative head; authoritative head is 28 commits ahead and 0 behind",
+      "requiredTag": null
+    },
+    {
+      "name": "agent/r1b-repository-readiness-polish-v1",
+      "sha": "f80ef01cb2b593dc47264bc1bf9a460408ec54d2",
+      "retention": "DELETE_AFTER_VERIFICATION",
+      "deletePhase": "linear-history cleanup",
+      "proof": "exact ancestor of authoritative head; merge commit is 1 commit ahead, 0 behind and has zero file-tree delta",
+      "requiredTag": null
+    },
+    {
+      "name": "agent/p2a-scan-derivatives-foundation",
+      "sha": "9aacc752f331d0d47c4c9c3f6fe82c63466f592c",
+      "retention": "TAG_THEN_DELETE",
+      "deletePhase": "divergent-evidence cleanup",
+      "proof": "diverged from authoritative line: authoritative comparison reports 55 ahead / 17 behind; merge base f20357ba10618ddecfdd2e274e93917fe508a983",
+      "requiredTag": "evidence/surface-foundation-pr7"
+    },
+    {
+      "name": "agent/p2a-real-owner-flow",
+      "sha": "a36e3d2f4c76f35d138a7e8b0aa11f7889e69e90",
+      "retention": "TAG_THEN_DELETE",
+      "deletePhase": "divergent-evidence cleanup",
+      "proof": "diverged from authoritative line: authoritative comparison reports 55 ahead / 26 behind; merge base f20357ba10618ddecfdd2e274e93917fe508a983",
+      "requiredTag": "evidence/owner-flow-pr8"
+    }
+  ],
+  "cleanupProjection": {
+    "currentBranchCount": 18,
+    "linearOrDuplicateBranchesToDelete": 12,
+    "divergentBranchesToTagThenDelete": 2,
+    "temporaryReviewBranchToDeleteAfterIntegration": 1,
+    "projectedFinalBranchCount": 3,
+    "projectedFinalStateSatisfiesHardMaximum": true,
+    "projectedFinalStateSatisfiesPreferredCount": true
+  },
+  "executionPreconditions": [
+    "Owner explicitly approves the PR #13 and PR #16 integration strategy.",
+    "Create and independently verify all required preservation tags.",
+    "Re-enumerate exact remote heads and tags immediately before deletion.",
+    "Stop if any branch SHA differs from this plan or a current review branch moved.",
+    "Verify no branch is checked out in an owner worktree.",
+    "Delete one remote branch at a time and re-enumerate after every bounded group.",
+    "Never use force-push, history rewrite or branch deletion to resolve an ancestry uncertainty.",
+    "Record a redacted cleanup receipt with before/after branch counts and exact retained refs."
+  ]
+}
