@@ -108,7 +108,19 @@ whether a real, recognizable place can become a fun driving surface for the acce
 vehicle.
 
 However, the owner requires real colour before final scale and collision work.
-Therefore:
+The canonical product-gate sequence is:
+
+```text
+TERRAIN_VISIBLE_PASS
+→ TEXTURED_SOURCE_PREVIEW
+→ VEHICLE_SCALE_REFERENCE_SCENE
+→ GOLDEN_DRIVE_REGION_OWNER_SELECTION
+→ COLLISION_REPRESENTATION_RESEARCH
+→ FIRST_REAL_SCAN_DRIVE
+→ OWNER_FUN_VERDICT
+```
+
+Human interpretation:
 
 ```text
 geometry proof
@@ -447,7 +459,7 @@ It may not:
 milestone evidence:  TERRAIN_VISIBLE_PASS_EARNED
 project transition:  REFOUNDATION_REVIEW_REQUIRED
 visual:               TEXTURED_SOURCE_PREVIEW_REQUIRED
-scale:                VEHICLE_REFERENCE_SCENE_REQUIRED
+scale:                VEHICLE_SCALE_REFERENCE_SCENE_REQUIRED
 ROI:                  OWNER_SELECTION_REQUIRED
 physics:              BLOCKED_UNTIL_TEXTURE_SCALE_AND_ROI
 merge:                OWNER_DECISION_REQUIRED
