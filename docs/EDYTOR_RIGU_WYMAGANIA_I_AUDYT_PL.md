@@ -1,161 +1,221 @@
-# Edytor rigu — wymagania i audyt (żywy dokument)
+# Edytor rigu — zachowane wymagania po realnym warm-up
 
-Data startu: 2026-07-11. Język: PL. **To dokument ŻYWY** — dopisuję do niego przy
-każdym gejcie rozgrzewki (`PLAN_EDYTOR_RIGU_ROZGRZEWKA_2026_07_11_PL.md`). Cel:
-zebrać na żywo, przez realny import modelu na jeżdżący pojazd, czego edytor rigu
-naprawdę potrzebuje — żeby Jozz miał największą kontrolę i największą
-intuicyjność. Zero-trust: wszystko poniżej jest ze zweryfikowanego kodu, nie z
-opisów.
+**Źródło:** owner-driven import nowego steering-suspension rigu na żywy pojazd M6.  
+**Status obecny:** `PARKED_DESIGN_AUTHORITY / OWNER_DECISION_REQUIRED`  
+**Nie jest:** aktywną kampanią, gotowym formatem ani zgodą na zmianę fizyki.
 
----
+Historyczny przebieg badawczy:
 
-## Część A — Audyt: jak rig działa DZIŚ (przed rozgrzewką)
+```text
+docs/PLAN_EDYTOR_RIGU_ROZGRZEWKA_2026_07_11_PL.md
+```
 
-Dwie żywe ścieżki rigowania tej samej rodziny modeli:
+Granica z przyszłym JES musi zostać rozstrzygnięta przed rozpoczęciem pełnego editora.
+Box3d_FunProject może pozostać laboratorium proofów i konkretnych kontraktów, ale nie
+powinien automatycznie stać się docelowym repozytorium całego narzędzia.
 
-1. **Lab M6 (`jozz_vehicle_m6_rig_lab.cpp`, jezdny pojazd)** — riguje STARY
-   `One_Sided_wheel_mount.gltf` per-kość w `Render()` (480–532) na ŻYWE ciała
-   realnej fizyki M6.
-2. **Bench M9 (`jozz_vehicle_m9_steering_rig_bench.cpp`, izolowany)** — riguje
-   NOWY `OneSided_Steering_Suspension_Rig.gltf` na uproszczoną fizykę (statyczny
-   chassis + prismatic travel + revolute steer, brak jazdy, brak realnego racka).
+## 1. Audyt języka rigu istniejącego dziś
 
-**Prymitywy wiązania (dzisiejszy „język rigu"):**
+Bieżące implementacje używają kilku prymitywów:
 
-| Prymityw | Co robi | Gdzie |
-|---|---|---|
-| **bake ramki lokalnej** | `b3InvMulWorldTransforms(bodyRest, placementRest)` — zamraża pozę modelu względem ciała; live część podąża za ciałem | `SetupMountRig` (`_mount_visual.cpp:103`), M9 `CreateCorner:361` |
-| **rodzic per część** | ta sama poza pieczona względem RÓŻNYCH ciał; część rysowana wybranym rodzicem | `bracketLocal` (chassis) vs `hubLocal` (knuckle) |
-| **stretch-between (2 kotwice)** | część rozciągnięta między dwoma żywymi punktami na dwóch ciałach | `DrawPartBetween` + `ArmEnds`/`PartXEnds` (końce wzdłuż authored X) |
-| **mirror-X** | jeden authored asset, lewy autorski / prawy lustro (negacja X) | `LoadSkinnedGltf(..., mirrorX)`, `MirrorX()` |
-| **korekcja pozy koła** | authored orientacja mesha → oś koła na +Y ramki | `ComputeJozzVehicleWheelVisualCorrection`, `WheelAxleFix` |
-| **authored sockety** | pozycje z kontraktu (fallback hardkodowany) | `Resolve...Sockets`, `FindJozzVehicleContractBindingByRole` |
+| Prymityw | Znaczenie |
+|---|---|
+| local binding frame | pozycja/orientacja części względem konkretnego żywego ciała |
+| parent per part | część podąża za chassis/knuckle/arm/wheel/rack |
+| stretch between anchors | ramię, drążek, damper lub cardan łączy dwa żywe punkty |
+| mirror L/P | jeden authored asset obsługuje obie strony |
+| authored socket role | semantyczna kotwica z asset contractu |
+| visual correction | jawna korekta orientacji/środka modelu bez zmiany fizyki |
 
-**Źródło pozycji socketów:** kontrakt `*.asset.json` (rola → node → złożone
-transformy → metry), z fallbackiem hardkodowanym gdy kontrakt nie załaduje.
-Pole `ridesBody` w kontrakcie to DEKLARACJA rodzica (patrz niżej — bywa za grubo).
+Realna topologia M6 obejmuje między innymi:
 
-**Realna topologia narożnika M6** (`JozzVehicleM6CornerRuntime`):
-`knuckleId` (JEŹDZI **i** SKRĘCA, bez spinu) · `upperArmId`/`lowerArmId` (ramiona
-na zawiasach chassis: JEŻDŻĄ, nie skręcają) · `wheelId` (kręci się) · na poziomie
-pojazdu realny `rackId`/`rackJointId`. **Brak ciała „carrier".**
+```text
+chassis
+upperArm / lowerArm
+knuckle
+wheel
+rack
+```
 
-## Część B — Wymagania edytora (wyprowadzone z audytu + wizji Jozza)
+Uproszczony bench M9 miał dodatkową rolę „carrier”, której realny pojazd nie ma.
+Dlatego binding nie może być kopiowany z izolowanego bencha bez mapowania na realne
+ciała.
 
-- **W1. Per-część picker rodzica z realnej listy ciał.** `{chassis, knuckle,
-  upperArm, lowerArm, wheel, rack}`. To decyzja o znaczeniu KINEMATYCZNYM
-  (skręca / tylko jeździ / kręci się), nie kosmetyka — patrz odkrycie O1.
-- **W2. Tryby wiązania części:** (a) sztywno-do-jednego-rodzica; (b)
-  stretch-between-dwóch-kotwic (ramiona, drążki, dumper, cardan); (c) mirror L/P.
-- **W3. Pivot / punkt obrotu per część.** Bake ramki lokalnej = dziś to robi, ale
-  ukryte w kodzie. Edytor musi go pokazać i pozwolić ustawić ręcznie (gizmo).
-- **W4. Gizmos:** translacja/rotacja/skala ramki wiązania + podgląd na żywo; oraz
-  edycja pozycji authored socketu (który jest kotwicą stretch-between).
-- **W5. Model danych = jedno źródło prawdy.** Dziś: kontrakt + hardkodowane
-  fallbacki (rozjazd, patrz `SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md §3`). Edytor musi
-  zapisywać binding do JEDNEGO miejsca (rozszerzenie kontraktu v2 lub osobny plik
-  rigu) — bez duplikacji.
-- **W6. Determinizm/headless.** Rejestr env + zrzuty `--screenshot`; bramka
-  walidatora bajt-w-bajt gdy rig jest czysto wizualny (nie dotyka fizyki).
-- **W7. `ridesBody` z kontraktu bywa za grubo** i musi być nadpisywalny per
-  realna topologia (O1). Edytor = miejsce tego nadpisania.
+## 2. Wymagania kanoniczne
 
-## Część C — Odkrycia na żywo (dopisywane per gejt)
+### W1 — rodzic per część
 
-**O1 (G0, z kodu). Rodzic części to decyzja FIZYCZNA, nie kosmetyczna.**
-Kontrakt deklaruje `ChassisMount_b.ridesBody = knuckle` i `WheelCenter.ridesBody
-= knuckle` — oba na knuckle. Ale Jozz wielokrotnie powtórzył: WheelCenter i
-ChassisMount_b muszą być OSOBNO (WheelCenter skręca z kołem, ChassisMount_b nie).
-Bench M9 rozwiązał to zmyślonym ciałem „carrier" (jeździ, nie skręca). **Realny
-M6 nie ma carriera** — knuckle jeździ i skręca naraz. Wniosek: żeby utrzymać
-rozdział w prawdziwym poje­ździe, ChassisMount_b musi jechać na **ramieniu**
-(`lowerArm` — jeździ, nie skręca), a WheelCenter na `knuckle`. Mapowanie
-ról M9 → realne ciała M6: chassis→`chassisId`, carrier→`lowerArmId`,
-knuckle→`knuckleId`. To pierwszy i najtwardszy wymóg edytora (W1/W7).
+Edytor musi pozwolić przypisać każdą część do realnego body/semantic parenta.
+To decyzja kinematyczna:
 
-**O2 (G1, na żywo). Bake = „poza roota modelu", rodzic = osobna warstwa.**
-Import zadziałał przez DOKŁADNIE tę samą matematykę co stary mount (`SetupMountRig`:
-yaw −90, wyląduj socket WheelCenter na inboard-face koła), tylko rozbitą na 3
-ciała zamiast 2. Wniosek dla edytora: są DWIE niezależne warstwy — (a) poza roota
-modelu (jedna ramka world, ustawiana gizmem), (b) przypisanie każdej części do
-ciała-rodzica. Dziś obie są zaszyte w kodzie; edytor musi je rozdzielić i pokazać
-osobno (W3/W4). Trzy piecze z jednej pozy `placementRest` = potwierdzenie, że to
-naturalny model.
+- knuckle: jedzie i skręca;
+- arm: jedzie z zawieszeniem, nie skręca jak knuckle;
+- wheel: obraca się;
+- rack: przesuwa się poprzecznie;
+- chassis: jest bazą pojazdu.
 
-**O3 (G1, na żywo). Klasyfikacja per `boneNodeIndex` jest krucha (magic numbers).**
-Rysowanie zależy od twardych indeksów węzłów (3,5 ramiona; 6 ChassisMount_b; 8
-WheelCenter; 7 drążek). Jak asset zmieni układ węzłów — rig rozjedzie się PO
-CICHU. To ta sama kruchość co w benchu M9. **Twardy wymóg edytora:** wiązać po
-ROLI z kontraktu (semantyka), nie po numerze węzła (wzmacnia W1/W5/W7). Edytor =
-miejsce, gdzie rola→ciało jest jawną, edytowalną tabelą.
+### W2 — jawne typy bindingu
 
-**O4 (G1, na żywo). Część elementów potrzebuje kotwic SPOZA modelu.** Drążek
-(inboard→realny `rackId`), dumper (sockety upper/lower na dwóch ciałach), cardan
-(osobny asset `Cardan_shaft.gltf`, chassis↔knuckle) nie dają się związać samą
-klasyfikacją części. Dlatego świadomie pominąłem drążek w G1. **Wymóg edytora:**
-tryb wiązania „kotwica = punkt na INNYM ciele/joincie" (np. koniec racka), nie
-tylko „część sztywno na ciele" (rozszerza W2).
+Minimalny zestaw:
 
-**O5 (G1, na żywo). Konwencja rodziny jednostronnej trzyma się dla nowego modelu.**
-Mirror-X i korekcja pozy koła zadziałały bez zmian (jeden asset, L autorski / P
-lustro, yaw −90). Edytor może przyjąć tę konwencję jako DOMYŚLNĄ, z jawną opcją
-nadpisania per model.
+```text
+RIGID_TO_PARENT
+STRETCH_BETWEEN_ANCHORS
+MIRRORED_COUNTERPART
+ANCHOR_AT_SUBPOSITION_ON_BODY
+SOCKET_CARRIED_BY_STRETCH_PART_POSE
+```
 
-**Stan weryfikacji G1:** render potwierdza — nowy rig na przedniej osi, tył =
-stary mount, symetria L/P, przyczepiony do żywych ciał, toggle przełącza tylko
-przód. Rozdział statyczny poprawny; DYNAMICZNY (WheelCenter skręca / ChassisMount_b
-stoi) — **POTWIERDZONY na żywo przez Jozza** (test skrętu A/D, 2026-07-11): koło +
-wewnętrzna piasta skręcają, ChassisMount_b + ramiona stoją. Uwaga: rozdział jest
-DYNAMICZNIE „zbyt osobny" — części rozjeżdżają się przy skręcie za bardzo (dług
-techniczny #14, odłożone decyzją Jozza; to kandydat na wczesny test edytora, bo
-pivot per część steruje właśnie tym rozjazdem). Walidator bez zmian (wizualnie).
+Edytor nie może redukować każdego elementu do „node ma jednego parenta”.
 
-**O6 (G3, na żywo). Kotwica na innym ciele potrzebuje SUB-pozycji, nie tylko
-ciała.** Drążek związany z KOŃCEM racka (`{0,0,±rackHalfWidth}`) wyszedł za krótki
-— końce maglownicy M6 siedzą tuż przy knucklu, więc drążek był kikutem. Jozz:
-„prawy z lewym się łączył". Rozwiązanie: inboard obu drążków → ŚRODEK racka
-(`{0,0,0}`), więc lewy i prawy spotykają się w jednym punkcie i jadą razem z
-maglownicą. Wniosek dla edytora: tryb „kotwica na innym ciele" (O4/W2) to nie tylko
-WYBÓR ciała, ale i PUNKT na nim (koniec vs środek vs socket) — parametr sub-pozycji
-kotwicy. To samo dotyczyłoby np. dwóch końców racka jako osobnych kotwic.
+### W3 — pivot i local binding transform
 
-**O7 (G3, na żywo). Trzeci tryb wiązania: socket zwisający z części stretch-between.**
-Dolne oko dumpera nie jest ani „część na ciele", ani „stretch między ciałami" —
-to PUNKT authored zaczepiony na dolnym RAMIENIU, niesiony przez żywą pozę tego
-ramienia (`JozzVehicleComputeArmPlacement` + `JozzVehicleMapAuthoredPoint`). Górne
-oko to socket na chassis. Wniosek dla edytora: oprócz W2(a) sztywno-na-ciele i
-W2(b) stretch-between potrzebny jest tryb (d) „socket niesiony przez pozę części
-stretch-between" (interpolacja wzdłuż ramienia), inaczej dumper/przewody nie dadzą
-się związać poprawnie.
+Per część potrzebne są:
 
-**Stan weryfikacji G3:** render potwierdza — drążek rysowany od środka racka do
-knuckla (dłuższy, L/P łączą się w centrum), dumper rigu rysowany między górnym
-okiem na chassis a dolnym na ramieniu (diff pikseli on/off = pionowy amortyzator).
-Walidator bez zmian (wizualnie). Bo drążek pinuje inboard tym SAMYM punktem świata
-co linia racka w `DrawRigDiagnostics` — zbieżność z konstrukcji. Pominięte dalej:
-cardan (G4), per-ramię górne/dolne osobno.
+- translation;
+- rotation;
+- opcjonalna jawna scale warstwy wizualnej;
+- pivot/origin;
+- live preview;
+- reset do authored/accepted value.
 
-**O8 (Etap 3 finalizacji, decyzja D3 Jozza 2026-07-11). Importer in-game +
-model z Blockbench jako CIAŁO KOLIZYJNE.** Przy pytaniu o artefakt kolidera
-chassis Jozz rozszerzył wymaganie poza rysowanie: (a) warstwa kolizji ma być
-zawsze przełączalna do podglądu (ZROBIONE w Etapie 3: `SetShapeHidden` na bryle
-chassis + checkbox Debug „Pokaż bryłę kolizyjną nadwozia" + `JOZZ_M6_COLLIDER`);
-(b) docelowo ma dać się IMPORTOWAĆ model z Blockbench, który ROBI ZA collision
-body — szybkie podmienianie i testowanie innych koliderów; (c) importer
-in-game jest konieczny dla edytora rigu w ogóle: „tam będziemy rigować
-wszystko" — modele zawieszeń, body, cardan shaft. Wniosek dla edytora: obok
-warstwy WIZUALNEJ (rejestr nadwozi, Etap 1) potrzebna jest warstwa KOLIZYJNA
-zasilana importem (mesh → hull(e) fizyki, zapewne przez istniejący pipeline
-kontraktów assetów) + UI importu w aplikacji, nie tylko pliki wrzucane ręcznie.
-To jest FIZYKA (tworzenie shape'ów), nie rysowanie — wymaga własnego planu i
-osobnej zgody na start; nie mieściło się w zakresie Etapu 3 (defaults+draw).
+Pivot jest częścią semantyki ruchu, nie kosmetyką.
 
-## Część D — Otwarte pytania / decyzje
+### W4 — gizma i edycja socketów
 
-- **D1 — aranżacja:** ROZSTRZYGNIĘTE (Jozz, 2026-07-11): przód = nowy rig
-  sterujący, tył = obecny mount. Jeden jezdny pojazd.
-- Drążek kierowniczy: ROZSTRZYGNIĘTE (G3) — inboard → ŚRODEK realnego `rackId`
-  (`{0,0,0}`), lewy i prawy łączą się w centrum (Jozz), jadą z maglownicą.
-- Cardan (`Cardan_shaft.gltf`, sockety cardanDrive/cardanHub) — nowy element,
-  brak w labie; gejt G4.
-- Duplikacja socketów (fallback vs kontrakt) — docelowo jedno źródło (W5).
+Gizmo musi odróżniać:
+
+```text
+model root placement
+part local binding frame
+authored socket position
+runtime anchor derived from a body/joint
+```
+
+Przesunięcie socketu nie może po cichu mutować geometrii fizycznej, chyba że użytkownik
+jest w osobnym, jawnie fizycznym trybie edycji.
+
+### W5 — jedno źródło prawdy
+
+Dziś część danych występuje w asset contractach i hardkodowanych fallbackach. Docelowo
+binding ma być zapisany w jednym wersjonowanym, walidowanym miejscu:
+
+- rozszerzony asset contract;
+- albo osobny rig document związany z exact asset revision.
+
+Nie używać node indexu jako trwałej semantyki. Binding powinien działać po rolach i
+stabilnych authored IDs.
+
+### W6 — determinizm i walidacja
+
+Dla zmian czysto wizualnych:
+
+- headless/contract validation;
+- fixed-camera screenshots;
+- diff accepted baseline;
+- brak zmian validator physics numbers.
+
+Dla zmian fizycznych:
+
+- osobny capability;
+- osobne shapes/bodies evidence;
+- full vehicle gate;
+- owner feel/drive gate.
+
+### W7 — topology override
+
+Pole typu `ridesBody` w asset contract może być jedynie authored defaultem. Realny
+pojazd może wymagać jawnego override’u wynikającego z jego topologii.
+
+Override musi być widoczny, zapisany i audytowalny — nie ukryty w magicznym switchu.
+
+### W8 — visual layer i collision layer są osobne
+
+Owner wymaga przyszłego in-game importu modeli, w tym możliwości testowania modelu z
+Blockbench jako źródła collision body. To tworzy dwie niezależne warstwy:
+
+```text
+visual model/bindings
+collision source/cook/shapes
+```
+
+Model renderowany nie staje się automatycznie kolizją. Collision import wymaga:
+
+- jawnej reprezentacji wejściowej;
+- limitów convex/mesh/shape;
+- cook/validation report;
+- podglądu warstwy kolizji;
+- bezpiecznego replacement/revert;
+- osobnej owner approval;
+- zakazu patchowania Box3D core jako skrótu.
+
+## 3. Odkrycia z realnego warm-up
+
+### O1 — parent ma znaczenie fizyczne
+
+`WheelCenter` musi skręcać z knucklem, a `ChassisMount_b` nie może automatycznie robić
+tego samego. Realne mapowanie wymaga różnych parentów.
+
+### O2 — root placement i parent binding są niezależne
+
+Jedna poza importowanego modelu może zostać następnie rozłożona na kilka local frames
+względem różnych ciał. Edytor powinien pokazywać te dwie warstwy osobno.
+
+### O3 — node index jest kruchy
+
+Twarde indeksy węzłów mogą po cichu zmienić znaczenie po reeksporcie. Role/IDs i closed
+schema są wymagane.
+
+### O4 — część kotwic pochodzi spoza modelu
+
+Rack endpoint, real body point, joint frame lub gameplay anchor mogą być poprawnym
+źródłem końca bindingu. Nie wszystkie kotwice są authored nodes w jednym GLTF.
+
+### O5 — mirror convention działa, ale musi być jawna
+
+Jednostronny authored asset może generować L/P przez mirror-X. Edytor może proponować
+to jako default, lecz musi pokazywać determinant/orientation i umożliwiać świadome
+nadpisanie.
+
+### O6 — wybór ciała nie wystarcza
+
+Kotwica na racku może oznaczać środek, lewy koniec, prawy koniec albo konkretny socket.
+Potrzebna jest sub-pozycja/rola na wybranym obiekcie.
+
+### O7 — socket może jechać z pozą części rozciąganej
+
+Dolne oko dampera może być punktem niesionym przez żywą pozę ramienia, a nie bezpośrednio
+przez body transform. Edytor potrzebuje referencji do semantycznego punktu na części.
+
+### O8 — collision importer jest osobnym systemem
+
+Podgląd ukrywanej bryły chassis został wykonany. Przyszły import modelu jako collision
+source nie został wykonany i nie jest naturalnym rozszerzeniem samego render editor.
+
+## 4. Zachowane owner decisions
+
+```text
+front visual rig: nowy steering rig
+rear visual rig:  dotychczasowy mount
+steering rod:     center of real rack → knuckle
+cardan:           optional future element
+collision view:   opt-in visible/hidden debug layer
+```
+
+Visualny rozjazd części przy skręcie pozostaje kandydatem na pierwszy praktyczny test
+pivota/parent bindingu.
+
+## 5. Reactivation gate
+
+Pełny edytor może rozpocząć się dopiero po:
+
+1. jawnej decyzji, czy rozwija się w Box3d_FunProject, JES czy w dwóch warstwach;
+2. exact accepted vehicle baseline;
+3. oddzieleniu visual editing od physics/collision authoring;
+4. wyborze minimalnego document schema i migration path;
+5. owner-approved first vertical slice;
+6. planie import/revert/validation;
+7. braku konfliktu z aktywną scan/textured-terrain campaign.
+
+Pierwszy slice powinien rozwiązać jeden realny przypadek — np. pivot/parent korektę
+przedniego rigu — a nie budować od razu uniwersalny DCC.
