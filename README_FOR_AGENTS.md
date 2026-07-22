@@ -1,475 +1,270 @@
-# README_FOR_AGENTS — Jozz Vehicle Box3D Native
+# README_FOR_AGENTS — vehicle-domain manual
 
-**This is the single front door. Read this fully before touching anything.**
-It is kept short and current on purpose. Everything else in `docs/` is either a
-milestone report (history) or a deep-dive reference — see §9 for which is which.
+> **This is not the global project front door.**
+>
+> Start with `AGENTS.md`, GitHub Control Issue #11, `AI_PROJECT_MEMORY.md` and the
+> matching domain `CURRENT_STATE.md`. This file documents the accepted vehicle
+> sandbox foundation and the rules for touching that domain.
 
-- **Date of this handoff:** 2026-07-08 (state: M8)
-- **Owner / creative director:** Jozz (respond to Jozz in **Polish**)
-- **Working branch:** `jozz-vehicle-sandbox-m0` (`main` = upstream box3d)
-- **Detailed milestone ledger:** `docs/CURRENT_STATE_INDEX_PL.md`
-- **Known debt & risks:** `docs/TECH_DEBT_PL.md` ← read before "cleaning up"
+**Owner / creative director:** Jozz — communicate with the owner in Polish.  
+**Vehicle baseline branch:** `jozz-vehicle-sandbox-m0`  
+**Current project campaign:** selected elsewhere; do not infer it from this file.  
+**Detailed vehicle ledger:** `docs/CURRENT_STATE_INDEX_PL.md`  
+**Known debt and deferred work:** `docs/TECH_DEBT_PL.md`
 
----
+## 1. What the vehicle domain is
 
-## 1. What this project is
+Jozz Vehicle Box3D Native is a Windows/native sandbox about building and testing
+cars from user-authored Blockbench/glTF parts on honest Box3D physics.
 
-**Jozz Vehicle Box3D Native** — a Windows/native sandbox+game about *building
-cars from user-authored Blockbench (glTF) parts*, grown as a **non-invasive
-overlay on the box3d physics engine**.
+Two principles define the domain:
 
-Two rules define the whole thing:
+1. Vehicle behaviour must emerge from construction, geometry, joints, torque,
+   contact and grip. Do not fake accepted dynamics with animation or scripted
+   self-alignment.
+2. Box3D engine core remains upstream. `src/` and `include/` are not a normal
+   project work area. Jozz-specific work belongs in samples, tools, assets and
+   documentation.
 
-- **Direction = BeamNG.drive.** Vehicle behaviour must **emerge from the
-  construction** (springs, arms, geometry, torque vs grip), never be scripted or
-  animated. If a behaviour is faked, it will be rejected — this has already
-  happened (the old software "self-align assist" was removed in M7 for reading
-  as scripted).
-- **The engine core is untouched.** `src/` and `include/` are box3d and stay
-  box3d. All Jozz work lives in `samples/jozz_vehicle_*`, `tools/`, `assets/`,
-  `docs/`. If you think you need to change engine internals, you are almost
-  certainly wrong — stop and ask Jozz.
-  - Narrow exception, used sparingly: the shared sample host
-    (`samples/sample.h/.cpp`, `samples/host/gui.cpp`, `samples/CMakeLists.txt`)
-    may get small, **purely additive, opt-in-by-default-false** hooks when a
-    Jozz lab genuinely needs host behavior no per-sample override already
-    covers — e.g. the Polish-font fix in `gui.cpp` (M8.x), `/utf-8` in
-    `CMakeLists.txt`, and `Sample::CondenseDebugOverlay()` (2026-07-08: lets a
-    tuning-dense lab fold the info panel's frame-time/camera block behind a
-    closed header; every other sample's default is unchanged — verified by
-    screenshotting a stock sample before shipping it). Any such change must be
-    verified to leave every other sample's behavior byte-for-byte identical.
+Small shared sample-host hooks are acceptable only when they are additive,
+opt-in and proven not to alter unrelated samples.
 
----
+## 2. Accepted vehicle foundation
 
-## 2. Current state (M8, accepted vs experimental)
+The current accepted foundation is the M7/M8 vehicle architecture:
 
-The vehicle runs inside the box3d `samples` host. **Active samples** (open by
-name, indices shift — see §6):
+- double-wishbone/trailing-arm suspension represented by physical bodies and
+  joints rather than decorative rods;
+- back-drivable steering rack with caster/contact-driven return;
+- torque-based drive and braking;
+- anti-roll bars and aerodynamic drag;
+- split primitive wheel collision envelope;
+- authored visual rig attached to live physical bodies;
+- default suspension pose controlled by geometry and preload;
+- visual dampers kept separate from the physical spring/damper authority;
+- deterministic preset, session and debug-view persistence;
+- native screenshot tooling and headless diagnostic hooks;
+- shared world/map foundation used by vehicle labs.
+
+Do not casually rebuild this foundation because an older milestone document
+shows a simpler model.
+
+## 3. Current vehicle samples
+
+Use sample names, never numeric indices:
 
 ```text
-Jozz Vehicle / M6 Suspension Rig Lab   <- THE main drivable car. Multi-body
-                                          double-wishbone corners on the M7 real-
-                                          forces foundation, full Polish tuning UI,
-                                          Jozz's One_Sided_wheel_mount model rigged
-                                          onto the live bodies, telescoping damper.
-Jozz Vehicle / M8 Suspension Rig Bench <- isolated 1-corner spring bench (posable)
-Jozz Vehicle / M9 Steering Rig Bench   <- isolated 2-corner (L/R) bench for the NEW
-                                          OneSided_Steering_Suspension_Rig model
-                                          (steer + travel DOF, no vehicle yet - see
-                                          §7's "not yet integrated" note and
-                                          docs/CHECKPOINTS_PL.md 2026-07-09).
-Jozz Vehicle / M5 First Drivable       <- strut baseline (kept as reference)
-Jozz Vehicle / Lab M2 Primitive Corner <- isolated corner lab (kept)
-Jozz Vehicle / Lab M1 Smoke            <- oldest smoke sample (kept)
+Jozz Vehicle / M6 Suspension Rig Lab
+Jozz Vehicle / M8 Suspension Rig Bench
+Jozz Vehicle / M9 Steering Rig Bench
+Jozz Vehicle / M5 First Drivable
+Jozz Vehicle / Lab M2 Primitive Corner
+Jozz Vehicle / Lab M1 Smoke
 ```
 
-**Accepted / stable foundation** (do not casually rework):
-- **M7 real-forces physics** (`jozz_vehicle_m6_suspension_rig.cpp/.h`): arms are
-  BODIES on hinges with angle limits (not distance-joint rods — those had a
-  mirrored solution branch that snapped on hard landings); back-drivable steering
-  rack (caster/contact forces do the counter-steer, no script); torque-based
-  drive; anti-roll bars; aero drag; split wheel collision envelope. The rack is
-  hands-off spring-free by design: the wheels self-center **only while rolling**
-  (caster trail), and stay put at a standstill — this is correct (a stopped car
-  doesn't self-center), not a bug. Hands-off rack friction is **load-dependent**
-  (P4b): `cap = stiction·(rackFrictionBase + rackFrictionLoadCoeff·transverse
-  tie-rod load)` — a landing loads the tie rods so friction spikes when
-  stability needs it, while near-straight cruising leaves the rack free enough
-  to self-center (this fixed the diagnosed left-pull; a faint residual wander
-  is accepted, TECH_DEBT #11). An **opt-in** `rackCenteringHertz` slider
-  (default 0 = off, labeled `[ARCADE] Wspomaganie powrotu` per ADR-0006) adds a
-  rest-centering spring for players who want it; sibling of `uprightAssist`.
-  (History note: the "steering jam" once tracked in TECH_DEBT #9 was proven to
-  be this rest-state no-centering, misdiagnosed by a probe that demanded
-  self-centering on a stationary car — now closed.)
-- **M8 rig + pose foundation**: the mount model is rigged per-bone onto the live
-  bodies; suspension **default pose is a deliberate setting** (`restArmDroopDeg`
-  geometry + `suspensionPreload` spring preload) so arms droop to the wheels
-  instead of folding up; bump-steer compensation keeps the steering geometry
-  correct through droop. ⚠ The **visual dampers are decorative and decoupled
-  from the physics spring** — before any rig/damper/mount work read
-  `docs/SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md`.
-- **Preset + session system** (`jozz_vehicle_m6_config_io.cpp/.h`): whole-vehicle
-  configs save/load as JSON. `assets/vehicle_presets/*.json` (committed:
-  `uliczny`/`drift`/`offroad`); `build/jozz_vehicle_m6_session.json` (gitignored
-  auto-save) means restarting the sample resumes tuning instead of wiping it.
-  **Two load semantics, do not mix** (`SUBSYSTEM_UI_PRESETS_PL.md §2a`): the
-  session loads IN PLACE; a preset is a PARTIAL file loaded as
-  factory-defaults + its own keys (`LoadJozzVehicleM6PresetConfig`) so it is a
-  deterministic restore, not an overlay on leftover experiments. Guarded by
-  `RunPresetDeterminismProbe`. Vehicle-identity fields (`bodyVisualModel`,
-  `bodyVisualOffset`, `frontSuspensionVisualModel`) are ordinary config fields
-  since Etap 2 of the body/rig finalization (2026-07-11) - they save/load/
-  survive "R" and presets like every other tunable, via a new
-  `JozzFieldType::String` row type in `config_io` (`SUBSYSTEM_UI_PRESETS_PL.md
-  §3b`).
-  Debug-tab view toggles (rig diagnostic lines, wheel/mount visuals, arm tint)
-  are a SEPARATE auto-save, `build/jozz_vehicle_m6_debug_session.txt` — they are
-  view state, not vehicle tuning, so they must never leak into a preset or get
-  wiped by "restore defaults", but they still need to survive the "R" restart
-  the same way tuning does. A "Zresetuj świat" button (Świat tab) does a full
-  in-place simulation reset (vehicle respawn + props + telemetry) without going
-  through the engine's global restart at all, for anyone who wants a clean
-  world without touching the keyboard.
-- **Screenshot tooling** (`samples/host/screenshot.cpp`, `--screenshot`): D3D11
-  backbuffer → PNG. This is how you SEE your own visual work headless.
-- **World/map foundation** (`jozz_vehicle_world_layout.h` / `jozz_vehicle_world_terrain.{h,cpp}`,
-  Mapa Etap 1, 2026-07-11): both labs now build a 400×400 m, 3×3-tile flat plate
-  (top y=0; only the CENTER tile gets the procedural ground-grid texture via
-  `SetGroundShape` — that hook is a single shape id, not a list, R10) plus a
-  400×400 m offroad heightfield chunk with a from-scratch deterministic
-  multi-scale FBM generator (NOT `b3CreateWave`, which is one frequency) that
-  dips 2 m
-  UNDER the plate's east edge instead of the old wave-patch's step-up-above
-  defect. Seed + "Przebuduj teren" live in the M6 lab's Świat tab. See
-  `docs/MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md` for the full noise formula, the
-  performance table, and four new headless-testing env vars
-  (`JOZZ_M6_TELEPORT`/`AUTODRIVE`/`PERF_DUMP`/`REGEN_COUNT`) added to the
-  existing `JOZZ_M6_*` registry for driving/measuring the map without a human
-  at the keyboard.
-- **Map-track decision (2026-07-12): Etap 2 is REOPENED.** Commit `b8afab9`
-  built a technically valid obstacle kit, but Jozz rejected its 6-lane layout:
-  it moved the activity to `x=150..195` and left the technical center tile
-  almost empty. The code is still present as recovery material, not an accepted
-  map baseline. Do not start Etap 3. The active source of truth is
-  `docs/PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md` plus the rewritten
-  `docs/MAPA_ETAP_2_PRZESZKODY_I_POLIGONY_PL.md`: recover the kit, replace
-  the far-east lanes with a central test campus on the full grid tile, and
-  obtain Jozz's visual/drive sign-off before marking Etap 2 complete.
-- **Dual damper visual, socket-driven** (2026-07-08): the telescoping shock
-  mesh (`Asset_Dumper.gltf`) is drawn TWICE per corner, pinned to the model's
-  own `Socket_DamperUpper_L/R` and `Socket_DamperLower_L/R` markers from the
-  `one_sided_wheel_mount.asset.json` contract - not hand-guessed offsets. `_L`/
-  `_R` differ only in Z (two shocks straddling the arm), so both get the same
-  X-mirror treatment as `Socket_WheelCenter` for right-side corners. Upper
-  rides `bracketWorld` (chassis-relative), lower rides `hubWorld` (knuckle-
-  relative) - the exact same per-corner transforms that already pin the
-  Chassis_Top/Chassis_Bottom arms, so the shocks stay glued to the live rig.
-  Visual-only (`physicsAuthority: false` in the contract); the real coilover
-  spring/damper stays the existing distance-joint physics, untouched.
+Numeric indices change when samples are added.
 
-**Experimental / in-flight / not yet done:**
-- Aggressive droop **> ~16°** is unstable (Ackermann over-centre) — 15° is the
-  measured safe ceiling. Full screen-2-level droop needs a steering-geometry
-  redesign (deferred, see TECH_DEBT).
-- Soft-tire deformation, differentials/drivetrain, tire slip-curve model,
-  markers→hardpoints import — all still deferred (roadmap in §8).
+## 4. Non-negotiable physics rules
 
-**Awaiting Jozz's manual drive test** — the M7/M8 physics passes machine
-validation but Jozz's feel check on several items is still pending.
+- Coordinate convention: `forward=+X`, `up=+Y`, `right=+Z`, left is `-Z`.
+- Positive steering angle means a left turn.
+- A `b3WheelJoint` spring rests at translation zero; Frame A is the rest
+  wheel-centre anchor and Frame B is the wheel-centre/body origin.
+- Visual sockets are not physics frames unless an explicit conversion contract
+  says so.
+- Structural bodies may be shapeless with explicit mass data; do not add tiny
+  collision shapes merely to make them visible.
+- Wheels and suspension use primitive collision, not glTF mesh collision.
+- Keep physics rig, visual mesh, authored asset metadata and debug overlays
+  separate.
+- A stopped realistic car is not required to self-centre. The default rack has
+  no artificial centring spring; caster return appears while rolling.
+- Aggressive droop above the current safe range requires a steering-geometry
+  redesign and owner approval.
 
----
+Before rig, mount or damper work, read:
 
-## 3. How to build, test, and SEE it
-
-Environment: **Windows, PowerShell** (the Bash tool here sometimes has a broken
-PATH; prefer PowerShell for cmake). Run from the **repo root**. Note: the
-PowerShell CWD can drift if a Bash `cd` ran earlier — `Set-Location` to the repo
-root explicitly if a build complains it can't read presets.
-
-**The whole gate in one command** (build 3 targets + validator + tests + boot
-smoke, one PASS/FAIL line; exits non-zero on failure with the first offending
-line):
-```powershell
-.\tools\gate.ps1            # green/red summary
-.\tools\gate.ps1 -Numbers   # also echoes the key probe numbers agents read by hand
+```text
+docs/SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md
 ```
-Use it as the gate for every stage. **For the R0–R7 refactor series** (move-only,
-where "green" is not enough — the numbers must be byte-identical) the gate has a
-baseline mode (R0):
-```powershell
-.\tools\gate.ps1 -SaveBaseline          # once, on the pre-refactor state
-.\tools\gate.ps1 -DiffBaseline          # after a stage: FAIL on ANY changed validator line
-.\tools\gate.ps1 -DiffBaseline -Shots   # + compare the render quad (use for the visual R3/R4)
-```
-Baseline files live under `build\` (gitignored, local snapshot). Rests on two
-measured facts: the validator is deterministic run-to-run and so is the render.
-The manual steps the gate wraps, if you need them individually:
-```powershell
-# Kill a running sample first (it locks samples.exe and the build fails on LNK1168)
-Get-Process samples -ErrorAction SilentlyContinue | Stop-Process -Force
 
+Before UI, presets or persistence work, read:
+
+```text
+docs/SUBSYSTEM_UI_PRESETS_PL.md
+```
+
+## 5. Evidence rules
+
+### Evidence before fix
+
+Reproduce a reported failure with a probe, dump, screenshot or controlled run
+before modifying code. A plausible explanation is not evidence.
+
+### Render is the gate
+
+A successful build, validator and clean process exit do not prove visual work.
+Any visual change requires a screenshot or equivalent render evidence that is
+actually inspected.
+
+### Read diagnostic numbers
+
+The vehicle validator prints useful geometry and physics numbers, but some
+assertions are intentionally broad. A final `OK` can coexist with obviously bad
+angles. Inspect the numbers relevant to the changed mechanism.
+
+### Preserve accepted behaviour
+
+A refactor that changes validator output, screenshots, defaults or feel is not a
+move-only refactor. Stop and classify the behaviour change.
+
+## 6. Build and validation
+
+Environment: Windows and PowerShell, from the repository root.
+
+Primary gate:
+
+```powershell
+.\tools\gate.ps1
+.\tools\gate.ps1 -Numbers
+```
+
+For move-only refactors with an established baseline:
+
+```powershell
+.\tools\gate.ps1 -SaveBaseline
+.\tools\gate.ps1 -DiffBaseline
+.\tools\gate.ps1 -DiffBaseline -Shots
+```
+
+Manual components when diagnosis requires them:
+
+```powershell
 cmake --build --preset windows-debug --target samples
 cmake --build --preset windows-debug --target jozz_vehicle_validation
 cmake --build --preset windows-debug --target test
 
-.\build\bin\Debug\jozz_vehicle_validation.exe   # MUST end "jozz_vehicle_validation: OK"
-.\build\bin\Debug\test.exe                       # engine suite, ~11 s, "All Box3D tests passed!"
-.\build\bin\Debug\samples.exe --sample-name "Suspension Rig" --frames 300   # boot smoke, 0 sokol errors
+.\build\bin\Debug\jozz_vehicle_validation.exe
+.\build\bin\Debug\test.exe
+.\build\bin\Debug\samples.exe --sample-name "Suspension Rig" --frames 300
 ```
 
-**Seeing visual work (mandatory for any visual change — "render is the gate"):**
+Visual evidence:
+
 ```powershell
-# One framed screenshot of the running lab (last frame, incl. the ImGui panel):
 .\build\bin\Debug\samples.exe --sample-name "Suspension Rig" --frames 150 --screenshot <path>.png
-# Then READ the PNG. Four sides stitched into one image:
 .\tools\quad_shot.ps1 -Out <path>.png
 ```
-The lab reads env vars to pose state headless without UI clicks: `JOZZ_M6_CAM`
-("yaw,pitch,radius,px,py,pz"), `JOZZ_M6_DIAG`, `JOZZ_M6_WHEEL`, `JOZZ_M6_DUMPER`,
-`JOZZ_M6_MOUNT`, `JOZZ_M6_STEERING_RIG` (draw the new front steering rig instead of
-the old mount), `JOZZ_M6_BODY` (view toggle: draw the selected body skin as a rigid
-skin), `JOZZ_M6_BODY_MODEL` (select the body skin by registry key, e.g.
-`rama_rurowa`), `JOZZ_M6_COLLIDER` (force the chassis collision box visible on
-top of the body skin), `JOZZ_M6_TAB` (0-5 forces a UI tab open), `JOZZ_M6_PRESET`,
-`JOZZ_M6_HERTZ`/`DAMP`/`PRELOAD`/`DROOP`, `JOZZ_M6_DUMP` (prints corner geometry
-numbers). *(Authoritative list of all 17 hooks: the registry comment at the
-`getenv( "JOZZ_M6"` site in `jozz_vehicle_m6_rig_lab.cpp`.)*
 
-**⚠ The validator asserts loosely.** It PRINTS diagnostic numbers (e.g. steering
-angle, camber) but many asserts only check "is finite" or a wide threshold. A
-badly broken geometry can print a clearly wrong number and still say `OK`. On any
-geometry change, **read the printed numbers**, don't trust the final `OK` alone.
-(Found exactly this way: droop 20° printed 69° steering vs a 32° limit and still
-passed.)
+Do not regenerate committed asset reports unless regeneration is the explicit
+scope.
 
----
+## 7. Branch and PR workflow
 
-## 4. Non-negotiable rules (physics + workflow)
+The global rules in `AGENTS.md` override older vehicle-era commit habits.
 
-**Physics / architecture (timeless, verified the hard way):**
-- Direction convention: `forward=+X, up=+Y, right=+Z, LEFT=-Z`; **positive
-  steering angle = LEFT turn**. Asserted signed in the validator. Do not re-derive
-  casually (two wrong guesses already happened).
-- `b3WheelJoint` spring rest = translation 0; Frame A = rest wheel-center anchor;
-  restDrop explicit. **Visual sockets are NOT physics frames** without explicit
-  conversion.
-- `b3DefaultShapeDef()` sets `categoryBits` = **ALL bits** (unlike Box2D's single
-  bit). The split wheel envelope needs both sides tagged: drivable surfaces
-  `JOZZ_M6_TERRAIN_CATEGORY` (0x2), props `JOZZ_M6_OBJECT_CATEGORY` (0x1).
-- Structural bodies (knuckle, rack, arms) are **shapeless** with explicit
-  `b3Body_SetMassData`. A small shape at driving speed makes the body "fast" →
-  continuous collision vs the ground → debug TOI assert. Vehicle worlds also run
-  `b3World_EnableContinuous(false)` for the same reason.
-- No glTF **mesh collision** for wheels/suspension. Wheels = primitive envelope.
-- Keep separated: physics rig · visual/rigged mesh · authoring asset data · debug
-  overlays. Do not merge visual marker positions into joint frames.
+For new work:
 
-**Workflow (this is what keeps multi-agent work sane):**
-- **Render is the gate.** Never report visual work "done" without reading a
-  screenshot of it. Green tests + "0 sokol errors" say nothing about whether the
-  image is correct.
-- **Evidence before fix.** Reproduce a reported bug (headless probe / dump /
-  screenshot) *before* changing code, so you fix the real cause.
-- **Prefer numbers over pixels for geometry.** `JOZZ_M6_DUMP=1` prints exact
-  corner coordinates; that is how the L/R asymmetry was proven to be a render bug,
-  not physics.
-- **Commit discipline (2026-07-08, Jozz's standing rule):** agents commit
-  and push **autonomously** to `jozz-vehicle-sandbox-m0` whenever the quality
-  gate (build + validator + `test.exe`) is green — do not wait to be asked per
-  commit. Keep commits small and self-describing; group a logical unit of
-  work into one commit, not one commit per file. **`main` is Jozz-only** — he
-  updates it himself at real milestones. Agents never push to `main`, never
-  force-push, never rewrite history. See §5 for keeping this cheap in tokens.
-- **Doc discipline + anti-drift (the A2 class must not multiply).** After a
-  real change, add a ≤5-line entry to `docs/CHECKPOINTS_PL.md` (co/czemu/efekt/
-  dalej — the standing handoff mechanism) and update this file's §2 if the
-  state moved. Do NOT add a new `docs/*.md` per tiny change — the doc pile is
-  already too big (§9). **When you rename a UI label, change a physics model,
-  or rename/retire a config key or env hook, immediately grep the docs for the
-  old term** (`README_FOR_AGENTS.md`, the matching `docs/SUBSYSTEM_*`, and any
-  code comment that names it) and fix them in the SAME commit. Doc-vs-code
-  drift has bitten this project repeatedly (a stale arcade-slider label, a
-  friction model the README didn't describe); the gate catches broken code,
-  not stale prose — that part is on you. `.\tools\doc_drift_check.ps1` is a
-  tripwire for a few known drift-prone terms; extend its short list when you
-  add one.
+1. identify the current authoritative branch and exact remote SHA;
+2. create a new isolated branch;
+3. keep one coherent scope;
+4. run the relevant gate;
+5. update current docs only when state moved;
+6. commit in small logical units;
+7. push and open a draft PR;
+8. stop before merge.
 
-**STOP-gate protocol — when you MUST stop and ask Jozz** (do not "reframe" the
-goal to keep going; the previous agent's core failure was overstepping exactly
-these points):
-- A stage's **acceptance criterion** turns out unreachable, or you'd have to
-  loosen a probe's threshold to pass. STOP — a widened tolerance is a plan
-  deviation, never a silent edit.
-- The task reveals a **decision that is Jozz's**: a physics/feel model choice,
-  a philosophy call (realistic vs `[ARCADE]`, ADR-0006), changing an accepted
-  default, or anything that changes how the car behaves.
-- You would touch **accepted code** beyond the stage's scope, the box3d core
-  (`src/`/`include/`), or do a "while I'm here" refactor.
-- A **manual test by Jozz** is the real acceptance (feel, render) — machine
-  green is necessary, not sufficient. Report, then wait.
-When you stop: write the state + the exact question into `CHECKPOINTS_PL.md`,
-say "STOP — czekam", and do not improvise a workaround.
+Never:
 
----
+- push directly to `main`;
+- push directly to `jozz-vehicle-sandbox-m0` or the active campaign branch;
+- force-push or rewrite branch history;
+- retarget or close another PR without owner approval;
+- merge without explicit owner approval;
+- change `src/` or `include/` as an incidental fix;
+- widen a validator threshold merely to obtain green CI.
 
-## 5. Token economy — keep chat lean, repo authoritative
+## 8. STOP gates
 
-Rules Jozz set 2026-07-08 to cut token spend without cutting rigor. The
-quality gate (build + validator + `test.exe`) and doc/commit discipline stay
-**mandatory** — this section changes *how much of the process gets narrated
-in chat*, not what gets done.
+Stop and ask the owner when:
 
-- **Never paste raw tool output.** Summarize builds/tests/`git status`/diffs
-  in one line ("Build: 3/3 targets OK", "Testy: 11/11 PASS (11.2s)"). Paste
-  the actual failing fragment only when something failed and you need it for
-  diagnosis. Still scan full output for `warning` even on success — a silent
-  new compiler warning is exactly the kind of thing this project has been
-  bitten by before (§3's "validator asserts loosely" is the same failure
-  mode: don't let a green summary hide a bad detail). Screenshots are
-  evidence, not log spam — "render is the gate" (§3) is untouched, always
-  show and read the PNG.
-- **Quiet flags where they exist:** `git push -q`, `git fetch -q`,
-  `git diff --stat` instead of a full diff, `git log --oneline -5` instead of
-  full history. Full `git diff` only when actually reviewing a specific hunk.
-  Caveat: `-q` suppresses *progress* output, not error text — a failed command
-  still prints its error and still needs full, un-quieted output for
-  diagnosis.
-- **Grep/offset before full Read.** The largest remaining file
-  (`jozz_vehicle_m6_suspension_rig.cpp` ~1400L — see TECH_DEBT #7) is where a
-  targeted Grep beats reading the whole file. `jozz_vehicle_m6_rig_lab` was split
-  (R3, 2026-07-11) into `_internal.h` (the class) + `.cpp` / `_ui_tabs.cpp` /
-  `_persistence.cpp` / `_mount_visual.cpp` by responsibility; `jozz_vehicle_visual_mesh`
-  was split (R4, 2026-07-11) into `_loader.cpp` (glTF/skin parsing) / `_draw.cpp`
-  (Draw*/placement/damper); `jozz_vehicle_m6_suspension_rig`'s world-free geometry
-  (hardpoints/rack-stroke/dead-point/DefaultConfig/Sanitize) was extracted (R5,
-  2026-07-11) to `jozz_vehicle_m6_geometry.{h,cpp}` — grep the TU whose name matches
-  what you need. Don't re-read a
-  file already seen this session unless something could plausibly have
-  changed it (your own edit already invalidates the "unread" assumption
-  automatically; a fresh session, a compaction, or work landing on the shared
-  branch from another agent does not — `git fetch -q && git status` before
-  trusting a stale read of shared-branch state).
-- **Batch independent steps into one call.** Build + validator + test + status
-  is one chained command, not four narrated ones. This never overrides
-  safety: `git status` still runs before any destructive git command, and the
-  full gate still runs before every commit — batching cuts round-trips and
-  narration, not verification.
-- **Gate reporting is one line**, e.g. "Bramka: build 3/3 OK, walidator OK,
-  testy 11/11 PASS (11.2s) — commituję." Full transcript only on failure.
-- **One milestone per session where practical.** Detailed step-by-step
-  narrative belongs in the repo's milestone `docs/*.md`, not the chat log —
-  chat gets a 2-3 sentence close-out + the commit list. An agent can't force a
-  new session, but should say so and suggest `/compact` or a fresh session
-  once a milestone's gate is green and pushed, or once a session is carrying
-  a long tool-call history.
-- **What this does NOT shrink:** the explanation Jozz actually asked for in
-  §10 ("what changed, why, consequences — in Polish, plainly") stays full.
-  Token economy trims raw tool transcripts, not reasoning or communication.
+- an acceptance criterion is unreachable without changing the plan;
+- a physics, feel, realism-vs-arcade, UX or default-value decision appears;
+- accepted code must change outside the declared scope;
+- the real acceptance is an owner drive test or visual review;
+- a Box3D core change appears necessary;
+- a private-data boundary is involved;
+- the authoritative base moved;
+- CI is pending or contradictory;
+- the task has grown beyond a small reviewable unit.
 
----
+Do not invent substitute work after a STOP gate.
 
-## 6. Sample indices are fragile — use names
+## 9. Vehicle and map status
 
-`--sample <N>` numbers = registration order and **shift when samples are added**.
-Jozz samples register last (after all box3d demos). Prefer `--sample-name
-"<substr>"` (e.g. `"Suspension Rig"`, `"Rig Bench"`) which is index-independent.
-Registration order today: Lab M1 Smoke · Lab M2 Primitive Corner · M5 First
-Drivable · M6 Suspension Rig Lab · M8 Suspension Rig Bench · M9 Steering Rig
-Bench.
+### Vehicle
 
-Do not use `[` / `]` (global sample-switch keys). Adding a hotkey → update
-`docs/HOTKEY_AUDIT_PL.md`, `main.cpp`, `gfx/keycodes.h`, and each lab.
+The M7/M8 foundation is stable. Known future candidates include:
 
----
+- authored marker-to-hardpoint import;
+- drivetrain and differential modelling;
+- tire slip/load-sensitivity model;
+- analog steering input;
+- steering-geometry redesign for aggressive droop;
+- future rig/editor tooling.
 
-## 7. Do NOT do without Jozz's explicit go-ahead
+These are candidates, not automatically active tasks.
 
-- Change box3d engine internals (`src/`, `include/`).
-- Rework the M7 real-forces model or the M8 pose foundation (they are accepted).
-- Redesign the steering geometry / Ackermann to push droop past 16°
-  (big physics change; Jozz chose this direction but it's a careful multi-step job).
-- Add a full glTF renderer / material / skin / animation importer.
-- Add mesh collision for wheels or suspension.
-- Regenerate `assets/reports/*` (`py tools\asset_audit.py`) unless intentional.
-- Push to `main`, force-push, or rewrite history anywhere. (Routine commits +
-  pushes to `jozz-vehicle-sandbox-m0` behind a green gate do NOT need
-  go-ahead — see §4/§5.)
-- Rename/move the active samples or the tuning UI layout (Jozz just approved it).
+### Map
 
----
+The technically working six-lane Etap 2 layout was rejected as a product layout.
+The central test-campus redesign remains paused. Do not begin later map stages
+from old code or old checkpoint entries without an explicit campaign decision.
 
-## 8. Priorities / roadmap (next gates)
-
-Nothing here is started; confirm with Jozz before picking one up:
+Current map planning references:
 
 ```text
-M7.2  wishbone hardpoints filled from asset markers (import fills the struct)
-M7.3  drivetrain: differentials, torque split, engine-braking curve
-M7.4  tire model (slip curve, load sensitivity) — the soft-tire roadmap
-M7.5  analog steering input + soft hands-on/off transition
---    two side dampers off to the side (Jozz asked, deferred)
---    steering-geometry redesign to allow aggressive droop >16° (deferred)
+docs/PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md
+docs/MAPA_ETAP_2_PRZESZKODY_I_POLIGONY_PL.md
 ```
 
----
+## 10. Documentation map
 
-## 9. Documentation map (what to trust)
+Use this order inside the vehicle domain:
 
-The `docs/` folder has ~40 files. Most are **historical milestone reports** —
-useful as history, **not** as current architecture. Trust this order:
+1. `AI_PROJECT_MEMORY.md` — confirms whether vehicle work is active at all;
+2. `docs/PROJECT_OPERATING_PLAN_PL.md` — project-wide critical path;
+3. this file — accepted vehicle-domain rules;
+4. `docs/CHECKPOINTS_PL.md` — recent historical handoff ledger;
+5. `docs/CURRENT_STATE_INDEX_PL.md` — detailed vehicle milestone ledger;
+6. `docs/TECH_DEBT_PL.md` — risks and deferred work;
+7. matching `docs/SUBSYSTEM_*` documents;
+8. code, tests and current render evidence.
 
-**Current / authoritative:**
-- `README_FOR_AGENTS.md` (this file) — front door.
-- `docs/CHECKPOINTS_PL.md` — handoff ledger (co/czemu/efekt/dalej, newest first).
-  **Read this first for "what happened recently".**
-- `docs/CURRENT_STATE_INDEX_PL.md` — milestone ledger + validated state.
-- `docs/TECH_DEBT_PL.md` — known debt, risks, deferred work.
-- `docs/SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md` — **read before touching the visual
-  rig / dampers / mounts.** Records that the visual dampers are decorative and
-  decoupled from the physics spring, what's solid vs temporary, and a staged
-  polish plan.
-- `docs/SUBSYSTEM_UI_PRESETS_PL.md` — the tuning UI/session/preset system: the
-  three separate save files and why, tab order, the `###stable-suffix` tab-ID
-  pattern (copy it for any future dynamic tab title).
-- `docs/PLAN_WIELKI_REFACTOR_2026_07_09_PL.md` — **the active plan** once Jozz
-  approves it: staged (R0–R7) big refactor — baseline-diff bar (validator
-  numbers byte-identical, not just green), split of the four monoliths,
-  config field-table, pure-geometry extraction (editor prep). Move-only
-  except R7; physics frozen. **R0–R5 zrobione (2026-07-11); R6/R7 opcjonalne.**
-- `docs/PLAN_FINALIZACJA_NADWOZIA_I_RIGU_2026_07_11_PL.md` — **ZAMKNIĘTY
-  (Etapy 1-3 zrobione 2026-07-11):** rama rurowa + przedni rig kierowniczy są
-  DOMYŚLNYM stanem gry, pola visual w configu persystują (R/presety/auto-sesja),
-  kolider chassis chowa się pod nadwoziem (podgląd: Debug checkbox /
-  `JOZZ_M6_COLLIDER`). Szczegóły w docach `FINALIZACJA_ETAP_*_PL.md` (sekcje
-  „Wynik"). Następny track: edytor rigu (wymagania O1-O8 w dokumencie niżej;
-  O8 = importer in-game + collision body z Blockbench, wymaga własnego planu).
-- `docs/PLAN_EDYTOR_RIGU_ROZGRZEWKA_2026_07_11_PL.md` — rozgrzewka pod edytor
-  rigu: **G0/G1/G3 ZROBIONE** (import na przód + drążek do środka racka +
-  dumper; potwierdzone przez Jozza), G4 (cardan) opcjonalny. Wyniki weszły do
-  gry jako domyślny stan (plan finalizacji wyżej); odkrycia O1–O8 w dokumencie
-  wymagań.
-- `docs/EDYTOR_RIGU_WYMAGANIA_I_AUDYT_PL.md` — **żywy dokument:** audyt jak rig
-  działa dziś + wymagania edytora (per-część rodzic, pivot, gizmos, tryby
-  wiązania, importer in-game/collision body) + odkrycia na żywo (O1–O8). Read
-  before rig-editor work.
-- `docs/PLAN_PORZADKI_FUNDAMENT_2026_07_09_PL.md` — **DONE** (stages A–G,
-  2026-07-09): gate script, shared CMake list, probe registry, persistence
-  map, env registry, encoded STOP-gates.
-- `docs/PLAN_STABILNOSC_PROWADZENIE_PL.md` — **DONE** (P1–P6 + Gates 1–2,
-  accepted 2026-07-09). History now; current state = CHECKPOINTS + this file.
-- `docs/AUDIT_PHYSICS_STEERING_2026_07_08_PL.md` — the findings behind that
-  plan: broken-steering mechanism (tie-rod over-center vs the ±70° twist
-  fence), missing RecomputeRackTravel on Apply, preload/stiffness coupling,
-  full slider audit. Read for the WHY; the plan doc has the HOW.
-- `docs/M7_REAL_FORCES_FOUNDATION_PL.md` — the current physics model.
-- `docs/M8_SUSPENSION_RIG_REPAIR_PLAN_PL.md` — rig/pose/droop work (physics side,
-  history through 2026-07-07; damper/mount current state now in the subsystem doc).
-- `docs/SUSPENSION_RIG_SPACE_CONVENTIONS_PL.md`, `docs/adr/` (0001–0006) — conventions.
-  ADR-0006 is load-bearing for gameplay work: **realistic core, [ARCADE]
-  overlays default-off and labeled** — any future assist follows it.
+Older milestone reports are historical context, not current task authority.
 
-**History only, moved to `docs/archive/`** (2026-07-08, `git mv` — history
-preserved): all `M0_`…`M5_*`, `CODEX_HANDOFF_*`, `CODEX_START_*`,
-`PROJECT_AUDIT_*`, `PROJECT_STABILIZATION_*`, `FOUNDATION_GROUNDING_*`,
-`IMPLEMENTATION_START_*`, `PRE_RIG_IMPORT_*` files. They describe superseded
-states (e.g. the primitive-corner-lab-as-main-thing era). `docs/
-M6_SUSPENSION_RIG_FOUNDATION_PL.md` is also history (superseded by M7/M8) but
-stays in `docs/` root for now — it is still occasionally cross-referenced.
+## 11. Documentation discipline
 
-Also at repo root: `README.md` (upstream box3d), `CONTRIBUTING.md` (upstream),
-`JOZZ_VEHICLE_README_PL.md` (older Polish overview — verify before trusting).
+After a proven state change:
 
----
+- update the matching current-state document;
+- update project memory only when campaign/authority/gates moved;
+- update this manual only when accepted vehicle rules changed;
+- use the checkpoint ledger for a concise handoff;
+- create a new long-form document only for a real milestone or architectural
+  decision.
 
-## 10. Where a new agent should start
+Do not commit periodic reports or unchanged gate summaries.
 
-1. Read this file + `docs/TECH_DEBT_PL.md` end to end.
-2. Build the three targets and run the validator + `test.exe` (§3). If they are
-   not green on a clean checkout, that is your first task — nothing else.
-3. Take one screenshot of the M6 lab (§3) so you have working eyes.
-4. Only then pick up work — from Jozz's request, or §8, confirmed with Jozz.
-5. When you touch code: reproduce → change → re-validate → **screenshot if
-   visual** → update §2 / the ledger. Report to Jozz *what* changed, *why*, and
-   the *consequences* — in Polish, plainly, no hedging.
+## 12. Current project handoff
+
+The project-wide active campaign, exact branch/head, automation mode and next
+critical gate are maintained in:
+
+```text
+AI_PROJECT_MEMORY.md
+docs/PROJECT_OPERATING_PLAN_PL.md
+docs/scan_import/CURRENT_STATE.md
+```
+
+Read those files before choosing any vehicle work.

@@ -3,92 +3,176 @@
 ## Rola tego pliku
 
 Ten plik jest globalnym routerem aktualnego stanu projektu. Wskazuje aktywną
-kampanię, jej domenowy `CURRENT_STATE.md`, aktywny branch/PR i najważniejsze STOP
-gates. Nie jest szczegółową dokumentacją subsystemu, historią milestone'ów ani
-kolejką zadań automatyzacji.
+kampanię, jej domenowy `CURRENT_STATE.md`, dokładny branch/head, bieżące bramki i
+najbliższą granicę produktu.
 
-Hierarchia dla przyszłych agentów:
+Nie jest:
 
-1. właścicielski GitHub Issue `[AUTOMATION CONTROL] Box3d_FunProject recurring agent`;
-2. ten plik jako wybór kampanii;
-3. domenowy `docs/*/CURRENT_STATE.md`;
-4. aktualny PR kampanii i jego exact head SHA;
-5. `README_FOR_AGENTS.md` jako globalne reguły produktu;
-6. checkpointy, tech debt, subsystem docs, kod i testy.
+- szczegółową dokumentacją subsystemu;
+- historią wszystkich milestone'ów;
+- kolejką pracy;
+- zgodą na implementację albo merge.
 
-Historyczne checkpointy nie mogą samodzielnie wybrać aktywnego zadania.
+## Kolejność autorytetu
+
+1. GitHub Issue #11 `[AUTOMATION CONTROL] Box3d_FunProject recurring agent`;
+2. `AGENTS.md` i `.automation/CONTROL.yaml`;
+3. ten plik;
+4. właściwy `docs/*/CURRENT_STATE.md`;
+5. aktywny PR kampanii i jego exact remote head;
+6. `docs/PROJECT_OPERATING_PLAN_PL.md`;
+7. `README_FOR_AGENTS.md` jako podręcznik domeny pojazdu;
+8. checkpointy, tech debt, subsystem docs, kod i testy.
+
+Historyczny checkpoint, stary roadmap ani otwarty stacked PR nie wybiera pracy
+samodzielnie.
 
 ## Aktywna kampania produktu
 
-Cel: pokazać siedem rzeczywistych kafli fotogrametrycznych GLB w natywnym,
-render-only preview i uzyskać uczciwy owner visual review orientacji, skali, osi
-up, mirror state, coverage i seams.
+```text
+campaign:             scan-terrain-r1b
+goal:                 real seven-tile native render-only preview
+state document:       docs/scan_import/CURRENT_STATE.md
+active branch:        agent/r1b-source-resolution-owner-integration
+active draft PR:      #9
+authoritative head:   61238a842ff09be70dec821ef00c05b8e76d2718
+campaign base:        PR #5 head f20357ba10618ddecfdd2e274e93917fe508a983
+```
 
-- domenowy stan: `docs/scan_import/CURRENT_STATE.md`;
-- aktywny branch: `agent/r1b-source-resolution-owner-integration`;
-- aktywny draft PR: #9;
-- exact authoritative head: `3a0d63e700108155886e1e00df7293f9c3d52db7`;
-- base kampanii: exact PR #5 head `f20357ba10618ddecfdd2e274e93917fe508a983`;
-- PR #7 pozostaje zamrożony do exact visual proof.
+PR #9 remains the active integration campaign. PR #7 surface-evidence work is
+frozen outside the nearest product goal. Older PRs #1–#8 preserve the stacked
+history and are not independent task selectors.
 
-## Aktualny stan prywatny zgłoszony przez właściciela
-
-- real 7 GLB + 7 PLY inspection: passed;
-- real owner-confirmed source frame: passed;
-- real P1B bundle and privacy acknowledgement: passed;
-- real preview pack: not yet produced;
-- native load and visual proof: not yet performed.
-
-Prywatne ścieżki, współrzędne, hashe źródeł i surowe skany pozostają poza
-GitHubem i publicznymi logami.
-
-## Najbliższa realna granica produktu
-
-Kod R1B rozwiązuje wcześniejszy blocker filesystem-layout i ma zieloną hosted
-walidację. Pozostaje nieautomatyzowalny owner-local run na prywatnych danych,
-natywne uruchomienie oraz visual review. Uczciwy status maksymalny przed tymi
-bramkami to:
+## Aktualny uczciwy stan produktu
 
 ```text
 REAL_PREVIEW_PIPELINE_CODE_READY
 ```
 
-Nigdy nie wyprowadzaj `TERRAIN_VISIBLE_PASS` z samego CI, kompilacji, bundle'a,
-preview packa ani uruchomionego executable.
+Confirmed:
 
-## Równoległa kampania infrastrukturalna
+- real 7 GLB + 7 PLY inspection passed in owner-private evidence;
+- source-frame owner contract passed privately;
+- P1B bundle/privacy receipt passed privately;
+- R1B source resolution and owner-flow code passed hosted contracts;
+- native sample build passed on the integrated head;
+- automation foundation is integrated without changing product behavior.
 
-Przygotowanie przyszłej cyklicznej pętli agentowej odbywa się wyłącznie na:
+Not yet proven:
 
-- branch: `agent/autonomous-loop-foundation-v1`;
-- draft PR: #10;
-- control issue: #11;
-- szczegółowa polityka: `.automation/POLICY.md`;
-- maszynowy kontrakt: `.automation/CONTROL.yaml`;
-- operacyjna mapa: `AGENTS.md`.
+- real preview pack creation from the private source set;
+- native runtime load of that exact pack;
+- owner visual review;
+- same-revision restart;
+- `TERRAIN_VISIBLE_PASS`.
 
-Ta kampania nie zmienia produktu. Domyślny tryb pozostaje `PLAN_ONLY`, control
-issue ma `enabled=false`, a żaden harmonogram nie został utworzony.
+Private paths, coordinates, hashes and raw scan data remain outside GitHub and
+public logs.
 
-## Reguła właścicielskiego workflow skanów
+## Najbliższa realna granica produktu
 
-Właściciel nie jest manualnym orkiestratorem technicznej sekwencji. R1B zapisuje
-bindingi, hashe i ścieżki prywatnie przez `scan_real_terrain_flow.py`, a wspieranym
-wejściem jest `run_real_terrain_flow.ps1`. Właściciel wykonuje tylko niezbędne
-wskazanie source root przy pierwszym runie i rzeczywistą ocenę wizualną.
+The next real action is one owner-local invocation of the supported runner:
+
+```text
+run_real_terrain_flow.ps1
+```
+
+The runner must discover the exact historical private bundle/receipt, resolve the
+seven GLB/PLY source pairs, build and verify the preview pack, select it and stop
+at visual review.
+
+The owner should only provide the unavoidable private source root and perform the
+actual visual decision. The owner is not a manual technical orchestrator.
+
+Expected intermediate state:
+
+```text
+REAL_PREVIEW_PACK_READY / VISUAL_REVIEW_PENDING
+```
+
+Only an explicit review of orientation, scale, axes, mirror state, coverage,
+seams and same-revision restart may produce:
+
+```text
+TERRAIN_VISIBLE_PASS
+```
+
+CI, compilation, generated files or a running process are not visual proof.
+
+## Current gates
+
+```text
+owner gate:    NONE before the private run; owner decision required at visual review
+private gate:  OWNER_LOCAL_REAL_SCAN_RUN_REQUIRED
+visual gate:   REAL_TERRAIN_PREVIEW_REVIEW_PENDING
+```
+
+Do not clear or reinterpret these gates to create activity.
+
+## Recurring operator
+
+The automation foundation from PR #10 is merged into the active campaign head:
+
+```text
+merge commit: 61238a842ff09be70dec821ef00c05b8e76d2718
+control issue: #11
+enabled:       true
+mode:          PLAN_ONLY
+cadence:       every 6 hours, Europe/Warsaw
+active lease:  none at the time of this update
+```
+
+In `PLAN_ONLY`, the scheduled operator may audit authority, PRs, CI, gates, lease
+and the safe queue. It may plan or recommend a bounded next action, but it may not
+create product branches, commits or PRs and may not promote itself to
+`IMPLEMENT_SAFE`.
+
+Detailed project workflow and roadmap:
+
+```text
+docs/PROJECT_OPERATING_PLAN_PL.md
+```
+
+## Other project domains
+
+### Vehicle sandbox
+
+The M7/M8 vehicle foundation remains an accepted/stable domain baseline, not the
+current campaign. Its manual is `README_FOR_AGENTS.md`; detailed historical state
+is in `docs/CURRENT_STATE_INDEX_PL.md` and subsystem documents.
+
+Do not restart drivetrain, tire, steering-geometry or editor work merely because
+it appears in an old roadmap.
+
+### Map
+
+The six-lane Etap 2 layout was rejected. The documented central-campus redesign
+is paused until the owner selects map work as the active campaign.
+
+### Surface evidence / collision
+
+Accepted surface, collision and drive readiness are outside R1B and remain
+blocked by missing real visual/evidence boundaries.
 
 ## Hard capability boundaries
 
-- accepted surface, collision i drive readiness nie są częścią R1B;
-- A3/A4 nie są autonomicznie implementowane;
-- merge, zamykanie PR-ów, force-push i retargetowanie wymagają właściciela;
-- `src/` i `include/` Box3D pozostają poza autonomicznym zakresem;
-- przyszły agent nie może zmieniać własnego control plane w tym samym runie.
+- `src/` and `include/` Box3D are outside autonomous scope;
+- accepted physics, feel, UX and defaults require owner decisions;
+- A3/A4 are never autonomous;
+- visual and private evidence cannot be synthesized from CI;
+- no merge, auto-merge, force-push, rebase, retarget or PR closure without owner
+  approval;
+- never write directly to `main`, `jozz-vehicle-sandbox-m0` or an active campaign
+  branch;
+- never use `Git_Diff_Patcher_Bridge`;
+- recurring runs cannot modify their own control plane.
 
-## Branch rules
+## Branch and handoff rule
 
-- nigdy nie merge'uj ani nie zamykaj PR bez zgody właściciela;
-- nigdy nie force-pushuj ani nie przepisuj istniejącej historii;
-- nie zapisuj bezpośrednio na `main`, `jozz-vehicle-sandbox-m0` ani aktywny branch kampanii;
-- nie używaj Git_Diff_Patcher_Bridge;
-- operacje repozytorium wykonuj przez bezpieczne, jawne operacje GitHub.
+Manual agent work starts from the exact remote head on a new isolated branch,
+uses small logical commits and ends in a draft PR. Documentation is updated only
+when proven state moves or when a real authority conflict is repaired.
+
+After any owner-approved integration, Issue #11 must be updated to the resulting
+current branch and full SHA before the scheduler can treat the new state as
+authoritative.
