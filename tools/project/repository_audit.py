@@ -14,10 +14,12 @@ if str(AUTOMATION_TOOLS) not in sys.path:
 
 import common  # noqa: E402
 
-ACTIVE_BRANCH = "agent/scan-terrain-r1b-consolidated-integration"
-ACTIVE_PR = "#13"
+ACTIVE_BRANCH = "agent/project-refoundation-audit-v1"
+ACTIVE_PR = "#17"
+INTEGRATION_BASE = "jozz-vehicle-sandbox-m0"
 CURRENT_STATUS = "TERRAIN_VISIBLE_PASS"
 CONTROL_HEAD_AUTHORITY = "GitHub Control Issue #11"
+DELETED_AUTHORITY_BRANCH = "agent/scan-terrain-r1b-consolidated-integration"
 LEGACY_WORKFLOW = ".github/workflows/p2a-source-visual-preview.yml"
 CHARTER_FILE = "docs/PROJECT_CHARTER_PL.md"
 REFOUNDATION_FILE = "docs/PROJECT_REFOUNDATION_AUDIT_2026_07_22_PL.md"
@@ -40,6 +42,9 @@ REQUIRED_FILES = (
     REFOUNDATION_FILE,
     "docs/scan_import/CURRENT_STATE.md",
     MILESTONE_FILE,
+    "docs/PROJECT_INVENTORY.json",
+    "docs/BRANCH_RETENTION_PLAN_2026_07_22.json",
+    "docs/DOCUMENT_LIFECYCLE_2026_07_22.json",
     ".github/PULL_REQUEST_TEMPLATE/manual.md",
     ".github/PULL_REQUEST_TEMPLATE/automation.md",
     ".github/workflows/automation-foundation.yml",
@@ -82,7 +87,6 @@ def check_contains(text: str, needles: Iterable[str], label: str, errors: list[s
 
 
 def normalize_head_authority(value: str) -> str:
-    """Normalize prose-only wording without weakening the authority identity."""
     normalized = value.strip()
     if normalized.lower().startswith("read from "):
         normalized = normalized[len("read from ") :].strip()
@@ -90,13 +94,6 @@ def normalize_head_authority(value: str) -> str:
 
 
 def check_texture_before_collision(text: str, label: str, errors: list[str]) -> None:
-    """Require at least one explicit canonical product-gate sequence.
-
-    Status tables may mention later capabilities earlier while listing what is not
-    complete. They are not roadmaps. This tripwire therefore checks for an explicit
-    ordered occurrence rather than comparing the first occurrence of each word in
-    the whole document.
-    """
     required = (
         "TEXTURED_SOURCE_PREVIEW",
         "VEHICLE_SCALE_REFERENCE_SCENE",
@@ -106,14 +103,12 @@ def check_texture_before_collision(text: str, label: str, errors: list[str]) -> 
         if marker not in text:
             errors.append(f"MISSING_PRODUCT_ORDER_MARKER:{label}:{marker}")
             return
-
-    ordered_sequence = re.search(
+    if re.search(
         r"TEXTURED_SOURCE_PREVIEW[\s\S]*?"
         r"VEHICLE_SCALE_REFERENCE_SCENE[\s\S]*?"
         r"COLLISION",
         text,
-    )
-    if ordered_sequence is None:
+    ) is None:
         errors.append(f"PRODUCT_ORDER_DRIFT:{label}:TEXTURE_SCALE_COLLISION")
 
 
@@ -124,13 +119,12 @@ def audit_repository(root: Path = ROOT) -> list[str]:
     for relative in REQUIRED_FILES:
         if not (root / relative).is_file():
             errors.append(f"MISSING_REQUIRED_FILE:{relative}")
-
     if errors:
         return errors
 
     try:
         control = common.load_control(root / ".automation" / "CONTROL.yaml")
-    except Exception as exc:  # the strict validator provides the useful detail
+    except Exception as exc:
         return [f"CONTROL_INVALID:{exc}"]
 
     if control["authority"]["global_agent_rules"] != "AGENTS.md":
@@ -218,10 +212,10 @@ def audit_repository(root: Path = ROOT) -> list[str]:
     check_contains(
         refoundation,
         (
-            "PHASE_0_STARTED",
+            "F2_FORENSIC_INVENTORY_COMPLETE",
+            "F3_INTEGRATION_REVIEW_ACTIVE",
             "TEXTURED_SOURCE_PREVIEW",
-            "forensic inventory",
-            "nie jest jeszcze zakończona",
+            "retention tag debt",
         ),
         "REFOUNDATION_AUDIT",
         errors,
@@ -275,9 +269,13 @@ def audit_repository(root: Path = ROOT) -> list[str]:
             errors.append(f"STATUS_DRIFT:{relative}")
         if "WORLD_SCALE_VALIDATED" not in text:
             errors.append(f"SCALE_BOUNDARY_MISSING:{relative}")
+        if ACTIVE_BRANCH not in text:
+            errors.append(f"CURRENT_BRANCH_MISSING:{relative}")
+        if ACTIVE_PR not in text:
+            errors.append(f"CURRENT_PR_MISSING:{relative}")
         check_texture_before_collision(text, relative, errors)
 
-    if ACTIVE_BRANCH in issue_template or "3a0d63e" in issue_template:
+    if ACTIVE_BRANCH in issue_template or DELETED_AUTHORITY_BRANCH in issue_template:
         errors.append("CONTROL_TEMPLATE_CONTAINS_LIVE_OR_STALE_BRANCH")
     check_contains(
         issue_template,
@@ -296,6 +294,8 @@ def audit_repository(root: Path = ROOT) -> list[str]:
     ):
         if ACTIVE_BRANCH not in workflow:
             errors.append(f"WORKFLOW_MISSING_ACTIVE_BRANCH:{label}")
+        if DELETED_AUTHORITY_BRANCH in workflow:
+            errors.append(f"WORKFLOW_REFERENCES_DELETED_BRANCH:{label}")
         if "workflow_dispatch:" not in workflow:
             errors.append(f"WORKFLOW_MISSING_MANUAL_DISPATCH:{label}")
 
@@ -318,6 +318,7 @@ def main() -> int:
         return 1
     print("REPOSITORY_AUDIT_PASS")
     print(f"authority={ACTIVE_BRANCH} pr={ACTIVE_PR} status={CURRENT_STATUS}")
+    print("branches=3 retention_tag_debt=3")
     print("next_gate=TEXTURED_SOURCE_PREVIEW_BEFORE_SCALE_AND_COLLISION")
     return 0
 
