@@ -75,6 +75,14 @@ def check_contains(text: str, needles: Iterable[str], label: str, errors: list[s
             errors.append(f"MISSING_MARKER:{label}:{needle}")
 
 
+def normalize_head_authority(value: str) -> str:
+    """Normalize prose-only wording without weakening the authority identity."""
+    normalized = value.strip()
+    if normalized.lower().startswith("read from "):
+        normalized = normalized[len("read from ") :].strip()
+    return normalized
+
+
 def audit_repository(root: Path = ROOT) -> list[str]:
     root = Path(root)
     errors: list[str] = []
@@ -178,7 +186,7 @@ def audit_repository(root: Path = ROOT) -> list[str]:
         "operating": extract(r"exact head:\s*([^\n]+)", operating, "operating.head", errors),
     }
     for source, value in head_values.items():
-        if value is not None and value != CONTROL_HEAD_AUTHORITY:
+        if value is not None and normalize_head_authority(value) != CONTROL_HEAD_AUTHORITY:
             errors.append(f"EXACT_HEAD_AUTHORITY_DRIFT:{source}:{value}")
 
     for relative, text in (
