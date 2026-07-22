@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "mode": "PLAN_ONLY",
+  "cadence_hours": 6,
+  "control_issue": {
+    "title": "[AUTOMATION CONTROL] Box3d_FunProject recurring agent",
+    "lease_minutes": 45,
+    "stale_lock_policy": "OWNER_REVIEW_REQUIRED",
+    "require_claim_reread": true,
+    "claim_settle_seconds": 5
+  },
+  "authority": {
+    "root_memory": "AI_PROJECT_MEMORY.md",
+    "global_agent_rules": "README_FOR_AGENTS.md",
+    "domain_state_pattern": "docs/*/CURRENT_STATE.md",
+    "checkpoint_ledger": "docs/CHECKPOINTS_PL.md",
+    "technical_debt": "docs/TECH_DEBT_PL.md",
+    "active_campaign_source": "control_issue",
+    "precedence": [
+      "CONTROL_ISSUE",
+      "AI_PROJECT_MEMORY",
+      "DOMAIN_CURRENT_STATE",
+      "ACTIVE_CAMPAIGN_PR",
+      "README_FOR_AGENTS",
+      "CHECKPOINT_LEDGER",
+      "TECH_DEBT",
+      "SUBSYSTEM_DOCS",
+      "CODE_AND_TESTS"
+    ]
+  },
+  "execution": {
+    "max_tasks_per_run": 1,
+    "max_open_automation_prs": 1,
+    "require_exact_base_sha": true,
+    "require_fresh_remote_check_before_write": true,
+    "require_draft_pr": true,
+    "allow_merge": false,
+    "allow_force_push": false,
+    "allow_rebase": false,
+    "allow_retarget_existing_pr": false,
+    "allow_close_other_prs": false,
+    "allow_direct_push_to_active_branch": false,
+    "allow_self_policy_modification": false,
+    "commit_periodic_reports": false
+  },
+  "branch": {
+    "prefix": "automation/",
+    "format": "automation/{work_item_id}/{run_id}",
+    "owner_branches_forbidden": [
+      "main",
+      "jozz-vehicle-sandbox-m0"
+    ],
+    "protected_active_branches": true
+  },
+  "work_items": {
+    "path": ".automation/WORK_ITEMS.json",
+    "schema_path": ".automation/WORK_ITEM_SCHEMA.json",
+    "selectable_status": "AGENT_READY",
+    "require_owner_readiness": true,
+    "one_item_per_run": true
+  },
+  "risk": {
+    "allowed_in_read_only": ["A0"],
+    "allowed_in_plan_only": ["A0"],
+    "allowed_in_implement_safe": ["A0", "A1", "A2_AGENT_READY_ONLY"],
+    "never_autonomous": ["A3", "A4"]
+  },
+  "gates": {
+    "owner_decision": "stop",
+    "visual_review": "stop",
+    "private_data": "stop",
+    "threshold_change": "stop",
+    "accepted_behavior_change": "stop",
+    "box3d_core_change": "stop",
+    "policy_change": "stop",
+    "lock_uncertain": "stop",
+    "base_moved": "stop",
+    "ci_pending": "stop"
+  },
+  "scope": {
+    "glob_style": "gitwildmatch",
+    "always_forbidden_paths": [
+      "src/**",
+      "include/**"
+    ],
+    "protected_control_paths": [
+      "AGENTS.md",
+      ".automation/**",
+      "tools/automation/**",
+      ".github/workflows/automation-foundation.yml",
+      ".github/PULL_REQUEST_TEMPLATE/automation.md"
+    ],
+    "threshold_sensitive_patterns": [
+      "tests/**",
+      "tools/**/*validator*",
+      "tools/**/*validation*"
+    ],
+    "maximum_default_files": 8,
+    "maximum_default_changed_lines": 400
+  },
+  "reporting": {
+    "use_control_issue": true,
+    "update_project_docs_only_when_state_moves": true,
+    "draft_pr_template": ".github/PULL_REQUEST_TEMPLATE/automation.md",
+    "local_report_path": "build/automation/latest-report.json",
+    "commit_periodic_reports": false
+  },
+  "no_op_results": [
+    "NO_MATERIAL_CHANGE",
+    "NO_SAFE_WORK",
+    "ACTIVE_AGENT_DETECTED",
+    "LOCK_UNAVAILABLE",
+    "LOCK_UNCERTAIN",
+    "OWNER_GATE",
+    "VISUAL_GATE",
+    "PRIVATE_DATA_REQUIRED",
+    "CI_PENDING",
+    "BASE_MOVED",
+    "TASK_TOO_LARGE",
+    "POLICY_CONFLICT"
+  ]
+}

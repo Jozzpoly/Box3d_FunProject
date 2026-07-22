@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "required_fields": [
+    "id",
+    "title",
+    "campaign",
+    "status",
+    "risk_class",
+    "priority",
+    "exact_base_sha",
+    "base_resolution_rule",
+    "allowed_paths",
+    "forbidden_paths",
+    "acceptance_criteria",
+    "required_tests",
+    "owner_gate",
+    "visual_gate",
+    "private_data_required",
+    "dependencies",
+    "conflicts",
+    "maximum_scope",
+    "readiness_authority",
+    "owner_approved_by",
+    "owner_approved_at"
+  ],
+  "statuses": [
+    "PROPOSED",
+    "AGENT_READY",
+    "ACTIVE",
+    "BLOCKED",
+    "OWNER_NEEDED",
+    "VISUAL_REVIEW",
+    "DONE",
+    "REJECTED"
+  ],
+  "risk_classes": ["A0", "A1", "A2", "A3", "A4"],
+  "priority_range": [0, 1000],
+  "maximum_scope_fields": ["max_files", "max_changed_lines", "single_subsystem"],
+  "readiness_authorities": ["OWNER", "NONE"],
+  "rules": {
+    "agent_ready_requires_risk": "A2",
+    "agent_ready_requires_authority": "OWNER",
+    "agent_ready_requires_owner_identity": true,
+    "exactly_one_base_selector": true,
+    "a3_a4_never_autonomous": true,
+    "queue_changes_are_control_plane_changes": true
+  }
+}
