@@ -3,7 +3,7 @@
 **Updated:** 2026-07-22  
 **Active branch:** `agent/r1b-source-resolution-owner-integration`  
 **Base:** PR #5 exact preview head `f20357ba10618ddecfdd2e274e93917fe508a983`  
-**Green functional head:** `b6d9f5b6559f3b82616a1ff6ef737ef89457f8e2` — hosted workflow 9/9 PASS
+**Green functional head:** `7d3c0f20f4bc82fd893f3b4bd0e87a2acc57f1d1` — hosted workflow `29881749220`, 9/9 PASS
 
 ## Product target
 
@@ -23,7 +23,8 @@ manually confirm orientation, scale, up axis, mirror state, coverage and seams.
 | Exact preview code | `PASS_CODE_AND_CI` | builder/verifier contracts and native compile | real private run |
 | Source asset resolution | `PASS_CODE_AND_CI` | nested 7+7 and adversarial resolver tests | real private run |
 | Owner-flow orchestration | `PASS_CODE_AND_CI` | receipt-bound discovery, resume state and active selection | real private run |
-| Real preview pack | `NOT_CREATED` | no real pack yet | orchestrator `continue` |
+| One-command owner runner | `PASS_CODE_AND_CI` | canonical contract and Windows PowerShell parse | real private run |
+| Real preview pack | `NOT_CREATED` | no real pack yet | run owner entrypoint once |
 | Native load | `NOT_PROVEN` | compile is not runtime proof | launch selected verified pack |
 | Visual review | `NOT_RUN` | owner decision required | inspect seven tiles |
 | Surface evidence / derivatives | `FROZEN_ON_PR_7` | outside nearest product goal | wait for visual proof |
