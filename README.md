@@ -1,180 +1,175 @@
-# Box3D
+# Jozz Vehicle / Box3d_FunProject
 
-[![Build Status](https://github.com/erincatto/box3d/actions/workflows/build.yml/badge.svg)](https://github.com/erincatto/box3d/actions)
-[![CLA assistant](https://cla-assistant.io/readme/badge/erincatto/box3d)](https://cla-assistant.io/erincatto/box3d)
+Eksperymentalny sandbox inżynieryjny Jozza zbudowany na upstreamowym silniku
+[Box3D](https://github.com/erincatto/box3d). Projekt łączy fizyczne pojazdy,
+autorskie modele glTF/Blockbench, narzędzia diagnostyczne oraz kontrolowany pipeline
+importu rzeczywistych skanów terenu.
 
-![Box3D Logo](https://box2d.org/images/logo.svg)
+> **To repozytorium nie jest zwykłym mirrorem upstream Box3D.**
+>
+> GitHubowy default branch `main` zachowuje starszą linię upstream/projektu i nie
+> jest automatycznie bieżącym branchem pracy. Aktualną kampanię, branch i exact head
+> zawsze odczytuj z GitHub Control Issue wskazanego w `AGENTS.md`.
 
-Box3D is a 3D physics engine for games.
+## Start tutaj
 
-[![Introducing Box3D](https://img.youtube.com/vi/jr_Fzl2XwKU/maxresdefault.jpg)](https://www.youtube.com/watch?v=jr_Fzl2XwKU)
+### Dla człowieka
 
-## Features
+1. [`AI_PROJECT_MEMORY.md`](AI_PROJECT_MEMORY.md) — co jest aktualnie aktywne;
+2. [`docs/PROJECT_OPERATING_PLAN_PL.md`](docs/PROJECT_OPERATING_PLAN_PL.md) — workflow
+   i roadmapa;
+3. [`docs/README.md`](docs/README.md) — indeks dokumentacji;
+4. [`CONTRIBUTING.md`](CONTRIBUTING.md) — bezpieczny sposób pracy i tworzenia PR;
+5. [`docs/REPOSITORY_STRUCTURE_PL.md`](docs/REPOSITORY_STRUCTURE_PL.md) — mapa kodu,
+   testów, narzędzi i źródeł prawdy.
 
-### Collision
+### Dla agenta AI
 
-- Continuous collision detection
-- Contact events
-- Convex hulls, capsules, spheres, triangle meshes, and height fields
-- Multiple shapes per body
-- Collision filtering
-- Ray casts, shape casts, and overlap queries
-- Sensor system
-- Character mover
+Zacznij od [`AGENTS.md`](AGENTS.md). Następnie odczytaj Control Issue,
+`.automation/CONTROL.yaml`, pamięć projektu i current state aktywnej domeny.
 
-### Physics
+## Aktualny uczciwy kierunek
 
-- Robust _Soft Step_ rigid body solver
-- Continuous physics for fast translations and rotations
-- Island based sleep
-- Revolute, prismatic, distance, motor, weld, and wheel joints
-- Joint limits, motors, springs, and friction
-- Joint and contact forces
-- Body movement events and sleep notification
+Bieżąca kampania projektu jest wybierana poza tym README, aby wersjonowany tekst nie
+udawał mutable control plane. W chwili przygotowania tej struktury najbliższą
+realną granicą jest prywatny, siedmiokaflowy, natywny preview skanu terenu.
 
-### System
+Najwyższy potwierdzony poziom capability i nierozwiązane gate'y znajdują się w:
 
-- Data-oriented design
-- Written in portable C17
-- Extensive multithreading and SIMD
-- Optimized for large piles of bodies
-- Cross platform determinism
-- Recording and replay
-
-### Samples
-
-- Uses sokol to run with D3D11 on Windows, Metal on macOS, and OpenGL 4.5 on Linux.
-- Graphical user interface with imgui.
-- Many samples to demonstrate features and performance.
-
-## Building all platforms
-
-- Install [CMake](https://cmake.org/)
-- Install [git](https://git-scm.com/)
-- Ensure these run from the command line
-
-## Building with CMake presets (recommended)
-
-This uses the presets in `CMakePresets.json`.
-
-- Windows: `cmake --preset windows` then `cmake --build --preset windows-release`
-- Linux: `cmake --preset linux-release` then `cmake --build --preset linux-release`
-- macOS: `cmake --preset macos` then `cmake --build --preset macos-release`
-
-Run the samples app (must be in the Box3D directory).
-
-- Windows: `.\build\bin\Release\samples.exe`
-- Linux: `./build/bin/samples`
-- macOS: `./build/bin/Release/samples`
-
-## Building for Visual Studio
-
-- Install [Visual Studio](https://visualstudio.microsoft.com/)
-- Run `build_vs2026.bat`
-- Open and build `build/box3d.slnx`
-
-## Building for Linux
-
-- Run `build.sh` from a bash shell
-- Results are in the build sub-folder
-
-## Building for Xcode
-
-- mkdir build
-- cd build
-- cmake -G Xcode ..
-- Open `box3d.xcodeproj`
-- Select the samples scheme
-- Build and run the samples
-
-## Building and installing
-
-- mkdir build
-- cd build
-- cmake ..
-- cmake --build . --config Release
-- cmake --install . (might need sudo)
-
-## Using Box3D in your project
-
-The core library has no dependencies beyond the C runtime (and `libm` on Unix). Linking it
-gives you the `box3d::box3d` target.
-
-I recommend to use FetchContent:
-
-```cmake
-include(FetchContent)
-FetchContent_Declare(box3d
-  GIT_REPOSITORY https://github.com/erincatto/box3d.git
-  GIT_TAG v0.1.0)
-FetchContent_MakeAvailable(box3d)
-
-target_link_libraries(my_app PRIVATE box3d::box3d)
+```text
+AI_PROJECT_MEMORY.md
+docs/scan_import/CURRENT_STATE.md
+GitHub Control Issue
 ```
 
-For a vendored copy or git submodule, point `add_subdirectory` at it:
+CI, kompilacja i wygenerowany asset nie stanowią visual acceptance ani prywatnego
+dowodu ownera.
 
-```cmake
-add_subdirectory(extern/box3d)
+## Główne domeny
 
-target_link_libraries(my_app PRIVATE box3d::box3d)
+### Vehicle sandbox
+
+Natywny Windows/C++ sandbox pojazdów z:
+
+- fizycznym zawieszeniem wielobryłowym;
+- back-drivable steering rack;
+- napędem i hamowaniem momentem;
+- autorskimi modelami glTF;
+- presetami, persistence i debug overlays;
+- headless validatorami i screenshot toolingiem.
+
+Reguły tej domeny: [`README_FOR_AGENTS.md`](README_FOR_AGENTS.md).
+
+### Scan terrain pipeline
+
+Prywatnościowo bezpieczny pipeline obejmujący:
+
+- inspekcję par GLB/PLY;
+- source-frame i source-package contracts;
+- prywatne/shareable evidence bundles;
+- owner-local privacy gate;
+- exact render-only preview pack;
+- niezależną weryfikację;
+- native preview lab;
+- resumable source resolution i owner flow.
+
+Stan domeny: [`docs/scan_import/CURRENT_STATE.md`](docs/scan_import/CURRENT_STATE.md).
+
+### Recurring repository operator
+
+Fail-closed pętla agentowa działa według `.automation/**`. Aktualny tryb i enable
+pochodzą z Control Issue. Agent nie może sam podnieść autonomii, zmienić polityki,
+zmergować PR ani ominąć owner/private/visual gate'ów.
+
+## Budowanie i walidacja
+
+Docelowe środowisko projektu to Windows + PowerShell.
+
+### Pełna istniejąca bramka projektu
+
+```powershell
+.\tools\gate.ps1
 ```
 
-To use a copy installed with `cmake --install`, find the package:
+### Governance i control plane
 
-```cmake
-find_package(box3d 0.1 REQUIRED)
-
-target_link_libraries(my_app PRIVATE box3d::box3d)
+```powershell
+python tools/automation/validate_control.py
+python tools/project/repository_audit.py
+python -m unittest discover -s tests/automation -p "test_*.py"
+python -m unittest discover -s tests/project -p "test_*.py"
 ```
 
-See [`docs/hello.md`](docs/hello.md) for a minimal first program.
+### Scan contracts
 
-## Compatibility
+```powershell
+python tools/scan_pipeline/run_p1_contracts.py
+```
 
-The Box3D library and samples build and run on Windows, Linux, and Mac.
+### Natywny preview / sample build
 
-You will need a compiler that supports C17 to build the Box3D library.
+```powershell
+cmake --preset windows
+cmake --build --preset windows-debug --target samples
+```
 
-You will need a compiler that supports C++20 to build the samples.
+Pełne wymagania i ograniczenia znajdują się w dokumentacji domenowej. Nie traktuj
+samego `PASS` procesu jako dowodu poprawności wizualnej lub fizycznej.
 
-Box3D uses SSE2 and Neon SIMD math to improve performance. This can be disabled by defining `BOX3D_DISABLE_SIMD`.
+## Zasady bezpieczeństwa repozytorium
 
-## Documentation
+- `src/` i `include/` pozostają upstreamowym core Box3D i nie są zwykłym obszarem
+  pracy projektu;
+- nie zapisuj bezpośrednio na `main`, baseline ani aktywny branch kampanii;
+- każda manualna zmiana zaczyna się z exact remote SHA na nowym branchu;
+- bez jawnej zgody nie ma merge, force-push, rebase, retarget ani branch deletion;
+- prywatne skany, ścieżki, współrzędne, hashe źródeł i credentials nie trafiają do
+  Git, PR, Issue ani publicznego CI;
+- visual, feel, UX, defaults i owner acceptance są bramkami ludzkimi;
+- stary roadmap lub zamknięty PR nie aktywuje pracy.
 
-The user manual lives in [`docs/`](docs/) and is built with Doxygen. Enable the `BOX3D_DOCS` CMake option and build the `doc` target.
+## Branch model
 
-## Community
+```text
+main
+└─ zachowana linia upstream / historyczny default
 
-- [Discord](https://discord.gg/NKYgCBP)
+jozz-vehicle-sandbox-m0
+└─ stabilny baseline domeny pojazdu
 
-## Contributing
+<authoritative branch from Control Issue>
+└─ aktywna kampania i jej draft PR
 
-Pull requests are currently disabled. Instead, please file an issue for bugs or feature requests. For support, please visit the Discord server.
+agent/... / automation/...
+└─ izolowane reviewable zmiany
+```
 
-## Giving feedback
+Dokładne mutable branche i SHAs nie są hardkodowane w tym README.
 
-Please file an issue or start a chat on discord. You can also use [GitHub Discussions](https://github.com/erincatto/box3d/discussions).
+## Dokumentacja
 
-## License
+Repo zawiera dużo wartościowych raportów historycznych. Ich kompletność nie oznacza
+aktualności. Używaj indeksu [`docs/README.md`](docs/README.md), który rozdziela:
 
-Box3D is developed by Erin Catto and uses the [MIT license](https://en.wikipedia.org/wiki/MIT_License).
+- current authority;
+- aktywną dokumentację domenową;
+- decyzje architektoniczne;
+- checkpointy i tech debt;
+- materiały historyczne i archive.
 
-## Sponsorship
+## Upstream Box3D
 
-Support development of Box3D through [Github Sponsors](https://github.com/sponsors/erincatto).
+Projekt bazuje na Box3D autorstwa Erin Catto — przenośnym silniku fizyki 3D w C17
+z natywnymi sample'ami C++20. Upstream:
 
-Please consider starring this repository and subscribing to my [YouTube channel](https://www.youtube.com/@erin_catto).
+- repository: `erincatto/box3d`;
+- strona i dokumentacja: `box2d.org` / upstream `docs/`;
+- licencja: MIT.
 
-## LLM Usage
+Jozz-specific kod, assety, narzędzia i dokumentacja są rozwijane w tym forku, przy
+zachowaniu wyraźnej granicy od upstreamowego engine core.
 
-LLMs are used in the following areas:
+## Licencja
 
-- unit tests
-- samples app
-- migrating code between Box2D and Box3D
-- build configuration
-- code reviews
-- benchmarking
-
-Elsewhere all code is developed and written by me. I take responsibility for every line of code in Box2D/3D.
+Upstream Box3D używa licencji MIT. Zobacz [`LICENSE`](LICENSE) oraz nagłówki
+poszczególnych plików.
