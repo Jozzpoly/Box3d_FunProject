@@ -1,137 +1,170 @@
-# Photogrammetry Import V2 — start here
+# Photogrammetry Import V2 — current start here
 
-**Status:** `P1A_REAL_INSPECTION_LOCAL_PASS / P1B_OWNER_GATE_HARDENING`  
-**Branch roboczy:** `agent/p1b-owner-gate-hardening`  
-**Baza:** `agent/p1b-inspector-bundle-staging@a7459be8ffad14a6bfaea04696750b1e18bd0b43`  
-**Zakres:** owner-local contracts, privacy, persistence, tests and gate reliability only; no occupancy, runtime C++, renderer, vehicle or Box3D behavior changes.
+**Rola:** router domeny scan; nie jest checkpointem ani samodzielną zgodą na implementację.  
+**Najwyższa udowodniona capability:** `TERRAIN_VISIBLE_PASS`  
+**Następny product gate:** `TEXTURED_SOURCE_PREVIEW`  
+**Finalna skala:** `WORLD_SCALE_VALIDATED = false`
 
-## Co jest prawdziwe
-
-- P0 Windows build/validator/test/smoke przeszedł lokalnie na dokładnym headzie `a7459be...`.
-- Pełny dependency-free runner P1/P1B przeszedł lokalnie: 77/77 na tym samym headzie.
-- Dwa realne przebiegi 7 GLB + 7 PLY wygenerowały byte-identyczne `inspection.json`.
-- Oba raporty mają 7 GLB, 7 PLY, 7 par, automatic evidence gate `PASS` i status `compatible-review`.
-- Bounds nadal nie dowodzą zgodności wnętrza geometrii. P1C/occupancy i P2 pozostają zablokowane.
-- Bundle, independent verifier i private/shareable projection mają zielone synthetic CI.
-- Brakuje realnego owner-confirmed source frame, realnego bundle'a i ręcznego privacy review.
-
-## Przepływ prawdy
+## 1. Kolejność odczytu
 
 ```text
-private GLB/PLY
-→ inspection.json
-→ explicit owner-confirmed source-frame.json
-→ ScanSourcePackage
-→ WorldImportProposal (UNREVIEWED / BOUNDS_ONLY)
-→ private/shareable bundle
-→ independent verifier
-→ manual review of one shareable JSON
-→ P1B_BUNDLE_PASS
+AGENTS.md
+→ GitHub Control Issue #11
+→ AI_PROJECT_MEMORY.md
+→ docs/scan_import/CURRENT_STATE.md
+→ aktywny PR i jego exact remote head
+→ docs/PROJECT_OPERATING_PLAN_PL.md
+→ docs/PROJECT_CHARTER_PL.md
+→ ten router i właściwy kontrakt domenowy
 ```
 
-Bundle jest kopertą dowodową. Nie jest mapą, accepted patch, heightfieldem ani runtime cache.
+Nie wybieraj pracy z historycznego checkpointu, zamkniętego PR-a ani nazwy brancha.
+Mutable authority oraz exact head pochodzą z Control Issue.
 
-## Kanoniczne testy
+## 2. Co jest naprawdę zakończone
 
-```powershell
-python .\tools\scan_pipeline\run_p1_contracts.py
-.\tools\gate.ps1
-```
-
-`gate.ps1` konfiguruje świeży Windows worktree automatycznie i zatrzymuje się po każdym realnym błędzie CMake lub brakującym executable.
-
-## Krok 1 — sprawdź realne raporty
-
-Podaj katalog zawierający prywatne outputy inspectora:
-
-```powershell
-python .\tools\scan_pipeline\scan_owner_gate.py inspect `
-  --inspection-root <PRIVATE_SCAN_PIPELINE_OUTPUT_ROOT>
-```
-
-Runner wybierze raport automatycznie tylko wtedy, gdy wszystkie pasujące raporty 7+7 są byte-identyczne. Różne raporty są stop condition.
-
-## Krok 2 — przygotuj source frame
-
-Najpierw ustal faktyczne:
-
-- source units per meter;
-- signed source axes `right`, `forward`, `up`;
-- local source origin;
-- czy transformacja zachowuje orientację, czy wymaga mirroru.
-
-Zobacz wymagane argumenty:
-
-```powershell
-python .\tools\scan_pipeline\scan_source_frame_contract.py create --help
-```
-
-Generator sam wylicza handedness i `axisMatrix`. Bez jawnego `--confirmed` zapisuje kontrakt niepotwierdzony. Mirror wymaga osobnego `--mirror-approved`.
-
-Walidacja gotowego kontraktu:
-
-```powershell
-python .\tools\scan_pipeline\scan_source_frame_contract.py validate `
-  .\build\scan_pipeline\p1_source_frame.json `
-  --require-confirmed
-```
-
-Nie commituj source-frame contractu. Pozostaje pod ignorowanym `build/`.
-
-## Krok 3 — owner gate
-
-Po potwierdzeniu frame contractu:
-
-```powershell
-python .\tools\scan_pipeline\scan_owner_gate.py finalize `
-  --inspection-root <PRIVATE_SCAN_PIPELINE_OUTPUT_ROOT> `
-  --frame-contract .\build\scan_pipeline\p1_source_frame.json
-```
-
-Runner:
-
-1. wybierze byte-identyczny raport 7+7;
-2. zbuduje content-addressed bundle;
-3. uruchomi osobny read-only verifier;
-4. zapisze privacy-safe local receipt;
-5. wskaże dokładnie jeden plik `shareable/inspection.shareable.json` do ręcznej kontroli.
-
-Pierwszy przebieg kończy się statusem:
+Na authoritative revision właściciel wykonał prywatny seven-tile flow i potwierdził:
 
 ```text
-TECHNICAL_PASS / PRIVACY_REVIEW_REQUIRED
+exact private source resolution  PASS
+seven-tile geometry pack         PASS
+independent verification         PASS
+native first load                PASS
+owner geometry review            PASS
+same-revision restart            PASS
+runtime                           949 frames / 0 Sokol errors
+highest honest capability        TERRAIN_VISIBLE_PASS
 ```
 
-Po faktycznym otwarciu i sprawdzeniu wskazanego shareable JSON uruchom tę samą komendę z:
+Znane artefakty peryferyjne rekonstrukcji są świadomie zaakceptowane dla pierwszego
+geometry proof. Szczegółowy redacted zapis:
 
 ```text
---acknowledge-shareable-privacy-review
+docs/scan_import/TERRAIN_VISIBLE_PASS_2026_07_22_PL.md
 ```
 
-Dopiero wtedy runner może zgłosić:
+Nie publikuj prywatnych ścieżek, lokalizacji, współrzędnych, source hashes, receipts ani
+raw GLB/PLY/tekstur.
+
+## 3. Czego ten milestone nie dowodzi
 
 ```text
-P1B_BUNDLE_PASS
+TEXTURED_SOURCE_PREVIEW_READY        false
+WORLD_SCALE_VALIDATED                false
+GOLDEN_DRIVE_REGION_SELECTED         false
+GLB_PLY_INTERIOR_CORRESPONDENCE      false
+ACCEPTED_WORLD_PATCH_READY           false
+COLLISION_PROJECTION_READY           false
+FIRST_REAL_SCAN_DRIVE_PASS           false
+OWNER_FUN_VERDICT                    false
 ```
 
-## Następne po tej bramce
+`TERRAIN_VISIBLE_PASS` oznacza powtarzalną widoczność dokładnej geometrii źródłowej.
+Nie oznacza poprawnej finalnej skali, powierzchni fizycznej ani gotowej mapy.
 
-Osobny branch i osobny PR:
+## 4. Obowiązująca kolejność produktu
 
-- internal occupancy correspondence GLB↔PLY;
-- sabotage fixture: identyczne bounds, błędne wnętrze;
-- adjacency/seam evidence;
-- dopiero później P2 Diagnostic Preview.
+```text
+TERRAIN_VISIBLE_PASS
+→ TEXTURED_SOURCE_PREVIEW
+→ VEHICLE_SCALE_REFERENCE_SCENE
+→ GOLDEN_DRIVE_REGION_OWNER_SELECTION
+→ COLLISION_REPRESENTATION_RESEARCH
+→ FIRST_REAL_SCAN_DRIVE
+→ OWNER_FUN_VERDICT
+```
 
-## Stop conditions
+Tekstury nie są kosmetyką po kolizji. Są potrzebne, aby Jozz rozpoznał drogę, trawę,
+domy i pierwszy sensowny region jazdy. Dopiero wtedy zaakceptowany samochód zostanie
+pokazany na drodze albo obok znanego obiektu i można uczciwie zwalidować skalę.
 
-Zatrzymaj implementację, jeżeli:
+## 5. Zamknięty kontrakt geometry preview v1
 
-- source axis, scale lub origin są zgadywane;
-- mirror ma przejść bez jawnej akceptacji;
-- różne raporty 7+7 są automatycznie scalane lub wybierane;
-- raw GLB/PLY mają zostać skopiowane do bundle;
-- shareable output zaczyna kopiować nieznane pola lub free-form warnings;
-- bundle jest przedstawiany jako accepted world patch;
-- Box3D/GPU/UI handle trafia do kontraktu;
-- branch zaczyna occupancy, ground extraction, cooker, renderer albo pełny Workbench JES przed `P1B_BUNDLE_PASS`.
+Geometry-only preview v1 pozostaje zamknięty:
+
+```text
+purpose                              SOURCE_VISUAL_PREVIEW_ONLY
+privacyClass                         PRIVATE_LOCAL_ONLY
+sourceGeometryVisible                true
+texturesIncluded                     false
+internalGeometryCorrespondencePassed false
+acceptedWorld                        false
+collisionReady                       false
+```
+
+Nie dopisuj tekstur do v1, zachowując stare `texturesIncluded = false`. Następny etap
+wymaga nowego jawnego capability/manifestu albo sąsiedniego packa, który wiąże się z tą
+samą source revision bez reinterpretacji starego evidence.
+
+## 6. Trwałe kontrakty domeny
+
+- `ARCHITECTURE.md` — evidence → proposal → authored truth → rebuildable projections;
+- `P2A_SOURCE_VISUAL_PREVIEW.md` — dokładny geometry-only format i native consumer;
+- `CURRENT_STATE.md` — bieżący evidence-scoped status;
+- `STATUS.md` — krótki pointer, nie drugi current state;
+- `P1B_CHARTER.md`, `P1B_BUNDLE_CHARTER.md`, `P1B_OWNER_GATE_HARDENING.md` —
+  historyczne kontrakty źródła, bundle i owner gate, nadal ważne jako lineage;
+- `TERRAIN_VISIBLE_PASS_2026_07_22_PL.md` — zamknięty milestone evidence.
+
+Stare komendy P1/P1B pozostają w historii Git i checkpointach. Nie są current task
+queue i nie powinny być automatycznie odtwarzane na nowej source revision.
+
+## 7. Następna kampania: wymogi przed implementacją
+
+Przed utworzeniem teksturowanego brancha potrzebny jest bounded campaign brief, który
+ustala:
+
+1. source texture evidence: embedded images, material/primitive bindings,
+   `TEXCOORD_0`, samplers i color-space;
+2. jawny textured-pack identity oraz powiązanie z geometry pack/source revision;
+3. 1K baseline i 2K porównanie, bez uznawania BC7 za blocker pierwszego renderu;
+4. etapowy, cache'owalny cook oraz pomiar decoded RAM/GPU upload;
+5. fixed-camera screenshot matrix, w tym no-texture fallback;
+6. realny visibility/render-distance problem ujawniony w geometry preview;
+7. scenę zaakceptowanego samochodu jako późniejszy scale reference;
+8. zakaz kolizji i surface promotion do czasu owner texture/scale/ROI gate.
+
+Historyczny raport eksperymentów tekstur jest evidence inputem:
+
+```text
+docs/PHOTOGRAMMETRY_ROADMAP_EXPERIMENT_REPORT_2026_07_15_PL.md
+```
+
+Nie jest automatycznie finalnym formatem seven-tile textured preview.
+
+## 8. Surface i collision pozostają zaparkowane
+
+Issue #14 przechowuje dokładny head divergent PR #7. Zawarte tam surface evidence,
+query API i derivative graph mogą być porównane po teksturach, skali i wyborze Golden
+Drive Region. Nie wolno:
+
+- merge'ować całego PR #7 z rozpędu;
+- uznać lowest-observed PLY grid za ground truth;
+- promować kinematycznego probe PASS do accepted surface;
+- uruchamiać Box3D collision przed comparative representation review;
+- traktować source render mesh i physics surface jako tę samą warstwę.
+
+## 9. Prywatny owner flow
+
+Istniejący resumable runner pozostaje narzędziem odtwarzania zamkniętego geometry
+milestone'u:
+
+```powershell
+.\tools\scan_pipeline\run_real_terrain_flow.ps1
+```
+
+Jego użycie na nowej source revision nie przyznaje automatycznie starego PASS. Każda
+nowa rewizja wymaga własnego verified packa i odpowiednich owner gate'ów.
+
+## 10. STOP conditions
+
+Zatrzymaj implementację, gdy:
+
+- exact branch/head albo authority są niejasne;
+- prywatne dane miałyby trafić do GitHub/PR/Issue;
+- tekstury miałyby zmienić semantykę zamkniętego manifestu v1;
+- scale jest zgadywane bez zaakceptowanego samochodu i rozpoznawalnego obiektu;
+- kolizja zaczyna się przed texture, scale-reference i owner ROI review;
+- scan evidence jest przedstawiane jako authored-world truth;
+- zmiana dotyka zaakceptowanej fizyki vehicle albo Box3D `src/`/`include/`;
+- duży cleanup, branch deletion lub integration odbywa się bez osobnej weryfikacji.
