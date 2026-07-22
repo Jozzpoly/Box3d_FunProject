@@ -90,25 +90,30 @@ def normalize_head_authority(value: str) -> str:
 
 
 def check_texture_before_collision(text: str, label: str, errors: list[str]) -> None:
-    """Require the owner-selected product ordering in each current router.
+    """Require at least one explicit canonical product-gate sequence.
 
-    This is intentionally a prose/order tripwire, not a product implementation gate.
-    It prevents documentation from silently moving collision ahead of textured visual
-    context and the vehicle scale-reference scene.
+    Status tables may mention later capabilities earlier while listing what is not
+    complete. They are not roadmaps. This tripwire therefore checks for an explicit
+    ordered occurrence rather than comparing the first occurrence of each word in
+    the whole document.
     """
-    markers = (
+    required = (
         "TEXTURED_SOURCE_PREVIEW",
         "VEHICLE_SCALE_REFERENCE_SCENE",
         "COLLISION",
     )
-    positions: list[int] = []
-    for marker in markers:
-        position = text.find(marker)
-        if position < 0:
+    for marker in required:
+        if marker not in text:
             errors.append(f"MISSING_PRODUCT_ORDER_MARKER:{label}:{marker}")
             return
-        positions.append(position)
-    if not positions[0] < positions[1] < positions[2]:
+
+    ordered_sequence = re.search(
+        r"TEXTURED_SOURCE_PREVIEW[\s\S]*?"
+        r"VEHICLE_SCALE_REFERENCE_SCENE[\s\S]*?"
+        r"COLLISION",
+        text,
+    )
+    if ordered_sequence is None:
         errors.append(f"PRODUCT_ORDER_DRIFT:{label}:TEXTURE_SCALE_COLLISION")
 
 
