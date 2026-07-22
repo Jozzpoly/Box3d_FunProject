@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Produce a read-only tracked-file and remote-branch forensic snapshot.
+"""Create a read-only tracked-tree and remote-ref forensic snapshot.
 
-The snapshot contains repository metadata only. It never reads owner-local ignored
-files, scan payloads, credentials or private paths outside the checkout.
+Only tracked repository metadata and remote ref names/SHAs are read. Ignored owner
+files, private scan payloads, credentials and local paths outside the checkout are
+never inspected.
 """
 from __future__ import annotations
 
@@ -16,6 +17,8 @@ from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parents[2]
 INVENTORY_PATH = ROOT / "docs" / "PROJECT_INVENTORY.json"
+BRANCH_PLAN_PATH = ROOT / "docs" / "BRANCH_RETENTION_PLAN_2026_07_22.json"
+DYNAMIC_REVIEW_POLICY = "DYNAMIC_REVIEW_HEAD_UNTIL_INTEGRATION"
 
 ROOT_BUILD_AND_HYGIENE = {
     ".clang-format",
@@ -43,11 +46,7 @@ VEHICLE_TOOL_FILES = {
     "tools/gate.ps1",
     "tools/quad_shot.ps1",
 }
-UPSTREAM_DOC_FILES = {
-    "docs/CMakeLists.txt",
-    "docs/extra.css",
-    "docs/layout.xml",
-}
+UPSTREAM_DOC_FILES = {"docs/CMakeLists.txt", "docs/extra.css", "docs/layout.xml"}
 UPSTREAM_GITHUB_FILES = {
     ".github/FUNDING.yml",
     ".github/issue_template.md",
@@ -77,6 +76,21 @@ VEHICLE_DOCUMENTATION_FILES = {
 }
 
 
+def _read_json(path: Path) -> dict[str, Any]:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError(f"{path.name} root must be an object")
+    return value
+
+
+def _load_inventory() -> dict[str, Any]:
+    return _read_json(INVENTORY_PATH)
+
+
+def _load_branch_plan() -> dict[str, Any]:
+    return _read_json(BRANCH_PLAN_PATH)
+
+
 def _run_git(arguments: list[str], *, timeout: int = 60) -> str:
     completed = subprocess.run(
         ["git", *arguments],
@@ -94,20 +108,13 @@ def _run_git(arguments: list[str], *, timeout: int = 60) -> str:
     return completed.stdout
 
 
-def _load_inventory() -> dict[str, Any]:
-    value = json.loads(INVENTORY_PATH.read_text(encoding="utf-8"))
-    if not isinstance(value, dict):
-        raise ValueError("project inventory root must be an object")
-    return value
-
-
 def _is_upstream_doc(path: str) -> bool:
     if path in UPSTREAM_DOC_FILES or path.startswith("docs/images/"):
         return True
     if not path.startswith("docs/"):
         return False
-    name = path.removeprefix("docs/")
-    return name and name[0].islower()
+    relative = path.removeprefix("docs/")
+    return bool(relative and relative[0].islower())
 
 
 def _classify_path(path: str) -> str:
@@ -184,19 +191,19 @@ def _classify_path(path: str) -> str:
 
 
 def _tracked_paths() -> list[str]:
-    output = subprocess.run(
+    completed = subprocess.run(
         ["git", "ls-files", "-z"],
         cwd=ROOT,
         check=False,
         capture_output=True,
         timeout=60,
     )
-    if output.returncode != 0:
-        detail = output.stderr.decode("utf-8", errors="replace").strip()
+    if completed.returncode != 0:
+        detail = completed.stderr.decode("utf-8", errors="replace").strip()
         raise RuntimeError(f"git ls-files failed: {detail}")
     return sorted(
         item.decode("utf-8", errors="strict")
-        for item in output.stdout.split(b"\0")
+        for item in completed.stdout.split(b"\0")
         if item
     )
 
@@ -211,9 +218,8 @@ def _parse_remote_refs(output: str, prefix: str) -> list[dict[str, str]]:
         if len(parts) != 2:
             raise ValueError(f"unexpected ls-remote line: {line!r}")
         sha, ref = parts
-        if not ref.startswith(prefix):
-            continue
-        records.append({"name": ref[len(prefix) :], "sha": sha})
+        if ref.startswith(prefix):
+            records.append({"name": ref[len(prefix) :], "sha": sha})
     return sorted(records, key=lambda record: record["name"])
 
 
@@ -231,37 +237,29 @@ def _lineage_by_branch(inventory: dict[str, Any]) -> dict[str, dict[str, Any]]:
     lineage = inventory.get("pullRequestLineage", [])
     if not isinstance(lineage, list):
         return result
-    for record in lineage:
-        if not isinstance(record, dict):
+    for item in lineage:
+        if not isinstance(item, dict) or not isinstance(item.get("branch"), str):
             continue
-        branch = record.get("branch")
-        if not isinstance(branch, str):
-            continue
-        existing = result.get(branch)
-        if existing is None:
-            result[branch] = {
-                "prs": [record.get("pr")],
-                "roles": [record.get("role")],
-                "retention": record.get("retention"),
-            }
-        else:
-            existing["prs"].append(record.get("pr"))
-            existing["roles"].append(record.get("role"))
-            if existing.get("retention") != record.get("retention"):
-                existing["retention"] = "MIXED_REVIEW_REQUIRED"
+        branch = item["branch"]
+        current = result.setdefault(
+            branch,
+            {"prs": [], "roles": [], "retention": item.get("retention")},
+        )
+        current["prs"].append(item.get("pr"))
+        current["roles"].append(item.get("role"))
+        if current.get("retention") != item.get("retention"):
+            current["retention"] = "MIXED_REVIEW_REQUIRED"
     return result
 
 
 def _branch_plan_by_name() -> dict[str, dict[str, Any]]:
-    path = ROOT / "docs" / "BRANCH_RETENTION_PLAN_2026_07_22.json"
-    if not path.is_file():
+    records = _load_branch_plan().get("branches", [])
+    if not isinstance(records, list):
         return {}
-    value = json.loads(path.read_text(encoding="utf-8"))
-    records = value.get("branches", []) if isinstance(value, dict) else []
     return {
-        record["name"]: record
-        for record in records
-        if isinstance(record, dict) and isinstance(record.get("name"), str)
+        item["name"]: item
+        for item in records
+        if isinstance(item, dict) and isinstance(item.get("name"), str)
     }
 
 
@@ -271,24 +269,43 @@ def _annotate_branches(
     lineage = _lineage_by_branch(inventory)
     exact_plan = _branch_plan_by_name()
     reduction = inventory.get("branchReduction", {})
-    preferred = set(reduction.get("preferredFinalBranches", [])) if isinstance(reduction, dict) else set()
+    preferred = (
+        set(reduction.get("preferredFinalBranches", []))
+        if isinstance(reduction, dict)
+        else set()
+    )
     annotated: list[dict[str, Any]] = []
-    for branch in branches:
-        name = branch["name"]
-        record: dict[str, Any] = dict(branch)
-        record["preferredKeep"] = name in preferred or name in {"main", "jozz-vehicle-sandbox-m0"}
-        if name in exact_plan:
-            planned = exact_plan[name]
-            record["retention"] = planned.get("retention")
-            record["proof"] = planned.get("proof")
-            record["requiredTag"] = planned.get("requiredTag")
-            record["plannedShaMatches"] = planned.get("sha") == branch["sha"]
+    for remote in branches:
+        name = remote["name"]
+        record: dict[str, Any] = dict(remote)
+        record["preferredKeep"] = name in preferred or name in {
+            "main",
+            "jozz-vehicle-sandbox-m0",
+        }
+        planned = exact_plan.get(name)
+        if planned is not None:
+            sha_policy = planned.get("shaPolicy")
+            record.update(
+                retention=planned.get("retention"),
+                proof=planned.get("proof"),
+                requiredTag=planned.get("requiredTag"),
+                shaPolicy=sha_policy,
+            )
+            if sha_policy == DYNAMIC_REVIEW_POLICY:
+                record["plannedShaMatches"] = None
+                record["dynamicReviewHead"] = True
+                record["snapshotSha"] = planned.get("snapshotSha")
+            else:
+                record["plannedShaMatches"] = planned.get("sha") == remote["sha"]
+                record["dynamicReviewHead"] = False
         elif name in lineage:
             record.update(lineage[name])
         else:
-            record["retention"] = "UNCLASSIFIED_REMOTE_BRANCH"
-            record["roles"] = []
-            record["prs"] = []
+            record.update(
+                retention="UNCLASSIFIED_REMOTE_BRANCH",
+                roles=[],
+                prs=[],
+            )
         annotated.append(record)
     return annotated
 
@@ -316,20 +333,24 @@ def build_snapshot(remote: str, require_remote: bool) -> dict[str, Any]:
     preferred_count = reduction.get("preferredFinalCount") if isinstance(reduction, dict) else None
     annotated = _annotate_branches(branches, inventory)
     unclassified_branches = [
-        record["name"] for record in annotated
-        if record.get("retention") == "UNCLASSIFIED_REMOTE_BRANCH"
+        item["name"]
+        for item in annotated
+        if item.get("retention") == "UNCLASSIFIED_REMOTE_BRANCH"
     ]
-    mismatched_planned_shas = [
-        record["name"] for record in annotated
-        if record.get("plannedShaMatches") is False
+    exact_mismatches = [
+        item["name"] for item in annotated if item.get("plannedShaMatches") is False
+    ]
+    dynamic_review_branches = [
+        item["name"] for item in annotated if item.get("dynamicReviewHead") is True
     ]
     unclassified_paths = {
-        group: paths for group, paths in groups.items()
+        group: paths
+        for group, paths in groups.items()
         if group.startswith("unclassified-")
     }
 
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "repository": "Jozzpoly/Box3d_FunProject",
         "generatedFrom": {
             "head": _run_git(["rev-parse", "HEAD"]).strip(),
@@ -339,8 +360,8 @@ def build_snapshot(remote: str, require_remote: bool) -> dict[str, Any]:
         },
         "trackedTree": {
             "fileCount": len(tracked),
-            "groupCounts": {group: len(paths) for group, paths in sorted(groups.items())},
-            "groups": {group: paths for group, paths in sorted(groups.items())},
+            "groupCounts": {key: len(value) for key, value in sorted(groups.items())},
+            "groups": {key: value for key, value in sorted(groups.items())},
             "unclassifiedPaths": unclassified_paths,
             "coverageComplete": not unclassified_paths,
         },
@@ -354,7 +375,8 @@ def build_snapshot(remote: str, require_remote: bool) -> dict[str, Any]:
             "overHardMaximum": isinstance(hard_max, int) and len(branches) > hard_max,
             "branches": annotated,
             "unclassifiedBranches": unclassified_branches,
-            "plannedShaMismatches": mismatched_planned_shas,
+            "plannedShaMismatches": exact_mismatches,
+            "dynamicReviewBranches": dynamic_review_branches,
             "tagCount": len(tags),
             "tags": tags,
             "deletionAuthorized": False,
@@ -371,7 +393,10 @@ def build_snapshot(remote: str, require_remote: bool) -> dict[str, Any]:
 def _write_json(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    temporary.write_text(
+        json.dumps(value, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
     temporary.replace(path)
 
 
@@ -392,17 +417,21 @@ def main(argv: Iterable[str] | None = None) -> int:
         print(f"REPOSITORY_FORENSIC_SNAPSHOT_FAIL: {exc}", file=sys.stderr)
         return 1
 
-    remote = snapshot["remoteRefs"]
     tree = snapshot["trackedTree"]
+    refs = snapshot["remoteRefs"]
     print("REPOSITORY_FORENSIC_SNAPSHOT_PASS")
-    print(f"tracked_files={tree['fileCount']} coverage_complete={str(tree['coverageComplete']).lower()}")
     print(
-        "remote_branches="
-        f"{remote['branchCount']} hard_max={remote['hardMaximum']} "
-        f"preferred={remote['preferredFinalCount']} over_max={str(remote['overHardMaximum']).lower()}"
+        f"tracked_files={tree['fileCount']} "
+        f"coverage_complete={str(tree['coverageComplete']).lower()}"
     )
-    print(f"unclassified_remote_branches={len(remote['unclassifiedBranches'])}")
-    print(f"planned_sha_mismatches={len(remote['plannedShaMismatches'])}")
+    print(
+        f"remote_branches={refs['branchCount']} hard_max={refs['hardMaximum']} "
+        f"preferred={refs['preferredFinalCount']} "
+        f"over_max={str(refs['overHardMaximum']).lower()}"
+    )
+    print(f"unclassified_remote_branches={len(refs['unclassifiedBranches'])}")
+    print(f"unexpected_sha_mismatches={len(refs['plannedShaMismatches'])}")
+    print(f"dynamic_review_branches={len(refs['dynamicReviewBranches'])}")
     print(f"output={args.output.as_posix()}")
     return 0
 
