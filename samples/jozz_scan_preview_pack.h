@@ -10,10 +10,19 @@
 #include <string>
 #include <vector>
 
+// One per-material textured sub-mesh of a tile. A v2 pack splits each tile by
+// source material so each group carries its own baseColor texture and UVs.
+struct JozzScanPreviewTileGroup
+{
+	MeshHandle handle = InvalidMeshHandle();
+	int vertexCount = 0;
+	int triangleCount = 0;
+};
+
 struct JozzScanPreviewTile
 {
 	int tileId = -1;
-	MeshHandle handle = InvalidMeshHandle();
+	std::vector<JozzScanPreviewTileGroup> groups;
 	int vertexCount = 0;
 	int triangleCount = 0;
 	b3AABB bounds = {};
@@ -21,9 +30,10 @@ struct JozzScanPreviewTile
 };
 
 // Render-only consumer for a private P2A source preview pack. The pack contains
-// lab-space metres baked offline from one verified source revision. This type
-// has no Box3D shape/body API and must never be used as collision or authored
-// world truth.
+// lab-space metres baked offline from one verified source revision, with the
+// source baseColor textures downscaled to at most 1024 px. This type has no
+// Box3D shape/body API and must never be used as collision or authored world
+// truth.
 struct JozzScanPreviewPack
 {
 	std::vector<JozzScanPreviewTile> tiles;

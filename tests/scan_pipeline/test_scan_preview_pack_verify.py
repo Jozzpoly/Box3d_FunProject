@@ -24,7 +24,13 @@ VERIFY = (
 )
 
 
+_needs_texture_backend = unittest.skipUnless(
+    helper._HAS_TEXTURE_BACKEND, "requires an image backend (opencv-python or Pillow)"
+)
+
+
 class ScanPreviewPackVerifyTests(unittest.TestCase):
+    @_needs_texture_backend
     def test_cli_verifies_complete_preview(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -48,6 +54,7 @@ class ScanPreviewPackVerifyTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("scan_preview_pack_verify: ERROR", result.stderr)
 
+    @_needs_texture_backend
     def test_cli_rejects_tampered_preview(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

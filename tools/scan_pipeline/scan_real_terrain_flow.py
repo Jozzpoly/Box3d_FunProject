@@ -255,6 +255,8 @@ def continue_flow(args: argparse.Namespace) -> int:
         source_root=source_view,
         output_root=paths["previews"],
         label="source-preview",
+        level_x_degrees=args.level_x_deg,
+        level_z_degrees=args.level_z_deg,
     )
     summary = scan_preview_pack.verify_preview_pack(preview)
     if summary["tileCount"] != 7:
@@ -343,6 +345,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     continuation.add_argument("--bundle", type=Path)
     continuation.add_argument("--owner-gate-receipt", type=Path)
     continuation.add_argument("--source-root", type=Path, action="append")
+    # Per-scan leveling tilt (degrees) applied after the axis matrix; 0 = none.
+    continuation.add_argument("--level-x-deg", type=float, default=0.0)
+    continuation.add_argument("--level-z-deg", type=float, default=0.0)
     continuation.add_argument("--launch", action="store_true")
     continuation.set_defaults(handler=continue_flow)
     show = sub.add_parser("status")

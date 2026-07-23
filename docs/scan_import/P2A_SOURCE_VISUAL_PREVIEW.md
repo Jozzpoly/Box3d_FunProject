@@ -1,7 +1,7 @@
 # P2A Source Visual Preview
 
-**Status:** implementation present on draft PR #5; final execution proof pending.  
-**Purpose:** show verified private source geometry in the native sample host without turning scan evidence into authored-world or collision truth.
+**Status:** textured (v2) preview implemented; proven rendering the real 7-tile scan with source baseColor textures in the native host on 2026-07-23.  
+**Purpose:** show verified private source geometry — now with downscaled source baseColor textures — in the native sample host without turning scan evidence into authored-world or collision truth.
 
 ## Why P2A exists
 
@@ -63,26 +63,35 @@ It then:
 9. publishes transactionally under a content-addressed directory;
 10. independently verifies the completed pack.
 
-### Binary tile format v1
+### Binary tile format v2
 
 Header, little-endian:
 
 ```text
-8 bytes   magic: JSPREV1\0
-uint32    version = 1
+8 bytes   magic: JSPREV2\0
+uint32    version = 2
 uint32    tileId
+uint32    groupCount
+```
+
+Then a group table of `groupCount` entries (one per source material):
+
+```text
 uint32    vertexCount
 uint32    indexCount
 ```
 
-Then:
+Then, for each group in order:
 
 ```text
-vertexCount × (float32 position.xyz + float32 normal.xyz)
-indexCount  × uint32
+vertexCount × (float32 position.xyz + float32 normal.xyz + float32 uv.xy)
+indexCount  × uint32   (triangle list, group-local)
 ```
 
-Indices are a triangle list. Textures, UVs, materials and collision data are deliberately absent from v1.
+Each group carries the source UVs and one baseColor material. That material's
+image is downscaled to at most 1024 px on the longest side and stored beside the
+geometry as `textures/tile_<id>_group_<n>.png` (rgba8). Collision data remains
+deliberately absent. v1 (geometry-only, `JSPREV1`) is superseded by this format.
 
 ## Closed capability boundary
 
@@ -92,7 +101,7 @@ A valid manifest must state exactly:
 purpose = SOURCE_VISUAL_PREVIEW_ONLY
 privacyClass = PRIVATE_LOCAL_ONLY
 sourceGeometryVisible = true
-texturesIncluded = false
+texturesIncluded = true
 internalGeometryCorrespondencePassed = false
 acceptedWorld = false
 collisionReady = false
@@ -114,6 +123,9 @@ The Python verifier is the cryptographic trust boundary. It checks:
 - finite float32 vertices;
 - unit normals;
 - in-range indices;
+- per-group vertex/index counts summing to the tile totals;
+- byte length and SHA-256 for every group baseColor texture;
+- texture PNG dimensions (≤ 1024 px) parsed from the PNG header, no image library required;
 - per-tile bounds derived from final bytes;
 - global bounds derived from tile bounds.
 
@@ -149,7 +161,7 @@ The lab may use renderer geometry registry types, camera types and world-coordin
 
 ## Known limitations of the first proof
 
-- geometry-only; no original textures;
+- baseColor textures only, downscaled to ~1K; no normal/roughness/metallic maps;
 - no PLY rendering;
 - no GLB↔PLY interior correspondence;
 - no seam quality classification;

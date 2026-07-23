@@ -78,7 +78,7 @@ public:
 		ImGui::BulletText( "No collision shapes." );
 		ImGui::BulletText( "Not an accepted world patch." );
 		ImGui::BulletText( "GLB/PLY correspondence is not asserted." );
-		ImGui::BulletText( "Textures are intentionally absent in this proof." );
+		ImGui::BulletText( "Source baseColor textures shown (downscaled to ~1K)." );
 		ImGui::Spacing();
 
 		ImGui::TextWrapped( "%s", m_pack.status.c_str() );
@@ -157,7 +157,7 @@ public:
 		}
 
 		DrawTextLine( "P2A SOURCE VISUAL PREVIEW ONLY" );
-		DrawTextLine( "No collision | Not accepted world | Textures off" );
+		DrawTextLine( "No collision | Not accepted world | Textured (source baseColor)" );
 	}
 
 private:

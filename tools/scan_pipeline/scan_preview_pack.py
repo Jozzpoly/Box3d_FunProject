@@ -5,6 +5,12 @@ A preview pack is a disposable projection of one verified scan-import bundle.
 It exists only to visualize source GLB geometry in the native sample host. It
 is never accepted-world data and never contains collision data. Real preview
 publication additionally requires a bundle-bound P1B owner-gate PASS receipt.
+
+Format v2 adds per-material texture groups: source UV (TEXCOORD_0) is carried
+per vertex and the source baseColor image of each material is downscaled to at
+most 1024 px on the longest side and stored as a PNG beside the geometry. This
+keeps the render honest to the source colours while staying a private, local,
+render-only artifact. Textures remain absent from any shareable review file.
 """
 from __future__ import annotations
 
@@ -41,23 +47,36 @@ scan_inspect = _load_sibling("scan_inspect")
 scan_owner_gate = _load_sibling("scan_owner_gate")
 
 SCHEMA = "jozz.scan-source-visual-preview-pack"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 PURPOSE = "SOURCE_VISUAL_PREVIEW_ONLY"
 PRIVACY_CLASS = "PRIVATE_LOCAL_ONLY"
-MAGIC = b"JSPREV1\0"
-BINARY_VERSION = 1
-HEADER = struct.Struct("<8sIIII")
-VERTEX = struct.Struct("<ffffff")
+MAGIC = b"JSPREV2\0"
+BINARY_VERSION = 2
+# Tile header: magic, version, tileId, groupCount.
+HEADER = struct.Struct("<8sIII")
+# Per-group descriptor in the header table: vertexCount, indexCount.
+GROUP = struct.Struct("<II")
+# Per-vertex: position.xyz + normal.xyz + uv.xy (all float32).
+VERTEX = struct.Struct("<ffffffff")
 INDEX = struct.Struct("<I")
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 MAX_TILES = 64
+MAX_GROUPS_PER_TILE = 4096
 MAX_VERTICES_PER_TILE = 25_000_000
 MAX_INDICES_PER_TILE = 75_000_000
+MAX_TEXTURE_DIM = 1024
+MAX_TEXTURE_BYTES = 16 * 1024 * 1024
 MAX_SOURCE_GLB_BYTES = 2 * 1024 * 1024 * 1024
 MAX_TOTAL_BINARY_BYTES = 8 * 1024 * 1024 * 1024
+# Per-scan leveling is a small calibration tilt, not a reorientation (that is the
+# integer axis matrix's job). Cap it well below a right angle.
+MAX_LEVEL_DEGREES = 45.0
+# The only rotation order the pack records/applies: about lab +X first, then +Z.
+LEVELING_ORDER = "Rz*Rx"
 
 _CAPABILITIES = {
     "sourceGeometryVisible": True,
-    "texturesIncluded": False,
+    "texturesIncluded": True,
     "internalGeometryCorrespondencePassed": False,
     "acceptedWorld": False,
     "collisionReady": False,
@@ -65,8 +84,10 @@ _CAPABILITIES = {
 _TILE_FORMAT = {
     "magic": MAGIC.rstrip(b"\0").decode("ascii"),
     "version": BINARY_VERSION,
-    "vertexLayout": "float32 position.xyz + float32 normal.xyz",
-    "indexLayout": "uint32 triangle-list",
+    "groupLayout": "int32 groupCount, then (vertexCount,indexCount) table",
+    "vertexLayout": "float32 position.xyz + float32 normal.xyz + float32 uv.xy",
+    "indexLayout": "uint32 triangle-list, group-local",
+    "textureLayout": "baseColor png rgba8, longest side <= 1024",
 }
 _MANIFEST_KEYS = {
     "schema",
@@ -80,6 +101,7 @@ _MANIFEST_KEYS = {
     "sourceFrameContractSha256",
     "capabilities",
     "tileFormat",
+    "levelingCorrection",
     "tileCount",
     "globalBoundsLabMeters",
     "tiles",
@@ -90,10 +112,23 @@ _TILE_KEYS = {
     "vertexCount",
     "indexCount",
     "triangleCount",
+    "groupCount",
     "boundsLabMeters",
     "path",
     "byteLength",
     "sha256",
+    "groups",
+}
+_GROUP_KEYS = {
+    "groupId",
+    "vertexCount",
+    "indexCount",
+    "triangleCount",
+    "texturePath",
+    "textureByteLength",
+    "textureSha256",
+    "textureWidth",
+    "textureHeight",
 }
 _RECEIPT_KEYS = {
     "schema",
@@ -231,8 +266,74 @@ def _mat_vec(
     )  # type: ignore[return-value]
 
 
+def _rounded_degrees(value: Any, label: str) -> float:
+    number = _finite(value, label)
+    if abs(number) > MAX_LEVEL_DEGREES:
+        raise PreviewPackError(
+            f"{label} must be within +/-{MAX_LEVEL_DEGREES:g} degrees; leveling is "
+            "a small calibration, not a reorientation"
+        )
+    rounded = round(number, 6)
+    return 0.0 if rounded == 0.0 else rounded
+
+
+def _leveling_matrix(
+    x_degrees: float, z_degrees: float
+) -> tuple[tuple[float, float, float], ...] | None:
+    """Continuous lab-space tilt applied AFTER the integer axis permutation.
+
+    Rotates a lab-metre point by Rz(z_degrees) * Rx(x_degrees): first about lab
+    +X, then about lab +Z. Returns None for the zero/identity case so the common
+    path skips the extra multiply."""
+    if x_degrees == 0.0 and z_degrees == 0.0:
+        return None
+    ax = math.radians(x_degrees)
+    az = math.radians(z_degrees)
+    cx, sx = math.cos(ax), math.sin(ax)
+    cz, sz = math.cos(az), math.sin(az)
+    rx = ((1.0, 0.0, 0.0), (0.0, cx, -sx), (0.0, sx, cx))
+    rz = ((cz, -sz, 0.0), (sz, cz, 0.0), (0.0, 0.0, 1.0))
+    return tuple(
+        tuple(
+            sum(rz[row][k] * rx[k][column] for k in range(3)) for column in range(3)
+        )
+        for row in range(3)
+    )
+
+
+def _leveling_record(x_degrees: float, z_degrees: float) -> dict[str, Any]:
+    x = _rounded_degrees(x_degrees, "levelingCorrection.labAxisDegrees.x")
+    z = _rounded_degrees(z_degrees, "levelingCorrection.labAxisDegrees.z")
+    return {
+        "labAxisDegrees": {"x": x, "z": z},
+        "order": LEVELING_ORDER,
+        "applied": bool(x != 0.0 or z != 0.0),
+    }
+
+
+def _validate_leveling(value: Any) -> None:
+    if not isinstance(value, dict):
+        raise PreviewPackError("levelingCorrection must be an object")
+    _exact_keys(value, {"labAxisDegrees", "order", "applied"}, "levelingCorrection")
+    if value["order"] != LEVELING_ORDER:
+        raise PreviewPackError("levelingCorrection.order is unsupported")
+    axes = value["labAxisDegrees"]
+    if not isinstance(axes, dict):
+        raise PreviewPackError("levelingCorrection.labAxisDegrees must be an object")
+    _exact_keys(axes, {"x", "z"}, "levelingCorrection.labAxisDegrees")
+    x = _rounded_degrees(axes["x"], "levelingCorrection.labAxisDegrees.x")
+    z = _rounded_degrees(axes["z"], "levelingCorrection.labAxisDegrees.z")
+    applied = value["applied"]
+    if not isinstance(applied, bool):
+        raise PreviewPackError("levelingCorrection.applied must be a boolean")
+    if applied != (x != 0.0 or z != 0.0):
+        raise PreviewPackError("levelingCorrection.applied disagrees with the angles")
+
+
 def _source_to_lab(
-    frame: dict[str, Any], point: Sequence[float]
+    frame: dict[str, Any],
+    point: Sequence[float],
+    leveling: Sequence[Sequence[float]] | None = None,
 ) -> tuple[float, float, float]:
     units_per_meter = _finite(
         frame["sourceFrame"]["unitsPerMeter"], "sourceFrame.unitsPerMeter"
@@ -248,7 +349,10 @@ def _source_to_lab(
         / units_per_meter
         for index in range(3)
     )
-    return _mat_vec(frame["sourceToLab"]["axisMatrix"], local)
+    lab = _mat_vec(frame["sourceToLab"]["axisMatrix"], local)
+    if leveling is not None:
+        lab = _mat_vec(leveling, lab)
+    return lab
 
 
 def _cross(a: Sequence[float], b: Sequence[float]) -> tuple[float, float, float]:
@@ -270,24 +374,6 @@ def _normalise(
     if length <= 1.0e-20:
         return float(fallback[0]), float(fallback[1]), float(fallback[2])
     return value[0] / length, value[1] / length, value[2] / length
-
-
-def _bounds(points: Iterable[Sequence[float]]) -> dict[str, list[float]]:
-    minimum = [math.inf, math.inf, math.inf]
-    maximum = [-math.inf, -math.inf, -math.inf]
-    count = 0
-    for point in points:
-        count += 1
-        for axis in range(3):
-            number = _finite(point[axis], f"bounds.point[{axis}]")
-            minimum[axis] = min(minimum[axis], number)
-            maximum[axis] = max(maximum[axis], number)
-    if count == 0:
-        raise PreviewPackError("geometry contains no vertices")
-    return {
-        "min": [_finite(number, "bounds.min") for number in minimum],
-        "max": [_finite(number, "bounds.max") for number in maximum],
-    }
 
 
 def _validate_bounds(value: Any, label: str) -> dict[str, list[float]]:
@@ -403,18 +489,188 @@ def _validate_owner_gate_receipt(
     return receipt
 
 
-def _extract_geometry(
-    glb: bytes, tile_id: int, frame: dict[str, Any]
-) -> tuple[bytes, dict[str, Any]]:
+def _png_dimensions(data: bytes) -> tuple[int, int]:
+    """Parse width/height from a PNG IHDR without an image library."""
+    if (
+        len(data) < 24
+        or data[:8] != PNG_SIGNATURE
+        or data[12:16] != b"IHDR"
+    ):
+        raise PreviewPackError("texture is not a PNG with a leading IHDR chunk")
+    width = int.from_bytes(data[16:20], "big")
+    height = int.from_bytes(data[20:24], "big")
+    if width <= 0 or height <= 0:
+        raise PreviewPackError("texture PNG has non-positive dimensions")
+    return width, height
+
+
+def _encode_texture_cv2(image_bytes: bytes) -> bytes:
+    """Downscale + re-encode a baseColor image with OpenCV. cv2 treats the array
+    as BGR(A), so a standard PNG decoder recovers correct RGBA."""
+    import numpy as np
+    import cv2
+
+    raw = np.frombuffer(image_bytes, dtype=np.uint8)
+    bgr = cv2.imdecode(raw, cv2.IMREAD_COLOR)
+    if bgr is None or bgr.ndim != 3 or bgr.shape[2] != 3:
+        raise PreviewPackError("baseColor image failed to decode")
+    height, width = int(bgr.shape[0]), int(bgr.shape[1])
+    longest = max(width, height)
+    if longest > MAX_TEXTURE_DIM:
+        scale = MAX_TEXTURE_DIM / float(longest)
+        width = max(1, round(width * scale))
+        height = max(1, round(height * scale))
+        bgr = cv2.resize(bgr, (width, height), interpolation=cv2.INTER_AREA)
+    bgra = cv2.cvtColor(bgr, cv2.COLOR_BGR2BGRA)
+    ok, buffer = cv2.imencode(".png", bgra, [cv2.IMWRITE_PNG_COMPRESSION, 6])
+    if not ok:
+        raise PreviewPackError("PNG re-encode failed")
+    return buffer.tobytes()
+
+
+def _encode_texture_pil(image_bytes: bytes) -> bytes:
+    """Downscale + re-encode a baseColor image with Pillow as a standard RGBA PNG."""
+    import io
+
+    from PIL import Image
+
+    with Image.open(io.BytesIO(image_bytes)) as source:
+        image = source.convert("RGBA")
+    width, height = image.size
+    longest = max(width, height)
+    if longest > MAX_TEXTURE_DIM:
+        scale = MAX_TEXTURE_DIM / float(longest)
+        width = max(1, round(width * scale))
+        height = max(1, round(height * scale))
+        image = image.resize((width, height), Image.LANCZOS)
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _select_texture_encoder():
+    """Pick an image backend for the build path. Import + verify never need one;
+    only building textures does, so the choice is made lazily and either OpenCV
+    or Pillow satisfies it."""
+    try:
+        import numpy  # noqa: F401
+        import cv2  # noqa: F401
+
+        return _encode_texture_cv2
+    except Exception:
+        pass
+    try:
+        from PIL import Image  # noqa: F401
+
+        return _encode_texture_pil
+    except Exception:
+        pass
+    return None
+
+
+def texture_encoding_available() -> bool:
+    """True when a build-time image backend (OpenCV or Pillow) is importable."""
+    return _select_texture_encoder() is not None
+
+
+def _encode_texture(image_bytes: bytes, label: str) -> tuple[bytes, int, int]:
+    """Decode a source baseColor image, cap the longest side at 1024 px and
+    re-encode as a standard RGBA PNG using whichever image backend is present."""
+    encoder = _select_texture_encoder()
+    if encoder is None:
+        raise PreviewPackError(
+            "building textures needs an image library (opencv-python or Pillow)"
+        )
+    try:
+        png = encoder(image_bytes)
+    except PreviewPackError as exc:
+        raise PreviewPackError(f"{label}: {exc}") from exc
+    except Exception as exc:  # pragma: no cover - backend dependent
+        raise PreviewPackError(
+            f"{label}: baseColor image failed to process: {exc}"
+        ) from exc
+    encoded_width, encoded_height = _png_dimensions(png)
+    if (
+        encoded_width > MAX_TEXTURE_DIM
+        or encoded_height > MAX_TEXTURE_DIM
+        or len(png) > MAX_TEXTURE_BYTES
+    ):
+        raise PreviewPackError(f"{label}: encoded texture violates limits")
+    return png, encoded_width, encoded_height
+
+
+def _base_color_image_bytes(
+    document: dict[str, Any], binary: bytes, material_index: int, tile_id: int
+) -> bytes:
+    materials = document.get("materials", [])
+    material = scan_inspect.checked(materials, material_index, "material")
+    pbr = material.get("pbrMetallicRoughness")
+    if not isinstance(pbr, dict) or "baseColorTexture" not in pbr:
+        raise PreviewPackError(
+            f"tile {tile_id}: material {material_index} has no baseColorTexture"
+        )
+    base_color = pbr["baseColorTexture"]
+    if not isinstance(base_color, dict) or "index" not in base_color:
+        raise PreviewPackError(
+            f"tile {tile_id}: material {material_index} baseColorTexture is malformed"
+        )
+    texcoord = int(base_color.get("texCoord", 0))
+    if texcoord != 0:
+        raise PreviewPackError(
+            f"tile {tile_id}: material {material_index} uses non-zero texCoord set"
+        )
+    textures = document.get("textures", [])
+    texture = scan_inspect.checked(textures, int(base_color["index"]), "texture")
+    if "source" not in texture:
+        raise PreviewPackError(
+            f"tile {tile_id}: texture for material {material_index} has no image source"
+        )
+    images = document.get("images", [])
+    image = scan_inspect.checked(images, int(texture["source"]), "image")
+    if "bufferView" not in image:
+        raise PreviewPackError(
+            f"tile {tile_id}: image for material {material_index} is not embedded"
+        )
+    buffer_views = document.get("bufferViews", [])
+    view = scan_inspect.checked(
+        buffer_views, int(image["bufferView"]), "image bufferView"
+    )
+    offset = int(view.get("byteOffset", 0))
+    length = int(view.get("byteLength", 0))
+    if offset < 0 or length <= 0 or offset + length > len(binary):
+        raise PreviewPackError(
+            f"tile {tile_id}: image bufferView for material {material_index} is out of range"
+        )
+    return binary[offset : offset + length]
+
+
+def _extract_tile_groups(
+    glb: bytes,
+    tile_id: int,
+    frame: dict[str, Any],
+    leveling: Sequence[Sequence[float]] | None = None,
+) -> list[dict[str, Any]]:
+    """Split one source tile into per-material textured groups in lab metres."""
     if not 0 <= tile_id <= 0xFFFFFFFF:
         raise PreviewPackError("tile id exceeds binary format")
     document, binary = scan_inspect.parse_glb(glb, f"MipTile_{tile_id}.glb")
     meshes = document.get("meshes", [])
     accessors = document.get("accessors", [])
-    positions: list[tuple[float, float, float]] = []
-    indices: list[int] = []
     mirror = frame["sourceToLab"]["orientationChange"] == "mirror"
+    fallback_up = _axis_vector(frame["labFrame"]["axisRoles"]["up"])
+    if leveling is not None:
+        fallback_up = _mat_vec(leveling, fallback_up)
 
+    # Accumulate geometry per material index; each becomes a textured group.
+    buckets: dict[int, dict[str, list[Any]]] = {}
+
+    def bucket(material_index: int) -> dict[str, list[Any]]:
+        return buckets.setdefault(
+            material_index, {"positions": [], "uvs": [], "indices": []}
+        )
+
+    total_vertices = 0
+    total_indices = 0
     for node_index, world in scan_inspect.world_nodes(document):
         node = document.get("nodes", [])[node_index]
         if "mesh" not in node:
@@ -428,6 +684,16 @@ def _extract_geometry(
             attributes = primitive.get("attributes", {})
             if "POSITION" not in attributes:
                 raise PreviewPackError(f"tile {tile_id}: primitive has no POSITION")
+            if "TEXCOORD_0" not in attributes:
+                raise PreviewPackError(
+                    f"tile {tile_id}: primitive has no TEXCOORD_0 for texturing"
+                )
+            if "material" not in primitive:
+                raise PreviewPackError(
+                    f"tile {tile_id}: primitive has no material for texturing"
+                )
+            material_index = int(primitive["material"])
+
             position_index = int(attributes["POSITION"])
             position_accessor = scan_inspect.checked(
                 accessors, position_index, "POSITION accessor"
@@ -439,15 +705,43 @@ def _extract_geometry(
                 raise PreviewPackError(
                     f"tile {tile_id}: POSITION must be float32 VEC3"
                 )
+            texcoord_index = int(attributes["TEXCOORD_0"])
+            texcoord_accessor = scan_inspect.checked(
+                accessors, texcoord_index, "TEXCOORD_0 accessor"
+            )
+            if (
+                texcoord_accessor.get("componentType") != 5126
+                or texcoord_accessor.get("type") != "VEC2"
+            ):
+                raise PreviewPackError(
+                    f"tile {tile_id}: TEXCOORD_0 must be float32 VEC2"
+                )
+
             source_positions = list(
                 scan_inspect.accessor_values(document, binary, position_index)
             )
-            if len(positions) + len(source_positions) > MAX_VERTICES_PER_TILE:
+            source_uvs = list(
+                scan_inspect.accessor_values(document, binary, texcoord_index)
+            )
+            if len(source_uvs) != len(source_positions):
+                raise PreviewPackError(
+                    f"tile {tile_id}: POSITION and TEXCOORD_0 count mismatch"
+                )
+            total_vertices += len(source_positions)
+            if total_vertices > MAX_VERTICES_PER_TILE:
                 raise PreviewPackError(f"tile {tile_id}: vertex limit exceeded")
-            base = len(positions)
+
+            group = bucket(material_index)
+            base = len(group["positions"])
             for point in source_positions:
                 source_world = scan_inspect.transform_point(world, point)
-                positions.append(_source_to_lab(frame, source_world))
+                group["positions"].append(
+                    _source_to_lab(frame, source_world, leveling)
+                )
+            for uv in source_uvs:
+                group["uvs"].append(
+                    (_finite(uv[0], "uv.u"), _finite(uv[1], "uv.v"))
+                )
 
             if "indices" in primitive:
                 index_accessor_index = int(primitive["indices"])
@@ -474,7 +768,8 @@ def _extract_geometry(
                 raise PreviewPackError(
                     f"tile {tile_id}: triangle index count is not divisible by three"
                 )
-            if len(indices) + len(source_indices) > MAX_INDICES_PER_TILE:
+            total_indices += len(source_indices)
+            if total_indices > MAX_INDICES_PER_TILE:
                 raise PreviewPackError(f"tile {tile_id}: index limit exceeded")
             for offset in range(0, len(source_indices), 3):
                 triangle = source_indices[offset : offset + 3]
@@ -485,89 +780,166 @@ def _extract_geometry(
                     raise PreviewPackError(f"tile {tile_id}: index out of range")
                 if mirror:
                     triangle[1], triangle[2] = triangle[2], triangle[1]
-                indices.extend(base + value for value in triangle)
+                group["indices"].extend(base + value for value in triangle)
 
-    if not positions or not indices:
+    if not buckets:
         raise PreviewPackError(f"tile {tile_id}: no renderable triangle geometry")
 
-    fallback_up = _axis_vector(frame["labFrame"]["axisRoles"]["up"])
-    accumulated = [[0.0, 0.0, 0.0] for _ in positions]
-    for offset in range(0, len(indices), 3):
-        ia, ib, ic = indices[offset : offset + 3]
-        normal = _cross(
-            _sub(positions[ib], positions[ia]),
-            _sub(positions[ic], positions[ia]),
-        )
-        if sum(component * component for component in normal) <= 1.0e-20:
-            continue
-        for index in (ia, ib, ic):
-            accumulated[index][0] += normal[0]
-            accumulated[index][1] += normal[1]
-            accumulated[index][2] += normal[2]
-    normals = [_normalise(value, fallback_up) for value in accumulated]
+    groups: list[dict[str, Any]] = []
+    for group_id, material_index in enumerate(sorted(buckets)):
+        raw = buckets[material_index]
+        positions = raw["positions"]
+        uvs = raw["uvs"]
+        indices = raw["indices"]
+        if not positions or not indices:
+            raise PreviewPackError(
+                f"tile {tile_id}: material {material_index} has empty geometry"
+            )
+        accumulated = [[0.0, 0.0, 0.0] for _ in positions]
+        for offset in range(0, len(indices), 3):
+            ia, ib, ic = indices[offset : offset + 3]
+            normal = _cross(
+                _sub(positions[ib], positions[ia]),
+                _sub(positions[ic], positions[ia]),
+            )
+            if sum(component * component for component in normal) <= 1.0e-20:
+                continue
+            for index in (ia, ib, ic):
+                accumulated[index][0] += normal[0]
+                accumulated[index][1] += normal[1]
+                accumulated[index][2] += normal[2]
+        normals = [_normalise(value, fallback_up) for value in accumulated]
 
-    payload = bytearray(
-        HEADER.pack(MAGIC, BINARY_VERSION, tile_id, len(positions), len(indices))
-    )
-    for position, normal in zip(positions, normals):
-        payload.extend(VERTEX.pack(*position, *normal))
-    for index in indices:
-        payload.extend(INDEX.pack(index))
-    encoded = bytes(payload)
-    return encoded, _read_tile(encoded, tile_id)
+        image_bytes = _base_color_image_bytes(
+            document, binary, material_index, tile_id
+        )
+        texture_png, texture_width, texture_height = _encode_texture(
+            image_bytes, f"tile {tile_id} material {material_index}"
+        )
+        groups.append(
+            {
+                "groupId": group_id,
+                "positions": positions,
+                "normals": normals,
+                "uvs": uvs,
+                "indices": indices,
+                "texturePng": texture_png,
+                "textureWidth": texture_width,
+                "textureHeight": texture_height,
+            }
+        )
+    return groups
+
+
+def _serialize_tile(tile_id: int, groups: Sequence[dict[str, Any]]) -> bytes:
+    if not 0 < len(groups) <= MAX_GROUPS_PER_TILE:
+        raise PreviewPackError(f"tile {tile_id}: invalid group count")
+    payload = bytearray(HEADER.pack(MAGIC, BINARY_VERSION, tile_id, len(groups)))
+    for group in groups:
+        payload.extend(
+            GROUP.pack(len(group["positions"]), len(group["indices"]))
+        )
+    for group in groups:
+        for position, normal, uv in zip(
+            group["positions"], group["normals"], group["uvs"]
+        ):
+            payload.extend(VERTEX.pack(*position, *normal, *uv))
+        for index in group["indices"]:
+            payload.extend(INDEX.pack(index))
+    return bytes(payload)
 
 
 def _read_tile(
     data: bytes, expected_tile_id: int | None = None
 ) -> dict[str, Any]:
+    """Structurally validate a v2 tile binary and derive its geometry record."""
     if len(data) < HEADER.size:
         raise PreviewPackError("preview tile is truncated")
-    magic, version, tile_id, vertex_count, index_count = HEADER.unpack_from(data)
+    magic, version, tile_id, group_count = HEADER.unpack_from(data)
     if magic != MAGIC or version != BINARY_VERSION:
         raise PreviewPackError("preview tile magic or version mismatch")
     if expected_tile_id is not None and tile_id != expected_tile_id:
         raise PreviewPackError("preview tile id mismatch")
-    if vertex_count == 0 or index_count == 0 or index_count % 3 != 0:
-        raise PreviewPackError("preview tile contains invalid counts")
-    if (
-        vertex_count > MAX_VERTICES_PER_TILE
-        or index_count > MAX_INDICES_PER_TILE
-    ):
-        raise PreviewPackError("preview tile exceeds geometry limits")
-    expected_size = (
-        HEADER.size + vertex_count * VERTEX.size + index_count * INDEX.size
+    if not 0 < group_count <= MAX_GROUPS_PER_TILE:
+        raise PreviewPackError("preview tile has an invalid group count")
+
+    offset = HEADER.size
+    descriptors: list[tuple[int, int]] = []
+    total_vertices = 0
+    total_indices = 0
+    for _ in range(group_count):
+        if offset + GROUP.size > len(data):
+            raise PreviewPackError("preview tile group table is truncated")
+        vertex_count, index_count = GROUP.unpack_from(data, offset)
+        offset += GROUP.size
+        if (
+            vertex_count < 3
+            or index_count < 3
+            or index_count % 3 != 0
+        ):
+            raise PreviewPackError("preview tile group has invalid counts")
+        total_vertices += vertex_count
+        total_indices += index_count
+        if (
+            total_vertices > MAX_VERTICES_PER_TILE
+            or total_indices > MAX_INDICES_PER_TILE
+        ):
+            raise PreviewPackError("preview tile exceeds geometry limits")
+        descriptors.append((vertex_count, index_count))
+
+    expected_size = offset + sum(
+        vertex_count * VERTEX.size + index_count * INDEX.size
+        for vertex_count, index_count in descriptors
     )
     if len(data) != expected_size:
         raise PreviewPackError("preview tile byte length does not match header")
 
     minimum = [math.inf, math.inf, math.inf]
     maximum = [-math.inf, -math.inf, -math.inf]
-    offset = HEADER.size
-    for _ in range(vertex_count):
-        values = VERTEX.unpack_from(data, offset)
-        offset += VERTEX.size
-        if not all(math.isfinite(number) for number in values):
-            raise PreviewPackError("preview tile contains non-finite vertex data")
-        normal_length = math.sqrt(sum(number * number for number in values[3:6]))
-        if abs(normal_length - 1.0) > 1.0e-3:
-            raise PreviewPackError("preview tile contains non-unit normal")
-        for axis in range(3):
-            minimum[axis] = min(minimum[axis], values[axis])
-            maximum[axis] = max(maximum[axis], values[axis])
-    for _ in range(index_count):
-        (index,) = INDEX.unpack_from(data, offset)
-        offset += INDEX.size
-        if index >= vertex_count:
-            raise PreviewPackError("preview tile contains out-of-range index")
+    group_records: list[dict[str, Any]] = []
+    for group_id, (vertex_count, index_count) in enumerate(descriptors):
+        for _ in range(vertex_count):
+            values = VERTEX.unpack_from(data, offset)
+            offset += VERTEX.size
+            if not all(math.isfinite(number) for number in values):
+                raise PreviewPackError(
+                    "preview tile contains non-finite vertex data"
+                )
+            normal_length = math.sqrt(
+                sum(number * number for number in values[3:6])
+            )
+            if abs(normal_length - 1.0) > 1.0e-3:
+                raise PreviewPackError("preview tile contains non-unit normal")
+            for axis in range(3):
+                minimum[axis] = min(minimum[axis], values[axis])
+                maximum[axis] = max(maximum[axis], values[axis])
+        for _ in range(index_count):
+            (index,) = INDEX.unpack_from(data, offset)
+            offset += INDEX.size
+            if index >= vertex_count:
+                raise PreviewPackError(
+                    "preview tile contains out-of-range index"
+                )
+        group_records.append(
+            {
+                "groupId": group_id,
+                "vertexCount": vertex_count,
+                "indexCount": index_count,
+                "triangleCount": index_count // 3,
+            }
+        )
+
     return {
         "tileId": tile_id,
-        "vertexCount": vertex_count,
-        "indexCount": index_count,
-        "triangleCount": index_count // 3,
+        "vertexCount": total_vertices,
+        "indexCount": total_indices,
+        "triangleCount": total_indices // 3,
+        "groupCount": group_count,
         "boundsLabMeters": {
             "min": [_finite(number, "tile.bounds.min") for number in minimum],
             "max": [_finite(number, "tile.bounds.max") for number in maximum],
         },
+        "groupGeometry": group_records,
     }
 
 
@@ -576,6 +948,7 @@ def _manifest_core(
     bundle_summary: dict[str, Any],
     source_package: dict[str, Any],
     tile_records: Sequence[dict[str, Any]],
+    leveling: dict[str, Any],
 ) -> dict[str, Any]:
     return {
         "schema": SCHEMA,
@@ -591,6 +964,11 @@ def _manifest_core(
         ],
         "capabilities": dict(_CAPABILITIES),
         "tileFormat": dict(_TILE_FORMAT),
+        "levelingCorrection": {
+            "labAxisDegrees": dict(leveling["labAxisDegrees"]),
+            "order": leveling["order"],
+            "applied": leveling["applied"],
+        },
         "tileCount": len(tile_records),
         "globalBoundsLabMeters": _merge_bounds(
             [record["boundsLabMeters"] for record in tile_records]
@@ -622,6 +1000,7 @@ def _validate_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
         raise PreviewPackError("preview capability boundary mismatch")
     if manifest["tileFormat"] != _TILE_FORMAT:
         raise PreviewPackError("preview tile format mismatch")
+    _validate_leveling(manifest["levelingCorrection"])
 
     expected_hash = _sha(
         manifest["previewContentSha256"], "previewContentSha256"
@@ -661,17 +1040,88 @@ def _validate_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
         triangle_count = _uint(
             record["triangleCount"], f"tile[{tile_id}].triangleCount"
         )
+        group_count = _uint(
+            record["groupCount"], f"tile[{tile_id}].groupCount"
+        )
         if (
             vertex_count == 0
             or vertex_count > MAX_VERTICES_PER_TILE
             or index_count == 0
             or index_count > MAX_INDICES_PER_TILE
             or index_count != triangle_count * 3
+            or not 0 < group_count <= MAX_GROUPS_PER_TILE
         ):
             raise PreviewPackError(f"tile[{tile_id}] geometry counts are invalid")
-        expected_length = (
-            HEADER.size + vertex_count * VERTEX.size + index_count * INDEX.size
-        )
+
+        groups = record["groups"]
+        if not isinstance(groups, list) or len(groups) != group_count:
+            raise PreviewPackError(f"tile[{tile_id}] groups array is invalid")
+        group_vertices = 0
+        group_indices = 0
+        payload_bytes = 0
+        for group_id, group in enumerate(groups):
+            if not isinstance(group, dict):
+                raise PreviewPackError(
+                    f"tile[{tile_id}] group[{group_id}] must be an object"
+                )
+            _exact_keys(group, _GROUP_KEYS, f"tile[{tile_id}].group[{group_id}]")
+            if (
+                _uint(group["groupId"], f"tile[{tile_id}].group[{group_id}].groupId")
+                != group_id
+            ):
+                raise PreviewPackError(
+                    f"tile[{tile_id}] group ids must be sequential from zero"
+                )
+            gv = _uint(
+                group["vertexCount"], f"tile[{tile_id}].group[{group_id}].vertexCount"
+            )
+            gi = _uint(
+                group["indexCount"], f"tile[{tile_id}].group[{group_id}].indexCount"
+            )
+            gt = _uint(
+                group["triangleCount"], f"tile[{tile_id}].group[{group_id}].triangleCount"
+            )
+            if gv < 3 or gi < 3 or gi % 3 != 0 or gi != gt * 3:
+                raise PreviewPackError(
+                    f"tile[{tile_id}] group[{group_id}] geometry counts are invalid"
+                )
+            group_vertices += gv
+            group_indices += gi
+            payload_bytes += gv * VERTEX.size + gi * INDEX.size
+            expected_texture = f"textures/tile_{tile_id:03d}_group_{group_id:03d}.png"
+            if group["texturePath"] != expected_texture:
+                raise PreviewPackError(
+                    f"tile[{tile_id}] group[{group_id}] non-canonical texture path"
+                )
+            paths.append(expected_texture)
+            tw = _uint(
+                group["textureWidth"], f"tile[{tile_id}].group[{group_id}].textureWidth"
+            )
+            th = _uint(
+                group["textureHeight"], f"tile[{tile_id}].group[{group_id}].textureHeight"
+            )
+            if tw == 0 or th == 0 or tw > MAX_TEXTURE_DIM or th > MAX_TEXTURE_DIM:
+                raise PreviewPackError(
+                    f"tile[{tile_id}] group[{group_id}] texture dimensions out of range"
+                )
+            tb = _uint(
+                group["textureByteLength"],
+                f"tile[{tile_id}].group[{group_id}].textureByteLength",
+            )
+            if tb == 0 or tb > MAX_TEXTURE_BYTES:
+                raise PreviewPackError(
+                    f"tile[{tile_id}] group[{group_id}] texture byte length out of range"
+                )
+            _sha(
+                group["textureSha256"],
+                f"tile[{tile_id}].group[{group_id}].textureSha256",
+            )
+        if group_vertices != vertex_count or group_indices != index_count:
+            raise PreviewPackError(
+                f"tile[{tile_id}] group counts do not sum to tile totals"
+            )
+
+        expected_length = HEADER.size + group_count * GROUP.size + payload_bytes
         byte_length = _uint(
             record["byteLength"], f"tile[{tile_id}].byteLength"
         )
@@ -719,9 +1169,11 @@ def verify_preview_pack(root: Path) -> dict[str, Any]:
     if not complete.is_file() or complete.is_symlink():
         raise PreviewPackError("preview pack is incomplete")
     manifest = _validate_manifest(_strict_json(complete))
-    expected = {record["path"] for record in manifest["tiles"]} | {
-        "COMPLETE.json"
-    }
+    expected = {"COMPLETE.json"}
+    for record in manifest["tiles"]:
+        expected.add(record["path"])
+        for group in record["groups"]:
+            expected.add(group["texturePath"])
     if _files(root) != expected:
         raise PreviewPackError("preview pack contains missing or unexpected files")
 
@@ -737,12 +1189,43 @@ def verify_preview_pack(root: Path) -> dict[str, Any]:
             "vertexCount",
             "indexCount",
             "triangleCount",
+            "groupCount",
             "boundsLabMeters",
         ):
             if parsed[key] != record[key]:
                 raise PreviewPackError(
                     f"tile metadata mismatch for {record['path']}: {key}"
                 )
+        for group_id, group in enumerate(record["groups"]):
+            geometry = parsed["groupGeometry"][group_id]
+            for key in ("vertexCount", "indexCount", "triangleCount"):
+                if group[key] != geometry[key]:
+                    raise PreviewPackError(
+                        f"group geometry mismatch for {record['path']} group {group_id}: {key}"
+                    )
+            texture_path = root / PurePosixPath(group["texturePath"])
+            if (
+                not texture_path.is_file()
+                or texture_path.is_symlink()
+            ):
+                raise PreviewPackError(
+                    f"missing texture file {group['texturePath']}"
+                )
+            texture_bytes = texture_path.read_bytes()
+            if len(texture_bytes) != group["textureByteLength"]:
+                raise PreviewPackError(
+                    f"texture byteLength mismatch for {group['texturePath']}"
+                )
+            if _sha256_bytes(texture_bytes) != group["textureSha256"]:
+                raise PreviewPackError(
+                    f"texture SHA-256 mismatch for {group['texturePath']}"
+                )
+            width, height = _png_dimensions(texture_bytes)
+            if width != group["textureWidth"] or height != group["textureHeight"]:
+                raise PreviewPackError(
+                    f"texture dimensions mismatch for {group['texturePath']}"
+                )
+            total_bytes += group["textureByteLength"]
         total_bytes += record["byteLength"]
     if total_bytes > MAX_TOTAL_BINARY_BYTES:
         raise PreviewPackError("preview pack exceeds total byte budget")
@@ -769,8 +1252,15 @@ def build_preview_pack(
     source_root: Path,
     output_root: Path,
     label: str = "source-preview",
+    level_x_degrees: float = 0.0,
+    level_z_degrees: float = 0.0,
 ) -> Path:
     label = _safe_label(label)
+    leveling_record = _leveling_record(level_x_degrees, level_z_degrees)
+    leveling_matrix = _leveling_matrix(
+        leveling_record["labAxisDegrees"]["x"],
+        leveling_record["labAxisDegrees"]["z"],
+    )
     bundle = Path(bundle)
     source_root = Path(source_root)
     output_root = Path(output_root)
@@ -829,20 +1319,57 @@ def build_preview_pack(
                 raise PreviewPackError(
                     f"source GLB SHA-256 mismatch for tile {tile_id}"
                 )
-            payload, geometry = _extract_geometry(
-                source_path.read_bytes(), tile_id, frame
+            groups = _extract_tile_groups(
+                source_path.read_bytes(), tile_id, frame, leveling_matrix
             )
+            payload = _serialize_tile(tile_id, groups)
+            geometry = _read_tile(payload, tile_id)
             total_bytes += len(payload)
             if total_bytes > MAX_TOTAL_BINARY_BYTES:
                 raise PreviewPackError("preview pack exceeds total byte budget")
             relative = f"tiles/tile_{tile_id:03d}.bin"
             _write(staging / PurePosixPath(relative), payload)
+
+            group_records: list[dict[str, Any]] = []
+            for group in groups:
+                group_id = int(group["groupId"])
+                texture_png = group["texturePng"]
+                texture_relative = (
+                    f"textures/tile_{tile_id:03d}_group_{group_id:03d}.png"
+                )
+                total_bytes += len(texture_png)
+                if total_bytes > MAX_TOTAL_BINARY_BYTES:
+                    raise PreviewPackError(
+                        "preview pack exceeds total byte budget"
+                    )
+                _write(staging / PurePosixPath(texture_relative), texture_png)
+                geometry_group = geometry["groupGeometry"][group_id]
+                group_records.append(
+                    {
+                        "groupId": group_id,
+                        "vertexCount": geometry_group["vertexCount"],
+                        "indexCount": geometry_group["indexCount"],
+                        "triangleCount": geometry_group["triangleCount"],
+                        "texturePath": texture_relative,
+                        "textureByteLength": len(texture_png),
+                        "textureSha256": _sha256_bytes(texture_png),
+                        "textureWidth": int(group["textureWidth"]),
+                        "textureHeight": int(group["textureHeight"]),
+                    }
+                )
+
             records.append(
                 {
-                    **geometry,
+                    "tileId": geometry["tileId"],
+                    "vertexCount": geometry["vertexCount"],
+                    "indexCount": geometry["indexCount"],
+                    "triangleCount": geometry["triangleCount"],
+                    "groupCount": geometry["groupCount"],
+                    "boundsLabMeters": geometry["boundsLabMeters"],
                     "path": relative,
                     "byteLength": len(payload),
                     "sha256": _sha256_bytes(payload),
+                    "groups": group_records,
                 }
             )
         records.sort(key=lambda record: record["tileId"])
@@ -850,6 +1377,7 @@ def build_preview_pack(
             bundle_summary=bundle_summary,
             source_package=source_package,
             tile_records=records,
+            leveling=leveling_record,
         )
         manifest = dict(core)
         manifest["previewContentSha256"] = _sha256_bytes(

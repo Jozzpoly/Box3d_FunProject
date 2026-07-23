@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import importlib.util
 import json
@@ -21,6 +22,23 @@ preview = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = preview
 spec.loader.exec_module(preview)
 
+# Building textures needs an image backend (OpenCV or Pillow). The module import
+# and the verify path stay dependency-free, so tests that actually encode a
+# texture skip cleanly where no backend is installed (e.g. the dependency-free
+# canonical CI runner).
+_HAS_TEXTURE_BACKEND = preview.texture_encoding_available()
+_needs_texture_backend = unittest.skipUnless(
+    _HAS_TEXTURE_BACKEND, "requires an image backend (opencv-python or Pillow)"
+)
+
+
+# A tiny 2x2 baseColor PNG (cv2-decodable) embedded so the synthetic tile has a
+# real material texture, matching the v2 textured preview pack contract.
+_TEXTURE_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFUlEQVQImWPmOsG1"
+    "/psyMxAzMDAAACSlBHPSchLSAAAAAElFTkSuQmCC"
+)
+
 
 def make_glb(*, mode: int = 4) -> bytes:
     positions = struct.pack(
@@ -35,8 +53,12 @@ def make_glb(*, mode: int = 4) -> bytes:
         2003.0,
         3003.0,
     )
+    texcoords = struct.pack("<6f", 0.0, 0.0, 1.0, 0.0, 0.0, 1.0)
     indices = struct.pack("<3H", 0, 1, 2)
-    binary = positions + indices
+    prefix = positions + texcoords + indices
+    prefix += b"\0" * ((4 - len(prefix) % 4) % 4)
+    image_offset = len(prefix)
+    binary = prefix + _TEXTURE_PNG
     binary += b"\0" * ((4 - len(binary) % 4) % 4)
     document = {
         "asset": {"version": "2.0"},
@@ -46,7 +68,17 @@ def make_glb(*, mode: int = 4) -> bytes:
             {
                 "buffer": 0,
                 "byteOffset": len(positions),
+                "byteLength": len(texcoords),
+            },
+            {
+                "buffer": 0,
+                "byteOffset": len(positions) + len(texcoords),
                 "byteLength": len(indices),
+            },
+            {
+                "buffer": 0,
+                "byteOffset": image_offset,
+                "byteLength": len(_TEXTURE_PNG),
             },
         ],
         "accessors": [
@@ -60,17 +92,29 @@ def make_glb(*, mode: int = 4) -> bytes:
             },
             {
                 "bufferView": 1,
+                "componentType": 5126,
+                "count": 3,
+                "type": "VEC2",
+            },
+            {
+                "bufferView": 2,
                 "componentType": 5123,
                 "count": 3,
                 "type": "SCALAR",
             },
         ],
+        "images": [{"bufferView": 3, "mimeType": "image/png"}],
+        "textures": [{"source": 0}],
+        "materials": [
+            {"pbrMetallicRoughness": {"baseColorTexture": {"index": 0}}}
+        ],
         "meshes": [
             {
                 "primitives": [
                     {
-                        "attributes": {"POSITION": 0},
-                        "indices": 1,
+                        "attributes": {"POSITION": 0, "TEXCOORD_0": 1},
+                        "indices": 2,
+                        "material": 0,
                         "mode": mode,
                     }
                 ]
@@ -258,6 +302,8 @@ def build_fixture_preview(
     confirmed: bool = True,
     receipt_acknowledged: bool = True,
     label: str = "source-preview",
+    level_x_degrees: float = 0.0,
+    level_z_degrees: float = 0.0,
 ) -> Path:
     bundle, receipt, source = fixture(
         root,
@@ -271,11 +317,14 @@ def build_fixture_preview(
         source_root=source,
         output_root=root / "previews",
         label=label,
+        level_x_degrees=level_x_degrees,
+        level_z_degrees=level_z_degrees,
     )
 
 
 class ScanPreviewPackTests(unittest.TestCase):
-    def test_builds_verified_geometry_only_pack(self) -> None:
+    @_needs_texture_backend
+    def test_builds_verified_textured_pack(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             output = build_fixture_preview(root)
@@ -284,17 +333,27 @@ class ScanPreviewPackTests(unittest.TestCase):
             self.assertEqual(manifest["purpose"], preview.PURPOSE)
             self.assertFalse(manifest["capabilities"]["acceptedWorld"])
             self.assertFalse(manifest["capabilities"]["collisionReady"])
-            self.assertFalse(manifest["capabilities"]["texturesIncluded"])
+            self.assertTrue(manifest["capabilities"]["texturesIncluded"])
+            tile = manifest["tiles"][0]
+            self.assertEqual(tile["groupCount"], 1)
+            group = tile["groups"][0]
+            self.assertEqual(
+                group["texturePath"], "textures/tile_000_group_000.png"
+            )
+            self.assertLessEqual(group["textureWidth"], preview.MAX_TEXTURE_DIM)
+            self.assertLessEqual(group["textureHeight"], preview.MAX_TEXTURE_DIM)
 
+    @_needs_texture_backend
     def test_frame_is_baked_into_lab_space(self) -> None:
-        payload, metadata = preview._extract_geometry(make_glb(), 0, frame())
-        first = preview.VERTEX.unpack_from(payload, preview.HEADER.size)
-        self.assertEqual(first[:3], (1.0, 3.0, -2.0))
+        groups = preview._extract_tile_groups(make_glb(), 0, frame())
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(groups[0]["positions"][0], (1.0, 3.0, -2.0))
+        record = preview._read_tile(preview._serialize_tile(0, groups), 0)
         self.assertEqual(
-            metadata["boundsLabMeters"]["min"], [1.0, 3.0, -3.0]
+            record["boundsLabMeters"]["min"], [1.0, 3.0, -3.0]
         )
         self.assertEqual(
-            metadata["boundsLabMeters"]["max"], [2.0, 3.0, -2.0]
+            record["boundsLabMeters"]["max"], [2.0, 3.0, -2.0]
         )
 
     def test_unconfirmed_frame_is_rejected(self) -> None:
@@ -379,6 +438,7 @@ class ScanPreviewPackTests(unittest.TestCase):
                 )
             self.assertFalse((root / "escape").exists())
 
+    @_needs_texture_backend
     def test_publication_is_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -397,6 +457,7 @@ class ScanPreviewPackTests(unittest.TestCase):
             )
             self.assertEqual(first, second)
 
+    @_needs_texture_backend
     def test_tamper_and_extra_file_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -413,6 +474,7 @@ class ScanPreviewPackTests(unittest.TestCase):
             with self.assertRaises(preview.PreviewPackError):
                 preview.verify_preview_pack(output)
 
+    @_needs_texture_backend
     def test_capability_or_extra_field_overclaim_is_rejected_after_rehash(self) -> None:
         with self.subTest("capability"), tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -446,12 +508,97 @@ class ScanPreviewPackTests(unittest.TestCase):
             with self.assertRaises(preview.PreviewPackError):
                 preview.verify_preview_pack(output)
 
+    @_needs_texture_backend
     def test_binary_index_range_is_validated(self) -> None:
-        payload, _ = preview._extract_geometry(make_glb(), 0, frame())
+        groups = preview._extract_tile_groups(make_glb(), 0, frame())
+        payload = preview._serialize_tile(0, groups)
         damaged = bytearray(payload)
         struct.pack_into("<I", damaged, len(damaged) - 4, 99)
         with self.assertRaises(preview.PreviewPackError):
             preview._read_tile(bytes(damaged), 0)
+
+
+class LevelingCorrectionTests(unittest.TestCase):
+    """Per-scan leveling: a small lab-space tilt applied after the axis matrix."""
+
+    def test_zero_leveling_is_identity_none(self) -> None:
+        self.assertIsNone(preview._leveling_matrix(0.0, 0.0))
+
+    def test_leveling_matrix_rotates_about_lab_x(self) -> None:
+        matrix = preview._leveling_matrix(90.0, 0.0)
+        assert matrix is not None
+        rotated = preview._mat_vec(matrix, (0.0, 1.0, 0.0))
+        for got, expected in zip(rotated, (0.0, 0.0, 1.0)):
+            self.assertAlmostEqual(got, expected, places=6)
+
+    def test_out_of_range_leveling_is_rejected(self) -> None:
+        with self.assertRaises(preview.PreviewPackError):
+            preview._leveling_record(90.0, 0.0)
+        with self.assertRaises(preview.PreviewPackError):
+            preview._leveling_record(0.0, -50.0)
+
+    @_needs_texture_backend
+    def test_leveling_rotates_the_baked_positions(self) -> None:
+        flat = preview._extract_tile_groups(make_glb(), 0, frame())
+        matrix = preview._leveling_matrix(-3.9, -4.1)
+        assert matrix is not None
+        tilted = preview._extract_tile_groups(make_glb(), 0, frame(), matrix)
+        self.assertEqual(len(flat[0]["positions"]), len(tilted[0]["positions"]))
+        for flat_pos, tilted_pos in zip(
+            flat[0]["positions"], tilted[0]["positions"]
+        ):
+            expected = preview._mat_vec(matrix, flat_pos)
+            for got, want in zip(tilted_pos, expected):
+                self.assertAlmostEqual(got, want, places=6)
+
+    @_needs_texture_backend
+    def test_identity_leveling_is_recorded_as_not_applied(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            output = build_fixture_preview(Path(temporary))
+            manifest = preview._strict_json(output / "COMPLETE.json")
+            self.assertEqual(
+                manifest["levelingCorrection"],
+                {
+                    "labAxisDegrees": {"x": 0.0, "z": 0.0},
+                    "order": preview.LEVELING_ORDER,
+                    "applied": False,
+                },
+            )
+
+    @_needs_texture_backend
+    def test_per_scan_leveling_is_recorded_and_verified(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            output = build_fixture_preview(
+                Path(temporary), level_x_degrees=-3.9, level_z_degrees=-4.1
+            )
+            manifest = preview._strict_json(output / "COMPLETE.json")
+            self.assertEqual(
+                manifest["levelingCorrection"],
+                {
+                    "labAxisDegrees": {"x": -3.9, "z": -4.1},
+                    "order": preview.LEVELING_ORDER,
+                    "applied": True,
+                },
+            )
+            self.assertEqual(preview.verify_preview_pack(output)["tileCount"], 1)
+
+    @_needs_texture_backend
+    def test_inconsistent_leveling_is_rejected_after_rehash(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            output = build_fixture_preview(Path(temporary))
+            manifest = preview._strict_json(output / "COMPLETE.json")
+            # Claim leveling was applied while both angles are zero.
+            manifest["levelingCorrection"]["applied"] = True
+            unsigned = dict(manifest)
+            unsigned.pop("previewContentSha256")
+            manifest["previewContentSha256"] = preview._sha256_bytes(
+                preview._canonical_json_bytes(unsigned)
+            )
+            (output / "COMPLETE.json").write_bytes(
+                preview._canonical_json_bytes(manifest)
+            )
+            with self.assertRaises(preview.PreviewPackError):
+                preview.verify_preview_pack(output)
 
 
 if __name__ == "__main__":
