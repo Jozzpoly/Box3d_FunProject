@@ -6,6 +6,12 @@ NumPy/SciPy/Pillow/trimesh/scikit-image. Those tests belong to the separate
 ``requirements-experiments.txt`` environment and must not silently turn NumPy
 into a mandatory dependency of the source inspector, world-contract boundary,
 owner flow, source resolver, orchestrator or render-only source preview pack.
+
+The textured (v2) preview pack keeps importing and *verifying* dependency-free;
+only *building* a pack downscales source baseColor images and therefore needs an
+image backend (OpenCV or Pillow). Preview-pack tests that actually encode a
+texture skip cleanly when no backend is installed, so this canonical runner
+stays green on a dependency-free interpreter.
 """
 from __future__ import annotations
 
@@ -27,10 +33,12 @@ TEST_FILES = (
     "test_scan_preview_pack.py",
     "test_scan_preview_pack_verify.py",
     "test_scan_preview_runtime_contract.py",
+    "test_scan_drive_runtime_contract.py",
     "test_scan_p2a_local_gate_ps1.py",
     "test_scan_source_assets.py",
     "test_scan_real_terrain_flow.py",
     "test_scan_real_terrain_flow_ps1.py",
+    "test_scan_oneshot.py",
 )
 
 
