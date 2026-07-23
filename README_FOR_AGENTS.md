@@ -4,7 +4,7 @@
 It is kept short and current on purpose. Everything else in `docs/` is either a
 milestone report (history) or a deep-dive reference — see §9 for which is which.
 
-- **Date of this handoff:** 2026-07-08 (state: M8)
+- **Date of this handoff:** 2026-07-13 (vehicle: M8; map: recovery after audit)
 - **Owner / creative director:** Jozz (respond to Jozz in **Polish**)
 - **Working branch:** `jozz-vehicle-sandbox-m0` (`main` = upstream box3d)
 - **Detailed milestone ledger:** `docs/CURRENT_STATE_INDEX_PL.md`
@@ -128,15 +128,18 @@ Jozz Vehicle / Lab M1 Smoke            <- oldest smoke sample (kept)
   (`JOZZ_M6_TELEPORT`/`AUTODRIVE`/`PERF_DUMP`/`REGEN_COUNT`) added to the
   existing `JOZZ_M6_*` registry for driving/measuring the map without a human
   at the keyboard.
-- **Map-track decision (2026-07-12): Etap 2 is REOPENED.** Commit `b8afab9`
-  built a technically valid obstacle kit, but Jozz rejected its 6-lane layout:
-  it moved the activity to `x=150..195` and left the technical center tile
-  almost empty. The code is still present as recovery material, not an accepted
-  map baseline. Do not start Etap 3. The active source of truth is
-  `docs/PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md` plus the rewritten
-  `docs/MAPA_ETAP_2_PRZESZKODY_I_POLIGONY_PL.md`: recover the kit, replace
-  the far-east lanes with a central test campus on the full grid tile, and
-  obtain Jozz's visual/drive sign-off before marking Etap 2 complete.
+- **Map-track decision (audit 2026-07-13): recovery before development.** Etap 1
+  remains accepted. The central-campus direction of E2R is worth recovering,
+  but E2R has no recorded skeleton/final sign-off and is not accepted. The
+  current three-layer E3 track is a rejected experiment: all three variants are
+  built at once, overlap without vehicle clearance, and active ramp formulas
+  create unplanned steps. Do not extend or polish E3. First preserve the mixed
+  dirty WIP, disconnect E3 physics from the default world, and restore an
+  E1+E2R candidate baseline. Status source of truth:
+  `docs/PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md`; evidence:
+  `docs/AUDYT_REALIZACJI_MAPY_2026_07_13_PL.md`; foolproof Luna execution order:
+  `docs/PLAN_WYKONAWCZY_MAPA_GPT_LUNA_PL.md`. No later map stage starts without
+  the literal required `ACCEPTED BY JOZZ` checkpoint and hash.
 - **Dual damper visual, socket-driven** (2026-07-08): the telescoping shock
   mesh (`Asset_Dumper.gltf`) is drawn TWICE per corner, pinned to the model's
   own `Socket_DamperUpper_L/R` and `Socket_DamperLower_L/R` markers from the
@@ -262,6 +265,12 @@ passed.)
   work into one commit, not one commit per file. **`main` is Jozz-only** — he
   updates it himself at real milestones. Agents never push to `main`, never
   force-push, never rewrite history. See §5 for keeping this cheap in tokens.
+  **Temporary map-recovery exception:** the current dirty worktree mixes
+  uncommitted E2R, rejected E3 and documentation. Do not stage/commit/push that
+  mixed state under the standing rule. First execute map `WP-00` and obtain
+  Jozz's explicit choice of a snapshot procedure. Later map WP may create one
+  local `CANDIDATE` commit after its technical gate; push it only after the
+  required Jozz sign-off.
 - **Doc discipline + anti-drift (the A2 class must not multiply).** After a
   real change, add a ≤5-line entry to `docs/CHECKPOINTS_PL.md` (co/czemu/efekt/
   dalej — the standing handoff mechanism) and update this file's §2 if the
@@ -406,6 +415,16 @@ useful as history, **not** as current architecture. Trust this order:
   **Read this first for "what happened recently".**
 - `docs/CURRENT_STATE_INDEX_PL.md` — milestone ledger + validated state.
 - `docs/TECH_DEBT_PL.md` — known debt, risks, deferred work.
+- `docs/PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md` — **current map status and
+  roadmap after the 2026-07-13 audit:** E1 accepted, E2R recovery required,
+  current E3 rejected/locked. This file wins over stage documents on status.
+- `docs/AUDYT_REALIZACJI_MAPY_2026_07_13_PL.md` — evidence and critical verdict
+  for the mixed E2R/E3 worktree; read before touching map geometry.
+- `docs/PLAN_WYKONAWCZY_MAPA_GPT_LUNA_PL.md` — mandatory one-WP-at-a-time
+  execution protocol for Luna, including compute-level routing, STOP gates,
+  evidence, failure handling and rollback.
+- `docs/MAPA_EVIDENCE_MANIFEST_PL.md` — commands, binary freshness, renders and
+  explicit evidence limitations for map WP; `SESSION_ONLY` never closes a gate.
 - `docs/SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md` — **read before touching the visual
   rig / dampers / mounts.** Records that the visual dampers are decorative and
   decoupled from the physics spring, what's solid vs temporary, and a staged

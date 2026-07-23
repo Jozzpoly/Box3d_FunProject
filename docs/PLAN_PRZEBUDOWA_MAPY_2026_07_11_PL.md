@@ -1,263 +1,367 @@
-# Plan: Mapa 2.0 — centralny kampus testowy i świat kaflowy
+# Plan: Mapa 2.0 — centralny kampus i kontrolowany świat kaflowy
 
-Data pierwotna: 2026-07-11. Fundamentalny rebase planu: 2026-07-12.
-Właściciel kierunku: Jozz.
+Data pierwotna: 2026-07-11. Rebase v2: 2026-07-12. Rebase v3 po audycie:
+2026-07-13. Właściciel kierunku i odbiorów produktowych: Jozz.
 
-## 0. Status i źródło prawdy
+## 0. To jest jedyne źródło prawdy statusu mapy
 
-- **Etap 1 jest zaakceptowany i zostaje.** Płyta 400×400 m, teren offroad
-  400×400 m, szew pod płytą, seed/regeneracja, góra i węzły górskie są
-  fundamentem, którego ten plan nie cofa.
-- Implementacja Etapu 2 z commita `b8afab9` jest technicznie działająca, ale
-  **odrzucona produktowo przez Jozza**. Jej kod pozostaje chwilowo w drzewie,
-  żeby można było odzyskać wartościowy obstacle kit bez chaotycznego revertu.
-- **Etap 2 jest ponownie otwarty. Etapy 3–6 są zablokowane do jego ręcznej
-  akceptacji.**
-- Ten dokument ustala architekturę całej mapy. Szczegóły wykonawcze są w
-  `MAPA_ETAP_1..6_*.md`. Gdy dokumenty się różnią, wygrywa ten plan, a dla
-  Etapu 1 — dodatkowo jego zapis wykonanej walidacji.
+Gdy dokumenty mapy różnią się statusem, wygrywa poniższa tabela. Dokumenty
+etapowe opisują zakres, a `PLAN_WYKONAWCZY_MAPA_GPT_LUNA_PL.md` mówi wykonawcy,
+jak bezpiecznie realizować jeden work-package.
 
-## 1. Dlaczego poprzedni plan Etapu 2 zawiódł
+| Strumień | Stan | Decyzja |
+|---|---|---|
+| E1 — teren i płyta | **ACCEPTED** | zachować; wyłącznie małe poprawki integracyjne |
+| E2R — centralny kampus | **RECOVERY_REQUIRED** | kierunek dobry, kandydat nieodebrany |
+| bieżący E3 — trzy pętle | **REJECTED_EXPERIMENT** | odłączyć od runtime, zachować kod do audytu |
+| nowy E3 — jedna pętla | **LOCKED** | otworzyć dopiero po `E2R ACCEPTED BY JOZZ` |
+| E4 — plac fizyki | **LOCKED** | po E2R i po kontrakcie PropRegistry |
+| E5 — spawner/stress | **LOCKED** | po bezpiecznym resecie i ownership dynamicznych body |
+| E6 — nawigacja/telemetria | **LOCKED** | po ustabilizowaniu stref, nie przed nimi |
 
-### 1.1 Fakty z aktualnego kodu i renderu
+`REJECTED_EXPERIMENT` zapisuje połączony werdykt: Jozz w bieżącym zadaniu
+odrzucił rezultat tego kierunku jako wyraźnie gorszy, a audyt wykazał dodatkowo
+błędy fizyczne P0. Nie jest to samodzielna decyzja modelu. Kod pozostaje w
+kwarantannie, aby decyzja była odwracalna i udokumentowana.
 
-- Środkowy kafel ma granice około `x,z∈[-66.67,66.67]` i jako jedyny ma
-  proceduralny techniczny grid. Po Etapie 2 pozostał prawie pusty.
-- Sześć lane'ów umieszczono w `x∈[150,195], z∈[-60,60]`, czyli na skraju
-  wschodniego kafla, tuż przed szwem offroadu — poza technicznym gridem i daleko
-  od spawnu.
-- Stara mapa miała skocznie, tarki i propy skupione w promieniu kilkudziesięciu
-  metrów od `(0,0)`. Była prymitywna, ale miała czytelny środek ciężkości.
-- Obecny poligon z lotu ptaka czyta się jak luźny katalog kolorowych brył, nie
-  jak sześć przejezdnych lane'ów ani warsztat zawieszenia.
-- Całe przeszkody pomalowano według trudności. Zielony/żółty/czerwony dominuje
-  nad techniczną estetyką gridu i daje efekt zabawkowy.
-- Plan obiecywał, że `jozz_vehicle_m5_test_course.cpp` zmaleje. W commicie
-  Etapu 2 urósł o 196 linii netto, bo layout i receptury lane'ów trafiły do
-  course'u zamiast do osobnego modułu danych.
-- Walidacja udowodniła, że shape'y istnieją, kolidują i nie psują rigu. Nie
-  sprawdziła najważniejszego: czy mapa ma dobry fokus, czy stanowiska tworzą
-  spójne miejsce i czy Jozz chce po nim jeździć.
+**Aktualny dozwolony krok:** R0 — Truth and Recovery. Nie wolno ulepszać
+bieżącego E3, dopóki nie zostanie zachowany WIP, odłączony fizyczny tor i
+przywrócony czytelny baseline E1+E2R.
 
-### 1.2 Błędy planistyczne
+Audyt uzasadniający status: `AUDYT_REALIZACJI_MAPY_2026_07_13_PL.md`.
 
-1. **Layout został zaprojektowany od listy ficzerów, nie od doświadczenia
-   gracza.** Najpierw powstało „15 generatorów i 6 lane'ów”, dopiero potem
-   próbowano znaleźć dla nich miejsce.
-2. **Kafle nie były źródłem prawdy.** Roadmapa deklarowała 3×3 kafle jako
-   przyszłe strefy, ale później użyła arbitralnych prostokątów przecinających
-   ich granice.
-3. **„Centrum ma być czyste” zinterpretowano jako „centrum ma być puste”.**
-   Potrzebny jest czytelny rdzeń do spawnu i strojenia, otoczony aktywnością —
-   nie martwa płyta.
-4. **Progresja lane'ów zastąpiła projekt przestrzeni.** Długa tabela przeszkód
-   nie daje tras wjazdu, zawracania, bezpiecznego wybiegu ani powodu, by wracać
-   do środka.
-5. **Bramka była za słaba.** Kolorowy top-down i dwa przejazdy nie są
-   akceptacją layoutu. Brakowało porównania „przed / odrzucony / nowy” z tej
-   samej kamery oraz obowiązkowego sign-offu Jozza.
+## 1. Nienegocjowalna tożsamość mapy
 
-## 2. Nowa doktryna mapy
+### 1.1 Kafel C jest sercem produktu
 
-### 2.1 Centralny kafel jest sercem produktu
+Cały środkowy kafel `C`, nominalnie `x,z∈[-66,667;66,667]`, pozostaje jedną
+nieprzerwaną powierzchnią proceduralnego technicznego gridu. Nie pokrywamy go
+asfaltowym dywanem ani kolorowymi płytami stref.
 
-Cały środkowy kafel `C` pozostaje jedną, nieprzerwaną powierzchnią
-technicznego gridu. Nie nakładamy na niego asfaltowego „dywanu” ani kolorowych
-podkładów stref. Grid ma być widoczny między stanowiskami i służyć jednocześnie
-jako:
+Grid pełni cztery role:
 
-- skala metryczna do oceny auta i przeszkód;
-- plac spawnu, strojenia i oglądania zawieszenia;
-- centralny kampus krótkich, powtarzalnych prób;
-- węzeł, z którego widać i wybiera się dalsze strefy mapy.
+- metryczna skala do oceny pojazdu i geometrii;
+- spawn, strojenie i obserwacja rigu;
+- kampus krótkich, powtarzalnych prób;
+- centralny węzeł do stref satelitarnych.
 
-### 2.2 Hub-and-spoke, nie osiedle oddalonych prostokątów
+### 1.2 Środek jest czysty, ale nie pusty
 
-Każda strefa satelitarna ma wjazd skierowany ku centrum, kotwicę teleportu przy
-wejściu i czytelny powrót. Użytkownik zaczyna w kampusie, wybiera test,
-wyjeżdża do satelity i wraca. Żadna strefa nie może wyglądać jak doklejona
-osobna mapa.
+Central Core `24×24 m` przy `(0,0)` ma zero przeszkód i scatteru. Otaczają go
+krótkie stanowiska, cztery szerokie spokes i pusty obwodowy korytarz. Aktywność
+skupia się na całym kaflu C, podobnie jak w pierwszej mapie, ale jest
+zaprojektowana, mierzalna i resetowalna.
 
-### 2.3 Kafle są kontraktem layoutu
+### 1.3 Hub-and-spoke
 
-Strefy respektują granice dziewięciu kafli płyty. Wyjątkiem może być wyłącznie
-trasa łącząca dwa kafle, jawnie opisana jako połączenie. Nie projektujemy już
-stref typu `x=-190..140`, które przecinają kilka kafli bez semantyki.
+Każda strefa satelitarna:
 
-### 2.4 Przeszkoda nie jest stanowiskiem
+- respektuje przypisany kafel;
+- ma wjazd skierowany ku C;
+- ma jawny gate/anchor przed pierwszą przeszkodą;
+- oferuje bezpieczny powrót;
+- nie udaje osobnej mapy doklejonej na obrzeżu.
 
-Generator bryły to tylko narzędzie. Pełne stanowisko musi mieć:
+### 1.4 Przeszkoda nie jest stanowiskiem
 
-- stabilne ID i nazwę;
-- cel testu oraz mierzalny sygnał;
-- footprint/AABB, anchor wjazdu, kierunek i dozwolony kierunek przejazdu;
-- zalecaną prędkość;
-- minimalny najazd i wybieg;
-- poziom trudności;
-- materiał/kategorię kolizji;
-- recepturę resetu i dowód wizualny.
+Generator bryły jest biblioteką. Stanowisko musi mieć ID, cel testu, footprint,
+anchor, kierunek, prędkość, approach, runoff, kategorię, reset, mierzalny sygnał
+i dowód przejazdu. Sam shape count nie jest kryterium jakości.
 
-### 2.5 Język wizualny
+### 1.5 Język wizualny
 
-- powierzchnia środka: neutralny techniczny grid;
-- przeszkody: stal/szarość/ziemia zależnie od funkcji;
-- kolor trudności: mały akcent na bramce, krawędzi lub tabliczce — nie pełne
-  nasycone bryły;
-- tekst tylko blisko stanowiska; z daleka czytelność ma wynikać z sylwety,
-  ustawienia i kierunku wjazdu;
-- brak dekoracji, która utrudnia ocenę kontaktu koła z podłożem.
+- grid i ziemia są powierzchnią dominującą;
+- stal/szarość/ziemia wynikają z funkcji;
+- kolor trudności jest małym akcentem, nie nasyconą całą bryłą;
+- overlay footprintów, yardów i centerline jest debugiem, domyślnie wyłączonym;
+- tekst pojawia się blisko stanowiska i nie zasłania kontaktu koła;
+- sylweta oraz kierunek wjazdu muszą być czytelne bez debug overlay.
 
-## 3. Docelowy układ 3×3
+## 2. Czego nauczyło wykonanie E2R/E3
 
-Granice kafli wynikają z `kPlateTileSize = 133.333...`. Poniższe role są
-architekturą, nie poleceniem wypełnienia każdego metra.
+### Zachować
+
+- pełny grid C i czysty core;
+- cienki course oraz rozdział data/builder/visual;
+- deterministyczne specs;
+- trzy role wysp skał i niskie bumper banks jako materiał do dopracowania;
+- place satelitarne i wspólny world layout;
+- gotowość do wycofania słabego slice'a po feedbacku;
+- zaakceptowany E1, w tym offroad, góra, szew i regeneracja.
+
+### Dostosować
+
+- „gęściej” oznacza więcej wartościowych linii jazdy, nie setki shape'ów;
+- jedna receptura kontaktu jest odbierana przed następną;
+- station specs muszą sterować builderem albo walidować jego realny wynik;
+- miterowanie można odzyskać tylko dla jednej zaakceptowanej trasy;
+- 220 m prosta może być Vmax stripem albo fragmentem jednej pętli, nie wymusza
+  trzech wersji toru.
+
+### Odrzucić
+
+- trzy nałożone pełne pętle budowane jednocześnie;
+- warstwę drogi z prześwitem mniejszym od envelope'u auta;
+- rampy bez kontraktu top-surface;
+- stałe blueprint overlays;
+- quota `>=400 rocks`, `>=130 bumpers` jako definicję jakości;
+- automatyczne przechodzenie ze skeletonu do brył;
+- rozpoczęcie kolejnego etapu bez wpisu `ACCEPTED BY JOZZ`.
+
+## 3. Docelowy podział 3×3
 
 ```text
 z+
 +----------------------+----------------------+----------------------+
-| NW: tor techniczny   | N: prosta / szybkie  | NE: łuki + łącznik   |
-| i zakręty            | próby torowe         | do offroadu          |
+| NW: techniczny łuk   | N: jedna pętla /     | NE: powrót pętli     |
+| i opcjonalny branch  | osobny Vmax strip    | i łącznik E          |
 +----------------------+----------------------+----------------------+
-| W: drift / skid pad  | C: TECHNICAL GRID    | E: brama offroadu,   |
-| wejście do C         | CENTRAL TEST CAMPUS  | rozbieg i wybieg      |
+| W: drift / skid pad  | C: TECHNICAL GRID    | E: brama offroadu    |
+| wejście skierowane C | CENTRAL TEST CAMPUS  | i neutralny wybieg   |
 +----------------------+----------------------+----------------------+
-| SW: plac fizyki      | S: spawner / stress  | SE: ciężkie lądowania|
-| box3d                | w kontrolowanej niecce| i duże obiekty        |
+| SW: plac fizyki      | S: spawner / stress  | SE: duże lądowania   |
+| z containment        | z containment        | po kontrakcie ramp   |
 +----------------------+----------------------+----------------------+
-                                                      -> OFFROAD 400×400
+                                                     -> OFFROAD 400×400
 ```
 
-Reguły:
+Role są budżetem przestrzeni. Nie są pozwoleniem, aby od razu wypełnić każdy
+kafel. Najpierw centrum, potem jedna trasa, potem jedna strefa naraz.
 
-- `C` jest gotowe w Etapie 2 i zawsze pozostaje dominującym wizualnie
-  punktem płyty.
-- `W/N/NW/NE` tworzą później układ torowo-driftowy otaczający kampus od
-  zachodu i północy, zamiast odcinać go wielką ścianą toru.
-- `E` pozostaje czytelną bramą do offroadu i strefą rozbiegu/wybiegu. Nie
-  upychamy tam ponownie katalogu przeszkód.
-- `SW/S/SE` mieszczą cięższe stanowiska i stress, ale wszystkie wjazdy są
-  skierowane ku `C`.
+## 4. Stan E1 — zaakceptowany fundament
 
-## 4. Etap 1 — fundament zaakceptowany
+Zostają:
 
-Etap 1 pozostaje zamknięty. Wolno go tylko doszlifować, gdy nowy kampus ujawni
-konkretny problem integracyjny:
+- płyta 400×400 m podzielona na 3×3 kafle;
+- proceduralny grid tylko na pełnym kaflu C;
+- heightfield offroad 400×400 m;
+- deterministyczny seed/regeneracja;
+- szew pod płytą;
+- góra i węzły górskie;
+- bezpieczne spawn/teleport.
 
-- grid nie obejmuje całego shape'a środkowego kafla;
-- szew kafli daje fizyczny lub widoczny próg;
-- neutralne kafle konkurują wizualnie z centrum;
-- teleport/spawn nie potrafi bezpiecznie osadzić auta na gridzie.
+E1 wolno dotknąć tylko, gdy nowy kampus ujawni konkretny błąd integracji:
+próg szwu, brak gridu na shape'ie C, konflikt wizualny sąsiedniego kafla albo
+niebezpieczny spawn. Każda poprawka jest osobnym WP i nie zmienia generatora
+offroadu bez jawnej zgody Jozza.
 
-Każda taka poprawka jest mała, osobno walidowana i nie zmienia zaakceptowanego
-generatora offroadu ani charakteru góry. Pełny kontrakt: Etap 1 §13.
+## 5. Nowa roadmapa
 
-## 5. Etap 2R — odzyskanie obstacle kitu i centralny kampus
+### R0 — Truth and Recovery
 
-Etap 2 nie buduje sześciu równoległych lane'ów. Buduje **jeden centralny
-kampus z czterema stanowiskami/podstrefami wokół czystego rdzenia**:
+Cel: odzyskać kontrolę nad stanem, zanim cokolwiek nowego powstanie.
 
-- północ: komfort i rytm;
-- zachód: artykulacja i przechył;
-- wschód: teren punktowy i trakcja;
-- południe: uderzenie i kontrolowany lot;
-- rdzeń `24×24 m` przy `(0,0)`: spawn, strojenie, obrót auta, zero
-  przeszkód;
-- mała zatoka interakcyjna inspirowana pierwszą mapą: kilka świadomie
-  ustawionych lekkich propów, bez losowego scatteru na osi jazdy.
+- sklasyfikować dirty tree: `E1 / E2R_KEEP / E2R_FIX / E3_QUARANTINE / DOCS`;
+- zachować diff, komendy, logi i rendery eksperymentu;
+- wybrać z Jozzem sposób zachowania WIP (najbezpieczniej osobna gałąź/snapshot);
+- nie łączyć recovery z poprawą geometrii;
+- oznaczyć bieżący E3 jako odrzucony eksperyment we wszystkich źródłach prawdy.
 
-Wartościowy `jozz_vehicle_obstacle_kit` z odrzuconej implementacji zostaje
-zaudytowany i ponownie użyty. Usuwamy layout 6-lane, jego stałe przy
-`x=150..195` i nasycone malowanie całych przeszkód. Szczegóły i bramki:
-`MAPA_ETAP_2_PRZESZKODY_I_POLIGONY_PL.md`.
+Wyjście: odtwarzalny manifest i jednoznaczny hash/snapshot. Bez tego R1 jest
+zablokowany.
 
-## 6. Etap 3 — pierścień prowadzenia, tor i drift
+### R1 — Restore Active World
 
-Etap 3 najpierw buduje sam szkielet dróg na kaflach `W/NW/N/NE`, pokazany
-Jozzowi przed dodaniem barier. Tor ma być osiągalny z centrum w kilkanaście
-sekund, a jego początek i koniec czytelnie wracają do kampusu. Drift zajmuje
-`W`, a nie arbitralny prostokąt przecinający SW.
+Cel: uruchamiany świat zawiera E1 oraz kandydat E2R, ale nie aktywną fizykę E3.
 
-Tor, stoper, nawierzchnie i bezpieczne bariery powstają dopiero po akceptacji
-topologii. Duże skocznie wymagające długiego wybiegu trafiają do `E/SE`, nie
-do ciasnego centrum. Szczegóły: `MAPA_ETAP_3_TOR_I_DRIFT_PL.md`.
+- dodać jawny feature/state switch i domyślnie wyłączyć budowę E3;
+- zachować pliki E3 w kwarantannie, bez kasowania;
+- overlay kampusu/yardów/toru przenieść pod debug toggle, domyślnie off;
+- naprawić gate, aby smoke-testował M5 i M6;
+- uzyskać stałe zrzuty: cała płyta, C top, C 3/4, widok z core;
+- potwierdzić, że runtime ma ten sam aktywny świat w M5 i M6.
 
-## 7. Etap 4 — plac fizyki jako satelita
+Wyjście: **BASELINE_RECOVERED**, nie `E2R ACCEPTED`.
 
-Plac box3d zajmuje `SW`. Stanowiska mają wspólną aleję wjazdową od centrum,
-jasne strefy bezpieczeństwa i nie wylewają dynamicznych obiektów na kampus.
-Najpierw powstają narzędzia: shaker, rolling road, most i see-saw. Zabawki
-destrukcyjne są drugim podetapem i wymagają kompletnego resetu. Szczegóły:
-`MAPA_ETAP_4_PLAC_FIZYKI_PL.md`.
+### R2 — Central Tile Completion
 
-## 8. Etap 5 — spawner i stress poza centrum
+Cel: cały kafel C jest skupionym, czytelnym i przejezdnym kampusem lepszym od
+pierwszej mapy.
 
-Domyślny punkt dużych spawnów to kafel `S`, a ciężkich obiektów `SE`.
-Przycisk „przed pojazdem” ma twardy limit małej partii; nie wolno przypadkowo
-zasypać centralnego kampusu 250 obiektami. Szczegóły:
-`MAPA_ETAP_5_SPAWNER_I_STRESS_PL.md`.
+Kolejność bez skrótów:
 
-## 9. Etap 6 — nawigacja, telemetria i finalny sign-off
+1. validator rzeczywistych shape'ów, core, spokes, loop, anchorów i kategorii;
+2. stały zestaw kamer oraz manifest dowodów;
+3. jedna stacja komfort/rytm N;
+4. probe kategorii dyskretnej skały dla envelope'u M5/M6, potem jedna wyspa
+   terenowa E przetestowana z wielu kierunków;
+5. zatoka 6–8 lekkich resetowalnych propów;
+6. druga wyspa/stanowisko dopiero po odbiorze poprzedniego;
+7. prosty, łagodny slice S tylko po naprawie kontraktu obstacle kitu;
+8. W pozostaje wolnym korytarzem albo dostaje nową koncepcję; odrzucona
+   artykulacja nie wraca automatycznie;
+9. pełny obwodowy przejazd i powrót do core;
+10. ręczny odbiór Jozza.
 
-Nawigacja opisuje relacje względem centrum („północny tor”, „zachodni drift”),
-nie listę odległych punktów. Teleporty lądują na bramach skierowanych do
-stanowiska. Finalna suita zawsze zawiera ten sam kadr całej płyty i ten sam kadr
-centralnego kafla, żeby regresja fokusu była widoczna. Szczegóły:
-`MAPA_ETAP_6_NAWIGACJA_POMIAR_POLISH_PL.md`.
+Wyjście: wpis `E2R ACCEPTED BY JOZZ`, hash, obrazy i wynik jazdy. Dopiero ten
+wpis odblokowuje R3.
 
-## 10. Kolejność i bramki decyzji
+### R3 — One Outer Driving Loop
 
-| Etap | Stan | Warunek wejścia | Warunek zamknięcia |
-|---|---|---|---|
-| 1 | **zaakceptowany** | — | utrzymujemy istniejące dowody |
-| 2R | **otwarty** | aktualny kod + render „odrzucony” | testy + nowy kampus + ręczny sign-off Jozza |
-| 3 | zablokowany | 2R zaakceptowany | akceptacja szkieletu, potem pełna jazda |
-| 4 | zablokowany | 2R zaakceptowany | narzędzia, reset, strefy bezpieczeństwa |
-| 5 | zablokowany | 4 ma PropRegistry | tabela stress i kontrola sprzątania |
-| 6 | zablokowany | 2R–5 zamknięte | finalna suita + sign-off „Mapa 2.0” |
+Cel: jedna czytelna płaska pętla na W/NW/N/NE, podporządkowana centrum.
 
-Każdy etap ma dwa rodzaje bramki:
+Kolejność:
 
-1. **techniczna:** build, walidator, testy, boot M5/M6, kategorie kolizji,
-   brak wycieków i liczby;
-2. **produktowa:** render z ustalonej kamery, realny przejazd i — gdy plan tak
-   mówi — akceptacja Jozza.
+1. dane jednej centerline z rzeczywistym pomiarem promieni/krzywizny;
+2. jawny connector C→start i connector finish→C;
+3. skeleton bez fizycznej jezdni;
+4. **STOP i akceptacja Jozza**;
+5. jedna płaska baza, budowana dokładnie raz;
+6. test seams/coplanarity, pełne okrążenie w obu labach;
+7. jeden przestrzennie rozłączny branch techniczny, opcjonalnie;
+8. krawężniki/runoff/barierki tylko tam, gdzie wynikają z analizy wypadnięcia;
+9. lap timer dopiero po stabilnym pełnym okrążeniu.
 
-Zielona bramka techniczna nie może zastąpić odrzuconej bramki produktowej.
+Zakazane: trzy równoległe pełne warianty, warstwy bez vehicle-clearance i
+zaliczanie topologii przez sam enum.
 
-## 11. Kontrakty architektoniczne
+### R4 — Drift i duże lądowania jako osobne produkty
 
-- box3d core `src/` i `include/` bez zmian;
-- `world_layout.h`: granice kafli, kotwice, identyfikatory i dane layoutu,
-  bez budowania świata;
-- `obstacle_kit`: geometria pojedynczych przeszkód, bez wiedzy o kampusie;
-- osobny moduł `jozz_vehicle_central_test_campus.{h,cpp}`: receptury,
-  placement i etykiety Etapu 2R;
-- `m5_test_course`: orkiestracja course'u i legacy props; ma być cienki;
-- każdy surface jezdny ma kategorię terenu; propy pozostają `0x1`;
-- layout ma walidator footprintów: granice kafla, overlap, spawn exclusion,
-  najazd i wybieg;
-- identyczne moduły świata są używane przez M5 i M6.
+R4A — W drift:
 
-## 12. Minimalny zestaw dowodów dla zmian mapy
+- jeden skid pad albo ósemka, nie oba naraz;
+- brak fizycznego progu tarcia;
+- wejście od C, containment propów, reset;
+- odbiór feel przed rozbudową.
 
-- zrzut z góry całej płyty z ustalonej kamery;
-- zrzut z góry środkowego kafla z ustalonej kamery;
-- ujęcie z wysokości kierowcy przy każdym nowym stanowisku;
-- porównanie tego samego kadru przed zmianą i po zmianie;
-- mapa footprintów/liczby z walidatora;
-- przynajmniej jeden przejazd w obie strony tam, gdzie stanowisko jest
-  dwukierunkowe;
-- CHECKPOINT rozdzielający wynik techniczny od ręcznej akceptacji.
+R4B — E/SE landing:
 
-Rendery scratchpad bez zachowanego polecenia/kamery nie wystarczają do
-zamknięcia etapu.
+- dopiero po testach top-surface wszystkich użytych ramp;
+- osobny approach, marker prędkości, landing i escape lane;
+- najpierw łagodny tabletop, twardy gap jump po osobnym sign-offie.
 
-## 13. Świadomie poza tym trackiem
+### R5 — Physics Yard SW
+
+- wspólna aleja od C i containment;
+- jeden przyrząd na WP: shaker, rolling road, bridge, see-saw;
+- ownership, reset i budżet body przed zabawkami destrukcyjnymi;
+- każda maszyna ma mierzalny cel, nie tylko animację.
+
+### R6 — Spawner/Stress S–SE
+
+- najpierw PropRegistry i jednoznaczne ownership;
+- jeden bezpieczny spawn i reset;
+- mała partia przed pojazdem z twardym limitem;
+- większy batch tylko w containment yard;
+- profil 25/50/100/250, koszt kroku i pełne sprzątanie;
+- centralny kampus nigdy nie jest domyślnym celem stressu.
+
+### R7 — Navigation, Telemetry, Final Map 2.0
+
+- teleporty do bram, nie do środka przeszkody;
+- nazwy względem C;
+- distance-culling i debug toggles;
+- lap/airtime/contact telemetry dopiero po stabilizacji geometrii;
+- finalna suita stałych kamer, pełnych przejazdów i regresji liczbowej;
+- końcowy wpis `MAPA 2.0 ACCEPTED BY JOZZ`.
+
+## 6. Stan jako maszyna, nie opis narracyjny
+
+Status strumienia i status WP to dwie osobne warstwy. Strumień może mieć
+dyspozycję `RECOVERY_REQUIRED` albo `REJECTED_EXPERIMENT`, jak w tabeli §0.
+Każdy wykonywalny WP używa wyłącznie jednego z poniższych stanów:
+
+- `LOCKED` — nie wolno implementować;
+- `READY` — warunki wejścia są spełnione;
+- `IN_PROGRESS` — dokładnie jeden aktywny WP;
+- `WAITING_FOR_JOZZ` — kod zamrożony, czeka na odbiór;
+- `ACCEPTED` — dowody + jawna decyzja człowieka;
+- `REJECTED` — wynik WP odrzucony przez Jozza; nie rozwijać, zachować dowód;
+- `SUPERSEDED` — historyczne, ze wskazaniem następcy.
+
+Model nie może sam zmienić `WAITING_FOR_JOZZ` na `ACCEPTED`. Zielony build nie
+zmienia statusu produktu.
+
+## 7. Bramka techniczna wspólna dla każdego WP
+
+Minimalnie:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\gate.ps1 -Numbers
+.\build\bin\Debug\samples.exe --sample-name "M5 First Drivable" --frames 300
+.\build\bin\Debug\samples.exe --sample-name "M6 Suspension Rig Lab" --frames 300
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\doc_drift_check.ps1
+git diff --check
+```
+
+Ponadto WP mapy musi mieć:
+
+- walidację realnie utworzonych shape'ów, nie tylko specs;
+- kontrolę bounds, core, spokes, loop, approach i runoff;
+- kontrolę top-surface dla profili pionowych;
+- kategorie: nawierzchnia zgodna z envelope'em koła, prop `0x1`;
+- stabilny body/shape count po restartach;
+- brak nowych ostrzeżeń sokol/Box3D;
+- test dokładnie zmienionego miejsca, nie tylko spawnu.
+
+## 8. Bramka produktowa
+
+Każdy slice zmieniający layout lub sylwetę wymaga:
+
+- identycznego kadru przed/po;
+- top-down płyty i kafla C;
+- widoku z core;
+- ujęcia z wysokości koła/kierowcy;
+- przejazdu w deklarowanym kierunku i w przeciwnym, jeżeli dwukierunkowy;
+- notatki o tym, co widać źle, nie tylko o sukcesach;
+- jawnej decyzji `ACCEPT / REJECT / ADAPT` Jozza.
+
+Plik nazwany `stop_gate.png` nie jest akceptacją. Akceptacją jest wpis z datą,
+hashem i tekstem `ACCEPTED BY JOZZ`.
+
+## 9. Kontrakty architektoniczne
+
+- bez zmian `src/` i `include/` Box3D;
+- `world_layout`: kafle, role, kotwice, granice; bez builderów;
+- `obstacle_kit`: jedna przeszkoda i testowalny profil top-surface;
+- `central_test_campus`: specs + builder + visual, ze wspólnymi ID;
+- `track_layout`: jedna centerline i realne metryki geometrii;
+- `track_builder`: buduje tylko wybrany aktywny layout;
+- `visual`: czyta te same dane/meshe co builder albo przechodzi WYSIWYG probe;
+- `m5_test_course`: cienka orkiestracja i jawne feature states;
+- M5 i M6 budują identyczną geometrię należącą do mapy; całkowite liczniki
+  świata mogą się różnić przez pojazd i stan sesji;
+- debug overlay jest oddzielony od product view;
+- validator linkuje i mierzy realny builder albo korzysta z jednoznacznego
+  geometry manifestu wygenerowanego tą samą ścieżką.
+
+## 10. Budżety jakości zamiast quota shape'ów
+
+Każde stanowisko ma raportować przynajmniej:
+
+- footprint i procent zajętej powierzchni;
+- szerokość najwęższej poprawnej linii;
+- liczbę sensownych linii jazdy;
+- approach/runoff;
+- maksymalny step/lip oraz ciągłość top-surface;
+- body/shape count z limitem maksymalnym;
+- contacts peak/mean podczas referencyjnego przejazdu;
+- wheel-contact ratio i `vy RMS`, gdy istotne;
+- najniższą i najwyższą prędkość zakończoną bez zakleszczenia;
+- wynik ręcznej oceny czytelności i feel.
+
+Progi ustala WP przed implementacją. Model nie może poluzować progu po porażce.
+
+## 11. Zasady publikacji i rollbacku
+
+- jeden WP = jeden mały diff = jeden lokalny commit `CANDIDATE` po pełnym gate;
+- hash lokalnego kandydata służy do odbioru Jozza; push/publikacja dopiero po
+  `ACCEPT`, a po `REJECT` kandydat jest odłączany/revertowany zgodnie z WP;
+- commit nie może mieszać E2R z E3 albo kodu z niezależnym refaktorem;
+- przed pracą zapisać `git status --short --branch` i listę plików użytkownika;
+- istniejącego dirty WIP nie stage'ować zbiorczo;
+- przy odrzuceniu slice'a wyłączyć go jednym switchem/revertem jego commita;
+- nie usuwać eksperymentu, zanim nie ma obrazu, logu i decyzji `REJECTED`;
+- żaden model nie commit/pushuje bieżącego mieszanego WIP bez decyzji Jozza o
+  sposobie zachowania.
+
+## 12. Co jest poza aktualnym trackiem
 
 - streaming/LOD terenu;
 - minimapa 2D;
 - pogoda i dzień/noc;
-- import heightmapy PNG;
-- AI, duchy i przeciwnicy;
-- zapis dynamicznego stanu świata w presetach pojazdu;
-- zmiany solvera lub core box3d.
+- import heightmap PNG;
+- AI/ghost/przeciwnicy;
+- zapis dynamicznego świata w presetach;
+- zmiany solvera lub core Box3D;
+- dekoracyjny polish przed zamknięciem geometrii i feel.

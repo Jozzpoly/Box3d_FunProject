@@ -1,135 +1,207 @@
-# Mapa — Etap 3: pierścień prowadzenia, tor, drift i duże lądowania
+# Mapa — Etap 3: jedna pętla, osobny drift i osobne lądowania
 
 Część planu `PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md`.
-Status: **ZABLOKOWANY do akceptacji Etapu 2R.**
+Status bieżącej implementacji: **REJECTED_EXPERIMENT / DO DEZAKTYWACJI**.
+Status nowego Etapu 3: **LOCKED DO `E2R ACCEPTED BY JOZZ`**.
 
-## 1. Cel
+## 1. Decyzja po audycie
 
-Rozwinąć centralny kampus w większy system jazdy bez utraty fokusu. Tor i drift
-mają otaczać centrum od zachodu i północy, mieć wejścia skierowane do kampusu i
-wracać do niego. Etap przejmuje też duże przeszkody powietrzne, które nie
-mieszczą się bezpiecznie na środkowym kaflu.
+Obecne trzy warianty Green/Yellow/Red nie są bazą dalszego toru. Builder tworzy
+je jednocześnie; na długich odcinkach nachodzą prawie całymi szerokościami, a
+różnica wysokości nie daje prześwitu pojazdu. Aktywny profil ramp ma dodatkowo
+błędne uskoki top-surface.
 
-## 2. Kafle i role
+Należy:
 
-| Kafel | Rola | Relacja z centrum |
+- zachować pliki i rendery jako materiał eksperymentalny;
+- odłączyć fizyczny `BuildJozzTrackBase/Profiles` od domyślnego course'u;
+- nie poprawiać dekoracji, profili ani miterów tego układu;
+- rozpocząć nowy E3 od jednej centerline dopiero po odbiorze E2R.
+
+Pełne dowody: `AUDYT_REALIZACJI_MAPY_2026_07_13_PL.md`.
+
+## 2. Cel nowego E3
+
+Zbudować jedną czytelną, płaską pętlę prowadzenia na `W/NW/N/NE`, która:
+
+- ma jawny i krótki connector z kampusu;
+- nie dominuje wizualnie nad kaflem C;
+- jest przejezdna pełnym okrążeniem przed dodaniem profili;
+- ma realne promienie, run-off i escape paths;
+- może później dostać jeden rozłączny branch techniczny;
+- nie miesza driftu i dużych lądowań z odbiorem bazowej pętli.
+
+## 3. Zakazane rozwiązania
+
+- trzy pełne warianty aktywne jednocześnie;
+- drogi piętrowe bez prześwitu obliczonego dla całego pojazdu;
+- przypisywanie `Hairpin/Chicane/Arc` bez pomiaru krzywizny;
+- bardzo ostre polilinie naprawiane gigantycznym miterem;
+- coplanarny slab zanurzony w bazowej płycie;
+- centerline renderowana inaczej niż budowana fizyka;
+- profile/rampy przed pełnym przejazdem płaskiej pętli;
+- lap timer przed ustabilizowaniem topologii;
+- stały debug overlay w product view;
+- automatyczne przejście dalej po samym zielonym buildzie.
+
+## 4. Kafle i kolejność produktów
+
+| Produkt | Kafle | Warunek wejścia |
 |---|---|---|
-| W | drift, skid pad, ósemka | brama zachodnia z kampusu |
-| NW | wolne zakręty techniczne, szykana | łączy W z N |
-| N | prosta główna, start/meta, Vmax | widoczna z bramy północnej |
-| NE | hairpin/banked corner, łącznik E | zamyka pętlę |
-| E | brama offroadu, rozbieg i neutralny wybieg | przedłużenie osi wschodniej |
-| SE | duży tabletop/gap jump i strefa lądowania | wjazd z E, powrót do S/C |
+| pętla główna | W/NW/N/NE | E2R accepted |
+| branch techniczny | NW/N | płaska pętla accepted |
+| drift/skid pad | W | pętla nie koliduje i ma accepted footprint |
+| landing yard | E/SE | naprawiony obstacle kit i osobny skeleton accepted |
 
-Żadna z tych stref nie wchodzi na centralny tile poza płaską, niekolizyjną
-bramą/oznaczeniem na jego krawędzi.
+Brama offroadu E pozostaje wolna. SW pozostaje zarezerwowane dla placu fizyki,
+S dla kontrolowanego stressu. Trasa może przekroczyć szew kafla wyłącznie jako
+jawny connector.
 
-## 3. Kolejność — najpierw topologia
+## 5. Kontrakt centerline
 
-### E3.0 — plan linii i footprintów
+Jedynym źródłem prawdy jest centerline/segment graph. Każdy segment ma:
 
-- dane centerline toru, promienie, szerokość i run-off;
-- footprint driftu i strefy dużych lądowań;
-- walidator granic kafli oraz przecięć z kampusem;
-- zero barier i dekoracji.
+- stabilne ID i jawnych sąsiadów;
+- start/end i kierunek jazdy;
+- typ wynikający z geometrii, nie z etykiety;
+- długość, krzywiznę/minimalny promień;
+- szerokość jezdni;
+- lewy/prawy runoff;
+- profil wysokości — dla bazowej pętli dokładnie płaski;
+- gate wejścia/wyjścia;
+- prędkość projektową.
 
-### E3.1 — skeleton
+Validator wylicza długość i krzywiznę z punktów/krzywych. `ConstantRadiusArc`
+failuje, jeśli promień nie jest w tolerancji; `Hairpin` failuje bez wymaganej
+zmiany kierunku; `Chicane` wymaga dwóch przeciwnych zmian krzywizny.
 
-- neutralne znaczniki krawędzi i linia centerline;
-- przejezdna pętla o szerokości 10–12 m;
-- bramy W/N/E widoczne z centrum;
-- render top-down całej płyty i widok z Central Core.
+## 6. Kolejność bez skrótów
 
-**STOP: Jozz akceptuje topologię przed krawężnikami, oponami i sensorami.**
+### E3-N0 — wymagania i budżet
 
-### E3.2 — nawierzchnie i bezpieczeństwo
+- określić jedną rolę pętli;
+- zdecydować, czy 220 m Vmax jest częścią pętli czy osobnym stripem;
+- ustalić minimalne promienie na podstawie testowej prędkości;
+- ustalić footprint connectora z C;
+- zero kodu buildera.
 
-- krawężniki tylko tam, gdzie mają funkcję;
-- zewnętrzne bariery z bezpiecznym offsetem;
-- strefy tarcia drift/lód;
-- run-off bez twardej ściany na osi możliwego wypadnięcia.
+### E3-N1 — centerline data + validator
 
-### E3.3 — pomiar i duże przeszkody
+- jedna zamknięta centerline;
+- jeden connector C→start i jeden powrót;
+- kontrola bounds, self-intersection, promieni i run-off;
+- brak warstw, branchy i profili.
 
-- lap timer na sensorach;
-- splity;
-- duży tabletop i gap jump w E/SE z realnym rozbiegiem i lądowaniem;
-- telemetria airtime może być przygotowana, ale finalnie domyka ją Etap 6.
+### E3-N2 — skeleton
 
-## 4. Kontrakt toru
+- tylko centerline, krawędzie i gate markers;
+- debug toggle, domyślnie off;
+- obrazy: plate top, center view, driver start, cztery krytyczne zakręty;
+- **STOP: `E3 SKELETON ACCEPTED BY JOZZ` z hashem**.
 
-- pętla zamknięta, ale nie musi być symetryczna;
-- szerokość 10–12 m;
-- prosta N minimum 220 m używalnego rozbiegu;
-- co najmniej: hairpin, łuk szybki, szykana i łuk o stałym promieniu;
-- wejście startowe z bramy N nie przecina linii pomiarowej w złym kierunku;
-- powrót do centrum nie wymaga jazdy pod prąd;
-- centerline i bariery są danymi osobnymi: zmiana linii nie wymaga edycji
-  dziesiątek wywołań `Add*`;
-- minimalny run-off na zewnętrznych szybkich łukach: 12 m lub jawnie
-  uzasadniona bariera energochłonna.
+### E3-N3 — jedna płaska baza
 
-## 5. Drift na kaflu W
+- builder tworzy centerline dokładnie raz;
+- spójne top y i jawne rozwiązanie kontaktu z bazową płytą;
+- builder i visual używają tej samej geometrii krawędzi;
+- zero profili, barier, timerów i dekoracji;
+- pełne okrążenie M5 i M6 bez teleportu przez fragment;
+- test seams, `vy RMS`, contacts i wheel-contact ratio.
 
-- skid pad Ø40–50 m;
-- ósemka z dwóch stycznych okręgów;
-- płaska strefa o obniżonym tarciu, bez fizycznego progu na granicy materiału;
-- wejście od wschodu, czyli od kampusu;
-- strefa nie zajmuje SW — ten kafel pozostaje dla placu fizyki;
-- pachołki dynamiczne i resetowalne, ale nie tworzą ściany śmieci widocznej z C.
+### E3-N4 — bezpieczeństwo
 
-## 6. Duże lądowania E/SE
+- runoff z realnej prędkości i kierunku wypadnięcia;
+- krawężnik tylko z funkcją;
+- bariera wyłącznie poza escape path;
+- sprawdzenie linii widzenia z C;
+- ponowny pełny przejazd.
 
-Z obstacle kitu można użyć `AddTabletop`, `AddGapJump`, `AddKicker` i
-`AddWedgeRamp`, ale pełna stacja ma osobny spec:
+### E3-N5 — jeden branch techniczny
 
-- prosty rozbieg minimum 45 m;
-- marker zalecanej prędkości;
-- żadnej przeszkody w strefie awaryjnego hamowania;
-- lądowanie o długości minimum 35 m;
-- boczny powrót do centrum/offroadu;
-- wariant łatwy tabletop przed twardym gap jump;
-- oba kierunki jazdy tylko jeśli geometria i run-off to wspierają.
+- branch przestrzennie rozłączny w planie;
+- wspólny odcinek budowany raz;
+- gate wyboru i merge z bezpiecznym kątem;
+- branch może pozostać wyłączony bez zmiany pętli;
+- osobny skeleton STOP przed fizyką.
 
-## 7. Elementy techniczne
+### E3-N6 — pomiar
 
-- `jozz_vehicle_track_layout.{h,cpp}`: centerline, footprinty, generowanie
-  krawędzi i bram;
-- `jozz_vehicle_lap_timer.{h,cpp}`: sensory i stan stopera;
-- obstacle kit pozostaje biblioteką geometrii;
-- materiały per sub-shape, bez dzielenia całego bazowego kafla na nachodzące
-  płyty; jeśli potrzebna jest strefa tarcia, podział tile'a zachowuje top y=0;
-- sensor liczy chassis, ignoruje koła i propy;
-- teleport/reset zeruje bieżące okrążenie, nie fałszuje best lap.
+- lap timer filtruje chassis, ignoruje koła i propy;
+- kierunkowe start/split/finish;
+- teleport/reset anuluje okrążenie;
+- debounce i test jazdy pod prąd;
+- timer nie jest kryterium odbioru geometrii.
 
-## 8. Bramka
+## 7. Vehicle clearance i profile wysokości
 
-### Techniczna
+Bazowa pętla jest płaska. Jakakolwiek późniejsza warstwa/overpass wymaga:
 
-- pełny gate M5/M6;
-- walidator centerline, granic tile'ów, szerokości i run-off;
-- kategorie: nawierzchnia/krawężnik/banka = teren, propy/bariera = `0x1`;
-- przejazd po wszystkich szwach bez uskoku;
-- dwa pełne okrążenia, splity i debounce działają;
-- duży skok nie kończy się poza płytą ani rozpadem rigu.
+- envelope całego M5 i M6 z marginesem, nie tylko średnicy koła;
+- prześwitu mierzonego od najwyższego punktu dolnej nawierzchni do najniższego
+  elementu górnej konstrukcji;
+- approach gradient, crest radius i sight distance;
+- collision/raycast probe w całym korytarzu;
+- osobnego skeletonu i ręcznego odbioru.
 
-### Produktowa
+Domyślną decyzją jest **brak overpassu**. Różnica topów 0,28 m nie jest
+vehicle clearance.
 
-- ten sam top-down całej płyty przed i po skeletonie;
-- kadr z Central Core pokazuje czytelne bramy W/N/E, ale centrum nadal
-  dominuje;
-- osobne widoki z maski drogi: wejście na tor, szykana, hairpin, powrót;
-- drift czyta się jako jeden plac, nie zbiór pachołków;
-- **akceptacja skeletonu przez Jozza przed E3.2** i akceptacja finalnej jazdy
-  przed zamknięciem Etapu 3.
+Każdy profil wysokości ma top-surface samples entry/25%/50%/75%/exit, tolerancję
+ciągłości i limit lip. Grubość slabu nie może dodawać nieplanowanego wzniosu.
 
-## 9. Ryzyka
+## 8. Drift W — osobny odbiór
 
-- tor może wizualnie otoczyć i „udusić” centrum — bramy oraz bariery zaczynają
-  się dopiero za granicą C, a widok z rdzenia jest bramką;
-- długi prosty shape może przeciąć granice tile'ów — centerline może je
-  przekraczać, lecz materiały i shape'y muszą mieć jawny podział na szwie;
-- gap jump kusi do ustawienia na osi offroadu — zachować boczny, bezkolizyjny
-  wjazd na heightfield;
-- stoper przy driftowaniu przez bramkę — kierunek i filtr chassis są
-  obowiązkowe.
+Po zaakceptowaniu footprintu pętli:
+
+- najpierw jeden skid pad 40–50 m albo jedna ósemka;
+- powierzchnia zmienia tarcie bez fizycznego progu;
+- wejście skierowane ku C;
+- propy/pachołki resetowalne i zawarte w strefie;
+- brak zajęcia SW;
+- osobny feel-test oraz STOP przed drugim układem.
+
+## 9. Landing E/SE — osobny odbiór
+
+Landing yard nie używa żadnego generatora rampy, zanim jego top-surface probe
+nie jest zielony.
+
+Minimalny kontrakt:
+
+- prosty approach co najmniej 45 m;
+- marker zakresu prędkości;
+- łagodny tabletop przed gap jump;
+- landing co najmniej 35 m;
+- emergency braking bez twardej przeszkody;
+- boczny escape/return;
+- shape nie kończy się poza płytą;
+- pełny reset i brak wpływu na bramę offroad.
+
+## 10. Bramka techniczna
+
+- wspólny gate oraz osobny smoke M5/M6;
+- real topology probe, nie enum-presence;
+- brak self-intersection i niejawnych overlapów z runoff;
+- pełna pętla przejechana bez teleportu;
+- żadnego fragmentu budowanego więcej niż raz;
+- WYSIWYG builder/visual;
+- brak coplanarnych konkurencyjnych powierzchni kontaktu;
+- stabilny body/shape count;
+- profile wysokości spełniają jawne top-surface tolerances;
+- 0 nowych błędów Box3D/sokol.
+
+## 11. Bramka produktowa
+
+- top-down płyty przed/po;
+- z Central Core pętla ma czytelne wejście, ale nie „dusi” centrum;
+- widok kierowcy: start, każdy zakręt krytyczny, merge i powrót;
+- pełne okrążenie wykonane ręcznie przez Jozza;
+- branch/drift/landing oceniane osobno;
+- jawne `ACCEPT / ADAPT / REJECT`, bez automatycznego kolejnego WP.
+
+## 12. Definition of Done
+
+E3 jest gotowy, gdy jedna pętla i jej connector są zaakceptowane technicznie i
+produktowo. Drift, branch i landing mogą pozostać niezrealizowane bez blokowania
+odbioru samej pętli, o ile status każdego jest jawny. Trzy warianty, ładny
+top-down, długość z validatora albo stabilne 300 klatek na anchorze nie są
+dowodem przejezdnego toru.

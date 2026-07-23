@@ -204,6 +204,17 @@ set(SAMPLE_FILES
     jozz_vehicle_m5_drivable_lab.h
     jozz_vehicle_m5_test_course.cpp
     jozz_vehicle_m5_test_course.h
+    jozz_vehicle_central_test_campus.cpp
+    jozz_vehicle_central_test_campus.h
+    jozz_vehicle_central_test_campus_builder.cpp
+    jozz_vehicle_central_test_campus_visual.cpp
+    jozz_vehicle_central_test_campus_visual.h
+    jozz_vehicle_track_layout.cpp
+    jozz_vehicle_track_layout.h
+    jozz_vehicle_track_builder.cpp
+    jozz_vehicle_track_builder.h
+    jozz_vehicle_track_visual.cpp
+    jozz_vehicle_track_visual.h
     jozz_vehicle_m6_rig_lab.cpp
     jozz_vehicle_m6_rig_lab.h
     jozz_vehicle_m6_rig_lab_internal.h
@@ -274,9 +285,14 @@ set(JOZZ_VALIDATION_FILES
     validation/jozz_probes_m7.cpp
     validation/jozz_probes_steering.cpp
     validation/jozz_probes_config.cpp
+    validation/jozz_probes_map.cpp
 )
 add_executable(jozz_vehicle_validation
     jozz_vehicle_validation.cpp
+    jozz_vehicle_central_test_campus.cpp
+    jozz_vehicle_central_test_campus.h
+    jozz_vehicle_track_layout.cpp
+    jozz_vehicle_track_layout.h
     ${JOZZ_VEHICLE_CORE_FILES}
     ${JOZZ_VALIDATION_FILES}
 )

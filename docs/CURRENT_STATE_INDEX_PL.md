@@ -24,6 +24,14 @@ zakładek) + system presetów pojazdu** (`jozz_vehicle_m6_config_io`,
 Walidacja headless + test.exe + boot smoke zielone; czeka na ręczny test feelu
 Jozza. Soft-tire nadal świadomie odłożona.
 
+> **Aktualizacja mapy 2026-07-13:** ten ledger nie jest źródłem statusu prac
+> mapowych. Po krytycznym audycie E1 pozostaje zaakceptowany, E2R wymaga
+> recovery i ręcznego odbioru, a bieżący trzywarstwowy E3 jest odrzuconym
+> eksperymentem do odłączenia od runtime. Aktualny status i kolejność:
+> `PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md`; dowody:
+> `AUDYT_REALIZACJI_MAPY_2026_07_13_PL.md`; wykonanie Luny:
+> `PLAN_WYKONAWCZY_MAPA_GPT_LUNA_PL.md`.
+
 ## 1. Current active samples
 
 ```text

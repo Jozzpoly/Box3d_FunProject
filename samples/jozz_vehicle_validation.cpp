@@ -94,6 +94,9 @@ bool RunP6MassAndLimitSanityProbe( const JozzVehiclePrimitiveDefaults& defaults 
 bool RunP6StressMatrixProbe( const JozzVehiclePrimitiveDefaults& defaults );
 bool RunP3SuspensionPreloadProbe( const JozzVehiclePrimitiveDefaults& defaults );
 bool RunPresetDeterminismProbe( const JozzVehiclePrimitiveDefaults& defaults );
+bool RunCentralCampusLayoutProbe();
+bool RunMasterplanYardProbe();
+bool RunLongTrackLayoutProbe();
 
 int main()
 {
@@ -249,7 +252,10 @@ int main()
 	{
 		ok &= probe.run( defaults );
 	}
-	std::printf( "jozz_vehicle_validation: ran %d probes\n", probeCount );
+	ok &= RunCentralCampusLayoutProbe();
+	ok &= RunMasterplanYardProbe();
+	ok &= RunLongTrackLayoutProbe();
+	std::printf( "jozz_vehicle_validation: ran %d probes + 2 map probes\n", probeCount );
 
 	if ( ok == false )
 	{

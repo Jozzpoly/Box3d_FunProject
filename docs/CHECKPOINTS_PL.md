@@ -15,6 +15,51 @@ dokumentowania zmian** — zamiast pełnego `docs/*.md` na każdy drobiazg.
 Zasady: pełne raporty (analizy, plany) zostają w dedykowanych `docs/*.md`; tutaj
 tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gicie).
 
+## 2026-07-13 · Audyt mapy: E2R recovery, bieżący E3 odrzucony · docs
+- CO:     przebudowano źródło prawdy i plan Luny po audycie procesu, kodu, świeżym gate, runtime probes i renderach; bez zmian geometrii.
+- CZEMU:  E3 ominął dwa STOP-gate'y; trzy trasy są aktywne naraz, a rampy mają nieplanowane uskoki mimo zielonego validatora.
+- EFEKT:  E1=`ACCEPTED`, E2R=`RECOVERY_REQUIRED`, bieżący E3=`REJECTED_EXPERIMENT`; szczegóły w `AUDYT_REALIZACJI_MAPY_2026_07_13_PL.md`.
+- DALEJ:  WP-00 — Jozz wybiera sposób zachowania mieszanego WIP; potem odłączenie E3 i odbudowa baseline'u, bez nowej geometrii.
+
+## 2026-07-13 · E3.3: pierwszy kontrolowany slice profili toru · SUPERSEDED/REJECTED
+
+- CO:     do neutralnej bazy dodano niski rytm zielony, rytm wave żółty i pełną
+          artykulację czerwonego wariantu z osobnymi wycinkami góra/dół.
+- CZEMU:  wejście w E3.3 ma testować różne kontakty, ale nie powtarzać wysokich
+          ramp ani twardych schodków z odrzuconych prób.
+- EFEKT:  M6 na czerwonym anchorze stabilizuje się przez 320 klatek; 620 shape'ów,
+          1,45 ms/step, 0 błędów sokol; M5 320 klatek również bez błędów.
+- DALEJ:  —; wpis nadpisany audytem 2026-07-13, nie kontynuować tego E3.
+
+## 2026-07-13 · E2R.4b: pierwszy niski profil kontaktu w stacji W · SUPERSEDED/REJECTED
+
+- CO:     do osobnych pasów zachodniej stacji dodano niską artykulację
+          naprzemienną oraz łagodny off-camber; bumpery środkowego pasa
+          pozostały bez zmian.
+- CZEMU:  następny krok roadmapy wymaga przejścia od samej gęstości do
+          kontrolowanej jakości kontaktu, ale wcześniejsze rampy były zbyt
+          wysokie i tworzyły twardy schodek.
+- EFEKT:  builder korzysta z danych stacji, walidator ogranicza wznios obu
+          profili do maksymalnie 0.35 m, `samples`/`test`/validator przechodzą,
+          a boot smoke M5/M6 po 300 klatek daje 0 błędów sokol; obejrzane są
+          rendery `e2r4b_articulation_top`, `e2r4b_articulation_side` i wariant
+          geometry-only.
+- DALEJ:  —; W-slice pozostaje w kwarantannie, nie reaktywować bez nowego WP.
+
+## 2026-07-12 · E2R.4a: gęste wyspy, bumper banks i satelity · SUPERSEDED/RECOVERY
+
+- CO:     aktywny course przebudowany na data-driven central campus; trzy
+          wyspy kamieni (401 planowanych shape'ów), 13 banków niskich i
+          naprzemiennych bumperów (147 shape'ów), usunięty martwy 6-lane
+          placement z orkiestratora; dodane place satelitarne N/NW/E/SW/SE.
+- CZEMU:  feedback Jozza wykazał, że sparse rock garden, wysokie kapsuły oraz
+          ruts/off-camber były zbyt małe albo źle dopasowane do pojazdu.
+- EFEKT:  build `samples`, `jozz_vehicle_validation`, `test`, boot smoke M5/M6
+          oraz przejazdy headless przez N/S/E — zielone; validator obejmuje
+          layout C, content density i bounds satelitów.
+- DALEJ:  —; wyspy/bumpery są kandydatami recovery według nowego mastera, nie
+          wolno kontynuować starej kolejności.
+
 ---
 
 ## 2026-07-12 · Rebase planu mapy: Etap 2 odrzucony i ponownie otwarty · docs

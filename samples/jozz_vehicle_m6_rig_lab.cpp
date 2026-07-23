@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT
 
 #include "jozz_vehicle_m6_rig_lab_internal.h"
+#include "jozz_vehicle_central_test_campus_visual.h"
+#include "jozz_vehicle_track_visual.h"
 
 JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		: Sample( context )
@@ -633,6 +635,8 @@ void JozzVehicleM6RigLab::Step()
 void JozzVehicleM6RigLab::Render()
 	{
 		Sample::Render();
+		DrawCentralCampusSkeleton();
+		DrawJozzTrackSkeleton();
 
 		if ( m_vehicle.valid == false )
 		{

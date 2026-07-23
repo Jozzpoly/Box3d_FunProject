@@ -12,6 +12,8 @@
 #include "jozz_vehicle_asset_metadata.h"
 #include "jozz_vehicle_asset_paths.h"
 #include "jozz_vehicle_m5_test_course.h"
+#include "jozz_vehicle_central_test_campus_visual.h"
+#include "jozz_vehicle_track_visual.h"
 #include "jozz_vehicle_m5_vehicle.h"
 #include "jozz_vehicle_visual_mesh.h"
 #include "jozz_vehicle_world_layout.h"
@@ -553,6 +555,8 @@ public:
 	void Render() override
 	{
 		Sample::Render();
+		DrawCentralCampusSkeleton();
+		DrawJozzTrackSkeleton();
 
 		if ( m_vehicle.valid == false )
 		{

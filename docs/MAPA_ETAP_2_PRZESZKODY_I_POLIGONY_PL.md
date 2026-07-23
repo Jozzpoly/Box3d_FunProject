@@ -1,123 +1,88 @@
-# Mapa — Etap 2R: centralny kampus testowy i odzyskanie obstacle kitu
+# Mapa — Etap 2R: odzyskanie centralnego kampusu
 
 Część planu `PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md`.
-Status: **OTWARTY PO ODRZUCENIU PIERWSZEJ IMPLEMENTACJI**.
+Status: **RECOVERY_REQUIRED — NIEZAAKCEPTOWANY**.
+Następny dozwolony strumień: R0/R1, potem dokończenie R2.
 
-## 1. Decyzja
+## 1. Decyzja po audycie 2026-07-13
 
-Implementacja `b8afab9` nie jest bazą layoutu do dalszego rozwijania. Jest
-bazą techniczną do odzyskania generatorów przeszkód. Sześć lane'ów na
-`x=150..195` zostaje zastąpione kampusem na całym środkowym kaflu gridu.
+Kierunek centralnego kampusu jest dobry, lecz obecna implementacja nie spełnia
+własnej definicji ukończenia. Nie istnieje udokumentowana akceptacja skeletonu
+E2R.3 ani finalny odbiór E2R.5. Rozpoczęcie E3 nie zmieniło tego statusu.
 
-W tym etapie nie robimy mechanicznego revertu. Najpierw zachowujemy dowód
-obecnego stanu, klasyfikujemy kod na „odzyskać / poprawić / usunąć”, a dopiero
-potem przebudowujemy placement. Etap 3 nie startuje przed ręczną akceptacją
-nowego kampusu przez Jozza.
+Do aktywnego baseline'u można odzyskać:
 
-## 2. Co zostaje, co odpada
+- pełny techniczny grid kafla C;
+- czysty Central Core 24×24 m;
+- modularny podział data/builder/visual;
+- trzy role terenowych wysp E jako kandydaty;
+- niskie bumper banks jako kandydaty;
+- deterministyczne specs i cienki course;
+- tile/yard registry.
 
-### Zostaje po audycie
+Nie są zaakceptowane:
 
-- moduł `jozz_vehicle_obstacle_kit.{h,cpp}` i parametryczne generatory;
-- wspólny helper nadający kategorię terenu i materiał;
-- deterministyczny rock garden;
-- etykiety rysowane per-frame z distance cullingiem;
-- arbitralny teleport `JOZZ_M6_TELEPORT_XZ` jako narzędzie testowe;
-- współdzielenie course'u przez M5 i M6.
+- quota 401 kamieni i 147 bumperów jako miara jakości;
+- dawna W-articulation/off-camber — została odrzucona wizualnie i jest
+  nieaktywna;
+- niezbadane rampy/ruts/stairs/berm z obstacle kitu;
+- stały blueprint overlay;
+- brakująca zatoka propów, niepełne S/W i nieudowodniona pętla obwodowa.
 
-### Do poprawy
+Szczegóły problemów i dowody: `AUDYT_REALIZACJI_MAPY_2026_07_13_PL.md`.
 
-- każdy generator dostaje jawny opis anchoru, kierunku, footprintu i
-  oczekiwanego wyjścia;
-- geometria, która wygląda poprawnie tylko z góry, musi przejść ujęcie z
-  wysokości koła oraz przejazd w deklarowanym kierunku;
-- kolory całych brył zastępujemy neutralnym materiałem i małym akcentem
-  trudności;
-- receptury stanowisk przenosimy poza `m5_test_course.cpp`;
-- stairs/ruts/berm/gap jump przechodzą osobne sanity checki geometrii,
-  kierunku i bezpiecznego wybiegu.
+## 2. Cel produktu
 
-### Odpada
+Zbudować na całym kaflu C skupiony techniczny kampus, który:
 
-- `kPoligonOriginX=150`, `kPoligonLaneLength=45`, sześć `kLanes` i
-  layout `z=-60..60`;
-- idea sześciu równoległych pasów jako głównego doświadczenia;
-- nasycone zielone/żółte/czerwone całe przeszkody;
-- pakowanie stanowisk kursorem `lane.x += ...`;
-- przeniesienie wszystkich propów daleko od środka bez zastąpienia ich
-  świadomie zaprojektowaną zatoką interakcyjną.
+- zachowuje grid jako dominującą powierzchnię;
+- przypomina energią pierwszą, skupioną mapę, ale ma profesjonalny layout;
+- pozwala w kilka sekund wybrać krótką próbę i wrócić do core;
+- nie wygląda jak katalog drobnych brył;
+- jest użyteczny jednocześnie dla prostego auta M5 i rigu M6;
+- oddziela debug layoutu od finalnego obrazu mapy.
 
-## 3. Geometria środkowego kafla
+## 3. Kontrakt przestrzeni
 
-Nominalne granice kafla `C`:
+### 3.1 Kafel i rdzeń
 
-- `x,z∈[-66.667,66.667]`;
-- margines techniczny 6 m od każdej krawędzi;
-- używalny layout `x,z∈[-60,60]`;
-- cały base shape pozostaje proceduralnym gridem;
-- minimum 55% powierzchni kafla pozostaje nieprzykrytym, widocznym gridem.
+- nominalny C: `x,z∈[-66,667;66,667]`;
+- używalny layout: `x,z∈[-60;60]`;
+- Central Core: `x,z∈[-12;12]`;
+- zero statycznych przeszkód i domyślnego scatteru w core;
+- cztery spokes od core: minimum 10 m rzeczywistej wolnej szerokości;
+- obwodowy pusty korytarz: minimum 8 m rzeczywistej wolnej szerokości;
+- minimum 55% używalnego rzutu `120×120 m` pozostaje widocznym,
+  nieprzykrytym gridem;
+- żadna bryła E2R nie wykracza poza margines techniczny C.
 
-### 3.1 Rdzeń
+Metryka 55% używa pola sumy mnogościowej (bez podwójnego liczenia overlapów)
+rzutów realnych AABB shape'ów, przyciętych do `[-60;60]²`; jest konserwatywnym
+przybliżeniem widocznego gridu. Mianownik to 14 400 m². Core, spokes i loop są
+dodatkowymi warunkami ciągłości wolnej przestrzeni, nie powierzchnią dodawaną
+drugi raz do wyniku.
 
-`Central Core`: `x,z∈[-12,12]` (24×24 m).
+### 3.2 Role, nie obowiązkowe wypełnienie
 
-- spawn i restart pojazdu;
-- miejsce na obrót, oglądanie rigu i strojenie;
-- zero statycznych przeszkód i zero domyślnego scatteru;
-- osie X/Z gridu pozostają czytelne;
-- cztery korytarze/spokes o szerokości minimum 10 m prowadzą do stanowisk.
+| Rejon | Pierwsza rola | Status bieżący | Decyzja |
+|---|---|---|---|
+| N | komfort i rytm | wiele bumper banks | uprościć i odebrać jedną recepturę |
+| E | teren punktowy/trakcja | 3 gęste wyspy | zachować role, przeprojektować footprint i linie |
+| S | lekki impact/lot | brak pełnej funkcji | po naprawie kontraktu ramp |
+| W | wolny test/artykulacja | zły slice wycofany | nie reaktywować; nowa koncepcja albo wolny korytarz |
+| NW pocket | interakcja | brak propów | dodać 6–8 lekkich, resetowalnych propów |
 
-### 3.2 Obwodowy korytarz
+Podstrefa może pozostać pusta, jeśli lepsza geometria nie przeszła odbioru.
+Symetria czterech „wypełnionych ćwiartek” nie jest celem.
 
-Między stanowiskami zostaje przejezdna pętla na gridzie. Nie jest osobnym
-shape'em ani drogą o innym materiale — to zarezerwowany, pusty footprint.
+## 4. Model danych i jedno źródło prawdy
 
-- orientacyjna oś pętli: prostokąt `x,z≈±48`;
-- szerokość korytarza minimum 8 m;
-- pozwala objechać kampus i wrócić do rdzenia bez cofania;
-- jej cztery bramy staną się później łącznikami do kafli W/N/E/S.
-
-## 4. Cztery podstrefy zamiast sześciu lane'ów
-
-Dokładne współrzędne finalizuje tabela danych po pierwszym renderze footprintów.
-Poniższe prostokąty są budżetem, nie magicznymi liczbami w builderze.
-
-| Podstrefa | Budżet footprintu | Kierunek | Receptury | Cel |
-|---|---:|---|---|---|
-| **N — Komfort i rytm** | `x=-46..46, z=27..50` | W→E, dwukierunkowa po walidacji | speed bump niski, krótki washboard, łagodne whoops | mała amplituda, częstotliwość, tłumienie |
-| **W — Artykulacja** | `x=-52..-27, z=-28..26` | S→N | articulation ramps, płytkie ruts, off-camber | skok zawieszenia, kontakt naprzemienny, przechył |
-| **E — Teren punktowy** | `x=27..52, z=-26..28` | N→S | rock garden, 1–2 logs, niski berm/wyjście | punktowe uderzenia, trakcja, praca koła |
-| **S — Impact i lot** | `x=-46..46, z=-52..-28` | W→E | step 0.1/0.25, kicker łagodny, tabletop kompaktowy | dobicie, oderwanie, kontrolowane lądowanie |
-
-Twardy gap jump i duża skocznia 25° nie mieszczą się odpowiedzialnie w
-centralnym kaflu wraz z wymaganym rozbiegiem i wybiegiem. Zostają w obstacle
-kit, ale ich docelowa stacja powstanie na kaflach `E/SE` w Etapie 3.
-Nie wciskamy generatora na mapę tylko dlatego, że istnieje.
-
-## 5. Zatoka interakcyjna — odzyskanie ducha pierwszej mapy
-
-W narożniku NW centralnego kafla, poza korytarzem pętli, powstaje mała zatoka
-z 6–8 lekkimi propami:
-
-- dwie skrzynki, dwie kule, dwa różne rozmiary;
-- ustawienie ręczne i czytelne, nie losowy scatter;
-- propy nie leżą na osi spawnu, najazdu ani wybiegu;
-- wszystkie mają kategorię `0x1` i pełny reset;
-- zatoka ma wyglądać jak zaproszenie do interakcji znane z pierwszej mapy,
-  ale nie może konkurować z testami zawieszenia.
-
-Pozostałe ciężkie propy czekają na plac fizyki/spawner.
-
-## 6. Model danych stanowiska
-
-Wprowadzić dane niezależne od world-buildingu:
+Każda stacja ma stabilne ID i co najmniej:
 
 ```cpp
 struct JozzTestStationSpec
 {
     JozzStationId id;
-    const char* name;
-    JozzStationKind kind;
     JozzTileId tile;
     b3Vec2 centerXZ;
     float yawDegrees;
@@ -126,125 +91,152 @@ struct JozzTestStationSpec
     float runoffLength;
     float recommendedSpeedMin;
     float recommendedSpeedMax;
-    JozzDifficulty difficulty;
     bool bidirectional;
 };
 ```
 
-Nie chodzi o przybicie dokładnie tej reprezentacji, lecz o kontrakt. Builder
-nie może ponownie wyliczać rozstawu kursorem bez wiedzy o footprintach.
+Dokładny typ może się zmienić, ale kontrakt nie. Receptury contentu muszą
+odwoływać się do ID stacji, a validator ma porównać faktycznie zbudowane AABB z
+jej footprintem. Osobna tablica, której builder nie czyta, nie jest źródłem
+prawdy.
 
-### Walidator layoutu
+## 5. Walidator E2R
 
-Nowa sonda CLI ma failować, gdy:
+Walidator failuje, gdy:
 
-- footprint wykracza poza `[-60,60]`;
-- przecina Central Core;
-- przecina inny footprint lub zarezerwowany korytarz;
-- brakuje minimalnego najazdu/wybiegu;
-- anchor teleportu leży wewnątrz shape'a;
-- stanowisko deklarowane jako dwukierunkowe nie ma wybiegu po obu stronach;
-- shape jezdny nie ma kategorii terenu;
-- prop ma kategorię terenu.
+- builder tworzy shape poza przypisaną stacją albo poza C;
+- realny shape przecina core, spoke lub obwodowy loop;
+- anchor leży w shape'ie albo nie ma bezpiecznego spawn footprintu auta;
+- approach/runoff jest za krótki dla deklarowanej prędkości;
+- dwukierunkowa stacja nie ma dwóch bezpiecznych wyjść;
+- rzeczywista kategoria shape'a jest niezgodna z rolą;
+- liczba body/shape przekracza jawny limit;
+- obstacle top-surface ma nieplanowany lip/step;
+- M5 i M6 dostają różne aktywne elementy kampusu;
+- debug overlay wpływa na fizykę lub jest domyślnie włączony w product view.
 
-Walidator drukuje tabelę: ID, bounds, approach, runoff, liczba body/shape.
+Raport drukuje per stacja: ID, real bounds, approach, runoff, bodies, shapes,
+occupied ratio, najwęższą linię i maksymalny step.
 
-## 7. Podział kodu
+Kategoria dyskretnej skały nie jest jeszcze rozstrzygnięta. Przed pierwszą
+wyspą osobny probe porównuje co najmniej: całość jako terrain, całość jako
+object oraz rozdzielony top/side. Mierzy kontakty rolling sphere i sidewall M6,
+najazd bokiem oraz zachowanie M5. Do wyniku tego probe'a validator nie może
+uznać żadnej z tych kategorii za „zgodną z rolą”. Status: **ADAPT_PENDING_PROBE**.
 
-- `jozz_vehicle_obstacle_kit.{h,cpp}`: tylko geometria pojedynczej przeszkody;
-- `jozz_vehicle_central_test_campus.{h,cpp}`: station specs, receptury,
-  budowa kampusu, etykiety i reset zatoki;
-- `jozz_vehicle_world_layout.h`: granice kafli, identyfikatory, kotwice i
-  stałe globalne; bez 200 linii receptur;
-- `jozz_vehicle_m5_test_course.cpp`: cienka orkiestracja modułów świata;
-- `validation/jozz_probes_map.cpp` lub równoważny mały plik: czyste sondy
-  layoutu i kategorii.
+## 6. Obstacle kit — ponowny audyt
 
-Warunek architektoniczny: po etapie course ma być wyraźnie krótszy niż obecne
-313 linii i nie może zawierać osobnej funkcji Build* dla każdego stanowiska.
+Żaden generator nie jest `KEEP` tylko dlatego, że kompiluje się. Tabela musi
+mieć `KEEP / FIX / QUARANTINE / DEFER` i dowód profilu.
 
-## 8. Kolejność wykonania
+Minimalne próby generatora:
 
-### E2R.0 — baseline odrzuconego stanu
+1. top-surface w punktach entry/25%/50%/75%/exit;
+2. zgodność deklarowanego rise/drop z wynikiem;
+3. widok z wysokości koła;
+4. najazd prosto i pod kątem;
+5. przejazd przy dolnej i górnej deklarowanej prędkości;
+6. kategoria kontaktu w M5 i M6;
+7. brak ukrycia pod ciągłą płytą;
+8. brak dodatkowego progu wynikającego z grubości slabu.
 
-- zachować render całej płyty, środkowego kafla i obecnego poligonu;
-- zachować polecenia/kamerę;
-- zapisać liczbę body/shape i wynik gate;
-- bez zmian geometrii.
+Do chwili przejścia tych prób **wszystkie generatory są QUARANTINE**, poza
+jawnie wymienionymi kandydatami `AddBumperBank` i `AddRockIsland`. Te dwa mają
+status **FIX/CANDIDATE**, nie `KEEP` ani `ACCEPTED`. Obejmuje to także pomijane
+wcześniej `AddStepUp`, `AddStepDown`, `AddWhoops`, `AddSpeedBump`,
+`AddWashboard`, `AddRockGarden` i `AddLogs`; brak nazwy na starej liście nie
+jest zgodą na użycie.
 
-### E2R.1 — kontrakt danych i walidator
+## 7. Kolejność recovery i ukończenia
 
-- station specs, tile bounds, exclusion zones, approach/runoff;
-- sonda działa najpierw na danych nowego layoutu;
-- nadal bez budowania przeszkód.
+### E2R-R0 — zachowanie bieżącego WIP (`WP-00`, `WP-01`)
 
-### E2R.2 — audyt obstacle kitu
+- pełny inventory i diff;
+- snapshot/gałąź wybrana przez Jozza;
+- manifest obecnych renderów i wyników;
+- zero zmian geometrii.
 
-- tabela 15 generatorów: KEEP / FIX / DEFER;
-- render każdej używanej receptury z wysokości koła;
-- poprawki generatorów osobno od placementu.
+### E2R-R1 — baseline aktywnego świata (`WP-02`, `WP-03`)
 
-### E2R.3 — skeleton kampusu
+- E3 fizycznie wyłączony;
+- overlay pod toggle, domyślnie off;
+- E1 niezmieniony;
+- bieżący E2R widoczny z czterech stałych kamer;
+- checkpoint `BASELINE_RECOVERED`.
 
-- tylko neutralne footprint markers/bramki i etykiety;
-- top-down środkowego kafla;
-- **STOP: akceptacja layoutu przez Jozza przed wstawieniem brył.**
+### E2R-R2 — validator realnego buildera (`WP-GATE-A`, `WP-GATE-B`)
 
-### E2R.4 — stanowiska i zatoka
+- shape manifest;
+- core/spokes/loop/anchor/category checks;
+- maksymalny budżet shape'ów;
+- test M5+M6 w gate.
 
-- wstawienie przeszkód do zaakceptowanych footprintów;
-- neutralny język materiałów + małe akcenty trudności;
-- integracja M5/M6, reset, teleporty.
+### E2R-C1 — N: jedna receptura komfortu (`WP-C2-N-COMFORT`)
 
-### E2R.5 — jazda i sign-off
+- jedna krótka sekcja, nie 13 banków naraz;
+- jawna wysokość, odstęp i prędkość;
+- test obu kierunków;
+- obraz top/driver i odbiór przed kolejną recepturą.
 
-- przejazdy, rendery, liczby;
-- ręczna jazda Jozza;
-- dopiero wtedy status Etapu 2 zmienia się na zaakceptowany.
+### E2R-C2 — E: jedna wyspa terenowa (`WP-C3-E-CATEGORY`, `WP-C3-E-ISLAND`)
 
-## 9. Bramka techniczna
+- 2–3 czytelne linie jazdy; każda ma minimalną wolną szerokość równą większej
+  z obwiedni M5/M6 przy skręcie ±10° plus 0,5 m marginesu z każdej strony;
+- wolny bypass;
+- brak pojedynczych kamieni niewidocznych z fotela;
+- próby prosto, bokiem i po skosie;
+- brak zakleszczenia envelope'u M6.
 
-- build `samples`, `jozz_vehicle_validation`, `test`;
-- validator z roota: wszystkie istniejące sondy + nowe sondy mapy;
-- `test.exe`;
-- boot smoke M5 i M6, 0 błędów sokol;
-- liczba shape'ów stabilna po 10 restartach/regeneracjach;
-- M5 i M6 budują identyczny kampus;
-- R5: każda jezdna powierzchnia = teren, każdy prop = `0x1`;
-- brak overlapów, naruszenia core i wyjazdu poza centralny kafel.
+### E2R-C3 — zatoka interakcyjna (`WP-C4-PROPS`)
 
-## 10. Bramka wizualna i przejazdowa
+- 6–8 propów kategorii `0x1`;
+- poza core, spokes i loop;
+- pełny reset i stały body count po 10 cyklach;
+- nie rozsypywać propów na osie jazdy.
 
-Obowiązkowe identyczne kamery:
+### E2R-C4 — kolejne małe stanowisko (`WP-C5-CHOICE` + wybrany WP)
 
-1. `before_4c125ee_center` — stara skupiona mapa;
-2. `rejected_b8afab9_center` — pusty środek;
-3. `candidate_e2r_center` — nowy kampus;
-4. `candidate_e2r_plate` — cała płyta;
-5. po jednym ujęciu z wysokości kierowcy dla N/W/E/S.
+Wybór po ocenie C1–C3. Nie zakładać z góry, że musi to być W albo rampa. Każdy
+nowy typ kontaktu ma osobny WP i STOP.
 
-Kryteria:
+### E2R-C5 — integracja kampusu (`WP-C6-INTEGRATION`)
 
-- z góry natychmiast widać rdzeń, cztery podstrefy i obwodowy powrót;
-- techniczny grid pozostaje dominującą powierzchnią;
-- żadne stanowisko nie wygląda jak przypadkowo rozsypane bryły;
-- z rdzenia widać co najmniej trzy wejścia do podstref;
-- wszystkie wejścia są osiągalne w mniej niż 60 m od spawnu;
-- Komfort: 8–12 m/s bez nieoczekiwanego wyrzutu;
-- Artykulacja: wolny przejazd, naprzemienny kontakt kół;
-- Teren punktowy: brak zakleszczenia na geometrii generatora;
-- Impact: kontrolowane oderwanie i bezpieczne lądowanie w footprint;
-- pełne okrążenie korytarza bez cofania.
+- pełny obwodowy przejazd bez cofania;
+- z core widoczne co najmniej trzy czytelne wejścia;
+- wszystkie aktywne stacje osiągalne w mniej niż 60 m;
+- brak regresji gridu i centralnego fokusu;
+- ręczna jazda Jozza.
 
-## 11. STOP-gate i definicja „gotowe”
+## 8. Stałe dowody
 
-Etap nie jest gotowy, gdy tylko:
+Każdy kandydat zachowuje:
 
-- kompiluje się;
-- ma wszystkie generatory;
-- shape count się zgadza;
-- da się przejechać wybrany odcinek.
+- `plate_top` — cała płyta;
+- `center_top` — cały C;
+- `center_3q` — sylweta przeszkód;
+- `core_driver` — czytelność wejść z core;
+- `station_<id>_driver`;
+- obraz lub log przejazdu referencyjnego;
+- manifest komendy, kamera, seed, frame count, hash.
 
-Etap jest gotowy dopiero, gdy bramka techniczna jest zielona, render skeletonu
-został wcześniej zaakceptowany, finalny kampus przeszedł realną jazdę, a Jozz
-potwierdził, że środkowy kafel odzyskał fokus i jest lepszy od pierwszej mapy.
+Porównanie obowiązkowe:
+
+1. skupiona pierwsza mapa;
+2. odrzucony far-east 6-lane;
+3. odzyskany baseline E2R;
+4. finalny kandydat E2R.
+
+## 9. Definition of Done
+
+E2R jest gotowy wyłącznie, gdy:
+
+- pełny gate i osobny smoke M5+M6 są zielone;
+- validator mierzy realny builder;
+- nie ma P0/P1 z audytu przypisanego do centralnego kafla;
+- przynajmniej N, E i zatoka propów mają osobne dowody;
+- core, spokes i obwodowy loop są przejezdne;
+- produktowy overlay jest domyślnie wyłączony;
+- Jozz przejechał kampus i wpisał `E2R ACCEPTED BY JOZZ` wraz z hashem.
+
+Build, quota shape'ów, 300 klatek na anchorze albo ładny top-down nie zamykają
+etapu osobno ani łącznie bez ręcznego sign-offu.

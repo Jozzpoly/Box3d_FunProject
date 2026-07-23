@@ -81,6 +81,22 @@ void AddStepDown( b3WorldId worldId, b3Pos entry, float yawDegrees, float width,
 
 // ---- Rytmiczne (CENTER anchor) --------------------------------------------
 
+enum JozzBumperPattern
+{
+	kJozzBumperFullWidth = 0,
+	kJozzBumperAlternatingSides = 1,
+	kJozzBumperWave = 2,
+};
+
+// A dense, deterministic bumper bank. `centerY` is explicit in world metres
+// relative to the ground plane: it is intentionally not inferred from the
+// radius, because low comfort bumpers and raised logs need different profiles.
+// Alternating patterns use shorter left/right capsules so the car sees a
+// deliberate rhythm rather than one accidental wall.
+void AddBumperBank( b3WorldId worldId, b3Pos center, float yawDegrees, int count, float spacing, float radius,
+					float width, float centerY, float sideOffset, JozzBumperPattern pattern, uint64_t terrainCategoryBits,
+					uint32_t customColorHex = 0 );
+
 // A row of `count` capsule moguls spanning `width`, spaced `spacing` apart
 // along local X, each partly embedded so it reads as a molded dip-and-rise
 // rather than a loose log. Classic rhythmic whoops section.
@@ -104,8 +120,15 @@ void AddWashboard( b3WorldId worldId, b3Pos center, float yawDegrees, int count,
 // square meter; size is drawn from [minSize, maxSize]. Deterministic for a
 // given seed (re-rolls exactly like the offroad terrain's "Przebuduj teren").
 void AddRockGarden( b3WorldId worldId, b3Pos center, float yawDegrees, float lengthX, float widthZ, float density,
-					 float minSize, float maxSize, uint64_t terrainCategoryBits, uint32_t seed,
-					 uint32_t customColorHex = 0 );
+						 float minSize, float maxSize, uint64_t terrainCategoryBits, uint32_t seed,
+						 uint32_t customColorHex = 0 );
+
+// Clustered rock island for high-density engine testing. One static body owns
+// many deterministic hull shapes; clusters and an exclusion radius keep the
+// result readable and avoid the old single sparse scatter.
+void AddRockIsland( b3WorldId worldId, b3Pos center, float yawDegrees, float lengthX, float widthZ, int clusterCount,
+					int rocksPerCluster, float clusterRadius, float minSize, float maxSize, uint64_t terrainCategoryBits,
+					uint32_t seed, uint32_t customColorHex = 0 );
 
 // Two parallel V-groove trenches, one per wheel track (`trackWidth` apart),
 // `depth` deep, `length` long - drive IN a rut and climb back OUT of it.
@@ -138,9 +161,10 @@ void AddStairs( b3WorldId worldId, b3Pos entry, float yawDegrees, int stepCount,
 void AddLogs( b3WorldId worldId, b3Pos center, float yawDegrees, int count, float radius, float spacing, float width,
 			   uint64_t terrainCategoryBits, uint32_t customColorHex = 0 );
 
-// Two independent wedge ramps, one per wheel path, offset from each other by
-// `offsetLR` along local X so the two sides are never at the same height at
-// the same time - a cross-axle articulation test.
+// Two independent low-profile humps, one per wheel path, offset from each
+// other by `offsetLR` along local X so the two sides are never at the same
+// height at the same time. Each path has a complete ascent and descent; the
+// function must never leave a raised ramp ending in a hard drop.
 void AddArticulationRamps( b3WorldId worldId, b3Pos center, float yawDegrees, float length, float width,
 							 float angleDegrees, float offsetLR, uint64_t terrainCategoryBits,
 							 uint32_t customColorHex = 0 );
