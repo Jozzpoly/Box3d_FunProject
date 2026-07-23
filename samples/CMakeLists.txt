@@ -196,6 +196,14 @@ set(SAMPLE_FILES
     jozz_scan_preview_lab.h
     jozz_scan_preview_pack.cpp
     jozz_scan_preview_pack.h
+    jozz_vehicle_scan_drive_lab.cpp
+    jozz_vehicle_scan_drive_lab.h
+    jozz_vehicle_scan_geometry.cpp
+    jozz_vehicle_scan_geometry.h
+    jozz_vehicle_m6_visual_skin.cpp
+    jozz_vehicle_m6_visual_skin.h
+    jozz_vehicle_m6_setup_ui.cpp
+    jozz_vehicle_m6_setup_ui.h
     jozz_vehicle_body_registry.cpp
     jozz_vehicle_body_registry.h
     jozz_vehicle_corner_rig.cpp

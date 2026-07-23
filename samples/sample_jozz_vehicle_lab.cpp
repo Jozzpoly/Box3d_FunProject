@@ -9,6 +9,7 @@
 #include "jozz_vehicle_m8_rig_bench.h"
 #include "jozz_vehicle_m9_steering_rig_bench.h"
 #include "jozz_vehicle_primitive_corner_lab.h"
+#include "jozz_vehicle_scan_drive_lab.h"
 #include "sample.h"
 
 #include "box3d/box3d.h"
@@ -77,6 +78,9 @@ static int sampleJozzVehiclePrimitiveCornerM2 =
 
 static int sampleJozzScanSourcePreview =
 	RegisterSample( "Jozz Vehicle", "P2A Scan Source Preview", CreateJozzScanSourcePreviewLab );
+
+static int sampleJozzScanDrive =
+	RegisterSample( "Jozz Vehicle", "P2B Scan Drive (M6)", CreateJozzVehicleScanDriveLab );
 
 static int sampleJozzVehicleM5FirstDrivable =
 	RegisterSample( "Jozz Vehicle", "M5 First Drivable", CreateJozzVehicleM5FirstDrivable );
