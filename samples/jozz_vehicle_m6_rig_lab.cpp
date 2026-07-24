@@ -118,6 +118,18 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		CreateVehicle(); // sets up the per-corner mount rig, needs the visuals loaded
 		SyncEditFromConfig();
 
+		// JOZZ_SCAN_AUTOLOAD (headless --screenshot aid, fundament v3): load the
+		// scan island from JOZZ_SCAN_PREVIEW_PACK and teleport onto it on boot, so
+		// a headless run can verify the scan physics without clicking the Mapa tab.
+		if ( const char* scanAuto = std::getenv( "JOZZ_SCAN_AUTOLOAD" ) )
+		{
+			if ( atoi( scanAuto ) != 0 )
+			{
+				LoadScanTile();
+				TeleportToScan();
+			}
+		}
+
 		// --- JOZZ_M6_* env registry (headless testing / --screenshot / the
 		// future rig editor's headless render) --------------------------------
 		// The complete, current set - keep this list in sync when adding/removing
@@ -334,6 +346,24 @@ float JozzVehicleM6RigLab::GetSpawnHeight() const
 
 float JozzVehicleM6RigLab::GetGroundHeightAt( float x, float z ) const
 	{
+		// The scan island is a mesh, not part of the analytic plate/offroad height
+		// field. When the query point is over the loaded island, sample it with a
+		// downward raycast so teleport spawn-height (four-wheel footprint sampling
+		// in CreateVehicle) lands the car on the scan surface, not on the plate.
+		if ( m_scanLoaded )
+		{
+			const b3AABB& b = m_scanBodies.worldBounds;
+			if ( x >= b.lowerBound.x && x <= b.upperBound.x && z >= b.lowerBound.z && z <= b.upperBound.z )
+			{
+				b3Pos from = { x, b.upperBound.y + 50.0f, z };
+				b3Vec3 translation = { 0.0f, ( b.lowerBound.y - 50.0f ) - from.y, 0.0f };
+				b3RayResult hit = b3World_CastRayClosest( m_worldId, from, translation, b3DefaultQueryFilter() );
+				if ( B3_IS_NON_NULL( hit.shapeId ) )
+				{
+					return hit.point.y;
+				}
+			}
+		}
 		return SampleJozzWorldGroundHeight( m_worldGround, x, z );
 	}
 

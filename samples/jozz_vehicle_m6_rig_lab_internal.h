@@ -22,6 +22,7 @@
 #include "jozz_vehicle_m7_suspension_import.h"
 #include "jozz_vehicle_steering_suspension_contract.h"
 #include "jozz_vehicle_visual_mesh.h"
+#include "jozz_vehicle_scan_import.h"
 #include "jozz_vehicle_world_layout.h"
 #include "jozz_vehicle_world_terrain.h"
 
@@ -144,6 +145,19 @@ public:
 	void DrawSuspensionTab();
 	void DrawChassisTab();
 	void DrawWorldTab();
+	// "Mapa" tab: one nested sub-tab per world segment (Płyta / Offroad / Skan).
+	// Each map fragment controls itself here instead of sharing one "Świat" list
+	// (fundament v3, Jozz: "osobna zakładka na segment mapy").
+	void DrawMapTab();
+	void DrawMapPlateSegment();
+	void DrawMapOffroadSegment();
+	void DrawMapScanSegment();
+	// Scan island (fundament v3, M1). Reads the private pack (env
+	// JOZZ_SCAN_PREVIEW_PACK) into m_scanTiles, builds ONE Terrain body north of
+	// the plate, and teleports onto it. See jozz_vehicle_scan_import.h.
+	void LoadScanTile();
+	void UnloadScanTile();
+	void TeleportToScan();
 	void DrawDebugTab();
 	bool DrawControls() override;
 	void SampleTelemetry();
@@ -156,6 +170,12 @@ public:
 	b3BodyId m_groundId; // == m_worldGround.plateBodyId; kept for the upright-assist joint anchor
 	JozzVehicleWorldGround m_worldGround;
 	int m_worldSeedInput = (int)JozzWorldLayout::kOffroadDefaultSeed; // UI-edited; applied by RegenerateTerrain()
+	// --- Skan (wyspa) — fundament v3 (M1) ------------------------------------
+	std::vector<JozzScanTileGeometry> m_scanTiles; // reader output; kept for reload/rebuild
+	JozzScanTileBodies m_scanBodies;               // physics handles + world-space bounds
+	std::string m_scanStatus = "skan: niezaładowany (ustaw JOZZ_SCAN_PREVIEW_PACK)";
+	bool m_scanFlipWinding = false;                // photogrammetry winding may need a flip
+	bool m_scanLoaded = false;
 	float m_spawnAnchorX = 0.0f; // current teleport anchor (world x/z); Start == origin
 	float m_spawnAnchorZ = 0.0f;
 	// JOZZ_M6_AUTODRIVE: headless drive-through testing aid (Etap 1) - forces

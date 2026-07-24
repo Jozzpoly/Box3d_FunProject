@@ -30,6 +30,8 @@
 #include "jozz_vehicle_scan_geometry.h" // JozzScanTileGeometry -- the M0 source
 
 #include <cstdint>
+#include <filesystem>
+#include <string>
 #include <vector>
 
 // -----------------------------------------------------------------------------
@@ -97,11 +99,15 @@ struct JozzScanTilePlacement
 struct JozzScanTileBodies
 {
 	b3BodyId terrainBody = b3_nullBodyId;
+	b3MeshData* terrainMesh = nullptr; // kept alive for the shape; freed by DestroyJozzScanTile
 	std::vector<b3BodyId> structureBodies;
 	std::vector<b3BodyId> vegetationBodies;
-	b3AABB worldBounds = {};
+	b3AABB worldBounds = {};       // scan AABB in WORLD space (origin already applied)
+	int terrainVertexCount = 0;
 	int terrainTriangleCount = 0;
+	int deferredMeshCount = 0;     // non-Terrain inputs skipped this milestone (M4 does them)
 	bool ok = false;
+	std::string status;            // human-readable outcome for the UI
 };
 
 // -----------------------------------------------------------------------------
@@ -123,3 +129,14 @@ JozzScanTileBodies BuildJozzScanTile( b3WorldId worldId, const JozzScanMeshInput
 // BuildJozzScanTile. Returns the same result struct.
 JozzScanTileBodies BuildJozzScanTileFromPack( b3WorldId worldId, const std::vector<JozzScanTileGeometry>& tiles,
 											  const JozzScanTilePlacement& placement, uint64_t terrainCategoryBits );
+
+// Frees the mesh blob and destroys the bodies created by BuildJozzScanTile.
+// Safe to call on a zero-initialized / failed result.
+void DestroyJozzScanTile( b3WorldId worldId, JozzScanTileBodies* bodies );
+
+// Resolve the private scan pack directory WITHOUT hard-coding a path in Git:
+// environment variable JOZZ_SCAN_PREVIEW_PACK wins (points at the directory
+// holding COMPLETE.json). Returns an empty path when unset -- the lab then
+// stays safely unloaded. (A build/scan_pipeline/previews auto-scan like the
+// render preview's can be added later; env keeps M0 simple and private.)
+std::filesystem::path FindJozzScanPackDir();

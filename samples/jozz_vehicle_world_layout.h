@@ -147,6 +147,17 @@ constexpr float kArmSubPeakAmp = 4.0f;			// additive bump amplitude at those sub
 constexpr float kEdgeFadeDistance = 35.0f;
 constexpr float kEdgeFadeBaseFloor = 0.7f;
 
+// --- Skan (wyspa, fundament v3, 2026-07-24) --------------------------------
+// A photogrammetry scan imported as a SEPARATE island NORTH of the plate,
+// reached by teleport only, its footprint edges left as cliffs (decisions
+// D4/D5). The body origin is computed at LOAD time from the scan's own bounds
+// (jozz_vehicle_scan_import) so any scan size clears the existing world: the
+// island's near (south) edge is pinned at kScanSouthEdgeZ - well north of the
+// plate's north edge (z=+200) - and its lowest point sits at kScanGroundY.
+// Nothing here allocates box3d state; only the teleport target reads it.
+constexpr float kScanSouthEdgeZ = 320.0f; // world z of the island's south edge
+constexpr float kScanGroundY = 0.0f;      // world y of the island's lowest point
+
 // --- Poligon zawieszen (Etap 2, docs/MAPA_ETAP_2_PRZESZKODY_I_POLIGONY_PL.md) -
 // A 45x120 m strip sitting on the plate (east side, west of the offroad
 // seam) holding 6 progression lanes. Cars enter from the west edge (local

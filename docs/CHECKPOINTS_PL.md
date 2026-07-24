@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-24 · Skan terenu: fundament v3 (kontrakt ról) + M1 kafel + zakładka Mapa · jozz-scan-terrain-f0
+- CO:     Pivot Jozza — auto-klasyfikator (v2) porzucony jako „automat, którego nie użyjemy"; silnik KONSUMUJE role (`jozz_vehicle_scan_import.{h,cpp}`: `JozzScanRole` Terrain/Structure/Vegetation/Decoration, tylko Terrain→kat. `0x2`). M1: `BuildJozzScanTile` merge'uje kafle w jeden `b3CreateMesh` (weld+identifyEdges), stawia wyspę na północy (z pinowany od `kScanSouthEdgeZ`). NOWA zakładka top-level „Mapa" z zagnieżdżonymi segmentami Płyta/Offroad/Skan; `GetGroundHeightAt` świadome skanu (raycast); reader JSPREV2 przeniesiony z gałęzi audytu.
+- CZEMU:  Ten skan jest brudny/jednorazowy — nie budować pod niego automatu; fundament ma przyjąć przyszłe CZYSTE, rozdzielone przez Jozza skany tym samym kanałem. Jozz: „osobna zakładka na segment mapy", reszta fragmentów też własne zakładki.
+- EFEKT:  BRAMKA zielona (build 3/3, walidator OK, test PASS, smoke 0 err). Render: skan ładuje się jako mesh 1 409 687 wierzch./1 775 775 trójk. (weld+BVH+identifyEdges, 0 sokol err), AABB świata x[-601,601] z[320,1419] y[0,161], box3d debug-rysuje teren, auto teleportowane (2 koła w kontakcie). Zakładka „Mapa" z segmentami renderuje się (polskie znaki OK).
+- DALEJ:  M2 mesh RENDERU skanu (teraz collision-only, niewidzialny bez debug-draw), M3 blob `b3MeshData`, M4 reader GLB + role Structure/Vegetation. Do rozważenia: 7 zakładek top-level zaczyna się przewijać; duplikat sekcji „Mapa" w zakładce Świat do usunięcia.
+
 ## 2026-07-12 · Rebase planu mapy: Etap 2 odrzucony i ponownie otwarty · docs
 - CO:     Przebudowano master plan i dokumenty E1–E6 wokół kaflowej architektury hub-and-spoke; E1 zostaje zaakceptowany, a E2R odzyska obstacle kit i zastąpi odległy 6-lane'owy pas centralnym kampusem N/W/E/S na pełnym technicznym gridzie.
 - CZEMU:  Realny render i kod pokazały pusty kafel C (`x,z≈±66.7`) oraz odseparowany katalog przeszkód przy `x=150..195`; zielona walidacja techniczna nie sprawdziła fokusu, czytelności ani jakości mapy.

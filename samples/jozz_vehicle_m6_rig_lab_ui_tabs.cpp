@@ -3,6 +3,8 @@
 
 #include "jozz_vehicle_m6_rig_lab_internal.h"
 
+#include <cstring> // strncmp: split teleport anchors by segment
+
 	// ---- Tabbed control panel. Live sliders act immediately; anything that
 	// rebuilds bodies goes through the pending-edit + Apply pattern, and the
 	// Apply bar at the bottom stays visible from every tab.
@@ -776,7 +778,7 @@ bool JozzVehicleM6RigLab::DrawControls()
 		// Tab order follows a natural setup flow: what kind of suspension and
 		// how it sits (Zawieszenie) -> what car it's bolted to (Nadwozie) ->
 		// engine/steering feel -> sandbox -> look under the hood (Debug).
-		// JOZZ_M6_TAB env (0-5) force-selects a tab once, for headless
+		// JOZZ_M6_TAB env (0-6) force-selects a tab once, for headless
 		// --screenshot verification of a specific tab without UI interaction.
 		auto tabFlags = [this]( int index ) {
 			return ( m_forceTabIndex == index ) ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None;
@@ -820,7 +822,12 @@ bool JozzVehicleM6RigLab::DrawControls()
 				DrawWorldTab();
 				ImGui::EndTabItem();
 			}
-			if ( ImGui::BeginTabItem( "Debug", nullptr, tabFlags( 5 ) ) )
+			if ( ImGui::BeginTabItem( "Mapa", nullptr, tabFlags( 5 ) ) )
+			{
+				DrawMapTab();
+				ImGui::EndTabItem();
+			}
+			if ( ImGui::BeginTabItem( "Debug", nullptr, tabFlags( 6 ) ) )
 			{
 				DrawDebugTab();
 				ImGui::EndTabItem();
@@ -850,5 +857,219 @@ bool JozzVehicleM6RigLab::DrawControls()
 		}
 
 		return true;
+	}
+
+// ============================================================================
+// "Mapa" tab: one nested sub-tab per world segment (fundament v3). Each map
+// fragment controls itself here instead of sharing the "Świat" list, so a new
+// segment (like the scan island) gets its own panel without touching the others.
+// ============================================================================
+void JozzVehicleM6RigLab::DrawMapTab()
+	{
+		if ( ImGui::BeginTabBar( "SegmentyMapy", ImGuiTabBarFlags_None ) )
+		{
+			if ( ImGui::BeginTabItem( "Płyta" ) )
+			{
+				DrawMapPlateSegment();
+				ImGui::EndTabItem();
+			}
+			if ( ImGui::BeginTabItem( "Offroad" ) )
+			{
+				DrawMapOffroadSegment();
+				ImGui::EndTabItem();
+			}
+			// Label flips to "- wczytany" when live (ASCII only: the UI font has no
+			// glyphs past Latin Extended-A). "###TabScan" pins the tab id so the
+			// label change never reshuffles the tab bar.
+			if ( ImGui::BeginTabItem( m_scanLoaded ? "Skan (wyspa) - wczytany###TabScan" : "Skan (wyspa)###TabScan" ) )
+			{
+				DrawMapScanSegment();
+				ImGui::EndTabItem();
+			}
+			ImGui::EndTabBar();
+		}
+	}
+
+void JozzVehicleM6RigLab::DrawMapPlateSegment()
+	{
+		SectionHeader( "Płyta 400×400" );
+		ImGui::TextWrapped( "Centralna płyta testowa (3×3 kafle, wierzch y=0) oraz poligon zawieszeń przy jej "
+							"wschodniej krawędzi. Nawierzchnia płaska, deterministyczna." );
+		ImGui::TextUnformatted( "Teleport" );
+		bool first = true;
+		for ( int i = 0; i < JozzWorldLayout::kWorldAnchorCount; ++i )
+		{
+			const JozzWorldLayout::JozzWorldAnchor& a = JozzWorldLayout::kWorldAnchors[i];
+			if ( std::strncmp( a.name, "Offroad", 7 ) == 0 )
+			{
+				continue; // offroad points live in their own segment
+			}
+			if ( !first )
+			{
+				ImGui::SameLine();
+			}
+			first = false;
+			if ( ImGui::Button( a.name ) )
+			{
+				TeleportTo( a.x, a.z );
+			}
+		}
+	}
+
+void JozzVehicleM6RigLab::DrawMapOffroadSegment()
+	{
+		SectionHeader( "Offroad (Etap 1)" );
+		ImGui::TextWrapped( "Proceduralny teren offroad z centralnym masywem górskim, przylegający do wschodniej "
+							"krawędzi płyty. W pełni deterministyczny względem seeda." );
+		ImGui::SetNextItemWidth( 8.0f * ImGui::GetFontSize() );
+		ImGui::InputInt( "Seed terenu", &m_worldSeedInput );
+		ImGui::SameLine();
+		if ( ImGui::Button( "Przebuduj teren" ) )
+		{
+			RegenerateTerrain();
+		}
+		HelpMarker( "Ten sam seed zawsze daje ten sam układ wzgórz i grani. Wpisz inną liczbę i przebuduj, "
+					"żeby wylosować nowy wariant; płyta, przeszkody i skan zostają bez zmian." );
+		ImGui::TextUnformatted( "Teleport" );
+		bool first = true;
+		for ( int i = 0; i < JozzWorldLayout::kWorldAnchorCount; ++i )
+		{
+			const JozzWorldLayout::JozzWorldAnchor& a = JozzWorldLayout::kWorldAnchors[i];
+			if ( std::strncmp( a.name, "Offroad", 7 ) != 0 )
+			{
+				continue;
+			}
+			if ( !first )
+			{
+				ImGui::SameLine();
+			}
+			first = false;
+			if ( ImGui::Button( a.name ) )
+			{
+				TeleportTo( a.x, a.z );
+			}
+		}
+	}
+
+void JozzVehicleM6RigLab::DrawMapScanSegment()
+	{
+		SectionHeader( "Skan terenu (wyspa, fundament v3)" );
+		ImGui::TextWrapped( "Zaimportowany skan fotogrametrii jako OSOBNA wyspa na północy mapy, dojazd tylko "
+							"teleportem, krawędzie zostawione jako urwiska. Grunt to dokładny mesh w kategorii "
+							"terenu (koła toczą się po nim). Ten skan jest brudny i nieprzerobiony - zaczepianie "
+							"o korony drzew jest oczekiwane; czyste, rozdzielone skany wejdą tym samym kanałem." );
+		ImGui::Spacing();
+
+		if ( !m_scanLoaded )
+		{
+			if ( ImGui::Button( "Wczytaj skan" ) )
+			{
+				LoadScanTile();
+			}
+		}
+		else
+		{
+			if ( ImGui::Button( "Przeładuj" ) )
+			{
+				UnloadScanTile();
+				LoadScanTile();
+			}
+			ImGui::SameLine();
+			if ( ImGui::Button( "Wyładuj" ) )
+			{
+				UnloadScanTile();
+			}
+			ImGui::SameLine();
+			if ( ImGui::Button( "Teleportuj na skan" ) )
+			{
+				TeleportToScan();
+			}
+		}
+
+		ImGui::Checkbox( "Odwróć nawinięcie trójkątów", &m_scanFlipWinding );
+		HelpMarker( "Fotogrametria nie gwarantuje zgodności nawinięcia z konwencją Box3D. Jeśli auto przenika "
+					"przez powierzchnię skanu zamiast po niej jechać, zaznacz i przeładuj." );
+
+		ImGui::Spacing();
+		ImGui::TextColored( m_scanLoaded ? ImVec4( 0.60f, 0.85f, 0.60f, 1.0f ) : ImVec4( 0.85f, 0.80f, 0.50f, 1.0f ),
+							"%s", m_scanStatus.c_str() );
+		if ( m_scanLoaded )
+		{
+			const b3AABB& b = m_scanBodies.worldBounds;
+			ImGui::Text( "Kafle: %d    Trójkąty: %d    Wierzchołki: %d", (int)m_scanTiles.size(),
+						 m_scanBodies.terrainTriangleCount, m_scanBodies.terrainVertexCount );
+			ImGui::Text( "AABB świata:  x[%.0f, %.0f]   z[%.0f, %.0f]   y[%.1f, %.1f]", b.lowerBound.x, b.upperBound.x,
+						 b.lowerBound.z, b.upperBound.z, b.lowerBound.y, b.upperBound.y );
+		}
+		else
+		{
+			ImGui::TextDisabled( "Źródło paczki: zmienna środowiskowa JOZZ_SCAN_PREVIEW_PACK (katalog z COMPLETE.json)" );
+		}
+	}
+
+void JozzVehicleM6RigLab::LoadScanTile()
+	{
+		std::filesystem::path dir = FindJozzScanPackDir();
+		if ( dir.empty() )
+		{
+			m_scanStatus = "skan: ustaw JOZZ_SCAN_PREVIEW_PACK na katalog z COMPLETE.json";
+			m_scanLoaded = false;
+			return;
+		}
+		m_scanTiles.clear();
+		std::string err;
+		if ( LoadJozzScanPackGeometry( dir, &m_scanTiles, &err, m_scanFlipWinding ) == false || m_scanTiles.empty() )
+		{
+			m_scanStatus = "skan: " + ( err.empty() ? std::string( "paczka pusta" ) : err );
+			m_scanLoaded = false;
+			return;
+		}
+
+		// Union the tile AABBs (reader fills each tile's bounds) to place the whole
+		// island: pin its south edge north of the plate, floor its lowest point at
+		// ground level, center it on x=0. Any scan size then clears the world.
+		b3AABB local = m_scanTiles[0].bounds;
+		for ( size_t i = 1; i < m_scanTiles.size(); ++i )
+		{
+			const b3AABB& tb = m_scanTiles[i].bounds;
+			local.lowerBound.x = b3MinFloat( local.lowerBound.x, tb.lowerBound.x );
+			local.lowerBound.y = b3MinFloat( local.lowerBound.y, tb.lowerBound.y );
+			local.lowerBound.z = b3MinFloat( local.lowerBound.z, tb.lowerBound.z );
+			local.upperBound.x = b3MaxFloat( local.upperBound.x, tb.upperBound.x );
+			local.upperBound.y = b3MaxFloat( local.upperBound.y, tb.upperBound.y );
+			local.upperBound.z = b3MaxFloat( local.upperBound.z, tb.upperBound.z );
+		}
+
+		JozzScanTilePlacement placement;
+		placement.origin.x = -0.5f * ( local.lowerBound.x + local.upperBound.x );
+		placement.origin.y = JozzWorldLayout::kScanGroundY - local.lowerBound.y;
+		placement.origin.z = JozzWorldLayout::kScanSouthEdgeZ - local.lowerBound.z;
+
+		m_scanBodies = BuildJozzScanTileFromPack( m_worldId, m_scanTiles, placement, JOZZ_M6_TERRAIN_CATEGORY );
+		m_scanLoaded = m_scanBodies.ok;
+		m_scanStatus = "skan: " + m_scanBodies.status;
+	}
+
+void JozzVehicleM6RigLab::UnloadScanTile()
+	{
+		DestroyJozzScanTile( m_worldId, &m_scanBodies );
+		m_scanTiles.clear();
+		m_scanBodies = JozzScanTileBodies{};
+		m_scanLoaded = false;
+		m_scanStatus = "skan: wyładowany";
+	}
+
+void JozzVehicleM6RigLab::TeleportToScan()
+	{
+		if ( m_scanLoaded == false )
+		{
+			return;
+		}
+		// Center of the island; GetGroundHeightAt is scan-aware (raycast) so the
+		// four-wheel spawn sampling in CreateVehicle lands the car on the surface.
+		const b3AABB& b = m_scanBodies.worldBounds;
+		float cx = 0.5f * ( b.lowerBound.x + b.upperBound.x );
+		float cz = 0.5f * ( b.lowerBound.z + b.upperBound.z );
+		TeleportTo( cx, cz );
 	}
 
