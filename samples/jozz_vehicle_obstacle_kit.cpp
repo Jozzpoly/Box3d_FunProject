@@ -3,6 +3,7 @@
 
 #include "jozz_vehicle_obstacle_kit.h"
 
+#include <algorithm>
 #include <cmath>
 #include <initializer_list>
 
@@ -130,9 +131,44 @@ void CreateCapsuleRow( b3BodyId bodyId, const b3ShapeDef& shapeDef, int count, f
 	}
 }
 
+void CreateCapsuleAlongZ( b3BodyId bodyId, const b3ShapeDef& shapeDef, float localX, float localZ, float radius,
+						  float width, float centerY )
+{
+	float halfSpan = b3MaxFloat( 0.1f, width * 0.5f - radius );
+	b3Capsule capsule = { { localX, centerY, localZ - halfSpan }, { localX, centerY, localZ + halfSpan }, radius };
+	b3CreateCapsuleShape( bodyId, &shapeDef, &capsule );
+}
+
 } // namespace
 
 // ---- Skocznie / rampy ------------------------------------------------------
+
+void AddBumperBank( b3WorldId worldId, b3Pos center, float yawDegrees, int count, float spacing, float radius,
+					float width, float centerY, float sideOffset, JozzBumperPattern pattern, uint64_t terrainCategoryBits,
+					uint32_t customColorHex )
+{
+	b3BodyId bodyId = CreateKitBody( worldId, center, yawDegrees, "kit_bumper_bank" );
+	b3ShapeDef shapeDef = MakeKitShapeDef( terrainCategoryBits, 0.85f, customColorHex );
+
+	float startX = -spacing * (float)( count - 1 ) * 0.5f;
+	for ( int i = 0; i < count; ++i )
+	{
+		float localX = startX + spacing * (float)i;
+		float localZ = 0.0f;
+		float elementWidth = width;
+		if ( pattern == kJozzBumperAlternatingSides )
+		{
+			localZ = ( i & 1 ) == 0 ? -sideOffset : sideOffset;
+			elementWidth = width * 0.58f;
+		}
+		else if ( pattern == kJozzBumperWave )
+		{
+			localZ = ( ( i % 4 ) < 2 ? -1.0f : 1.0f ) * sideOffset;
+			elementWidth = width * ( ( i & 1 ) == 0 ? 0.72f : 0.48f );
+		}
+		CreateCapsuleAlongZ( bodyId, shapeDef, localX, localZ, radius, elementWidth, centerY );
+	}
+}
 
 void AddWedgeRamp( b3WorldId worldId, b3Pos entry, float yawDegrees, float length, float width, float angleDegrees,
 					uint64_t terrainCategoryBits, uint32_t customColorHex )
@@ -268,8 +304,8 @@ void AddWashboard( b3WorldId worldId, b3Pos center, float yawDegrees, int count,
 // ---- Teren trudny -------------------------------------------------------------
 
 void AddRockGarden( b3WorldId worldId, b3Pos center, float yawDegrees, float lengthX, float widthZ, float density,
-					 float minSize, float maxSize, uint64_t terrainCategoryBits, uint32_t seed,
-					 uint32_t customColorHex )
+						 float minSize, float maxSize, uint64_t terrainCategoryBits, uint32_t seed,
+						 uint32_t customColorHex )
 {
 	b3BodyId bodyId = CreateKitBody( worldId, center, yawDegrees, "kit_rock_garden" );
 	b3ShapeDef shapeDef = MakeKitShapeDef( terrainCategoryBits, 1.0f, customColorHex );
@@ -290,6 +326,58 @@ void AddRockGarden( b3WorldId worldId, b3Pos center, float yawDegrees, float len
 										  b3MakeQuatFromAxisAngle( b3Vec3_axisX, tiltRad ) );
 		b3BoxHull hull = b3MakeTransformedBoxHull( hs, hs, hs, { { rx, hs - embed, rz }, rockRotation } );
 		b3CreateHullShape( bodyId, &shapeDef, &hull.base );
+	}
+}
+
+void AddRockIsland( b3WorldId worldId, b3Pos center, float yawDegrees, float lengthX, float widthZ, int clusterCount,
+					int rocksPerCluster, float clusterRadius, float minSize, float maxSize, uint64_t terrainCategoryBits,
+					uint32_t seed, uint32_t customColorHex )
+{
+	b3BodyId bodyId = CreateKitBody( worldId, center, yawDegrees, "kit_rock_island" );
+	b3ShapeDef shapeDef = MakeKitShapeDef( terrainCategoryBits, 1.0f, customColorHex );
+
+	clusterCount = std::max( 1, clusterCount );
+	rocksPerCluster = std::max( 1, rocksPerCluster );
+	float safeRadius = b3MaxFloat( 0.05f, clusterRadius );
+	float safeMinSize = b3MaxFloat( 0.05f, minSize );
+	float safeMaxSize = b3MaxFloat( safeMinSize, maxSize );
+	uint32_t state = seed != 0u ? seed : 1u;
+
+	// Place cluster centers on a compact grid with deterministic jitter. This
+	// makes each island read as several contiguous masses rather than a single
+	// uniform random cloud.
+	int columns = (int)std::ceil( std::sqrt( (float)clusterCount ) );
+	for ( int cluster = 0; cluster < clusterCount; ++cluster )
+	{
+		int row = cluster / columns;
+		int column = cluster % columns;
+		int rows = ( clusterCount + columns - 1 ) / columns;
+		float u = columns == 1 ? 0.5f : (float)column / (float)( columns - 1 );
+		float v = rows == 1 ? 0.5f : (float)row / (float)( rows - 1 );
+		float clusterX = ( u - 0.5f ) * lengthX * 0.58f + RandomRange( state, -1.0f, 1.0f );
+		float clusterZ = ( v - 0.5f ) * widthZ * 0.58f + RandomRange( state, -1.0f, 1.0f );
+
+		for ( int rock = 0; rock < rocksPerCluster; ++rock )
+		{
+			float angle = RandomRange( state, 0.0f, 2.0f * B3_PI );
+			float radial = std::sqrt( RandomUnit( state ) ) * safeRadius;
+			float rx = clusterX + std::cos( angle ) * radial;
+			float rz = clusterZ + std::sin( angle ) * radial;
+			float size = RandomRange( state, safeMinSize, safeMaxSize );
+			float hx = size * RandomRange( state, 0.70f, 1.25f ) * 0.5f;
+			float hy = size * RandomRange( state, 0.55f, 1.15f ) * 0.5f;
+			float hz = size * RandomRange( state, 0.70f, 1.25f ) * 0.5f;
+			rx = std::clamp( rx, -lengthX * 0.5f + hx, lengthX * 0.5f - hx );
+			rz = std::clamp( rz, -widthZ * 0.5f + hz, widthZ * 0.5f - hz );
+
+			float embed = hy * RandomRange( state, 0.35f, 0.55f );
+			float yawRad = DegToRad( RandomRange( state, 0.0f, 360.0f ) );
+			float tiltRad = DegToRad( RandomRange( state, -18.0f, 18.0f ) );
+			b3Quat rockRotation = b3MulQuat( b3MakeQuatFromAxisAngle( b3Vec3_axisY, yawRad ),
+										 b3MakeQuatFromAxisAngle( b3Vec3_axisX, tiltRad ) );
+			b3BoxHull hull = b3MakeTransformedBoxHull( hx, hy, hz, { { rx, hy - embed, rz }, rockRotation } );
+			b3CreateHullShape( bodyId, &shapeDef, &hull.base );
+		}
 	}
 }
 
@@ -408,9 +496,19 @@ void AddArticulationRamps( b3WorldId worldId, b3Pos center, float yawDegrees, fl
 	float laneGap = 0.15f; // small gap so the two ramps never overlap in Z
 	float trackZ = width * 0.5f + laneGap * 0.5f;
 
-	RampLocal leftRamp = ComputeAscendingRamp( { -offsetLR * 0.5f, 0.0f, -trackZ }, length, hh, width, angleDegrees );
-	CreateRampHull( bodyId, shapeDef, leftRamp );
+	// `center` is the CENTER anchor: each lane spans roughly [-length,+length]
+	// in local X. The phase offset shifts when the left/right wheel path is on
+	// the raised portion, but neither path leaves the station with a dangling
+	// elevated end. This fixes the old one-sided ascending-only implementation.
+	for ( float trackSign : { -1.0f, 1.0f } )
+	{
+		float startX = -length + trackSign * offsetLR * 0.5f;
+		float localZ = trackSign * trackZ;
+		RampLocal up = ComputeAscendingRamp( { startX, 0.0f, localZ }, length, hh, width, angleDegrees );
+		CreateRampHull( bodyId, shapeDef, up );
 
-	RampLocal rightRamp = ComputeAscendingRamp( { offsetLR * 0.5f, 0.0f, trackZ }, length, hh, width, angleDegrees );
-	CreateRampHull( bodyId, shapeDef, rightRamp );
+		b3Vec3 top = RampFarTopEdge( { startX, 0.0f, localZ }, length, hh, angleDegrees );
+		RampLocal down = ComputeDescendingRamp( top, length, hh, width, angleDegrees );
+		CreateRampHull( bodyId, shapeDef, down );
+	}
 }

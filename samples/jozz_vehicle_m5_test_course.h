@@ -3,15 +3,13 @@
 
 #pragma once
 
-// M5 test playground: a scatter of dynamic props plus (Mapa Etap 2,
-// docs/MAPA_ETAP_2_PRZESZKODY_I_POLIGONY_PL.md) the 6-lane suspension-test
-// poligon built from jozz_vehicle_obstacle_kit. The rough-terrain heightfield
-// patch that used to live here was replaced by the offroad chunk in
+// M5 test playground: the active E2R central campus built by
+// jozz_vehicle_central_test_campus. The rough-terrain heightfield patch that
+// used to live here was replaced by the offroad chunk in
 // jozz_vehicle_world_terrain (Mapa Etap 1) - it stuck up above the flat
 // ground instead of tucking under it, which is exactly the seam defect that
 // track fixes. The four hand-placed ramps and two washboard lanes from M5/E1
-// are gone (Etap 2 §2.3): the obstacle kit + lane poligon replace them with a
-// parametric, difficulty-graded layout. Pure content/course building, kept
+// are gone. Pure content/course building, kept
 // out of jozz_vehicle_m5_drivable_lab.cpp so that file stays focused on
 // input/camera/tuning UI (the same "don't let the sample file get overloaded"
 // lesson from PROJECT_STABILIZATION_AUDIT_2026_07_03_PL.md, Problem A).
@@ -48,9 +46,9 @@ struct JozzVehicleM5TestCourse
 	std::vector<JozzCourseLabel> labels;
 };
 
-// groundTopY is the world Y of the flat ground's top surface (AddGroundBox
-// puts it at 0 regardless of extent); the rough-terrain zone is offset above
-// it so the two surfaces never double-contact the same footprint.
+// groundTopY is the world Y of the flat ground's top surface. The active
+// campus keeps all current static content on that surface; future satellite
+// yards will use their own explicit terrain/transition contract.
 //
 // terrainCategoryBits tags every drivable surface built here (the lane
 // poligon's obstacle-kit stations) with a collision category; dynamic props

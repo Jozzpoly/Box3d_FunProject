@@ -11,17 +11,16 @@
 // box3d state.
 //
 //   z+ (polnoc)
-//   +-----------------------------------+--------+  <- z=190
-//   |  TOR WYSCIGOWY (E3)               | POLIGO-|
-//   |  x:-190..140, z:60..190           | NY     |   OFFROAD (E1)
-//   +-----------------------------------+ ZAWIE- |   heightfield chunk
-//   |        bufor / centrum @ (0,0)    | SZEN   |   origin (rog siatki):
-//   +---------------+--------------------+ (E2)   |   x:198, z:-200
-//   | DRIFT (E3)    | PLAC FIZYKI (E4)  | x:150..|   rozmiar 400x400
-//   | x:-190..-30   | x:10..140         |   195  |   x: 198..598
-//   | z:-190..-60   | z:-190..-60       | z:-60..|   z: -200..200
-//   +---------------+--------------------+   60  +--------+  <- z=-190
-//                                 styk x=200 (zakladka 2 m POD plyta)
+//   +----------------------+----------------------+----------------------+
+//   | NW: technical yard  | N: ramp yard         | NE: future connector |
+//   +----------------------+----------------------+----------------------+
+//   | W: articulation     | C: CENTRAL CAMPUS    | E: rock islands /     |
+//   | and dense detail    | spawn + low tests    | offroad gate          |
+//   +----------------------+----------------------+----------------------+
+//   | SW: physics yard    | S: bumper/stress     | SE: landing/stress    |
+//   |                     | approach             | yard                 |
+//   +----------------------+----------------------+----------------------+
+//                                 -> OFFROAD (E1) at x=+200
 
 namespace JozzWorldLayout
 {
@@ -147,71 +146,54 @@ constexpr float kArmSubPeakAmp = 4.0f;			// additive bump amplitude at those sub
 constexpr float kEdgeFadeDistance = 35.0f;
 constexpr float kEdgeFadeBaseFloor = 0.7f;
 
-// --- Skan (wyspa, fundament v3, 2026-07-24) --------------------------------
-// A photogrammetry scan imported as a SEPARATE island NORTH of the plate,
-// reached by teleport only, its footprint edges left as cliffs (decisions
-// D4/D5). The body origin is computed at LOAD time from the scan's own bounds
-// (jozz_vehicle_scan_import) so any scan size clears the existing world: the
-// island's near (south) edge is pinned at kScanSouthEdgeZ - well north of the
-// plate's north edge (z=+200) - and its lowest point sits at kScanGroundY.
-// Nothing here allocates box3d state; only the teleport target reads it.
-constexpr float kScanSouthEdgeZ = 320.0f; // world z of the island's south edge
-constexpr float kScanGroundY = 0.0f;      // world y of the island's lowest point
-
-// --- Poligon zawieszen (Etap 2, docs/MAPA_ETAP_2_PRZESZKODY_I_POLIGONY_PL.md) -
-// A 45x120 m strip sitting on the plate (east side, west of the offroad
-// seam) holding 6 progression lanes. Cars enter from the west edge (local
-// x=0, world x=kPoligonOriginX) and drive east; lanes are stacked along Z,
-// one per ~20 m band. Single source of truth so the obstacle-kit course
-// builder and any future UI/label code never re-derive these numbers.
-constexpr float kPoligonOriginX = 150.0f;			// world x where a lane's stations start
-constexpr float kPoligonLaneLength = 45.0f;		// world x: 150..195
-constexpr float kPoligonOriginZ = -60.0f;			// world z: -60..60
-constexpr float kPoligonExtentZ = 120.0f;
-constexpr int kLaneCount = 6;
-constexpr float kLaneBandWidth = kPoligonExtentZ / (float)kLaneCount; // 20 m per lane band
-constexpr float kPoligonStationSpacing = 8.0f;		// nominal gap between stations along a lane (E2 doc §4)
-constexpr float kPoligonStationMargin = 5.0f;		// first station's offset from kPoligonOriginX
-
-// Difficulty tiers drive both the station label color (P8) and, loosely, how
-// harsh each lane's obstacle parameters are. Kept as a plain enum (not a
-// box3d color) so this header stays free of engine color types; the course
-// builder maps tier -> b3HexColor.
-enum JozzLaneDifficulty
+// --- Etap 2R + masterplan satellite yards -------------------------------
+// The old x=150..195 six-lane strip is intentionally gone. C is the central
+// campus; larger content gets explicit satellite yards on adjacent tiles so
+// later Etap 3/4 work can grow without inventing a second layout system.
+enum JozzWorldTileId
 {
-	kLaneDifficultyEasy = 0,
-	kLaneDifficultyMedium = 1,
-	kLaneDifficultyHard = 2,
+	kTileNW,
+	kTileN,
+	kTileNE,
+	kTileW,
+	kTileC,
+	kTileE,
+	kTileSW,
+	kTileS,
+	kTileSE,
 };
 
-struct JozzLaneSpec
+struct JozzWorldYard
 {
 	const char* name;
-	float zCenter;
-	JozzLaneDifficulty difficulty;
+	JozzWorldTileId tile;
+	float minX;
+	float maxX;
+	float minZ;
+	float maxZ;
 };
 
-// L1..L6, south to north (increasing Z), per the E2 doc's progression table.
-constexpr JozzLaneSpec kLanes[kLaneCount] = {
-	{ "L1 Komfort", kPoligonOriginZ + kLaneBandWidth * 0.5f, kLaneDifficultyEasy },
-	{ "L2 Szuter", kPoligonOriginZ + kLaneBandWidth * 1.5f, kLaneDifficultyEasy },
-	{ "L3 Rajd", kPoligonOriginZ + kLaneBandWidth * 2.5f, kLaneDifficultyMedium },
-	{ "L4 Kamien", kPoligonOriginZ + kLaneBandWidth * 3.5f, kLaneDifficultyMedium },
-	{ "L5 Ekstrema", kPoligonOriginZ + kLaneBandWidth * 4.5f, kLaneDifficultyHard },
-	{ "L6 Skocznie", kPoligonOriginZ + kLaneBandWidth * 5.5f, kLaneDifficultyHard },
-};
+constexpr float kCentralCampusUsableMin = -60.0f;
+constexpr float kCentralCampusUsableMax = 60.0f;
 
-// --- Plac fizyki skraj (E2 doc pkt. 2.4: propy odsuniete z osi jazdy) ------
-// The M5 test-course prop scatter used to sit on the driving axis around
-// (0,0); Etap 2 moves it to the near edge of the future Etap 4 "plac fizyki"
-// zone (x:10..140, z:-190..-60 per the master plan §5) so the centre stays
-// clear and E4 can still claim the rest of that rectangle later.
-// The scatter's own spread is about +-24 m in both axes (see kPropSpecs in
-// jozz_vehicle_m5_test_course.cpp); origins are offset in from the plac-
-// fizyki rectangle's x:10..140, z:-190..-60 so every prop lands inside it,
-// biased toward its near (north, small-|z|) edge rather than its far end.
-constexpr float kPropZoneOriginX = 40.0f;
-constexpr float kPropZoneOriginZ = -95.0f;
+// E3 skeleton envelope. The long loop is intentionally a composite N/NW/NE
+// layout rather than a new central-campus rectangle. It leaves a generous
+// clear margin around C and keeps the future physical split at tile seams
+// explicit.
+constexpr float kLongTrackMinX = -185.0f;
+constexpr float kLongTrackMaxX = 185.0f;
+constexpr float kLongTrackMinZ = 85.0f;
+constexpr float kLongTrackMaxZ = 182.0f;
+
+constexpr JozzWorldYard kMasterplanYards[] = {
+	{ "Ramp Yard N", kTileN, -60.0f, 60.0f, 72.0f, 160.0f },
+	{ "Technical Yard NW", kTileNW, -160.0f, -72.0f, 72.0f, 160.0f },
+	{ "Track Gateway NE", kTileNE, 72.0f, 160.0f, 72.0f, 160.0f },
+	{ "Offroad Gate E", kTileE, 72.0f, 160.0f, -60.0f, 60.0f },
+	{ "Physics Yard SW", kTileSW, -160.0f, -72.0f, -160.0f, -72.0f },
+	{ "Stress Landing Yard SE", kTileSE, 72.0f, 160.0f, -160.0f, -72.0f },
+};
+constexpr int kMasterplanYardCount = sizeof( kMasterplanYards ) / sizeof( kMasterplanYards[0] );
 
 // --- Teleporty minimalne (P1, pelny rejestr dopiero w Etapie 6) ------------
 struct JozzWorldAnchor
@@ -223,23 +205,35 @@ struct JozzWorldAnchor
 
 constexpr JozzWorldAnchor kWorldAnchors[] = {
 	{ "Start", 0.0f, 0.0f },
+	{ "Centralny kampus", 0.0f, 0.0f },
+	{ "Plac rampowy N", 0.0f, 110.0f },
+	{ "Plac fizyki SW", -115.0f, -115.0f },
+	{ "Plac ladowan SE", 115.0f, -115.0f },
 	{ "Offroad - wjazd", 240.0f, 0.0f },
 	{ "Offroad - gora", kOffroadOriginX + kMountainCenterLocal - 70.0f, kOffroadOriginZ + kMountainCenterLocal },
 	{ "Offroad - gleboko", 560.0f, 0.0f },
-	{ "Poligon zawieszen", kPoligonOriginX - 5.0f, 0.0f },
+	// Compatibility alias for existing teleport scripts; it now resolves to C.
+	{ "Poligon zawieszen", 0.0f, 0.0f },
 };
 constexpr int kWorldAnchorCount = sizeof( kWorldAnchors ) / sizeof( kWorldAnchors[0] );
 
-// --- Fragmenty mapy (per-fragment spawn system, 2026-07-24) -----------------
-// The world is three driveable fragments the vehicle can respawn on, each with
-// its own spawn point (session + persistent tiers, see jozz_vehicle_m6_rig_lab).
-// This classifier answers "which fragment is (x,z) on" from the SAME rectangles
-// the segments are built from, so the UI/checkpoint logic never re-derives them.
-// Pure geometry (plain floats, no box3d types) so the headless validator links
-// and tests it directly. Enum values double as array indices (0..2).
+// --- Skan (wyspa): stałe pozycjonowania (import skanu, 2026-07-24) ----------
+// A photogrammetry scan imported as a SEPARATE island NORTH of the plate. The
+// body origin is computed at LOAD time from the scan's own bounds
+// (jozz_vehicle_scan_import) so any scan size clears the existing world: the
+// island's near (south) edge is pinned at kScanSouthEdgeZ - well north of the
+// plate's north edge (z=+200) - and its lowest point sits at kScanGroundY.
+// Nothing here allocates box3d state; only the teleport target reads it.
+constexpr float kScanSouthEdgeZ = 320.0f; // world z of the island's south edge
+constexpr float kScanGroundY = 0.0f;      // world y of the island's lowest point
+
+// --- Klasyfikator fragmentu mapy (import skanu, 2026-07-24) -----------------
+// Which driveable fragment a world (x,z) falls in: central plate/campus,
+// procedural offroad chunk, or the imported photogrammetry island. Pure (no
+// box3d types) so the validator links it; used by the per-fragment spawn UI.
 enum JozzMapFragment
 {
-	FragmentPlate = 0,	 // central test plate + poligon (west of the offroad seam)
+	FragmentPlate = 0,	 // central test plate + campus (west of the offroad seam)
 	FragmentOffroad = 1, // procedural offroad chunk east of the plate (x >= seam)
 	FragmentScan = 2,	 // imported photogrammetry island (north, teleport-only)
 };

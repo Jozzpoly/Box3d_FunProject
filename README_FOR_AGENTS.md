@@ -137,6 +137,11 @@ Jozz Vehicle / Lab M1 Smoke            <- oldest smoke sample (kept)
   `docs/MAPA_ETAP_2_PRZESZKODY_I_POLIGONY_PL.md`: recover the kit, replace
   the far-east lanes with a central test campus on the full grid tile, and
   obtain Jozz's visual/drive sign-off before marking Etap 2 complete.
+  **STATUS 2026-07-24:** kit recovered, the central test campus is **integrated**
+  on the center tile (WITHOUT the E3 track — rejected in the audit), and the
+  terrain-scan import (M0–M2 + spawns) is wired in separately. The whole state was
+  committed to `main` before the project's side-jump to a new repo. Jozz's Etap 2
+  visual/drive sign-off is still open. Details: `docs/ODZYSK_UTRACONYCH_ZMIAN_2026_07_24_PL.md`.
 - **Dual damper visual, socket-driven** (2026-07-08): the telescoping shock
   mesh (`Asset_Dumper.gltf`) is drawn TWICE per corner, pinned to the model's
   own `Socket_DamperUpper_L/R` and `Socket_DamperLower_L/R` markers from the

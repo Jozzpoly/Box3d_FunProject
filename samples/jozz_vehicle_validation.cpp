@@ -110,6 +110,8 @@ bool RunP6MassAndLimitSanityProbe( const JozzVehiclePrimitiveDefaults& defaults 
 bool RunP6StressMatrixProbe( const JozzVehiclePrimitiveDefaults& defaults );
 bool RunP3SuspensionPreloadProbe( const JozzVehiclePrimitiveDefaults& defaults );
 bool RunPresetDeterminismProbe( const JozzVehiclePrimitiveDefaults& defaults );
+bool RunCentralCampusLayoutProbe(); // E2R map, recovered 2026-07-24 (track probe omitted)
+bool RunMasterplanYardProbe();
 
 int main()
 {
@@ -281,7 +283,11 @@ int main()
 	{
 		ok &= probe.run( defaults );
 	}
-	std::printf( "jozz_vehicle_validation: ran %d probes\n", probeCount );
+	// E2R map layout probes (recovered 2026-07-24): central campus + masterplan
+	// yards. The E3 long-track probe is intentionally omitted (track dormant).
+	ok &= RunCentralCampusLayoutProbe();
+	ok &= RunMasterplanYardProbe();
+	std::printf( "jozz_vehicle_validation: ran %d probes + 2 map probes\n", probeCount );
 
 	if ( ok == false )
 	{

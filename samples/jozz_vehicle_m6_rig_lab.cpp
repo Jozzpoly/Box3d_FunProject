@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "jozz_vehicle_m6_rig_lab_internal.h"
+#include "jozz_vehicle_central_test_campus_visual.h" // E2R campus skeleton overlay (recovered 2026-07-24)
 
 JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		: Sample( context )
@@ -120,6 +121,29 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		LoadMountVisual();
 		LoadSteeringRig();		   // new front rig (rig-editor warm-up G1); needed before CreateVehicle bakes it
 		ApplyBodyVisualFromConfig(); // body skin named by m_config.bodyVisualModel (already loaded/sanitized above)
+		// Reload the scan island BEFORE CreateVehicle so a spawn anchored to it (the
+		// checkpoint restored above) samples the island's real surface, not the plate
+		// beneath it. "R" reconstructs this whole sample; without this the loaded
+		// island silently disappeared and a scan-anchored spawn dropped into the void
+		// (Jozz's feedback: "R usuwa teren skanu"). Skipped when JOZZ_SCAN_AUTOLOAD
+		// below will load one anyway, so a headless boot never double-loads (and never
+		// double-registers its ~25 textured groups into the sokol pools).
+		{
+			bool willScanAutoload = false;
+			if ( const char* a = std::getenv( "JOZZ_SCAN_AUTOLOAD" ) )
+			{
+				willScanAutoload = atoi( a ) != 0;
+			}
+			if ( m_scanReloadOnBoot && willScanAutoload == false && m_scanPackDir.empty() == false )
+			{
+				std::error_code ec;
+				if ( std::filesystem::exists( m_scanPackDir, ec ) )
+				{
+					LoadScanTile( std::filesystem::path( m_scanPackDir ) );
+				}
+			}
+			m_scanReloadOnBoot = false; // one-shot flag
+		}
 		CreateVehicle(); // sets up the per-corner mount rig, needs the visuals loaded
 		SyncEditFromConfig();
 
@@ -325,6 +349,15 @@ JozzVehicleM6RigLab::~JozzVehicleM6RigLab()
 		m_riggedSteeringL.Destroy();
 		m_riggedSteeringR.Destroy();
 		m_bodyVisual.Destroy();
+		// Release the scan island's textured skin + collider. The skin registers
+		// ~25 sokol images/samplers per load; because "R" destroys and reconstructs
+		// this sample, NOT releasing them here leaked the lot on every restart, and
+		// after a few restarts the sokol image/sampler pool (128/64) exhausted -
+		// RegisterTexturedMesh then failed and the island reloaded as a white,
+		// untextured mesh ("tekstury 0/25", Jozz's feedback). Both calls are null-safe
+		// when no scan was loaded.
+		DestroyJozzScanVisual( &m_scanVisual );
+		DestroyJozzScanTile( m_worldId, &m_scanBodies );
 		DestroyJozzVehicleM5TestCourse( &m_testCourse );
 		DestroyJozzWorldGround( &m_worldGround );
 		m_context->enableContinuous = m_savedEnableContinuous;
@@ -668,6 +701,7 @@ void JozzVehicleM6RigLab::Step()
 void JozzVehicleM6RigLab::Render()
 	{
 		Sample::Render();
+		DrawCentralCampusSkeleton(); // E2R campus guides (track skeleton intentionally omitted)
 
 		// Textured scan skin (M2): one AppendMesh per group at the island origin.
 		// Drawn before the vehicle-valid gate so the island always shows, even with

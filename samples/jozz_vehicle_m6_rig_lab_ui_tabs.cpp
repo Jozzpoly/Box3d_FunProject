@@ -1250,6 +1250,7 @@ void JozzVehicleM6RigLab::LoadScanTile( const std::filesystem::path& dir )
 		auto envBool = []( const char* n, bool d ) { const char* v = std::getenv( n ); return v ? atoi( v ) != 0 : d; };
 		std::filesystem::path leaf = dir.filename().empty() ? dir.parent_path().filename() : dir.filename();
 		m_scanId = leaf.string(); // pack identity: keys the persistent scan spawn (multi-scan foundation) + BVH cache
+		m_scanPackDir = dir.string(); // remembered so "R"/reopen can reload THIS pack (persisted to the build/-local debug session)
 		char flags[24];
 		std::snprintf( flags, sizeof( flags ), "w%de%dm%df%d", envBool( "JOZZ_SCAN_WELD", true ) ? 1 : 0,
 					   envBool( "JOZZ_SCAN_EDGES", true ) ? 1 : 0, envBool( "JOZZ_SCAN_MEDIAN", false ) ? 1 : 0,
@@ -1300,6 +1301,8 @@ void JozzVehicleM6RigLab::UnloadScanTile()
 		m_scanTiles.clear();
 		m_scanBodies = JozzScanTileBodies{};
 		m_scanLoaded = false;
+		m_scanPackDir.clear();		 // explicit unload: do NOT reload this pack on the next "R"/reopen
+		m_scanReloadOnBoot = false;
 		m_scanStatus = "skan: wyładowany";
 	}
 

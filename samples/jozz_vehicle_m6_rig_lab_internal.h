@@ -212,7 +212,9 @@ public:
 	JozzScanVisual m_scanVisual;                   // textured render skin (M2), same pack + origin as the collider
 	std::string m_scanStatus = "skan: niezaładowany (ustaw JOZZ_SCAN_PREVIEW_PACK)";
 	std::string m_scanId;                          // loaded pack leaf (content hash); key for its persistent spawn + BVH cache
-	bool m_scanFlipWinding = false;                // photogrammetry winding may need a flip (collision)
+	std::string m_scanPackDir;                     // resolved dir of the loaded pack; persisted (build/-local) so "R"/reopen can reload the island
+		bool m_scanReloadOnBoot = false;               // debug session flag: a scan was loaded last time -> the constructor reloads it
+		bool m_scanFlipWinding = false;                // photogrammetry winding may need a flip (collision)
 	bool m_scanLoaded = false;
 	// When the textured skin is loaded, the collision mesh is hidden from box3d
 	// debug-draw so only the skin shows (same SetShapeHidden pattern the chassis

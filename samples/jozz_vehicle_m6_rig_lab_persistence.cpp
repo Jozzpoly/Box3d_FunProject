@@ -38,6 +38,16 @@ void JozzVehicleM6RigLab::SaveDebugViewState()
 		file << "spawnAnchorX=" << m_spawnAnchorX << "\n";
 		file << "spawnAnchorZ=" << m_spawnAnchorZ << "\n";
 		file << "worldSeed=" << m_worldGround.seed << "\n";
+		// Scan-island checkpoint parity: "R" reconstructs this whole sample, which
+		// silently dropped a loaded photogrammetry island and stranded a spawn
+		// anchored to it (Jozz's feedback: "R usuwa teren skanu"). Persist which
+		// pack was loaded so the constructor can reload it. build/-local file, so
+		// the (possibly absolute) pack path never leaves the machine or the repo.
+		file << "scanLoaded=" << ( m_scanLoaded ? 1 : 0 ) << "\n";
+		if ( m_scanLoaded && m_scanPackDir.empty() == false )
+		{
+			file << "scanPackDir=" << m_scanPackDir << "\n";
+		}
 	}
 
 void JozzVehicleM6RigLab::LoadDebugViewState()
@@ -105,6 +115,14 @@ void JozzVehicleM6RigLab::LoadDebugViewState()
 				// once if they differ (regen must happen BEFORE CreateVehicle so
 				// the spawn height samples the checkpoint's actual terrain).
 				m_worldSeedInput = (int)std::strtoul( line.c_str() + eq + 1, nullptr, 10 );
+			}
+			else if ( key == "scanLoaded" )
+			{
+				m_scanReloadOnBoot = value; // consumed once by the constructor's reload block
+			}
+			else if ( key == "scanPackDir" )
+			{
+				m_scanPackDir = line.substr( eq + 1 ); // raw remainder: paths can contain spaces
 			}
 		}
 	}
