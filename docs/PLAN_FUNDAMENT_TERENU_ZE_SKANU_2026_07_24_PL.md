@@ -1,5 +1,11 @@
 # Plan fundamentu: teren ze skanu jako pierwszorzędna warstwa świata
 
+> ⚠️ **ZASTĄPIONY jako plan wykonawczy przez `PLAN_FUNDAMENT_SKANU_v3_KONTRAKT_PL.md`**
+> (2026-07-24, pivot Jozza: auto‑klasyfikator = „automat, którego nie użyjemy";
+> separację robi Jozz zewnętrznie, silnik konsumuje role). Ten dokument żyje już
+> **tylko jako rejestr pomiarów** (§2: heightfield 0,5 m vs mesh — nadal prawdziwe).
+> Sekcje §4.1/§4.2 i decyzje D7–D9 są **martwe** — nie realizować.
+
 **Data:** 2026-07-24
 **Autor:** Luna (agent), na zlecenie Jozza
 **Status:** `WERSJA 2 — po feedbacku Jozza o źródle gruntu; decyzje D1–D6 podjęte, D7–D9 otwarte`
