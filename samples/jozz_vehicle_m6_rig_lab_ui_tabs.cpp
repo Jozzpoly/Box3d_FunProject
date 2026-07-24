@@ -894,6 +894,8 @@ void JozzVehicleM6RigLab::DrawMapPlateSegment()
 				TeleportTo( a.x, a.z );
 			}
 		}
+
+		DrawFragmentSpawnControls( JozzWorldLayout::FragmentPlate );
 	}
 
 void JozzVehicleM6RigLab::DrawMapOffroadSegment()
@@ -929,6 +931,8 @@ void JozzVehicleM6RigLab::DrawMapOffroadSegment()
 				TeleportTo( a.x, a.z );
 			}
 		}
+
+		DrawFragmentSpawnControls( JozzWorldLayout::FragmentOffroad );
 	}
 
 void JozzVehicleM6RigLab::DrawMapScanSegment()
@@ -1001,6 +1005,11 @@ void JozzVehicleM6RigLab::DrawMapScanSegment()
 			{
 				ImGui::TextColored( ImVec4( 0.85f, 0.55f, 0.50f, 1.0f ), "Render: brak skóry (tylko kolizja / debug-draw)" );
 			}
+
+			// Spawn of the scan fragment: only meaningful while the island is live
+			// (its built-in default is the island center). The persistent tier keys
+			// by pack id, so a different scan brings its own saved spawn.
+			DrawFragmentSpawnControls( JozzWorldLayout::FragmentScan );
 		}
 		else
 		{
@@ -1008,8 +1017,182 @@ void JozzVehicleM6RigLab::DrawMapScanSegment()
 		}
 	}
 
+	// Effective spawn for a fragment: session ?? persistent ?? built-in. Writes
+	// x/z and returns the active tier's label ("sesyjny"/"domyślny"/"wbudowany")
+	// for the status line. Scan reads its persistent slot from m_scanSpawnById
+	// (keyed by pack id); plate/offroad use their own persistent slot.
+const char* JozzVehicleM6RigLab::EffectiveFragmentSpawn( JozzWorldLayout::JozzMapFragment fragment, float* outX,
+														 float* outZ ) const
+	{
+		const JozzFragmentSpawn& fs = m_fragmentSpawn[fragment];
+		if ( fs.session.set )
+		{
+			*outX = fs.session.x;
+			*outZ = fs.session.z;
+			return "sesyjny";
+		}
+		if ( fragment == JozzWorldLayout::FragmentScan )
+		{
+			auto it = m_scanSpawnById.find( m_scanId );
+			if ( m_scanId.empty() == false && it != m_scanSpawnById.end() && it->second.set )
+			{
+				*outX = it->second.x;
+				*outZ = it->second.z;
+				return "domyślny";
+			}
+		}
+		else if ( fs.persistent.set )
+		{
+			*outX = fs.persistent.x;
+			*outZ = fs.persistent.z;
+			return "domyślny";
+		}
+		BuiltinFragmentSpawn( fragment, outX, outZ );
+		return "wbudowany";
+	}
+
+	// Built-in fallback spawn: the scan island's live center, else the named world
+	// anchor for the plate/offroad ("Start" / "Offroad - wjazd").
+void JozzVehicleM6RigLab::BuiltinFragmentSpawn( JozzWorldLayout::JozzMapFragment fragment, float* outX,
+												float* outZ ) const
+	{
+		if ( fragment == JozzWorldLayout::FragmentScan && m_scanLoaded )
+		{
+			const b3AABB& b = m_scanBodies.worldBounds;
+			*outX = 0.5f * ( b.lowerBound.x + b.upperBound.x );
+			*outZ = 0.5f * ( b.lowerBound.z + b.upperBound.z );
+			return;
+		}
+		const char* wanted = fragment == JozzWorldLayout::FragmentOffroad ? "Offroad - wjazd" : "Start";
+		for ( int i = 0; i < JozzWorldLayout::kWorldAnchorCount; ++i )
+		{
+			if ( std::strcmp( JozzWorldLayout::kWorldAnchors[i].name, wanted ) == 0 )
+			{
+				*outX = JozzWorldLayout::kWorldAnchors[i].x;
+				*outZ = JozzWorldLayout::kWorldAnchors[i].z;
+				return;
+			}
+		}
+		*outX = 0.0f;
+		*outZ = 0.0f;
+	}
+
+	// Per-fragment spawn UI (2026-07-24), drawn inside each Mapa segment. Set from
+	// the car's current spot: "Respawn tutaj" arms the SESSION default (nietrwały,
+	// klawisz "R" wraca w to miejsce); "Zapisz jako domyślny" writes the PERSISTENT
+	// default to the committed assets/vehicle_spawns.txt. Scratch X/Z is the working
+	// value both actions consume, seeded once from the effective spawn.
+void JozzVehicleM6RigLab::DrawFragmentSpawnControls( JozzWorldLayout::JozzMapFragment fragment )
+	{
+		JozzFragmentSpawn& fs = m_fragmentSpawn[fragment];
+
+		if ( m_spawnScratchSeeded[fragment] == false )
+		{
+			float ex = 0.0f, ez = 0.0f;
+			EffectiveFragmentSpawn( fragment, &ex, &ez );
+			m_spawnScratch[fragment].x = ex;
+			m_spawnScratch[fragment].z = ez;
+			m_spawnScratchSeeded[fragment] = true;
+		}
+
+		ImGui::Spacing();
+		SectionHeader( "Spawn pojazdu" );
+
+		float effX = 0.0f, effZ = 0.0f;
+		const char* source = EffectiveFragmentSpawn( fragment, &effX, &effZ );
+		ImGui::Text( "Aktywny spawn: (%.1f, %.1f)  -  źródło: %s", effX, effZ, source );
+		HelpMarker( "Kolejność: sesyjny (ustawiony teraz, nietrwały) > domyślny (zapisany między sesjami) > "
+					"wbudowany. Pola X/Z poniżej to wartość robocza używana przez przyciski." );
+
+		float xz[2] = { m_spawnScratch[fragment].x, m_spawnScratch[fragment].z };
+		ImGui::SetNextItemWidth( 14.0f * ImGui::GetFontSize() );
+		if ( ImGui::InputFloat2( "X / Z", xz, "%.1f" ) )
+		{
+			m_spawnScratch[fragment].x = xz[0];
+			m_spawnScratch[fragment].z = xz[1];
+		}
+
+		if ( ImGui::Button( "Z pozycji auta" ) )
+		{
+			if ( m_vehicle.valid )
+			{
+				b3Pos p = b3Body_GetPosition( m_vehicle.chassisId );
+				m_spawnScratch[fragment].x = p.x;
+				m_spawnScratch[fragment].z = p.z;
+			}
+		}
+		HelpMarker( "Przepisuje bieżącą pozycję auta (X/Z) do pól powyżej. Dojedź w dobre miejsce i kliknij." );
+		ImGui::SameLine();
+		if ( ImGui::Button( "Respawn tutaj" ) )
+		{
+			fs.session = { true, m_spawnScratch[fragment].x, m_spawnScratch[fragment].z };
+			TeleportTo( m_spawnScratch[fragment].x, m_spawnScratch[fragment].z );
+		}
+		HelpMarker( "Odradza auto na polach X/Z i ustawia to jako spawn SESYJNY tego fragmentu (znika po "
+					"restarcie; klawisz \"R\" wraca w to miejsce)." );
+
+		if ( ImGui::Button( "Zapisz jako domyślny" ) )
+		{
+			if ( fragment == JozzWorldLayout::FragmentScan )
+			{
+				if ( m_scanId.empty() == false )
+				{
+					m_scanSpawnById[m_scanId] = { true, m_spawnScratch[fragment].x, m_spawnScratch[fragment].z };
+					SaveFragmentSpawns();
+				}
+			}
+			else
+			{
+				fs.persistent = { true, m_spawnScratch[fragment].x, m_spawnScratch[fragment].z };
+				SaveFragmentSpawns();
+			}
+		}
+		HelpMarker( "Zapisuje pola X/Z jako TRWAŁY domyślny spawn fragmentu do assets/vehicle_spawns.txt "
+					"(przeżywa restart i czysty build). Skan zapisuje się per identyfikator paczki." );
+
+		bool hasSession = fs.session.set;
+		bool hasPersistent = fragment == JozzWorldLayout::FragmentScan
+								 ? ( m_scanId.empty() == false && m_scanSpawnById.count( m_scanId ) > 0 &&
+									 m_scanSpawnById.at( m_scanId ).set )
+								 : fs.persistent.set;
+		if ( hasSession || hasPersistent )
+		{
+			if ( hasSession )
+			{
+				if ( ImGui::Button( "Wyczyść sesyjny" ) )
+				{
+					fs.session.set = false;
+					m_spawnScratchSeeded[fragment] = false; // re-seed from the next tier down
+				}
+				if ( hasPersistent )
+				{
+					ImGui::SameLine();
+				}
+			}
+			if ( hasPersistent )
+			{
+				if ( ImGui::Button( "Usuń domyślny" ) )
+				{
+					if ( fragment == JozzWorldLayout::FragmentScan )
+					{
+						m_scanSpawnById.erase( m_scanId );
+					}
+					else
+					{
+						fs.persistent.set = false;
+					}
+					SaveFragmentSpawns();
+					m_spawnScratchSeeded[fragment] = false;
+				}
+			}
+		}
+	}
+
 void JozzVehicleM6RigLab::LoadScanTile()
 	{
+		// Default source: the JOZZ_SCAN_PREVIEW_PACK env dir. The path overload below
+		// is the seam a future multi-scan picker calls with a chosen library entry -
+		// today the only caller resolves the single env pack, so behaviour is unchanged.
 		std::filesystem::path dir = FindJozzScanPackDir();
 		if ( dir.empty() )
 		{
@@ -1017,6 +1200,11 @@ void JozzVehicleM6RigLab::LoadScanTile()
 			m_scanLoaded = false;
 			return;
 		}
+		LoadScanTile( dir );
+	}
+
+void JozzVehicleM6RigLab::LoadScanTile( const std::filesystem::path& dir )
+	{
 		m_scanTiles.clear();
 		std::string err;
 		auto readT0 = std::chrono::steady_clock::now();
@@ -1061,6 +1249,7 @@ void JozzVehicleM6RigLab::LoadScanTile()
 		// cost). Lives under build/ so it is disposable and never committed.
 		auto envBool = []( const char* n, bool d ) { const char* v = std::getenv( n ); return v ? atoi( v ) != 0 : d; };
 		std::filesystem::path leaf = dir.filename().empty() ? dir.parent_path().filename() : dir.filename();
+		m_scanId = leaf.string(); // pack identity: keys the persistent scan spawn (multi-scan foundation) + BVH cache
 		char flags[24];
 		std::snprintf( flags, sizeof( flags ), "w%de%dm%df%d", envBool( "JOZZ_SCAN_WELD", true ) ? 1 : 0,
 					   envBool( "JOZZ_SCAN_EDGES", true ) ? 1 : 0, envBool( "JOZZ_SCAN_MEDIAN", false ) ? 1 : 0,

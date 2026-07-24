@@ -33,6 +33,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -78,6 +79,29 @@ static const char* kPresetDirectory = "assets/vehicle_presets";
 // keeps only true view state: whether the body mesh is drawn at all
 // (m_showBodyVisual), diagnostic lines, arm tint, mesh visibility.
 static const char* kDebugSessionFilePath = "build/jozz_vehicle_m6_debug_session.txt";
+
+// Per-fragment vehicle spawns (2026-07-24). Two tiers per map fragment:
+//   session    - set in the Mapa UI from the car's current spot, NOT saved (a
+//                "temporary default" that dies with the app, Jozz's ask).
+//   persistent - the fragment's canonical default. Unlike the build/ session
+//                files above this is COMMITTED (assets/, next to the vehicle
+//                presets) so the curated spawns survive even a clean build -
+//                Jozz's choice: durable "ogolny" spawns, versioned in the repo.
+// Effective spawn = session ?? persistent ?? the fragment's built-in anchor.
+// The scan island's PERSISTENT spawn is keyed by pack id (m_scanSpawnById), not
+// stored here, so every future scan remembers its own - the multi-scan seam.
+struct JozzSpawnSlot
+{
+	bool set = false;
+	float x = 0.0f;
+	float z = 0.0f;
+};
+struct JozzFragmentSpawn
+{
+	JozzSpawnSlot session;
+	JozzSpawnSlot persistent; // unused for FragmentScan (see m_scanSpawnById)
+};
+static const char* kSpawnsFilePath = "assets/vehicle_spawns.txt";
 
 class JozzVehicleM6RigLab : public Sample
 {
@@ -153,10 +177,21 @@ public:
 	void DrawMapPlateSegment();
 	void DrawMapOffroadSegment();
 	void DrawMapScanSegment();
-	// Scan island (fundament v3, M1). Reads the private pack (env
-	// JOZZ_SCAN_PREVIEW_PACK) into m_scanTiles, builds ONE Terrain body north of
-	// the plate, and teleports onto it. See jozz_vehicle_scan_import.h.
+	// Per-fragment spawn controls (2026-07-24), drawn inside each Mapa segment.
+	// Two tiers (session/persistent) set from the car's current position; see
+	// JozzFragmentSpawn above. EffectiveFragmentSpawn resolves session ?? persistent
+	// ?? built-in and returns the active tier's label for the status line.
+	void DrawFragmentSpawnControls( JozzWorldLayout::JozzMapFragment fragment );
+	const char* EffectiveFragmentSpawn( JozzWorldLayout::JozzMapFragment fragment, float* outX, float* outZ ) const;
+	void BuiltinFragmentSpawn( JozzWorldLayout::JozzMapFragment fragment, float* outX, float* outZ ) const;
+	void SaveFragmentSpawns() const; // persistent tier -> committed assets/vehicle_spawns.txt
+	void LoadFragmentSpawns();		 // constructor restore
+	// Scan island (fundament v3, M1). Reads a photogrammetry pack into m_scanTiles,
+	// builds ONE Terrain body north of the plate, and teleports onto it. The no-arg
+	// form resolves JOZZ_SCAN_PREVIEW_PACK; the path form loads a SPECIFIC pack -
+	// the seam a future multi-scan picker plugs into. See jozz_vehicle_scan_import.h.
 	void LoadScanTile();
+	void LoadScanTile( const std::filesystem::path& packDir );
 	void UnloadScanTile();
 	void TeleportToScan();
 	void DrawDebugTab();
@@ -176,6 +211,7 @@ public:
 	JozzScanTileBodies m_scanBodies;               // physics handles + world-space bounds
 	JozzScanVisual m_scanVisual;                   // textured render skin (M2), same pack + origin as the collider
 	std::string m_scanStatus = "skan: niezaładowany (ustaw JOZZ_SCAN_PREVIEW_PACK)";
+	std::string m_scanId;                          // loaded pack leaf (content hash); key for its persistent spawn + BVH cache
 	bool m_scanFlipWinding = false;                // photogrammetry winding may need a flip (collision)
 	bool m_scanLoaded = false;
 	// When the textured skin is loaded, the collision mesh is hidden from box3d
@@ -185,6 +221,15 @@ public:
 	bool m_scanShowCollider = false;
 	float m_spawnAnchorX = 0.0f; // current teleport anchor (world x/z); Start == origin
 	float m_spawnAnchorZ = 0.0f;
+	// Per-fragment spawn system (2026-07-24). m_fragmentSpawn holds session +
+	// persistent slots per fragment (scan's persistent lives in m_scanSpawnById,
+	// keyed by pack id, so each scan keeps its own). m_spawnScratch is the editable
+	// X/Z the Mapa UI shows per fragment (seeded once from the effective spawn via
+	// m_spawnScratchSeeded; "Z pozycji auta" fills it, the action buttons consume it).
+	JozzFragmentSpawn m_fragmentSpawn[3];
+	b3Vec3 m_spawnScratch[3] = {}; // only x/z used
+	bool m_spawnScratchSeeded[3] = {};
+	std::map<std::string, JozzSpawnSlot> m_scanSpawnById; // persistent scan spawns, key = pack leaf
 	// JOZZ_M6_AUTODRIVE: headless drive-through testing aid (Etap 1) - forces
 	// full-throttle straight-line drive every Step so map gates (seam/tile
 	// joins at speed) can be verified without a human at the keyboard. See

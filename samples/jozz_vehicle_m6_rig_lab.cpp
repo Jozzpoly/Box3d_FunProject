@@ -97,6 +97,11 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		// (Jozz's feedback - "R" was teleporting him back to Start and quietly
 		// swapping the regenerated terrain for the default-seed one).
 		LoadDebugViewState();
+		// Per-fragment persistent spawns (committed assets/vehicle_spawns.txt) into
+		// memory. Does NOT move the car: boot keeps the last checkpoint (m_spawnAnchor
+		// restored above); a fragment's default spawn is an explicit target the Mapa
+		// UI teleports to on demand.
+		LoadFragmentSpawns();
 		if ( (uint32_t)m_worldSeedInput != m_worldGround.seed )
 		{
 			RegenerateTerrain(); // before CreateVehicle: spawn height must sample the checkpoint's terrain

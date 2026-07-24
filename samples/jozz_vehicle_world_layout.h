@@ -230,4 +230,36 @@ constexpr JozzWorldAnchor kWorldAnchors[] = {
 };
 constexpr int kWorldAnchorCount = sizeof( kWorldAnchors ) / sizeof( kWorldAnchors[0] );
 
+// --- Fragmenty mapy (per-fragment spawn system, 2026-07-24) -----------------
+// The world is three driveable fragments the vehicle can respawn on, each with
+// its own spawn point (session + persistent tiers, see jozz_vehicle_m6_rig_lab).
+// This classifier answers "which fragment is (x,z) on" from the SAME rectangles
+// the segments are built from, so the UI/checkpoint logic never re-derives them.
+// Pure geometry (plain floats, no box3d types) so the headless validator links
+// and tests it directly. Enum values double as array indices (0..2).
+enum JozzMapFragment
+{
+	FragmentPlate = 0,	 // central test plate + poligon (west of the offroad seam)
+	FragmentOffroad = 1, // procedural offroad chunk east of the plate (x >= seam)
+	FragmentScan = 2,	 // imported photogrammetry island (north, teleport-only)
+};
+
+// scanLoaded + the island's world-AABB x/z extents let the scan take priority
+// over the offroad rectangle it sits far north of; pass scanLoaded=false (and
+// the bounds are ignored) when no island is live. The offroad seam is the same
+// kOffroadOriginX the chunk is built at, so classification can't drift from it.
+inline JozzMapFragment ClassifyJozzMapFragment( float x, float z, bool scanLoaded, float scanMinX, float scanMaxX,
+												float scanMinZ, float scanMaxZ )
+{
+	if ( scanLoaded && x >= scanMinX && x <= scanMaxX && z >= scanMinZ && z <= scanMaxZ )
+	{
+		return FragmentScan;
+	}
+	if ( x >= kOffroadOriginX )
+	{
+		return FragmentOffroad;
+	}
+	return FragmentPlate;
+}
+
 } // namespace JozzWorldLayout

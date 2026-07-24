@@ -109,6 +109,89 @@ void JozzVehicleM6RigLab::LoadDebugViewState()
 		}
 	}
 
+	// Per-fragment PERSISTENT spawns. Committed (assets/), unlike the build/ files
+	// above: Jozz wants the canonical default spawns to survive a clean build, the
+	// same way the vehicle presets in assets/ do. Only the persistent tier lands
+	// here - session spawns are memory-only by design - and only on an explicit
+	// "Zapisz jako domyslny" click, never from the destructor (a persistent default
+	// must not drift silently). Same trivial key=value format as the debug session
+	// so there is no serializer to get wrong; hand-editable and git-diffable.
+	//   plate=x,z   offroad=x,z   scan.<packId>=x,z
+void JozzVehicleM6RigLab::SaveFragmentSpawns() const
+	{
+		std::error_code ec;
+		std::filesystem::create_directories( std::filesystem::path( kSpawnsFilePath ).parent_path(), ec );
+
+		std::ofstream file( kSpawnsFilePath, std::ios::binary | std::ios::trunc );
+		if ( file.is_open() == false )
+		{
+			return;
+		}
+		file << "# Domyslne (trwale) spawny pojazdu per fragment mapy. Format: <klucz>=x,z\n";
+		file << "# Klucze: plate, offroad, scan.<idPaczki>. Spawny sesyjne NIE sa tu zapisywane.\n";
+
+		const JozzSpawnSlot& plate = m_fragmentSpawn[JozzWorldLayout::FragmentPlate].persistent;
+		if ( plate.set )
+		{
+			file << "plate=" << plate.x << "," << plate.z << "\n";
+		}
+		const JozzSpawnSlot& offroad = m_fragmentSpawn[JozzWorldLayout::FragmentOffroad].persistent;
+		if ( offroad.set )
+		{
+			file << "offroad=" << offroad.x << "," << offroad.z << "\n";
+		}
+		// One line per scan pack that has a saved spawn (the multi-scan foundation:
+		// each pack id keeps its own default, dormant until that scan is loaded).
+		for ( const auto& entry : m_scanSpawnById )
+		{
+			if ( entry.second.set )
+			{
+				file << "scan." << entry.first << "=" << entry.second.x << "," << entry.second.z << "\n";
+			}
+		}
+	}
+
+void JozzVehicleM6RigLab::LoadFragmentSpawns()
+	{
+		std::ifstream file( kSpawnsFilePath );
+		if ( file.is_open() == false )
+		{
+			return;
+		}
+
+		std::string line;
+		while ( std::getline( file, line ) )
+		{
+			if ( line.empty() || line[0] == '#' )
+			{
+				continue;
+			}
+			size_t eq = line.find( '=' );
+			if ( eq == std::string::npos )
+			{
+				continue;
+			}
+			std::string key = line.substr( 0, eq );
+			float x = 0.0f, z = 0.0f;
+			if ( std::sscanf( line.c_str() + eq + 1, "%f,%f", &x, &z ) != 2 )
+			{
+				continue;
+			}
+			if ( key == "plate" )
+			{
+				m_fragmentSpawn[JozzWorldLayout::FragmentPlate].persistent = { true, x, z };
+			}
+			else if ( key == "offroad" )
+			{
+				m_fragmentSpawn[JozzWorldLayout::FragmentOffroad].persistent = { true, x, z };
+			}
+			else if ( key.rfind( "scan.", 0 ) == 0 )
+			{
+				m_scanSpawnById[key.substr( 5 )] = { true, x, z };
+			}
+		}
+	}
+
 void JozzVehicleM6RigLab::SyncEditFromConfig()
 	{
 		m_editFrontRigType = m_config.frontRigType;

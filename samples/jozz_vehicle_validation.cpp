@@ -7,6 +7,7 @@
 #include "jozz_vehicle_asset_dimensions.h"
 #include "jozz_vehicle_asset_metadata.h"
 #include "jozz_vehicle_steering_suspension_contract.h"
+#include "jozz_vehicle_world_layout.h"
 
 #include "box3d/box3d.h"
 
@@ -69,6 +70,21 @@ bool CheckContractRole( const JozzVehicleAssetContract& contract, const char* ro
 	}
 
 	return ok;
+}
+
+// Per-fragment spawn system (2026-07-24): the map-fragment classifier is pure
+// geometry (world_layout.h), so it is verified here directly rather than in a
+// physics probe. A drifted offroad seam or a scan-priority regression shows up
+// as a "bad fragment" line instead of a silently mis-spawned car.
+bool CheckFragment( const char* label, JozzWorldLayout::JozzMapFragment got, JozzWorldLayout::JozzMapFragment want )
+{
+	if ( got == want )
+	{
+		std::printf( "ok fragment %s = %d\n", label, (int)got );
+		return true;
+	}
+	std::printf( "bad fragment %s = %d, expected %d\n", label, (int)got, (int)want );
+	return false;
 }
 
 } // namespace
@@ -211,6 +227,22 @@ int main()
 	{
 		std::printf( "steering sockets: FAILED to resolve\n" );
 		ok = false;
+	}
+
+	// Map-fragment classifier (per-fragment spawn system). Pure floats, tested
+	// directly. Scan bounds below are a stand-in island north of the plate.
+	{
+		using namespace JozzWorldLayout;
+		const float sMinX = -100.0f, sMaxX = 100.0f, sMinZ = 300.0f, sMaxZ = 500.0f;
+		ok &= CheckFragment( "plate center", ClassifyJozzMapFragment( 0.0f, 0.0f, false, 0, 0, 0, 0 ), FragmentPlate );
+		ok &= CheckFragment( "plate east edge",
+							 ClassifyJozzMapFragment( kOffroadOriginX - 1.0f, 0.0f, false, 0, 0, 0, 0 ), FragmentPlate );
+		ok &= CheckFragment( "offroad past seam",
+							 ClassifyJozzMapFragment( kOffroadOriginX + 1.0f, 0.0f, false, 0, 0, 0, 0 ), FragmentOffroad );
+		ok &= CheckFragment( "scan over island",
+							 ClassifyJozzMapFragment( 0.0f, 400.0f, true, sMinX, sMaxX, sMinZ, sMaxZ ), FragmentScan );
+		ok &= CheckFragment( "scan bounds ignored when unloaded",
+							 ClassifyJozzMapFragment( 0.0f, 400.0f, false, sMinX, sMaxX, sMinZ, sMaxZ ), FragmentPlate );
 	}
 
 	// Probe registry: ONE list, iterated. Adding a probe = one line here;
