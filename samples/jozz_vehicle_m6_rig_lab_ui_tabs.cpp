@@ -577,32 +577,9 @@ void JozzVehicleM6RigLab::DrawWorldTab()
 			ApplyContactTuning();
 		}
 
-		SectionHeader( "Mapa" );
-		ImGui::SetNextItemWidth( 8.0f * ImGui::GetFontSize() );
-		ImGui::InputInt( "Seed terenu offroad", &m_worldSeedInput );
-		ImGui::SameLine();
-		if ( ImGui::Button( "Przebuduj teren" ) )
-		{
-			RegenerateTerrain();
-		}
-		HelpMarker( "Teren offroad (Etap 1) jest w pełni deterministyczny - ten sam seed zawsze daje ten sam układ "
-					"wzgórz i polan. Wpisz inną liczbę i przebuduj, żeby wylosować nowy wariant; płyta i przeszkody "
-					"zostają bez zmian." );
-		ImGui::TextUnformatted( "Teleport" );
-		for ( int i = 0; i < JozzWorldLayout::kWorldAnchorCount; ++i )
-		{
-			const JozzWorldLayout::JozzWorldAnchor& anchor = JozzWorldLayout::kWorldAnchors[i];
-			if ( i > 0 )
-			{
-				ImGui::SameLine();
-			}
-			if ( ImGui::Button( anchor.name ) )
-			{
-				TeleportTo( anchor.x, anchor.z );
-			}
-		}
-		HelpMarker( "Przenosi auto (zerowa prędkość, telemetria od zera) w wybrane miejsce mapy - przydatne przy "
-					"dużym świecie, żeby nie dojeżdżać na piechotę do strefy testowej." );
+		// (Sterowanie mapą — seed offroad, przebudowa, teleporty per segment —
+		// przeniesione do dedykowanej zakładki "Mapa" (fundament v3). Świat trzyma
+		// tylko sterowanie pojazdu i symulacji, żeby nie było dwóch miejsc na to samo.)
 
 		SectionHeader( "Reset" );
 		if ( ImGui::Button( "Zresetuj swiat" ) )
@@ -993,6 +970,17 @@ void JozzVehicleM6RigLab::DrawMapScanSegment()
 		HelpMarker( "Fotogrametria nie gwarantuje zgodności nawinięcia z konwencją Box3D. Jeśli auto przenika "
 					"przez powierzchnię skanu zamiast po niej jechać, zaznacz i przeładuj." );
 
+		if ( m_scanLoaded && m_scanVisual.loaded )
+		{
+			if ( ImGui::Checkbox( "Pokaż siatkę kolizji (debug)", &m_scanShowCollider ) )
+			{
+				// Toggle only affects the debug overlay; the textured skin stays.
+				SetShapeHidden( m_scanBodies.terrainShape, m_scanShowCollider == false );
+			}
+			HelpMarker( "Domyślnie widać teksturowaną skórę terenu. Zaznacz, żeby nałożyć na nią surową siatkę "
+						"kolizyjną (mesh, po którym faktycznie toczą się koła) do inspekcji." );
+		}
+
 		ImGui::Spacing();
 		ImGui::TextColored( m_scanLoaded ? ImVec4( 0.60f, 0.85f, 0.60f, 1.0f ) : ImVec4( 0.85f, 0.80f, 0.50f, 1.0f ),
 							"%s", m_scanStatus.c_str() );
@@ -1003,6 +991,16 @@ void JozzVehicleM6RigLab::DrawMapScanSegment()
 						 m_scanBodies.terrainTriangleCount, m_scanBodies.terrainVertexCount );
 			ImGui::Text( "AABB świata:  x[%.0f, %.0f]   z[%.0f, %.0f]   y[%.1f, %.1f]", b.lowerBound.x, b.upperBound.x,
 						 b.lowerBound.z, b.upperBound.z, b.lowerBound.y, b.upperBound.y );
+			if ( m_scanVisual.loaded )
+			{
+				ImGui::TextColored( ImVec4( 0.60f, 0.85f, 0.60f, 1.0f ), "Render: %d grup, tekstury %d/%d, %.0f MB GPU",
+									(int)m_scanVisual.groups.size(), m_scanVisual.textureCount,
+									(int)m_scanVisual.groups.size(), (double)m_scanVisual.textureBytes / ( 1024.0 * 1024.0 ) );
+			}
+			else
+			{
+				ImGui::TextColored( ImVec4( 0.85f, 0.55f, 0.50f, 1.0f ), "Render: brak skóry (tylko kolizja / debug-draw)" );
+			}
 		}
 		else
 		{
@@ -1076,11 +1074,40 @@ void JozzVehicleM6RigLab::LoadScanTile()
 												  cachePath.c_str() );
 		m_scanLoaded = m_scanBodies.ok;
 		m_scanStatus = "skan: " + m_scanBodies.status;
+
+		// Textured render skin (M2): load from the SAME pack at the SAME origin the
+		// collider was placed, so the skin sits exactly on the collision surface (no
+		// independent recomputation, no drift). Render uses source winding (flip
+		// false) -- the front-face convention that the offline preview renders
+		// correctly -- independent of the collision winding toggle. One repeatable
+		// channel: any pack the pipeline emits loads collision + skin together.
+		if ( m_scanBodies.ok )
+		{
+			std::string visualErr;
+			auto visT0 = std::chrono::steady_clock::now();
+			bool visOk = LoadJozzScanVisual( dir, placement.origin, false, &m_scanVisual, &visualErr );
+			if ( std::getenv( "JOZZ_SCAN_DUMP" ) != nullptr )
+			{
+				double visMs = std::chrono::duration<double, std::milli>( std::chrono::steady_clock::now() - visT0 ).count();
+				std::printf( "[scan] visual %.0f ms  (%s)\n", visMs, visOk ? m_scanVisual.status.c_str() : visualErr.c_str() );
+				std::fflush( stdout );
+			}
+			if ( visOk == false )
+			{
+				m_scanStatus += "  |  render: " + visualErr;
+			}
+			// Hide the collision mesh from debug-draw once the skin covers it (same
+			// SetShapeHidden pattern the chassis box uses under the body), so the
+			// island shows as textured terrain, not a gray wireframe shell. If the
+			// skin failed, leave the collider visible so there is still something.
+			SetShapeHidden( m_scanBodies.terrainShape, m_scanVisual.loaded && m_scanShowCollider == false );
+		}
 	}
 
 void JozzVehicleM6RigLab::UnloadScanTile()
 	{
 		DestroyJozzScanTile( m_worldId, &m_scanBodies );
+		DestroyJozzScanVisual( &m_scanVisual );
 		m_scanTiles.clear();
 		m_scanBodies = JozzScanTileBodies{};
 		m_scanLoaded = false;

@@ -187,7 +187,7 @@ JozzScanTileBodies BuildJozzScanTile( b3WorldId worldId, const JozzScanMeshInput
 	b3ShapeDef shapeDef = b3DefaultShapeDef();
 	shapeDef.baseMaterial.friction = kScanFriction;
 	shapeDef.filter.categoryBits = terrainCategoryBits; // ONLY Terrain gets this (split wheel envelope)
-	b3CreateMeshShape( result.terrainBody, &shapeDef, mesh, { 1.0f, 1.0f, 1.0f } );
+	result.terrainShape = b3CreateMeshShape( result.terrainBody, &shapeDef, mesh, { 1.0f, 1.0f, 1.0f } );
 
 	result.terrainMesh = mesh;
 	result.terrainVertexCount = (int)totalVerts;
@@ -261,6 +261,7 @@ void DestroyJozzScanTile( b3WorldId worldId, JozzScanTileBodies* bodies )
 	{
 		b3DestroyBody( bodies->terrainBody );
 		bodies->terrainBody = b3_nullBodyId;
+		bodies->terrainShape = b3_nullShapeId; // destroyed with its body
 	}
 	for ( b3BodyId id : bodies->structureBodies )
 	{

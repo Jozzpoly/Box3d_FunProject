@@ -223,6 +223,8 @@ set(SAMPLE_FILES
     jozz_vehicle_scan_geometry.h
     jozz_vehicle_scan_import.cpp
     jozz_vehicle_scan_import.h
+    jozz_vehicle_scan_visual.cpp
+    jozz_vehicle_scan_visual.h
     jozz_vehicle_visual_asset.cpp
     jozz_vehicle_visual_asset.h
     jozz_vehicle_visual_mesh.h

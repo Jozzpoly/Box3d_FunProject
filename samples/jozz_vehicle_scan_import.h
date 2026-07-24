@@ -99,6 +99,7 @@ struct JozzScanTilePlacement
 struct JozzScanTileBodies
 {
 	b3BodyId terrainBody = b3_nullBodyId;
+	b3ShapeId terrainShape = b3_nullShapeId; // the mesh collider; hide from debug-draw once the render skin covers it
 	b3MeshData* terrainMesh = nullptr; // kept alive for the shape; freed by DestroyJozzScanTile
 	std::vector<b3BodyId> structureBodies;
 	std::vector<b3BodyId> vegetationBodies;

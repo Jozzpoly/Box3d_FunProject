@@ -23,6 +23,7 @@
 #include "jozz_vehicle_steering_suspension_contract.h"
 #include "jozz_vehicle_visual_mesh.h"
 #include "jozz_vehicle_scan_import.h"
+#include "jozz_vehicle_scan_visual.h"
 #include "jozz_vehicle_world_layout.h"
 #include "jozz_vehicle_world_terrain.h"
 
@@ -173,9 +174,15 @@ public:
 	// --- Skan (wyspa) — fundament v3 (M1) ------------------------------------
 	std::vector<JozzScanTileGeometry> m_scanTiles; // reader output; kept for reload/rebuild
 	JozzScanTileBodies m_scanBodies;               // physics handles + world-space bounds
+	JozzScanVisual m_scanVisual;                   // textured render skin (M2), same pack + origin as the collider
 	std::string m_scanStatus = "skan: niezaładowany (ustaw JOZZ_SCAN_PREVIEW_PACK)";
-	bool m_scanFlipWinding = false;                // photogrammetry winding may need a flip
+	bool m_scanFlipWinding = false;                // photogrammetry winding may need a flip (collision)
 	bool m_scanLoaded = false;
+	// When the textured skin is loaded, the collision mesh is hidden from box3d
+	// debug-draw so only the skin shows (same SetShapeHidden pattern the chassis
+	// box uses under the body). This forces the collision wireframe back on top
+	// for inspection -- view state, default OFF (BeamNG: collision one click away).
+	bool m_scanShowCollider = false;
 	float m_spawnAnchorX = 0.0f; // current teleport anchor (world x/z); Start == origin
 	float m_spawnAnchorZ = 0.0f;
 	// JOZZ_M6_AUTODRIVE: headless drive-through testing aid (Etap 1) - forces

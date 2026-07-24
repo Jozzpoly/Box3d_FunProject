@@ -664,6 +664,11 @@ void JozzVehicleM6RigLab::Render()
 	{
 		Sample::Render();
 
+		// Textured scan skin (M2): one AppendMesh per group at the island origin.
+		// Drawn before the vehicle-valid gate so the island always shows, even with
+		// no car spawned. Collision stays as-is; this is the visible surface.
+		DrawJozzScanVisual( m_scanVisual );
+
 		if ( m_vehicle.valid == false )
 		{
 			return;
