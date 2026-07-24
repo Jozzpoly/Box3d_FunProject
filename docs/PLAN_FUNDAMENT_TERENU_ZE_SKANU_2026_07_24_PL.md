@@ -176,6 +176,77 @@ R  RENDER      pelny mesh teksturowany   BRAK fizyki                      -
 5. **X jest pełnoprawną klasą, nie śmietnikiem.** Peryferyjne artefakty dostają jawny
    status „nie ma kolizji", a nie są cicho zostawiane.
 
+### 4.1 Gdzie dokładnie kończy się G, a zaczyna S (rozstrzygnięcie D8)
+
+Jozz oddał tę decyzję („zdecyduj sam krytycznie"). Odrzucam własną wcześniejszą propozycję
+progu „wszystko poniżej 50 cm to G" — 50 cm było liczbą wziętą z powietrza.
+
+**Właściwe kryterium wynika z geometrii auta, nie z arbitralnej wysokości.** Powód jest
+konkretny: klasa G ma kategorię `0x2`, którą split wheel envelope obsługuje **toczącą się
+kulą**, a klasa S kategorię `0x1`, obsługiwaną **pełnym walcem**. Czyli:
+
+```text
+na co auto NAJEZDZA (koło się toczy)  -> musi byc w G, dokladnym meshem
+w co auto UDERZA (koło nie wjedzie)   -> S, bryla
+```
+
+Fizyczną stałą, która to rozdziela, jest **promień koła** (M6 bierze go z kontraktu assetu,
+~0,3 m): uskok niższy niż promień koła da się najechać, wyższy zatrzymuje koło na ścianie.
+
+**Reguła G (do implementacji w etapie `classify`):**
+
+```text
+G = spojna skladowa NAJAZDOWA, wypelniana od ziaren gruntu (flood fill), gdzie
+    krawedz miedzy trojkatami jest przechodnia, jesli:
+        nachylenie trojkata     <  ~40 stopni
+        uskok na krawedzi       <= promien kola (~0,30 m)
+Wszystko poza ta skladowa -> S / V / D / X.
+Pionowe sciski NIZSZE niz prog uskoku (krawezniki, progi, wjazdy) ZOSTAJA w G
+i sa dokladne - to sa wlasnie miejsca, gdzie zawieszenie pracuje.
+```
+
+Dlaczego to jest lepsze niż próg wysokości:
+
+- **dach sam się wyklucza** — jest powierzchnią o małym nachyleniu, ale nie jest połączony
+  z gruntem żadną przechodnią krawędzią, więc flood fill tam nie wejdzie;
+- **rampa, podjazd, taras najazdowy same się włączają** — są połączone, więc wejdą, i to
+  niezależnie od tego, na jakiej są wysokości;
+- **góra muru oporowego** trafia do G tylko wtedy, gdy da się tam wjechać — czyli
+  dokładnie wtedy, gdy to ma znaczenie dla gry;
+- kryterium jest **wyprowadzone z auta**, więc zmiana promienia koła przelicza je automatycznie,
+  zamiast unieważniać ręcznie dobraną stałą.
+
+Falsyfikator: jeśli flood fill „przecieknie" na dach przez rampę albo przewrócone drzewo,
+zobaczysz to na mapie klas w F4 i utniesz wielokątem wykluczającym (D9). To jest tańsze niż
+zgadywanie progu z góry.
+
+Koszt: potrzebny graf sąsiedztwa trójkątów dla 1,77 mln trójkątów — offline, numpy/scipy,
+jednorazowo w cooku.
+
+### 4.2 Roślinność: kolizja prawdziwa, z jawną granicą zasięgu auta (rozstrzygnięcie D7)
+
+Jozz wybrał kolizję **prawdziwą**. Interpretuję to jako: *auto ma realnie zderzać się ze
+wszystkim, czego fizycznie może dotknąć* — i tak to implementuję, z jednym jawnym
+ograniczeniem, które jest wierniejsze rzeczywistości, a nie tańsze:
+
+```text
+pien i galezie PONIZEJ ~4 m       -> kolizja z rzeczywistej geometrii (hull/kapsula
+                                     dopasowana do skanu, nie nominalny walec)
+korona POWYZEJ ~4 m               -> brak kolizji: auto tam nie siega, a bryla korony
+                                     w fotogrametrii jest nieostra i staje sie
+                                     NIEWIDZIALNA SCIANA W POWIETRZU - to byloby
+                                     mniej prawdziwe, nie bardziej
+krzewy i zywoploty do ~1,5 m      -> kolizja WLACZONA (auto nie przenika przez zywoplot)
+trawa i niska ziemia              -> czesc G, bez osobnej obslugi
+```
+
+Czyli: prawdziwa kolizja wszędzie tam, gdzie auto może dosięgnąć, i żadnej zmyślonej
+geometrii tam, gdzie nie może. Próg 4 m jest parametrem, nie dogmatem.
+
+Falsyfikator: jeśli przy przejeździe pod drzewami auto zaczepia o coś niewidzialnego,
+próg jest za wysoki i schodzimy niżej. Jeśli przejeżdżasz przez pień — hull jest za mały.
+Jedno i drugie widać na pierwszym przejeździe.
+
 ### Dlaczego to jest właściwa odpowiedź na „duszę projektu"
 
 - Koła dostają **prawdziwą powierzchnię źródła**, nie jej resampling — to jest warunek
@@ -431,9 +502,9 @@ montaz chunka:          <= 5 ms
 | **D4** | miejsce na mapie | **północ, `z > 200`** |
 | **D5** | styk z płytą | **wyspa + teleport, urwisko** |
 | **D6** | klon `P2B Scan Drive` | **nie portujemy** |
-| **D7** | kolizja roślinności | *otwarte* — pełna / tylko pień (kapsuła) / brak |
-| **D8** | granica dokładności G | *otwarte* — czy krawężniki i murki oporowe należą do G (dokładne, kosztowne) czy do S (bryły, tanie) |
-| **D9** | ile ręcznej korekty klas w v1 | *otwarte* — tylko progi globalne / malowanie regionów / pełne narzędzie |
+| **D7** | kolizja roślinności | **prawdziwa** — pień i gałęzie poniżej ~4 m z rzeczywistej geometrii, korona wyżej bez kolizji, krzewy/żywopłoty kolidują (§4.2) |
+| **D8** | granica dokładności G | **spójna składowa najazdowa** od ziaren gruntu: nachylenie < ~40°, uskok ≤ promień koła; krawężniki i progi zostają w G (§4.1). *Decyzja oddana agentowi przez Jozza; odrzucono wcześniejszy arbitralny próg 50 cm* |
+| **D9** | ile ręcznej korekty klas w v1 | **progi globalne + wykluczanie/wymuszanie regionów** wielokątami w world-space (§7.3) |
 
 ---
 
@@ -452,6 +523,9 @@ montaz chunka:          <= 5 ms
 | R9 | 1,78 mln trójkątów wizualu bez cullingu ⇒ spadek FPS | culling per chunk już w F5 |
 | R10 | 1,2 km terenu — gubisz się | rejestr kotwic w obrębie skanu w F5 |
 | R11 | reimport ulepszonego skanu kasuje pracę ręczną | §7.3 — decyzje world-space, nigdy indeksy |
+| **R15** | flood fill klasy G „przecieka" na dach albo na koronę drzewa (§4.1) | widać na mapie klas w F4; cięcie wielokątem wykluczającym; próg uskoku i nachylenia są parametrami, nie stałymi |
+| **R16** | próg 4 m dla korony (§4.2) daje niewidzialne ściany albo przenikanie pnia | pierwszy przejazd pod drzewami jest testem; oba objawy są jednoznaczne i prowadzą do przeciwnych korekt progu |
+| **R17** | graf sąsiedztwa 1,77 mln trójkątów jest wolny albo pamięciożerny w cooku | offline, jednorazowo, numpy/scipy; jeśli nie wyrobi — dzielimy na chunki z marginesem zakładki i sklejamy składowe na granicach |
 | R12 | program długi, energia wyparuje | F1 daje obraz, F5 daje jazdę; każdy etap ma osobną wartość i sign-off |
 | R13 | prywatne dane w repo | `.gitignore` + manifest bez ścieżek/hashy źródła + rejestr lokalny |
 | R14 | recovery mapy wejdzie w drogę | gałąź od `445db88`, rozłączne pliki, kafel przestrzennie rozłączny |
@@ -477,9 +551,10 @@ montaz chunka:          <= 5 ms
 
 ## 14. Czego potrzebuję, żeby ruszyć
 
-1. **D7–D9** z §11.
+Wszystkie decyzje D1–D9 są podjęte. Zostaje:
+
+1. Potwierdzenie gałęzi `jozz-scan-terrain-f0` od `445db88` — i ruszam z F0.
 2. Do F4: Twojego oka na mapach klas — tam decydujesz, co jest terenem, a co domem.
-3. Potwierdzenie gałęzi `jozz-scan-terrain-f0` od `445db88`.
 
 Plików źródłowych nie potrzebuję — dataset (509 MB) i paczka PoC (107 MB) są lokalnie
 w `JS_Photogrametry/`, i to wystarcza aż do F9.
