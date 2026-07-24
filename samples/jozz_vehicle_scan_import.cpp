@@ -6,6 +6,7 @@
 #include "box3d/box3d.h"
 #include "box3d/collision.h"
 
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
@@ -34,67 +35,147 @@ constexpr float kScanFriction = 0.85f;
 // see plan v2 measurements).
 constexpr float kScanWeldTolerance = 0.01f; // 1 cm
 
+// Read a 0/1 env override; returns fallback when unset. Used to A/B the mesh-build
+// flags (weld / identifyEdges / median-split) against load time without rebuilding.
+bool EnvBool( const char* name, bool fallback )
+{
+	const char* v = std::getenv( name );
+	return v == nullptr ? fallback : ( std::atoi( v ) != 0 );
+}
+
 } // namespace
 
 JozzScanTileBodies BuildJozzScanTile( b3WorldId worldId, const JozzScanMeshInput* meshes, int meshCount,
-									  const JozzScanTilePlacement& placement, uint64_t terrainCategoryBits )
+									  const JozzScanTilePlacement& placement, uint64_t terrainCategoryBits,
+									  const char* cachePath )
 {
 	JozzScanTileBodies result;
+	const bool dump = std::getenv( "JOZZ_SCAN_DUMP" ) != nullptr;
 
-	// --- 1. Merge every Terrain input into one contiguous vertex/index array ---
-	std::vector<b3Vec3> verts;
-	std::vector<int32_t> indices;
+	// --- 1. Tally the Terrain inputs (no merge yet -- a cache hit skips merging) ---
+	long long totalVerts = 0;
+	long long totalTris = 0;
 	for ( int m = 0; m < meshCount; ++m )
 	{
 		const JozzScanMeshInput& in = meshes[m];
 		if ( in.role != JozzScanRole::Terrain )
 		{
-			// Structure / Vegetation / Decoration: not this milestone (M4).
-			if ( in.role != JozzScanRole::Decoration )
+			if ( in.role != JozzScanRole::Decoration ) // Structure / Vegetation: M4
 			{
 				result.deferredMeshCount += 1;
 			}
 			continue;
 		}
-		if ( in.vertices == nullptr || in.indices == nullptr || in.vertexCount < 3 || in.triangleCount < 1 )
+		if ( in.vertices != nullptr && in.indices != nullptr && in.vertexCount >= 3 && in.triangleCount >= 1 )
 		{
-			continue;
-		}
-		const int32_t base = (int32_t)verts.size();
-		verts.insert( verts.end(), in.vertices, in.vertices + in.vertexCount );
-		indices.reserve( indices.size() + (size_t)in.triangleCount * 3 );
-		for ( int i = 0; i < in.triangleCount * 3; ++i )
-		{
-			indices.push_back( in.indices[i] + base );
+			totalVerts += in.vertexCount;
+			totalTris += in.triangleCount;
 		}
 	}
-
-	if ( verts.size() < 3 || indices.size() < 3 )
+	if ( totalTris < 1 )
 	{
-		result.ok = false;
 		result.status = "brak trojkatow terenu w wejsciu";
 		return result;
 	}
 
-	// --- 2. Build the mesh blob (BVH inside). Collect any degenerate triangles ---
-	std::vector<int> degenerate( 256 );
-	b3MeshDef def = {};
-	def.vertices = verts.data();
-	def.indices = indices.data();
-	def.materialIndices = nullptr; // single surface material for M1 (per-triangle materials: later)
-	def.vertexCount = (int)verts.size();
-	def.triangleCount = (int)( indices.size() / 3 );
-	def.weldVertices = true;
-	def.weldTolerance = kScanWeldTolerance;
-	def.useMedianSplit = false; // SAH: the scan is irregular, not a grid
-	def.identifyEdges = true;   // concave-edge flags across the whole merged surface
+	// --- 2. The cooked BVH: load from cache, else cook once and write the cache ---
+	// This is the load-time fix. b3CreateMesh (BVH build) dominates load time
+	// (~14 s Debug / ~1.8 s Release on 1.8M tris); reading back the cooked blob is
+	// ~instant. b3MeshData is a self-contained relocatable blob (offsets from its
+	// own address), so box3d's own b3WriteBinaryFile / b3ReadBinaryFile round-trip
+	// it (exactly how box3d dumps/reloads meshes, src/shape.c). b3ReadBinaryFile
+	// allocates via b3Alloc, so b3DestroyMesh (== b3Free) frees a cached mesh too.
+	b3MeshData* mesh = nullptr;
+	if ( cachePath != nullptr && cachePath[0] != '\0' )
+	{
+		int cachedSize = 0;
+		b3MeshData* cached = (b3MeshData*)b3ReadBinaryFile( "", cachePath, &cachedSize );
+		if ( cached != nullptr )
+		{
+			if ( cached->version == B3_MESH_VERSION && cached->byteCount == cachedSize )
+			{
+				mesh = cached;
+				result.fromCache = true;
+				if ( dump )
+				{
+					std::printf( "[scan] cache HIT (%d B, %s)\n", cachedSize, cachePath );
+					std::fflush( stdout );
+				}
+			}
+			else
+			{
+				b3DestroyMesh( cached ); // stale version / corrupt -> recook below
+			}
+		}
+	}
 
-	b3MeshData* mesh = b3CreateMesh( &def, degenerate.data(), (int)degenerate.size() );
+	// Mesh-build flags. Defaults = QUALITY (the config Jozz validated as good to
+	// drive): weld stitches tile seams and removes slivers, identifyEdges flags
+	// concave edges so the car does not catch on internal triangle edges, SAH
+	// gives the fastest runtime queries. The cook cost is paid once (then cached),
+	// so quality wins. Each flag is env-overridable to re-measure the trade-off.
+	const bool useWeld = EnvBool( "JOZZ_SCAN_WELD", true );
+	const bool useEdges = EnvBool( "JOZZ_SCAN_EDGES", true );
+	const bool useMedian = EnvBool( "JOZZ_SCAN_MEDIAN", false ); // false == SAH
+
 	if ( mesh == nullptr )
 	{
-		result.ok = false;
-		result.status = "b3CreateMesh zwrocil null";
-		return result;
+		// Cache miss: merge all Terrain inputs into ONE contiguous array and cook.
+		std::vector<b3Vec3> verts;
+		std::vector<int32_t> indices;
+		verts.reserve( (size_t)totalVerts );
+		indices.reserve( (size_t)totalTris * 3 );
+		for ( int m = 0; m < meshCount; ++m )
+		{
+			const JozzScanMeshInput& in = meshes[m];
+			if ( in.role != JozzScanRole::Terrain || in.vertices == nullptr || in.indices == nullptr ||
+				 in.vertexCount < 3 || in.triangleCount < 1 )
+			{
+				continue;
+			}
+			const int32_t base = (int32_t)verts.size();
+			verts.insert( verts.end(), in.vertices, in.vertices + in.vertexCount );
+			for ( int i = 0; i < in.triangleCount * 3; ++i )
+			{
+				indices.push_back( in.indices[i] + base );
+			}
+		}
+
+		std::vector<int> degenerate( 256 );
+		b3MeshDef def = {};
+		def.vertices = verts.data();
+		def.indices = indices.data();
+		def.materialIndices = nullptr; // single surface material for M1 (per-triangle materials: later)
+		def.vertexCount = (int)verts.size();
+		def.triangleCount = (int)( indices.size() / 3 );
+		def.weldVertices = useWeld;
+		def.weldTolerance = kScanWeldTolerance;
+		def.useMedianSplit = useMedian;
+		def.identifyEdges = useEdges;
+
+		auto meshT0 = std::chrono::steady_clock::now();
+		mesh = b3CreateMesh( &def, degenerate.data(), (int)degenerate.size() );
+		double meshMs = std::chrono::duration<double, std::milli>( std::chrono::steady_clock::now() - meshT0 ).count();
+		if ( dump )
+		{
+			std::printf( "[scan] b3CreateMesh %.0f ms  (weld=%d edges=%d median=%d, %d trojkatow)\n", meshMs, useWeld,
+						 useEdges, useMedian, def.triangleCount );
+			std::fflush( stdout );
+		}
+		if ( mesh == nullptr )
+		{
+			result.status = "b3CreateMesh zwrocil null";
+			return result;
+		}
+		if ( cachePath != nullptr && cachePath[0] != '\0' )
+		{
+			b3WriteBinaryFile( (void*)mesh, mesh->byteCount, cachePath ); // cook once for next time
+			if ( dump )
+			{
+				std::printf( "[scan] cache WRITE (%d B, %s)\n", mesh->byteCount, cachePath );
+				std::fflush( stdout );
+			}
+		}
 	}
 
 	// --- 3. Static body at the island origin + the mesh shape (Terrain category) ---
@@ -109,46 +190,27 @@ JozzScanTileBodies BuildJozzScanTile( b3WorldId worldId, const JozzScanMeshInput
 	b3CreateMeshShape( result.terrainBody, &shapeDef, mesh, { 1.0f, 1.0f, 1.0f } );
 
 	result.terrainMesh = mesh;
-	result.terrainVertexCount = def.vertexCount;
-	result.terrainTriangleCount = def.triangleCount;
+	result.terrainVertexCount = (int)totalVerts;
+	result.terrainTriangleCount = (int)totalTris;
 
-	// --- 4. World-space AABB (local min/max + origin) for teleport framing ---
-	b3Vec3 lo = { std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max() };
-	b3Vec3 hi = { -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max() };
-	for ( const b3Vec3& v : verts )
-	{
-		lo.x = v.x < lo.x ? v.x : lo.x;
-		lo.y = v.y < lo.y ? v.y : lo.y;
-		lo.z = v.z < lo.z ? v.z : lo.z;
-		hi.x = v.x > hi.x ? v.x : hi.x;
-		hi.y = v.y > hi.y ? v.y : hi.y;
-		hi.z = v.z > hi.z ? v.z : hi.z;
-	}
-	result.worldBounds.lowerBound = { lo.x + placement.origin.x, lo.y + placement.origin.y, lo.z + placement.origin.z };
-	result.worldBounds.upperBound = { hi.x + placement.origin.x, hi.y + placement.origin.y, hi.z + placement.origin.z };
-
-	// Count degenerate triangles that were reported (capacity-limited; a full count
-	// is not needed, just visibility that the scan is dirty).
-	int degenerateReported = 0;
-	for ( int idx : degenerate )
-	{
-		if ( idx != 0 )
-		{
-			degenerateReported += 1;
-		}
-	}
+	// World-space AABB straight from the cooked blob's own local bounds + origin.
+	result.worldBounds.lowerBound = { mesh->bounds.lowerBound.x + placement.origin.x,
+									  mesh->bounds.lowerBound.y + placement.origin.y,
+									  mesh->bounds.lowerBound.z + placement.origin.z };
+	result.worldBounds.upperBound = { mesh->bounds.upperBound.x + placement.origin.x,
+									  mesh->bounds.upperBound.y + placement.origin.y,
+									  mesh->bounds.upperBound.z + placement.origin.z };
 
 	char buf[192];
-	std::snprintf( buf, sizeof( buf ), "OK: %d wierzcholkow, %d trojkatow%s%s", result.terrainVertexCount,
-				   result.terrainTriangleCount, result.deferredMeshCount > 0 ? " (role nie-teren odroczone: " : "",
-				   result.deferredMeshCount > 0 ? "M4)" : "" );
+	std::snprintf( buf, sizeof( buf ), "OK (%s): %d wierzcholkow, %d trojkatow%s", result.fromCache ? "z cache" : "ugotowany",
+				   result.terrainVertexCount, result.terrainTriangleCount,
+				   result.deferredMeshCount > 0 ? " (role nie-teren: M4)" : "" );
 	result.status = buf;
-	if ( std::getenv( "JOZZ_SCAN_DUMP" ) != nullptr )
+	if ( dump )
 	{
-		std::printf( "[scan] %s; degenerate>=%d; world AABB x[%.1f,%.1f] y[%.1f,%.1f] z[%.1f,%.1f]\n", result.status.c_str(),
-					 degenerateReported, result.worldBounds.lowerBound.x, result.worldBounds.upperBound.x,
-					 result.worldBounds.lowerBound.y, result.worldBounds.upperBound.y, result.worldBounds.lowerBound.z,
-					 result.worldBounds.upperBound.z );
+		std::printf( "[scan] %s; world AABB x[%.1f,%.1f] y[%.1f,%.1f] z[%.1f,%.1f]\n", result.status.c_str(),
+					 result.worldBounds.lowerBound.x, result.worldBounds.upperBound.x, result.worldBounds.lowerBound.y,
+					 result.worldBounds.upperBound.y, result.worldBounds.lowerBound.z, result.worldBounds.upperBound.z );
 		std::fflush( stdout );
 	}
 
@@ -157,7 +219,8 @@ JozzScanTileBodies BuildJozzScanTile( b3WorldId worldId, const JozzScanMeshInput
 }
 
 JozzScanTileBodies BuildJozzScanTileFromPack( b3WorldId worldId, const std::vector<JozzScanTileGeometry>& tiles,
-											  const JozzScanTilePlacement& placement, uint64_t terrainCategoryBits )
+											  const JozzScanTilePlacement& placement, uint64_t terrainCategoryBits,
+											  const char* cachePath )
 {
 	// Every tile of this (dirty, one-piece) scan is Terrain. Wrap each tile as a
 	// Terrain input and hand the whole set to the one seam -- exercising exactly
@@ -185,7 +248,7 @@ JozzScanTileBodies BuildJozzScanTileFromPack( b3WorldId worldId, const std::vect
 		empty.status = "paczka nie ma geometrii";
 		return empty;
 	}
-	return BuildJozzScanTile( worldId, inputs.data(), (int)inputs.size(), placement, terrainCategoryBits );
+	return BuildJozzScanTile( worldId, inputs.data(), (int)inputs.size(), placement, terrainCategoryBits, cachePath );
 }
 
 void DestroyJozzScanTile( b3WorldId worldId, JozzScanTileBodies* bodies )

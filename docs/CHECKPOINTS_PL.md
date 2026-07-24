@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-24 · Skan: optymalizacja ładowania — cache ugotowanego BVH (14s→0.6s) · jozz-scan-terrain-f0
+- CO:     Blob cache mesha (`b3WriteBinaryFile`/`b3ReadBinaryFile` — natywna serializacja box3d, `b3MeshData` relokowalny, alloc/free symetryczne przez b3Alloc/b3Free): pierwsze ładowanie gotuje BVH raz i zapisuje `build/scan_cache/<hash-paczki>_<flagi>.b3mesh`, kolejne CZYTAJĄ blob i POMIJAJĄ `b3CreateMesh`. Flagi mesha z powrotem na JAKOŚĆ (weld+identifyEdges+SAH, env-override `JOZZ_SCAN_{WELD,EDGES,MEDIAN}`). worldBounds z `mesh->bounds`.
+- CZEMU:  Jozz: ładowanie „bardzo długie", a poprzednia „szybka apka" (2-3s) to render-only preview (zero fizyki). Dowód (JOZZ_SCAN_DUMP): wąskie gardło = `b3CreateMesh` na 1.8M trójk., a Debug jest ~40× wolniejszy od Release (Debug 13.7s vs Release 1.84s dla SAME flagi).
+- EFEKT:  Pomiary: Release MISS ~2s (gotuje+zapis 73MB blob), Release HIT ~0.1s, **Debug HIT ~0.6s (było ~14s)** — ten sam blob 73 156 192 B ugotowany w Release, czytany w Debug. Render z cache IDENTYCZNY (mesh poprawny, kolizja OK). Bramka zielona (build 3/3, walidator OK, test PASS, smoke 0 err).
+- DALEJ:  Pierwsze gotowanie najlepiej w Release (1.8s vs Debug 14s), potem Debug czyta z cache. Reader (0.5s Debug) to nowa podłoga — do pominięcia na hit dopiero jeśli zaboli. Nadal M2 mesh renderu.
+
 ## 2026-07-24 · Skan terenu: fundament v3 (kontrakt ról) + M1 kafel + zakładka Mapa · jozz-scan-terrain-f0
 - CO:     Pivot Jozza — auto-klasyfikator (v2) porzucony jako „automat, którego nie użyjemy"; silnik KONSUMUJE role (`jozz_vehicle_scan_import.{h,cpp}`: `JozzScanRole` Terrain/Structure/Vegetation/Decoration, tylko Terrain→kat. `0x2`). M1: `BuildJozzScanTile` merge'uje kafle w jeden `b3CreateMesh` (weld+identifyEdges), stawia wyspę na północy (z pinowany od `kScanSouthEdgeZ`). NOWA zakładka top-level „Mapa" z zagnieżdżonymi segmentami Płyta/Offroad/Skan; `GetGroundHeightAt` świadome skanu (raycast); reader JSPREV2 przeniesiony z gałęzi audytu.
 - CZEMU:  Ten skan jest brudny/jednorazowy — nie budować pod niego automatu; fundament ma przyjąć przyszłe CZYSTE, rozdzielone przez Jozza skany tym samym kanałem. Jozz: „osobna zakładka na segment mapy", reszta fragmentów też własne zakładki.

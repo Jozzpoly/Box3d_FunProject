@@ -3,6 +3,9 @@
 
 #include "jozz_vehicle_m6_rig_lab_internal.h"
 
+#include <chrono>  // scan reader load-time measurement
+#include <cstdio>  // JOZZ_SCAN_DUMP timing output
+#include <cstdlib> // getenv
 #include <cstring> // strncmp: split teleport anchors by segment
 
 	// ---- Tabbed control panel. Live sliders act immediately; anything that
@@ -1018,7 +1021,15 @@ void JozzVehicleM6RigLab::LoadScanTile()
 		}
 		m_scanTiles.clear();
 		std::string err;
-		if ( LoadJozzScanPackGeometry( dir, &m_scanTiles, &err, m_scanFlipWinding ) == false || m_scanTiles.empty() )
+		auto readT0 = std::chrono::steady_clock::now();
+		bool readOk = LoadJozzScanPackGeometry( dir, &m_scanTiles, &err, m_scanFlipWinding );
+		if ( std::getenv( "JOZZ_SCAN_DUMP" ) != nullptr )
+		{
+			double readMs = std::chrono::duration<double, std::milli>( std::chrono::steady_clock::now() - readT0 ).count();
+			std::printf( "[scan] reader %.0f ms  (%d kafli)\n", readMs, (int)m_scanTiles.size() );
+			std::fflush( stdout );
+		}
+		if ( readOk == false || m_scanTiles.empty() )
 		{
 			m_scanStatus = "skan: " + ( err.empty() ? std::string( "paczka pusta" ) : err );
 			m_scanLoaded = false;
@@ -1045,7 +1056,24 @@ void JozzVehicleM6RigLab::LoadScanTile()
 		placement.origin.y = JozzWorldLayout::kScanGroundY - local.lowerBound.y;
 		placement.origin.z = JozzWorldLayout::kScanSouthEdgeZ - local.lowerBound.z;
 
-		m_scanBodies = BuildJozzScanTileFromPack( m_worldId, m_scanTiles, placement, JOZZ_M6_TERRAIN_CATEGORY );
+		// Cooked-BVH cache key: the scan's identity (pack dir leaf -- content-hashed
+		// by the pipeline) + the build flags + winding, all of which change the
+		// cooked mesh. First load cooks + writes it; later loads read it back
+		// (~instant) instead of rebuilding the BVH (the 14 s Debug / 1.8 s Release
+		// cost). Lives under build/ so it is disposable and never committed.
+		auto envBool = []( const char* n, bool d ) { const char* v = std::getenv( n ); return v ? atoi( v ) != 0 : d; };
+		std::filesystem::path leaf = dir.filename().empty() ? dir.parent_path().filename() : dir.filename();
+		char flags[24];
+		std::snprintf( flags, sizeof( flags ), "w%de%dm%df%d", envBool( "JOZZ_SCAN_WELD", true ) ? 1 : 0,
+					   envBool( "JOZZ_SCAN_EDGES", true ) ? 1 : 0, envBool( "JOZZ_SCAN_MEDIAN", false ) ? 1 : 0,
+					   m_scanFlipWinding ? 1 : 0 );
+		std::error_code ec;
+		std::filesystem::create_directories( "build/scan_cache", ec );
+		std::string cachePath = ( std::filesystem::path( "build/scan_cache" ) / ( leaf.string() + "_" + flags + ".b3mesh" ) )
+									.generic_string();
+
+		m_scanBodies = BuildJozzScanTileFromPack( m_worldId, m_scanTiles, placement, JOZZ_M6_TERRAIN_CATEGORY,
+												  cachePath.c_str() );
 		m_scanLoaded = m_scanBodies.ok;
 		m_scanStatus = "skan: " + m_scanBodies.status;
 	}

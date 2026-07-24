@@ -106,6 +106,7 @@ struct JozzScanTileBodies
 	int terrainVertexCount = 0;
 	int terrainTriangleCount = 0;
 	int deferredMeshCount = 0;     // non-Terrain inputs skipped this milestone (M4 does them)
+	bool fromCache = false;        // true when the cooked BVH was loaded from a .b3mesh cache
 	bool ok = false;
 	std::string status;            // human-readable outcome for the UI
 };
@@ -120,15 +121,22 @@ struct JozzScanTileBodies
 // terrainCategoryBits is passed in (not hard-coded) so labs can override it,
 // exactly like CreateJozzWorldGround does.
 // -----------------------------------------------------------------------------
+// cachePath (optional): a .b3mesh file. If it exists and holds a valid, current
+// mesh blob, the cooked BVH is LOADED from it (box3d-native b3ReadBinaryFile) and
+// the expensive b3CreateMesh is skipped entirely -- this is the load-time fix.
+// On a cache miss the mesh is cooked once and WRITTEN there for next time. The
+// caller must ensure the parent directory exists. nullptr/"" disables caching.
 JozzScanTileBodies BuildJozzScanTile( b3WorldId worldId, const JozzScanMeshInput* meshes, int meshCount,
 									  const JozzScanTilePlacement& placement,
-									  uint64_t terrainCategoryBits /* = JOZZ_M6_TERRAIN_CATEGORY */ );
+									  uint64_t terrainCategoryBits /* = JOZZ_M6_TERRAIN_CATEGORY */,
+									  const char* cachePath = nullptr );
 
 // Convenience adapter for M0: the whole dirty scan is ONE Terrain role. Flattens
 // every tile from the reader into a single merged Terrain input and calls
 // BuildJozzScanTile. Returns the same result struct.
 JozzScanTileBodies BuildJozzScanTileFromPack( b3WorldId worldId, const std::vector<JozzScanTileGeometry>& tiles,
-											  const JozzScanTilePlacement& placement, uint64_t terrainCategoryBits );
+											  const JozzScanTilePlacement& placement, uint64_t terrainCategoryBits,
+											  const char* cachePath = nullptr );
 
 // Frees the mesh blob and destroys the bodies created by BuildJozzScanTile.
 // Safe to call on a zero-initialized / failed result.
