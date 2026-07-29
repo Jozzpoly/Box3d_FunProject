@@ -28,6 +28,15 @@ JP-01.1 zamknal trzy dziury miedzy DEKLAROWANA a EGZEKWOWANA gwarancja:
     do ogona (patrz komentarz przy `header` w schematach).
 Kazda z nich byla znaleziona eksperymentem na kopii repo, nie lektura.
 
+JP-01.2 domknal przenosnosc i egzekwowanie:
+  - surowe logi maja w `.gitattributes` regule `-text`, wiec git przechowuje
+    dokladnie te bajty, ktore wypisal stend; wczesniej blob byl znormalizowany
+    do LF, a manifest hashowal CRLF z Windowsowego working tree, przez co
+    czysty checkout na Linuksie zglaszal manipulacje na nietknietych plikach;
+  - manifest jest sprawdzany PRZED zapisem (`extract`, `render`), a nie dopiero
+    przez `check`; `render` dodatkowo wymaga, by zapisane summary bylo aktualne;
+  - `render_table` doklejal pusta komorke nazwy w tabelach bez kolumny nazwy.
+
 Komendy:
     register   jawnie rejestruje run w RAW_MANIFEST.json (sha256 + tryb)
     extract    raw -> summary.json            (atomowo, wszystko albo nic)
@@ -53,6 +62,9 @@ ROOT = Path(__file__).resolve().parents[2]
 EVIDENCE_DIR = ROOT / "tools" / "jozz_wheel_bench" / "evidence"
 SUMMARY_NAME = "summary.json"
 MANIFEST_NAME = "RAW_MANIFEST.json"
+MANIFEST_SCHEMA = 1
+VALID_MODES = ("parsed", "raw-only")
+SHA256_RE = re.compile(r"\A[0-9a-f]{64}\Z")
 FINDINGS = ROOT / "docs" / "KOLA_FINDINGS.json"
 DOCS_GLOB = "KOLA_*.md"
 
@@ -385,33 +397,85 @@ def dump_summary(summary: dict) -> str:
 # ---------------------------------------------------------------------------
 
 def load_manifest(evidence_dir: Path) -> dict | None:
+    """Zwraca manifest albo None, gdy go nie ma. Uszkodzony manifest to
+    EvidenceError, nie traceback - `check` ma raportowac, nie wywracac sie."""
     path = evidence_dir / MANIFEST_NAME
     if not path.exists():
         return None
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise EvidenceError(f"{MANIFEST_NAME} nie jest poprawnym JSON: {exc}") from exc
+    if not isinstance(manifest, dict):
+        raise EvidenceError(f"{MANIFEST_NAME}: oczekiwano obiektu, jest {type(manifest).__name__}")
+    return manifest
+
+
+def validate_manifest_structure(manifest: dict) -> list[str]:
+    """Ksztalt manifestu, bez dotykania dysku. Tanie kontrole, jednoznaczne komunikaty."""
+    failures: list[str] = []
+    schema = manifest.get("schema")
+    if schema != MANIFEST_SCHEMA:
+        failures.append(f"manifest: schema {schema!r}, obslugiwane {MANIFEST_SCHEMA!r}")
+    runs = manifest.get("runs")
+    if not isinstance(runs, dict):
+        failures.append(f"manifest: pole 'runs' musi byc obiektem, jest {type(runs).__name__}")
+        return failures
+
+    seen_files: dict[str, str] = {}
+    for run_id, entry in sorted(runs.items()):
+        if not isinstance(entry, dict):
+            failures.append(f"manifest: wpis {run_id} musi byc obiektem")
+            continue
+        name = entry.get("file")
+        if not isinstance(name, str):
+            failures.append(f"manifest: {run_id}.file musi byc tekstem")
+            continue
+        # Goła nazwa pliku - nie sciezka. Bez tego wpis `../../../cokolwiek.txt`
+        # przekierowywal weryfikacje na obcy plik, a prawdziwy surowy log
+        # przestawal byc sprawdzany; `check` konczyl sie wtedy komunikatem OK.
+        pure = Path(name)
+        if (name != pure.name or pure.is_absolute() or ".." in name
+                or "/" in name or "\\" in name
+                or not name.startswith("run_") or not name.endswith(".txt")):
+            failures.append(
+                f"manifest: {run_id}.file = {name!r} - wymagana gola nazwa 'run_*.txt' bez sciezki")
+            continue
+        if name != f"run_{run_id}.txt":
+            failures.append(
+                f"manifest: {run_id}.file = {name!r}, oczekiwano 'run_{run_id}.txt'")
+            continue
+        if name in seen_files:
+            failures.append(
+                f"manifest: plik {name!r} zarejestrowany dwa razy ({seen_files[name]}, {run_id})")
+        seen_files[name] = run_id
+        digest = entry.get("sha256")
+        if not isinstance(digest, str) or not SHA256_RE.match(digest):
+            failures.append(f"manifest: {run_id}.sha256 nie jest 64-znakowym sha256")
+        size = entry.get("bytes")
+        if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+            failures.append(f"manifest: {run_id}.bytes musi byc nieujemna liczba calkowita")
+        if entry.get("mode") not in VALID_MODES:
+            failures.append(
+                f"manifest: {run_id}.mode = {entry.get('mode')!r}, dozwolone {list(VALID_MODES)}")
+    return failures
 
 
 def verify_manifest(evidence_dir: Path, schemas: dict, manifest: dict) -> list[str]:
     """Surowy przebieg zarejestrowany pod danym run ID nie moze sie po cichu zmienic."""
-    failures = []
-    for run_id, entry in sorted(manifest.get("runs", {}).items()):
-        # Pole `file` musi byc golym nazwiskiem pliku wewnatrz katalogu evidence.
-        # Bez tego wpis `../../../cokolwiek.txt` przekierowywal weryfikacje na
-        # obcy plik, a prawdziwy surowy log przestawal byc sprawdzany - `check`
-        # konczyl sie wtedy komunikatem OK.
-        name = str(entry.get("file", ""))
-        if name != Path(name).name or not name.startswith("run_") or not name.endswith(".txt"):
-            failures.append(
-                f"raw: wpis {run_id} ma niedozwolona nazwe pliku {name!r} "
-                f"- wymagane 'run_*.txt' bez sciezki")
-            continue
-        if name != f"run_{run_id}.txt":
-            failures.append(f"raw: wpis {run_id} wskazuje na {name!r}, oczekiwano 'run_{run_id}.txt'")
-            continue
-        raw = evidence_dir / name
+    failures = validate_manifest_structure(manifest)
+    if failures:
+        return failures
+
+    for run_id, entry in sorted(manifest["runs"].items()):
+        raw = evidence_dir / entry["file"]
         if not raw.exists():
             failures.append(f"raw: {entry['file']} zarejestrowany, ale nie istnieje")
             continue
+        size = raw.stat().st_size
+        if size != entry["bytes"]:
+            failures.append(
+                f"raw: {entry['file']} ma {size} bajtow, manifest mowi {entry['bytes']}")
         actual = sha256_file(raw)
         if actual != entry["sha256"]:
             failures.append(
@@ -420,17 +484,36 @@ def verify_manifest(evidence_dir: Path, schemas: dict, manifest: dict) -> list[s
                 f"- historyczny artefakt zrodlowy jest niezmienny; "
                 f"nowy przebieg wymaga 'register' pod nowym run ID")
         expected_mode = "parsed" if run_id in schemas else "raw-only"
-        if entry.get("mode") != expected_mode:
+        if entry["mode"] != expected_mode:
             failures.append(
-                f"raw: {run_id} ma tryb {entry.get('mode')!r}, schemat mowi {expected_mode!r}")
+                f"raw: {run_id} ma tryb {entry['mode']!r}, schemat mowi {expected_mode!r}")
         rc, out = git("status", "--porcelain", "--", str(raw.relative_to(ROOT)).replace("\\", "/"))
         if rc == 0 and out.startswith("??"):
             failures.append(f"raw: {entry['file']} zarejestrowany, ale NIESLEDZONY przez git")
     for raw in sorted(evidence_dir.glob("run_*.txt")):
         run_id = raw.stem[len("run_"):]
-        if run_id not in manifest.get("runs", {}):
+        if run_id not in manifest["runs"]:
             failures.append(f"raw: {raw.name} nie jest zarejestrowany (uzyj 'register')")
     return failures
+
+
+def require_registered_raw(evidence_dir: Path, schemas: dict) -> dict:
+    """Bramka przed KAZDYM zapisem. Zwraca manifest albo podnosi EvidenceError.
+
+    Do JP-01.2 manifest byl sprawdzany dopiero przez `check`. Zmieniony surowy
+    log przechodzil wiec caly lancuch - `extract` zapisywal summary, `render`
+    wpuszczal liczby do dokumentu - i dopiero nastepne uruchomienie `check`
+    zglaszalo problem. Wykrycie po fakcie nie jest egzekwowaniem.
+    """
+    manifest = load_manifest(evidence_dir)
+    if manifest is None:
+        raise EvidenceError(
+            f"brak {MANIFEST_NAME} - surowe przebiegi musza byc zarejestrowane "
+            f"przed jakimkolwiek zapisem (uruchom 'register')")
+    failures = verify_manifest(evidence_dir, schemas, manifest)
+    if failures:
+        raise EvidenceError("manifest odrzucil operacje:\n    - " + "\n    - ".join(failures))
+    return manifest
 
 
 # ---------------------------------------------------------------------------
@@ -444,10 +527,17 @@ def render_table(summary: dict, run_id: str, table_id: str) -> str:
     table = run["tables"].get(table_id)
     if table is None:
         raise EvidenceError(f"run {run_id!r} nie zawiera tabeli {table_id!r}")
-    out = ["| " + " | ".join(table["columns"]) + " |",
-           "|" + "|".join(["---"] * len(table["columns"])) + "|"]
+    columns = table["columns"]
+    out = ["| " + " | ".join(columns) + " |",
+           "|" + "|".join(["---"] * len(columns)) + "|"]
     for row in table["rows"]:
-        out.append("| " + " | ".join([row["name"]] + row["values"]) + " |")
+        # Tabela bez kolumny nazwy (A.prism_budget) ma `name` puste. Doklejanie
+        # go bezwarunkowo dawalo osiem komorek pod siedmiokolumnowym naglowkiem.
+        cells = ([row["name"]] if row["name"] else []) + row["values"]
+        if len(cells) != len(columns):
+            raise EvidenceError(
+                f"{table_id}: wiersz ma {len(cells)} komorek, naglowek {len(columns)} kolumn")
+        out.append("| " + " | ".join(cells) + " |")
     out.append("")
     out.append(f"*zrodlo: `{run['source_file']}` sha256 `{run['source_sha256'][:16]}` "
                f"tabela `{table_id}` - wygenerowane, nie przepisywac recznie*")
@@ -521,8 +611,9 @@ def cmd_register(evidence_dir: Path = EVIDENCE_DIR, schemas: dict = RUN_SCHEMAS)
 
 
 def cmd_extract(evidence_dir: Path = EVIDENCE_DIR, schemas: dict = RUN_SCHEMAS) -> int:
-    """Parsuje WSZYSTKO, waliduje WSZYSTKO, dopiero potem zapisuje - atomowo."""
+    """Sprawdza manifest, parsuje WSZYSTKO, waliduje, dopiero potem zapisuje - atomowo."""
     try:
+        require_registered_raw(evidence_dir, schemas)
         summary = build_summary(evidence_dir, schemas)
     except EvidenceError as exc:
         print(f"  BLAD {exc}")
@@ -538,9 +629,27 @@ def cmd_extract(evidence_dir: Path = EVIDENCE_DIR, schemas: dict = RUN_SCHEMAS) 
 
 def cmd_render(root: Path = ROOT, evidence_dir: Path = EVIDENCE_DIR,
                schemas: dict = RUN_SCHEMAS) -> int:
-    """Buduje tresc WSZYSTKICH dokumentow w pamieci, waliduje, dopiero potem zapisuje."""
+    """Buduje tresc WSZYSTKICH dokumentow w pamieci, waliduje, dopiero potem zapisuje.
+
+    Renderuje ze SWIEZEGO parsowania raw, ale tylko wtedy, gdy zapisane summary
+    jest z nim zgodne. Inaczej dokument moglby dostac liczby, ktorych nie widzial
+    zaden `extract` - `render` propagowalby niezarejestrowany raw prosto do
+    dokumentacji.
+    """
     try:
+        require_registered_raw(evidence_dir, schemas)
         summary = build_summary(evidence_dir, schemas)
+        summary_path = evidence_dir / SUMMARY_NAME
+        if not summary_path.exists():
+            raise EvidenceError(f"brak {SUMMARY_NAME} - uruchom 'extract' przed 'render'")
+        try:
+            stored = json.loads(summary_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise EvidenceError(f"{SUMMARY_NAME} nie jest poprawnym JSON: {exc}") from exc
+        if stored != summary:
+            raise EvidenceError(
+                f"{SUMMARY_NAME} jest nieaktualne wobec surowych logow - "
+                f"uruchom 'extract' i obejrzyj diff przed 'render'")
     except EvidenceError as exc:
         print(f"  BLAD {exc}")
         print("  zaden dokument NIE zostal zmieniony")
@@ -572,11 +681,15 @@ def cmd_check(root: Path = ROOT, evidence_dir: Path = EVIDENCE_DIR,
     warnings: list[str] = []
 
     # 1. niezmiennosc surowych przebiegow
-    manifest = load_manifest(evidence_dir)
-    if manifest is None:
-        failures.append(f"brak {MANIFEST_NAME} - uruchom 'register'")
-    else:
-        failures.extend(verify_manifest(evidence_dir, schemas, manifest))
+    try:
+        manifest = load_manifest(evidence_dir)
+        if manifest is None:
+            failures.append(f"brak {MANIFEST_NAME} - uruchom 'register'")
+        else:
+            failures.extend(verify_manifest(evidence_dir, schemas, manifest))
+    except EvidenceError as exc:
+        # uszkodzony manifest jest bledem raportowanym, nie tracebackiem
+        failures.append(str(exc))
 
     # 2. swieze parsowanie raw (JEDNA implementacja, ta sama co w extract)
     fresh = None

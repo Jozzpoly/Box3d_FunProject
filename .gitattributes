@@ -8,3 +8,10 @@
 *.sh text eol=lf
 
 *.ttf binary
+
+# Surowe przebiegi stendu kol sa artefaktem dowodowym: ich sha256 jest zapisane
+# w RAW_MANIFEST.json. Bez `-text` git normalizowal je do LF w blobie, a manifest
+# hashowal CRLF z Windowsowego working tree - czysty checkout na Linuksie
+# zglaszal wtedy manipulacje na plikach, ktorych nikt nie tknal. Musi zostac:
+#   bajty bloba == bajty swiezego checkoutu == sha256 w manifescie
+tools/jozz_wheel_bench/evidence/run_*.txt -text

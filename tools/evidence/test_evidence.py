@@ -92,6 +92,18 @@ class Sandbox:
         assert self.run("register").returncode == 0
         assert self.run("extract").returncode == 0
 
+    def reregister(self) -> None:
+        """Rejestruje AKTUALNY stan raw, kasujac wczesniejszy manifest.
+
+        Od JP-01.2 `extract` odmawia pracy na niezarejestrowanym raw, a
+        `register` nie nadpisuje historii. Testy parsera musza wiec jawnie
+        powiedziec "to jest log, ktory teraz mamy" - inaczej zatrzymywalaby je
+        bramka manifestu i nigdy nie dochodzilyby do parsera. Odmowa nadpisania
+        jest sprawdzana osobno (T15), tu nie jest przedmiotem testu.
+        """
+        (self.evidence / "RAW_MANIFEST.json").unlink()
+        assert self.run("register").returncode == 0
+
     def cleanup(self) -> None:
         shutil.rmtree(self.root, ignore_errors=True)
 
@@ -141,6 +153,7 @@ class EvidenceChainTest(unittest.TestCase):
         self.sb.raw_v2.write_text(
             txt.replace("=== D) CPU COST - MARGINAL, MESH ground ===", "=== ZEPSUTY ==="),
             encoding="utf-8")
+        self.sb.reregister()
         res = self.sb.run("extract")
         self.assertEqual(res.returncode, 1)
         self.assertIn("oczekiwano dokladnie 1", res.stdout)
@@ -154,6 +167,7 @@ class EvidenceChainTest(unittest.TestCase):
         lines = [ln for ln in txt.splitlines()
                  if not (ln.startswith("cylinder-32") and "1.67" in ln)]
         self.sb.raw_v2.write_text("\n".join(lines), encoding="utf-8")
+        self.sb.reregister()
         res = self.sb.run("extract")
         self.assertEqual(res.returncode, 1)
         self.assertIn("!= oczekiwane", res.stdout)
@@ -165,6 +179,7 @@ class EvidenceChainTest(unittest.TestCase):
         idx = next(i for i, ln in enumerate(txt) if ln.startswith("sphere") and "1.13" in ln)
         txt.insert(idx + 1, txt[idx])
         self.sb.raw_v2.write_text("\n".join(txt), encoding="utf-8")
+        self.sb.reregister()
         res = self.sb.run("extract")
         self.assertEqual(res.returncode, 1)
         self.assertIn("!= oczekiwane", res.stdout)
@@ -178,6 +193,7 @@ class EvidenceChainTest(unittest.TestCase):
         idx = next(i for i, ln in enumerate(lines) if ln.startswith("sphere") and "1.13" in ln)
         lines[idx] = lines[idx].replace("(1.00x sphere)", "") + "   0.0001"
         self.sb.raw_v2.write_text("\n".join(lines), encoding="utf-8")
+        self.sb.reregister()
         res = self.sb.run("extract")
         self.assertEqual(res.returncode, 1, res.stdout)
         self.assertIn("!= oczekiwane", res.stdout)
@@ -196,6 +212,7 @@ class EvidenceChainTest(unittest.TestCase):
                            if ln.startswith("sphere") and "1.13" in ln)
                 lines[idx] = lines[idx].replace("1.13", token)
                 sb.raw_v2.write_text("\n".join(lines), encoding="utf-8")
+                sb.reregister()
                 res = sb.run("extract")
                 self.assertEqual(res.returncode, 1, f"{token} zaakceptowany: {res.stdout}")
                 self.assertIn("!= oczekiwane", res.stdout)
@@ -368,6 +385,7 @@ class EvidenceChainTest(unittest.TestCase):
                 lines[i] = ln.replace(" 1 shape(s)", "   0.777   1 shape(s)") \
                              .replace(" 4 shape(s)", "   0.777   4 shape(s)")
         self.sb.raw_v2.write_text("\n".join(lines), encoding="utf-8")
+        self.sb.reregister()
         res = self.sb.run("extract")
         self.assertEqual(res.returncode, 1, res.stdout)
         self.assertIn("naglowek kolumn", res.stdout)
@@ -387,6 +405,7 @@ class EvidenceChainTest(unittest.TestCase):
                 lines[i] = ln.replace(" 1 shape(s)", "   0.777   1 shape(s)") \
                              .replace(" 4 shape(s)", "   0.777   4 shape(s)")
         self.sb.raw_v2.write_text("\n".join(lines), encoding="utf-8")
+        self.sb.reregister()
         res = self.sb.run("extract")
         self.assertEqual(res.returncode, 1, res.stdout)
         self.assertIn("C.mass", res.stdout)
@@ -397,6 +416,7 @@ class EvidenceChainTest(unittest.TestCase):
         self.sb.bootstrap()
         txt = self.sb.raw_v2.read_text(encoding="utf-8-sig")
         self.sb.raw_v2.write_text(txt.replace("I_sp/mr2", "I_ratio"), encoding="utf-8")
+        self.sb.reregister()
         res = self.sb.run("extract")
         self.assertEqual(res.returncode, 1, res.stdout)
         self.assertIn("naglowek kolumn", res.stdout)
@@ -440,7 +460,7 @@ class EvidenceChainTest(unittest.TestCase):
         manifest.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         res = self.sb.run("check")
         self.assertNotEqual(res.returncode, 0, "manifest wskazujacy poza katalog przeszedl check")
-        self.assertIn("niedozwolona nazwe pliku", res.stdout)
+        self.assertIn("wymagana gola nazwa", res.stdout)
 
     def test_T16b_manifest_entry_must_match_run_id(self):
         self.sb.bootstrap()
@@ -452,10 +472,165 @@ class EvidenceChainTest(unittest.TestCase):
         self.assertNotEqual(res.returncode, 0)
         self.assertIn("oczekiwano", res.stdout)
 
+    # -- T17..T19 (JP-01.2): manifest egzekwowany PRZED zapisem -------------
+    def test_T17_modified_raw_blocks_extract(self):
+        """Wykrycie po fakcie to nie egzekwowanie: zapis ma sie nie odbyc."""
+        self.sb.bootstrap()
+        before = digest(self.sb.summary)
+        txt = self.sb.raw_v2.read_text(encoding="utf-8-sig")
+        self.sb.raw_v2.write_text(txt.replace("1.13", "1.15"), encoding="utf-8")
+        res = self.sb.run("extract")
+        self.assertEqual(res.returncode, 1, "extract zapisal summary ze zmienionego raw")
+        self.assertIn("ZMIENIONY od rejestracji", res.stdout)
+        self.assertEqual(digest(self.sb.summary), before)
+
+    def test_T18_modified_raw_blocks_render(self):
+        doc = self.sb.doc("KOLA_01_DOWODY_PL.md")
+        self.sb.bootstrap()
+        self.assertEqual(self.sb.run("render").returncode, 0)
+        before = digest(doc)
+        txt = self.sb.raw_v2.read_text(encoding="utf-8-sig")
+        self.sb.raw_v2.write_text(txt.replace("1.13", "1.15"), encoding="utf-8")
+        res = self.sb.run("render")
+        self.assertEqual(res.returncode, 1, "render wpuscil zmieniony raw do dokumentu")
+        self.assertIn("ZMIENIONY od rejestracji", res.stdout)
+        self.assertIn("zaden dokument NIE zostal zmieniony", res.stdout)
+        self.assertEqual(digest(doc), before)
+        self.assertNotIn("1.15", doc.read_text(encoding="utf-8"))
+
+    def test_T19_stale_summary_blocks_render(self):
+        """Dokument nie moze dostac liczb, ktorych nie widzial zaden extract."""
+        doc = self.sb.doc("KOLA_01_DOWODY_PL.md")
+        self.sb.bootstrap()
+        before = digest(doc)
+        data = json.loads(self.sb.summary.read_text(encoding="utf-8"))
+        data["runs"]["2026_07_27_v2"]["tables"]["D.box"]["rows"][0]["values"][-2] = "9.99"
+        self.sb.summary.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n",
+                                   encoding="utf-8")
+        res = self.sb.run("render")
+        self.assertEqual(res.returncode, 1, "render zadzialal na nieaktualnym summary")
+        self.assertIn("nieaktualne", res.stdout)
+        self.assertEqual(digest(doc), before)
+
+    # -- T20 (JP-01.2): przenosnosc hasha raw -------------------------------
+    def test_T20_raw_hash_survives_any_eol_policy(self):
+        """Czysty checkout musi dac te same bajty niezaleznie od polityki EOL.
+
+        Przed `-text` w .gitattributes blob byl znormalizowany do LF, a manifest
+        hashowal CRLF z Windowsowego working tree: na Linuksie `check` zglaszal
+        manipulacje na plikach, ktorych nikt nie tknal.
+        """
+        if not (REPO / ".git").exists():
+            self.skipTest("nie jest repozytorium git")
+        manifest = json.loads((REAL_EVIDENCE / "RAW_MANIFEST.json").read_text(encoding="utf-8"))
+        out = Path(tempfile.mkdtemp(prefix="jp012_eol_"))
+        self.addCleanup(shutil.rmtree, out, True)
+        rel = [f"tools/jozz_wheel_bench/evidence/{e['file']}" for e in manifest["runs"].values()]
+        for policy in ("true", "false", "input"):
+            with self.subTest(autocrlf=policy):
+                dest = out / policy
+                dest.mkdir()
+                res = subprocess.run(
+                    ["git", "-c", f"core.autocrlf={policy}", "checkout-index", "-f",
+                     f"--prefix={dest.as_posix()}/", "--", *rel],
+                    cwd=str(REPO), capture_output=True, text=True)
+                self.assertEqual(res.returncode, 0, res.stderr)
+                for run_id, entry in manifest["runs"].items():
+                    got = digest(dest / "tools" / "jozz_wheel_bench" / "evidence" / entry["file"])
+                    self.assertEqual(got, entry["sha256"],
+                                     f"{entry['file']} ma inny hash przy autocrlf={policy}")
+
+    # -- T21 (JP-01.2): renderowanie tabeli bez kolumny nazwy ---------------
+    def test_T21_table_without_name_column_renders_square(self):
+        """A.prism_budget: renderer doklejal pusta komorke i dawal 8 pod 7 kolumnami."""
+        self.sb.bootstrap()
+        sys.path.insert(0, str(self.sb.root / "tools" / "evidence"))
+        try:
+            for mod in ("evidence",):
+                sys.modules.pop(mod, None)
+            import evidence as ev
+            summary = json.loads(self.sb.summary.read_text(encoding="utf-8"))
+            for table_id in ("A.prism_budget", "C.mass", "E.1900N", "D.box"):
+                with self.subTest(table=table_id):
+                    lines = ev.render_table(summary, "2026_07_27_v2", table_id).splitlines()
+                    ncols = len(lines[0].split("|")) - 2
+                    for row in lines[2:]:
+                        if not row.startswith("|"):
+                            break
+                        self.assertEqual(len(row.split("|")) - 2, ncols,
+                                         f"{table_id}: {row}")
+                    self.assertNotIn("|  |", lines[2], f"{table_id}: pusta komorka wiodaca")
+        finally:
+            sys.path.pop(0)
+            sys.modules.pop("evidence", None)
+
+    # -- T22..T24 (JP-01.2): walidacja manifestu ----------------------------
+    def _corrupt_manifest(self, mutate) -> subprocess.CompletedProcess:
+        self.sb.bootstrap()
+        path = self.sb.evidence / "RAW_MANIFEST.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        mutate(data)
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        return self.sb.run("check")
+
+    def test_T22_unsupported_schema_rejected(self):
+        def mutate(d):
+            d["schema"] = 99
+        res = self._corrupt_manifest(mutate)
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("schema", res.stdout)
+
+    def test_T23_wrong_bytes_rejected(self):
+        def mutate(d):
+            d["runs"]["2026_07_27_v2"]["bytes"] = 1
+        res = self._corrupt_manifest(mutate)
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("bajtow, manifest mowi 1", res.stdout)
+
+    def test_T23b_bad_field_types_rejected(self):
+        for field, value, needle in (("sha256", "krotki", "sha256"),
+                                     ("bytes", "duzo", "bytes"),
+                                     ("mode", "wymyslony", "mode")):
+            with self.subTest(field=field):
+                sb = Sandbox()
+                self.addCleanup(sb.cleanup)
+                sb.bootstrap()
+                path = sb.evidence / "RAW_MANIFEST.json"
+                data = json.loads(path.read_text(encoding="utf-8"))
+                data["runs"]["2026_07_27_v2"][field] = value
+                path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+                res = sb.run("check")
+                self.assertNotEqual(res.returncode, 0)
+                self.assertIn(needle, res.stdout)
+
+    def test_T24_absolute_path_rejected(self):
+        def mutate(d):
+            d["runs"]["2026_07_27_v2"]["file"] = "C:/Windows/run_x.txt"
+        res = self._corrupt_manifest(mutate)
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("wymagana gola nazwa", res.stdout)
+
+    def test_T24b_broken_manifest_json_is_reported_not_crash(self):
+        self.sb.bootstrap()
+        (self.sb.evidence / "RAW_MANIFEST.json").write_text("{ to nie jest json",
+                                                            encoding="utf-8")
+        res = self.sb.run("check")
+        self.assertEqual(res.returncode, 1)
+        self.assertIn("nie jest poprawnym JSON", res.stdout)
+        self.assertNotIn("Traceback", res.stderr)
+
     # -- dodatkowe ---------------------------------------------------------
     def test_extra_missing_manifest_fails(self):
+        """Bez manifestu nie wolno ani wyciagnac, ani wyrenderowac, ani przejsc check.
+
+        Do JP-01.2 `extract` bez manifestu konczyl sie kodem 0 i zapisywal summary.
+        """
         self.sb.doc("KOLA_01_DOWODY_PL.md")
-        self.assertEqual(self.sb.run("extract").returncode, 0)
+        res = self.sb.run("extract")
+        self.assertEqual(res.returncode, 1, "extract zapisal summary bez manifestu")
+        self.assertIn("brak RAW_MANIFEST.json", res.stdout)
+        self.assertFalse(self.sb.summary.exists(), "summary powstalo mimo braku manifestu")
+        self.assertEqual(self.sb.run("render").returncode, 1)
         res = self.sb.run("check")
         self.assertNotEqual(res.returncode, 0)
         self.assertIn("brak RAW_MANIFEST.json", res.stdout)
