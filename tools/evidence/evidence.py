@@ -37,6 +37,12 @@ JP-01.2 domknal przenosnosc i egzekwowanie:
     przez `check`; `render` dodatkowo wymaga, by zapisane summary bylo aktualne;
   - `render_table` doklejal pusta komorke nazwy w tabelach bez kolumny nazwy.
 
+JP-01.3 domknal granice manifestu: `register` waliduje istniejacy manifest ta
+sama funkcja co reszta komend (wczesniej `schema: 99` przechodzilo z kodem 0
+i przepisywalo plik, a zly ksztalt `runs` konczyl sie tracebackiem), a surowy
+log musi byc zwyklym plikiem fizycznie lezacym w katalogu evidence - poprawna
+nazwa mogla byc dowiazaniem prowadzacym gdziekolwiek.
+
 Komendy:
     register   jawnie rejestruje run w RAW_MANIFEST.json (sha256 + tryb)
     extract    raw -> summary.json            (atomowo, wszystko albo nic)
@@ -411,6 +417,39 @@ def load_manifest(evidence_dir: Path) -> dict | None:
     return manifest
 
 
+def resolved_is_in_evidence_dir(evidence_dir: Path, resolved: Path) -> bool:
+    """Czysta decyzja: czy ROZWIAZANA sciezka lezy bezposrednio w katalogu evidence.
+
+    Wydzielona z kontroli dyskowej, zeby dalo sie ja przetestowac takze tam,
+    gdzie system nie pozwala utworzyc dowiazania symbolicznego (Windows bez
+    trybu dewelopera). Oba argumenty maja byc juz rozwiazane.
+    """
+    return os.path.normcase(str(Path(resolved).parent)) == os.path.normcase(str(evidence_dir))
+
+
+def raw_file_problem(evidence_dir: Path, name: str) -> str | None:
+    """Surowy log musi byc ZWYKLYM plikiem fizycznie w katalogu evidence.
+
+    Skladniowe `../` i sciezki absolutne blokuje juz walidacja manifestu, ale
+    plik o poprawnej nazwie moze byc dowiazaniem prowadzacym gdziekolwiek.
+    Zwraca opis problemu albo None.
+    """
+    path = evidence_dir / name
+    if path.is_symlink():
+        return f"{name}: dowiazanie symboliczne - surowy log musi byc zwyklym plikiem"
+    if not path.exists():
+        return f"{name}: zarejestrowany, ale nie istnieje"
+    if not path.is_file():
+        return f"{name}: nie jest zwyklym plikiem"
+    try:
+        resolved, base = path.resolve(strict=True), evidence_dir.resolve(strict=True)
+    except OSError as exc:
+        return f"{name}: nie da sie rozwiazac sciezki ({exc})"
+    if not resolved_is_in_evidence_dir(base, resolved):
+        return f"{name}: rozwiazana sciezka {resolved} lezy poza katalogiem evidence"
+    return None
+
+
 def validate_manifest_structure(manifest: dict) -> list[str]:
     """Ksztalt manifestu, bez dotykania dysku. Tanie kontrole, jednoznaczne komunikaty."""
     failures: list[str] = []
@@ -468,10 +507,11 @@ def verify_manifest(evidence_dir: Path, schemas: dict, manifest: dict) -> list[s
         return failures
 
     for run_id, entry in sorted(manifest["runs"].items()):
-        raw = evidence_dir / entry["file"]
-        if not raw.exists():
-            failures.append(f"raw: {entry['file']} zarejestrowany, ale nie istnieje")
+        problem = raw_file_problem(evidence_dir, entry["file"])
+        if problem:
+            failures.append(f"raw: {problem}")
             continue
+        raw = evidence_dir / entry["file"]
         size = raw.stat().st_size
         if size != entry["bytes"]:
             failures.append(
@@ -579,10 +619,26 @@ def cmd_register(evidence_dir: Path = EVIDENCE_DIR, schemas: dict = RUN_SCHEMAS)
     przed ktora manifest mial chronic. Komunikat mowil "nowy przebieg wymaga
     register pod nowym run ID", a kod tego nie egzekwowal.
     """
-    manifest = load_manifest(evidence_dir) or {"schema": 1, "runs": {}}
+    manifest = load_manifest(evidence_dir)
+    if manifest is None:
+        manifest = {"schema": MANIFEST_SCHEMA, "runs": {}}
+    else:
+        # Ta sama walidacja, ktorej uzywaja pozostale komendy. Bez niej `register`
+        # pracowal na dowolnym ksztalcie manifestu: `schema: 99` przechodzilo
+        # z kodem 0 i przepisywalo plik, `runs: []` wywracalo sie na
+        # AttributeError, brak `sha256` na KeyError.
+        problems = validate_manifest_structure(manifest)
+        if problems:
+            raise EvidenceError(
+                f"istniejacy {MANIFEST_NAME} jest niepoprawny - napraw go recznie "
+                f"przed rejestracja:\n    - " + "\n    - ".join(problems))
+
     changed = []
     for raw in sorted(evidence_dir.glob("run_*.txt")):
         run_id = raw.stem[len("run_"):]
+        problem = raw_file_problem(evidence_dir, raw.name)
+        if problem:
+            raise EvidenceError(f"nie moge zarejestrowac {problem}")
         digest = sha256_file(raw)
         prev = manifest["runs"].get(run_id)
         if prev and prev["sha256"] == digest:

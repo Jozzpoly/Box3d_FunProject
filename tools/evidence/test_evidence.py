@@ -619,6 +619,94 @@ class EvidenceChainTest(unittest.TestCase):
         self.assertIn("nie jest poprawnym JSON", res.stdout)
         self.assertNotIn("Traceback", res.stderr)
 
+    # -- T25 (JP-01.3): register waliduje istniejacy manifest ---------------
+    def _register_on_broken_manifest(self, mutate) -> tuple[subprocess.CompletedProcess, bool]:
+        self.sb.bootstrap()
+        path = self.sb.evidence / "RAW_MANIFEST.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        mutate(data)
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        before = digest(path)
+        res = self.sb.run("register")
+        return res, digest(path) == before
+
+    def test_T25_register_rejects_unsupported_schema(self):
+        """Wczesniej: rc 0 i manifest przepisany mimo schema 99."""
+        res, unchanged = self._register_on_broken_manifest(lambda d: d.update(schema=99))
+        self.assertEqual(res.returncode, 1)
+        self.assertIn("schema", res.stdout)
+        self.assertNotIn("Traceback", res.stderr)
+        self.assertTrue(unchanged, "register zmienil niepoprawny manifest")
+
+    def test_T25b_register_rejects_bad_runs_type(self):
+        """Wczesniej: AttributeError: 'list' object has no attribute 'get'."""
+        res, unchanged = self._register_on_broken_manifest(lambda d: d.update(runs=[]))
+        self.assertEqual(res.returncode, 1)
+        self.assertIn("runs", res.stdout)
+        self.assertNotIn("Traceback", res.stderr)
+        self.assertTrue(unchanged)
+
+    def test_T25c_register_rejects_missing_entry_field(self):
+        """Wczesniej: KeyError: 'sha256'."""
+        res, unchanged = self._register_on_broken_manifest(
+            lambda d: d["runs"]["2026_07_27_v2"].pop("sha256"))
+        self.assertEqual(res.returncode, 1)
+        self.assertIn("sha256", res.stdout)
+        self.assertNotIn("Traceback", res.stderr)
+        self.assertTrue(unchanged)
+
+    def test_T25d_register_still_accepts_normal_raw(self):
+        """Zaostrzenie nie moze zablokowac zwyklej, poprawnej rejestracji."""
+        res = self.sb.run("register")
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        manifest = json.loads((self.sb.evidence / "RAW_MANIFEST.json").read_text(encoding="utf-8"))
+        self.assertEqual(sorted(manifest["runs"]), ["2026_07_25_baseline", "2026_07_27_v2"])
+        self.assertEqual(self.sb.run("extract").returncode, 0)
+        self.assertEqual(self.sb.run("check").returncode, 0)
+
+    # -- T26 (JP-01.3): raw musi byc zwyklym plikiem w evidence -------------
+    def test_T26_resolved_path_outside_evidence_is_rejected(self):
+        """Czysta funkcja - testowalna takze tam, gdzie nie wolno tworzyc symlinkow."""
+        sys.path.insert(0, str(TOOL_SRC.parent))
+        try:
+            from evidence import resolved_is_in_evidence_dir as inside
+        finally:
+            sys.path.pop(0)
+        ev = Path("/repo/tools/jozz_wheel_bench/evidence").resolve()
+        self.assertTrue(inside(ev, ev / "run_x.txt"))
+        self.assertFalse(inside(ev, Path("/repo/gdzie_indziej/run_x.txt").resolve()),
+                         "plik spoza katalogu uznany za wewnetrzny")
+        self.assertFalse(inside(ev, ev / "podkatalog" / "run_x.txt"),
+                         "plik w podkatalogu uznany za bezposredni")
+
+    def test_T26b_symlinked_raw_is_rejected(self):
+        outside = self.sb.root / "obcy_run.txt"
+        outside.write_text("nie jest surowym przebiegiem\n", encoding="utf-8")
+        link = self.sb.evidence / "run_2026_07_30_link.txt"
+        try:
+            link.symlink_to(outside)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"system nie pozwala utworzyc dowiazania: {exc}")
+        res = self.sb.run("register")
+        self.assertEqual(res.returncode, 1, "symlink zostal zarejestrowany")
+        self.assertIn("dowiazanie symboliczne", res.stdout)
+        self.assertNotIn("Traceback", res.stderr)
+        self.assertFalse((self.sb.evidence / "RAW_MANIFEST.json").exists(),
+                         "manifest powstal mimo odrzucenia")
+
+    def test_T26c_non_regular_file_is_rejected(self):
+        """Wariant wykonalny bez uprawnien do symlinkow: katalog o nazwie run_*.txt.
+
+        T26b bywa pominiete na Windows, a pominiety test nie dowodzi niczego -
+        ten sprawdza te sama galaz `raw_file_problem` na kazdej platformie.
+        """
+        (self.sb.evidence / "run_2026_07_30_katalog.txt").mkdir()
+        res = self.sb.run("register")
+        self.assertEqual(res.returncode, 1)
+        self.assertIn("nie jest zwyklym plikiem", res.stdout)
+        self.assertNotIn("Traceback", res.stderr)
+        self.assertFalse((self.sb.evidence / "RAW_MANIFEST.json").exists())
+
     # -- dodatkowe ---------------------------------------------------------
     def test_extra_missing_manifest_fails(self):
         """Bez manifestu nie wolno ani wyciagnac, ani wyrenderowac, ani przejsc check.
