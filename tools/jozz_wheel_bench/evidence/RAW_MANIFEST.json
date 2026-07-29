@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "runs": {
+    "2026_07_25_baseline": {
+      "file": "run_2026_07_25_baseline.txt",
+      "sha256": "c09640f4316d4e218955cf476c2c6c137ddb2897cbacfbec50eb497b2c3d5836",
+      "bytes": 5635,
+      "mode": "raw-only"
+    },
+    "2026_07_27_v2": {
+      "file": "run_2026_07_27_v2.txt",
+      "sha256": "4427cbffaf22772aec26461d06e0c847884e00146b72bf909af7d6f0c3ca7955",
+      "bytes": 14201,
+      "mode": "parsed"
+    }
+  }
+}

@@ -154,53 +154,53 @@
           ],
           "rows": [
             {
-              "name": "sphere 43.83",
+              "name": "sphere",
               "values": [
+                "43.83",
                 "4.633",
                 "4.633",
                 "0.400",
-                "1",
-                "shape"
+                "1 shape"
               ]
             },
             {
-              "name": "cylinder-32 27.79",
+              "name": "cylinder-32",
               "values": [
+                "27.79",
                 "3.649",
                 "2.268",
                 "0.497",
-                "1",
-                "shape"
+                "1 shape"
               ]
             },
             {
-              "name": "phased union-4 27.79",
+              "name": "phased union-4",
               "values": [
+                "27.79",
                 "3.649",
                 "2.268",
                 "0.497",
-                "4",
-                "shape"
+                "4 shape"
               ]
             },
             {
-              "name": "prism-Nmax 27.87",
+              "name": "prism-Nmax",
               "values": [
+                "27.87",
                 "3.669",
                 "2.279",
                 "0.498",
-                "1",
-                "shape"
+                "1 shape"
               ]
             },
             {
-              "name": "tire profile 23.47",
+              "name": "tire profile",
               "values": [
+                "23.47",
                 "2.674",
                 "1.657",
                 "0.431",
-                "1",
-                "shape"
+                "1 shape"
               ]
             }
           ]
