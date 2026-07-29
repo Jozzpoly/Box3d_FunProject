@@ -310,6 +310,148 @@ class EvidenceChainTest(unittest.TestCase):
                 continue
             self.assertEqual(digest(path), before, f"{path.name} zmieniony mimo bledu")
 
+    # -- T13 (JP-01.1) -----------------------------------------------------
+    def test_T13_golden_values_from_real_raw(self):
+        """Golden test na PRAWDZIWYM logu v2.
+
+        Suita JP-01 sprawdzala wylacznie kody wyjscia i niezmiennosc plikow.
+        Blad przesuniecia kolumn w C.mass (mass_kg = 4.633 zamiast 43.83)
+        przechodzil ja na zielono i zostal znaleziony okiem, nie testem.
+        Ponizsze liczby sa odczytane z `run_2026_07_27_v2.txt`:
+
+            envelope          mass_kg     I_spin    I_trans   I_sp/mr2   note
+            sphere              43.83      4.633      4.633      0.400   1 shape(s)
+        """
+        self.sb.bootstrap()
+        tables = json.loads(self.sb.summary.read_text(encoding="utf-8"))\
+            ["runs"]["2026_07_27_v2"]["tables"]
+
+        mass = tables["C.mass"]
+        self.assertEqual(mass["columns"],
+                         ["envelope", "mass_kg", "I_spin", "I_trans", "I_sp/mr2", "note"])
+        self.assertEqual(mass["rows"], [
+            {"name": "sphere", "values": ["43.83", "4.633", "4.633", "0.400", "1 shape"]},
+            {"name": "cylinder-32", "values": ["27.79", "3.649", "2.268", "0.497", "1 shape"]},
+            {"name": "phased union-4", "values": ["27.79", "3.649", "2.268", "0.497", "4 shape"]},
+            {"name": "prism-Nmax", "values": ["27.87", "3.669", "2.279", "0.498", "1 shape"]},
+            {"name": "tire profile", "values": ["23.47", "2.674", "1.657", "0.431", "1 shape"]},
+        ])
+
+        roll = tables["E.1900N"]
+        self.assertEqual(roll["rows"][0], {
+            "name": "sphere",
+            "values": ["0.5060", "1.00", "0.0", "100.0%", "13.486", "0.057", "12.93"]})
+        self.assertEqual(roll["rows"][1]["values"][0], "0.1481")
+
+        prism = tables["A.prism_budget"]
+        self.assertEqual(len(prism["rows"]), 9)
+        self.assertEqual(prism["rows"][0]["values"],
+                         ["8", "16", "16", "48", "10", "39.134", "0.5010"])
+        self.assertEqual(prism["rows"][-1]["values"],
+                         ["40", "80", "80", "240", "42", "1.585", "0.5136"])
+
+    # -- T14 (JP-01.1) -----------------------------------------------------
+    def test_T14_raw_shape_change_stops_extract(self):
+        """Stend dokladajacy kolumne nie moze przejsc po cichu.
+
+        Bez kotwicy naglowka dodatkowa kolumna liczbowa w tabeli z ogonem
+        tekstowym wpadala do `note` (C.mass: note = '0.777 1 shape'), nazwy
+        wariantow sie zgadzaly i `check` konczyl sie kodem 0.
+        """
+        self.sb.bootstrap()
+        before = digest(self.sb.summary)
+        lines = self.sb.raw_v2.read_text(encoding="utf-8-sig").splitlines()
+        for i, ln in enumerate(lines):
+            if ln.startswith("envelope") and "mass_kg" in ln:
+                lines[i] = ln.replace("note", "extra   note")
+            elif " 1 shape(s)" in ln or " 4 shape(s)" in ln:
+                lines[i] = ln.replace(" 1 shape(s)", "   0.777   1 shape(s)") \
+                             .replace(" 4 shape(s)", "   0.777   4 shape(s)")
+        self.sb.raw_v2.write_text("\n".join(lines), encoding="utf-8")
+        res = self.sb.run("extract")
+        self.assertEqual(res.returncode, 1, res.stdout)
+        self.assertIn("naglowek kolumn", res.stdout)
+        self.assertEqual(digest(self.sb.summary), before)
+
+    def test_T14c_extra_number_in_rows_only_stops_extract(self):
+        """Wariant bez zmiany naglowka - kotwica naglowka go NIE lapie.
+
+        Lapie go dopiero sztywna dlugosc ogona: dopasowanie przesuwa sie w prawo,
+        nazwa wariantu staje sie 'sphere 43.83' i wychodzi na `expect_names`.
+        """
+        self.sb.bootstrap()
+        before = digest(self.sb.summary)
+        lines = self.sb.raw_v2.read_text(encoding="utf-8-sig").splitlines()
+        for i, ln in enumerate(lines):
+            if " shape(s)" in ln:
+                lines[i] = ln.replace(" 1 shape(s)", "   0.777   1 shape(s)") \
+                             .replace(" 4 shape(s)", "   0.777   4 shape(s)")
+        self.sb.raw_v2.write_text("\n".join(lines), encoding="utf-8")
+        res = self.sb.run("extract")
+        self.assertEqual(res.returncode, 1, res.stdout)
+        self.assertIn("C.mass", res.stdout)
+        self.assertIn("!= oczekiwane", res.stdout)
+        self.assertEqual(digest(self.sb.summary), before)
+
+    def test_T14b_renamed_header_stops_extract(self):
+        self.sb.bootstrap()
+        txt = self.sb.raw_v2.read_text(encoding="utf-8-sig")
+        self.sb.raw_v2.write_text(txt.replace("I_sp/mr2", "I_ratio"), encoding="utf-8")
+        res = self.sb.run("extract")
+        self.assertEqual(res.returncode, 1, res.stdout)
+        self.assertIn("naglowek kolumn", res.stdout)
+
+    # -- T15 (JP-01.1) -----------------------------------------------------
+    def test_T15_register_refuses_to_overwrite(self):
+        """Sciezka wybielenia: zmien raw -> register -> extract -> zielony check."""
+        self.sb.bootstrap()
+        manifest = self.sb.evidence / "RAW_MANIFEST.json"
+        before = digest(manifest)
+        txt = self.sb.raw_v2.read_text(encoding="utf-8-sig")
+        self.sb.raw_v2.write_text(txt.replace("1.13", "1.15"), encoding="utf-8")
+
+        res = self.sb.run("register")
+        self.assertEqual(res.returncode, 1, "register nadpisal historyczna rejestracje")
+        self.assertIn("nie nadpisuje historii", res.stdout)
+        self.assertEqual(digest(manifest), before, "manifest zmieniony mimo odmowy")
+
+        self.sb.run("extract")
+        res2 = self.sb.run("check")
+        self.assertNotEqual(res2.returncode, 0, "zmiana raw zostala wybielona")
+        self.assertIn("ZMIENIONY od rejestracji", res2.stdout)
+
+    def test_T15b_register_is_idempotent(self):
+        self.sb.bootstrap()
+        manifest = self.sb.evidence / "RAW_MANIFEST.json"
+        before = digest(manifest)
+        self.assertEqual(self.sb.run("register").returncode, 0)
+        self.assertEqual(digest(manifest), before)
+
+    # -- T16 (JP-01.1) -----------------------------------------------------
+    def test_T16_manifest_entry_cannot_escape_evidence_dir(self):
+        """Przekierowany wpis zostawial prawdziwy log bez zadnej weryfikacji."""
+        self.sb.bootstrap()
+        decoy = self.sb.root / "podrzucony.txt"
+        decoy.write_text("nie jest surowym przebiegiem\n", encoding="utf-8")
+        manifest = self.sb.evidence / "RAW_MANIFEST.json"
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        data["runs"]["2026_07_27_v2"]["file"] = "../../../podrzucony.txt"
+        data["runs"]["2026_07_27_v2"]["sha256"] = digest(decoy)
+        manifest.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        res = self.sb.run("check")
+        self.assertNotEqual(res.returncode, 0, "manifest wskazujacy poza katalog przeszedl check")
+        self.assertIn("niedozwolona nazwe pliku", res.stdout)
+
+    def test_T16b_manifest_entry_must_match_run_id(self):
+        self.sb.bootstrap()
+        manifest = self.sb.evidence / "RAW_MANIFEST.json"
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        data["runs"]["2026_07_27_v2"]["file"] = "run_2026_07_25_baseline.txt"
+        manifest.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        res = self.sb.run("check")
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("oczekiwano", res.stdout)
+
     # -- dodatkowe ---------------------------------------------------------
     def test_extra_missing_manifest_fails(self):
         self.sb.doc("KOLA_01_DOWODY_PL.md")

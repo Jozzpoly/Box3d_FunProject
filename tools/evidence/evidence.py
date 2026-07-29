@@ -19,6 +19,15 @@ Model danych (JP-01):
 `check` nie ufa zadnemu ogniwu posredniemu - parsuje surowe logi od nowa
 i porownuje semantycznie w dol lancucha.
 
+JP-01.1 zamknal trzy dziury miedzy DEKLAROWANA a EGZEKWOWANA gwarancja:
+  - `register` drukowal ostrzezenie i nadpisywal historyczna rejestracje,
+    wiec `zmien raw -> register -> extract` przywracalo zielony `check`;
+  - wpis manifestu z `file` wskazujacym poza katalog evidence przekierowywal
+    weryfikacje na obcy plik, a prawdziwy log przestawal byc sprawdzany;
+  - dodatkowa kolumna liczbowa w tabeli z ogonem tekstowym wpadala po cichu
+    do ogona (patrz komentarz przy `header` w schematach).
+Kazda z nich byla znaleziona eksperymentem na kopii repo, nie lektura.
+
 Komendy:
     register   jawnie rejestruje run w RAW_MANIFEST.json (sha256 + tryb)
     extract    raw -> summary.json            (atomowo, wszystko albo nic)
@@ -60,6 +69,9 @@ class EvidenceError(Exception):
 # liczenie tokenow naglowka mapowalo kolumny po cichu zle.
 #
 #   marker       linia otwierajaca sekcje; musi wystapic DOKLADNIE raz
+#   header       linia naglowka kolumn w surowym logu, ze zwinietymi spacjami;
+#                musi wystapic w sekcji dokladnie raz i BEZPOSREDNIO przed
+#                pierwszym wierszem wybranej tabeli
 #   table_index  ktora tabela wewnatrz sekcji (E ma dwie: 1900 N i 432 N)
 #   name_col     czy pierwsza kolumna to nazwa wariantu (moze zawierac spacje)
 #   numeric      nazwy kolumn liczbowych, od lewej do prawej
@@ -67,21 +79,33 @@ class EvidenceError(Exception):
 #   expect_names dokladny zbior nazw wariantow (kolejnosc tez jest sprawdzana)
 #   expect_rows  dokladna liczba wierszy dla tabel bez kolumny nazwy
 #
+# `header` istnieje, bo sam skan tokenow NIE rozstrzyga liczby kolumn, gdy
+# tabela ma ogon tekstowy zaczynajacy sie od cyfry (`note` = '1 shape(s)').
+# Wiersz `sphere 43.83 4.633 4.633 0.400 0.777 1 shape(s)` jest wtedy tak samo
+# poprawny jak bez `0.777` - dodatkowa kolumna wpada po cichu do ogona, a
+# `expect_names` tego nie lapie, bo nazwa wariantu sie nie zmienia. Naprawa nie
+# moze byc madrzejsza heurystyka; musi byc zewnetrzna kotwica. Naglowek jest
+# ta kotwica: kazda zmiana ksztaltu wydruku stendu zatrzymuje `extract`.
+#
 # Przebieg v1 (2026-07-25) NIE ma schematu: jego format rozni sie od v2, a ciche
 # zmapowanie go na schemat v2 dawaloby przeklamania. Jest `raw-only`: zachowany
 # i hashowany, nieparsowany. To nie jest blad.
 _ENVELOPES = ["sphere", "cylinder-32", "phased union-4", "prism-Nmax", "tire profile"]
 _CPU_COLS = ["n=0 ms", "n=1 ms", "n=2 ms", "n=4 ms", "n=8 ms", "us/wheel", "spread%"]
+_CPU_HEADER = "envelope n=0 ms n=1 ms n=2 ms n=4 ms n=8 ms us/wheel spread%"
 
 RUN_SCHEMAS = {
     "2026_07_27_v2": {
         "A.prism_budget": dict(
             marker="=== A) HULL BUDGET: straight prism", table_index=0, name_col=False,
+            header="sides pts_in verts halfedg faces ripple_mm meanR_m",
             numeric=["sides", "pts_in", "verts", "halfedg", "faces", "ripple_mm", "meanR_m"],
             expect_rows=9),
         "C.mass": dict(
             marker="=== C) MASS / INERTIA CONFOUND", table_index=0, name_col=True,
+            header="envelope mass_kg I_spin I_trans I_sp/mr2 note",
             numeric=["mass_kg", "I_spin", "I_trans", "I_sp/mr2"], text_tail=["note"],
+            tail_tokens=2,  # '1 shape(s)' -> po odcieciu nawiasu dokladnie dwa tokeny
             expect_names=_ENVELOPES),
         # Surowy log nazywa te kolumny `loadedPts` / `loaded_%`. Nazwa jest zbyt
         # mocna: totalNormalImpulse > 0 znaczy "punkt otrzymal impuls podczas
@@ -89,19 +113,21 @@ RUN_SCHEMAS = {
         # nazwa semantyczna jest tutaj jawne i swiadome.
         "E.1900N": dict(
             marker="=== E) ROLL QUALITY", table_index=0, name_col=True,
+            header="envelope vy_rms loadedPts churn_% loaded_% penet_mm ydrop_mm vx_end",
             numeric=["vy_rms", "impulse_active_pts", "churn_%", "impulse_active_%",
                      "penet_mm", "ydrop_mm", "vx_end"],
             expect_names=_ENVELOPES),
         "E.432N": dict(
             marker="=== E) ROLL QUALITY", table_index=1, name_col=True,
+            header="envelope vy_rms loadedPts churn_% loaded_% penet_mm",
             numeric=["vy_rms", "impulse_active_pts", "churn_%", "impulse_active_%", "penet_mm"],
             expect_names=_ENVELOPES),
         "D.box": dict(
             marker="=== D) CPU COST - MARGINAL, box", table_index=0, name_col=True,
-            numeric=list(_CPU_COLS), expect_names=_ENVELOPES),
+            header=_CPU_HEADER, numeric=list(_CPU_COLS), expect_names=_ENVELOPES),
         "D.mesh": dict(
             marker="=== D) CPU COST - MARGINAL, MESH", table_index=0, name_col=True,
-            numeric=list(_CPU_COLS), expect_names=_ENVELOPES),
+            header=_CPU_HEADER, numeric=list(_CPU_COLS), expect_names=_ENVELOPES),
     },
 }
 
@@ -185,13 +211,20 @@ def _parse_row(toks: list[str], spec: dict, nnum: int, ntail: int) -> dict | Non
     kolumne. Blad byl CICHY: wartosci nadal wygladaly jak liczby.
 
     ntail == 0  -> liczby musza konczyc wiersz (brak nieprzetworzonego ogona)
-    ntail >= 1  -> reszta wiersza to jedna kolumna wolnego tekstu
+    ntail >= 1  -> ogon ma DOKLADNIE `tail_tokens` tokenow (schemat deklaruje ile)
+
+    Sztywna dlugosc ogona nie jest kosmetyka. Bez niej wiersz
+    `sphere 43.83 4.633 4.633 0.400 0.777 1 shape` byl tak samo poprawny jak bez
+    `0.777`: nadmiarowa liczba wpadala do `note`, nazwa wariantu sie nie zmieniala
+    i nic tego nie zglaszalo. Z deklaracja dopasowanie przesuwa sie w prawo,
+    nazwa staje sie 'sphere 43.83' i lapie to `expect_names`.
     """
     if not spec["name_col"]:
         if len(toks) != nnum or not all(_is_number(t) for t in toks):
             return None
         return {"name": "", "values": list(toks)}
 
+    ntok = spec.get("tail_tokens", 0)
     for i in range(1, len(toks) - nnum + 1):
         span = toks[i:i + nnum]
         if not all(_is_number(t) for t in span):
@@ -201,14 +234,29 @@ def _parse_row(toks: list[str], spec: dict, nnum: int, ntail: int) -> dict | Non
             if tail:
                 continue  # nieprzetworzony ogon - to nie jest wiersz tej tabeli
             return {"name": " ".join(toks[:i]), "values": list(span)}
-        if not tail:
+        if len(tail) != ntok:
             continue
         return {"name": " ".join(toks[:i]), "values": list(span) + [" ".join(tail)]}
     return None
 
 
+def validate_spec(spec: dict, table_id: str) -> None:
+    """Niezmienniki schematu. Autor nowego schematu nie moze po cichu otworzyc
+    z powrotem dziury przesuniecia kolumn: bez `expect_names` zsuniety wiersz
+    z poprawnie wygladajacymi liczbami przeszedlby bez sladu."""
+    if not spec.get("header"):
+        raise EvidenceError(f"{table_id}: schemat bez `header` - brak kotwicy ksztaltu tabeli")
+    if spec["name_col"] and not spec.get("expect_names"):
+        raise EvidenceError(f"{table_id}: schemat z `name_col` musi deklarowac `expect_names`")
+    if not spec["name_col"] and not spec.get("expect_rows"):
+        raise EvidenceError(f"{table_id}: schemat bez `name_col` musi deklarowac `expect_rows`")
+    if spec.get("text_tail") and not spec.get("tail_tokens"):
+        raise EvidenceError(f"{table_id}: schemat z `text_tail` musi deklarowac `tail_tokens`")
+
+
 def parse_section(lines: list[str], spec: dict, table_id: str) -> dict:
     """Parsuje jedna zadeklarowana tabele. Zawodzi GLOSNO, nigdy po cichu."""
+    validate_spec(spec, table_id)
     marker = spec["marker"]
     hits = [i for i, ln in enumerate(lines) if ln.startswith(marker)]
     if len(hits) != 1:
@@ -223,14 +271,24 @@ def parse_section(lines: list[str], spec: dict, table_id: str) -> dict:
     ntail = len(spec.get("text_tail", []))
     expect_names = spec.get("expect_names")
 
+    header = spec["header"]
+    header_hits = [i for i, ln in enumerate(body) if " ".join(ln.split()) == header]
+    if len(header_hits) != 1:
+        raise EvidenceError(
+            f"{table_id}: naglowek kolumn {header!r} wystapil w sekcji {len(header_hits)}x, "
+            f"oczekiwano dokladnie 1 - ksztalt wydruku stendu zmienil sie wzgledem schematu")
+
     blocks: list[list[dict]] = []
+    starts: list[int] = []
     current: list[dict] = []
     rejected: list[str] = []
-    for raw_line in body:
+    for pos, raw_line in enumerate(body):
         stripped = re.sub(r"\([^)]*\)\s*$", "", raw_line).rstrip()
         toks = stripped.split()
         row = _parse_row(toks, spec, nnum, ntail) if toks else None
         if row is not None:
+            if not current:
+                starts.append(pos)
             current.append(row)
             continue
         # Linia, ktora ZACZYNA sie od oczekiwanego wariantu, a nie parsuje sie,
@@ -251,6 +309,9 @@ def parse_section(lines: list[str], spec: dict, table_id: str) -> dict:
             f"{table_id}: sekcja ma {len(blocks)} tabel, oczekiwano indeksu {idx}")
     rows = blocks[idx]
 
+    # Kontrole tresci ida PRZED kotwica pozycyjna: gdy wiersz wypada z tabeli
+    # (NaN, brakujaca kolumna), obie zawioda, ale tylko ta pierwsza pokazuje
+    # odrzucona linie. Kolejnosc nie zmienia werdyktu, zmienia diagnostyke.
     if expect_names is not None:
         got = [r["name"] for r in rows]
         if got != list(expect_names):
@@ -262,6 +323,14 @@ def parse_section(lines: list[str], spec: dict, table_id: str) -> dict:
             f"{table_id}: {len(rows)} wierszy, oczekiwano {spec['expect_rows']}")
     if not rows:
         raise EvidenceError(f"{table_id}: brak wierszy danych")
+
+    # Kotwica pozycyjna: wybrany blok musi lezec DOKLADNIE pod zadeklarowanym
+    # naglowkiem. Sama obecnosc naglowka gdzies w sekcji nie wystarcza - E ma
+    # dwie tabele i pomylka indeksu dalaby ciche podstawienie danych.
+    if starts[idx] != header_hits[0] + 1:
+        raise EvidenceError(
+            f"{table_id}: pierwszy wiersz tabeli nie lezy pod zadeklarowanym naglowkiem "
+            f"(naglowek w linii {header_hits[0]}, wiersze od {starts[idx]} - liczac od markera)")
 
     columns = ([spec.get("name_label", "envelope")] if spec["name_col"] else []) \
         + list(spec["numeric"]) + list(spec.get("text_tail", []))
@@ -326,7 +395,20 @@ def verify_manifest(evidence_dir: Path, schemas: dict, manifest: dict) -> list[s
     """Surowy przebieg zarejestrowany pod danym run ID nie moze sie po cichu zmienic."""
     failures = []
     for run_id, entry in sorted(manifest.get("runs", {}).items()):
-        raw = evidence_dir / entry["file"]
+        # Pole `file` musi byc golym nazwiskiem pliku wewnatrz katalogu evidence.
+        # Bez tego wpis `../../../cokolwiek.txt` przekierowywal weryfikacje na
+        # obcy plik, a prawdziwy surowy log przestawal byc sprawdzany - `check`
+        # konczyl sie wtedy komunikatem OK.
+        name = str(entry.get("file", ""))
+        if name != Path(name).name or not name.startswith("run_") or not name.endswith(".txt"):
+            failures.append(
+                f"raw: wpis {run_id} ma niedozwolona nazwe pliku {name!r} "
+                f"- wymagane 'run_*.txt' bez sciezki")
+            continue
+        if name != f"run_{run_id}.txt":
+            failures.append(f"raw: wpis {run_id} wskazuje na {name!r}, oczekiwano 'run_{run_id}.txt'")
+            continue
+        raw = evidence_dir / name
         if not raw.exists():
             failures.append(f"raw: {entry['file']} zarejestrowany, ale nie istnieje")
             continue
@@ -399,7 +481,14 @@ def docs_of(root: Path) -> list[Path]:
 
 
 def cmd_register(evidence_dir: Path = EVIDENCE_DIR, schemas: dict = RUN_SCHEMAS) -> int:
-    """Jawna rejestracja surowych przebiegow. Jedyny sposob na zmiane manifestu."""
+    """Jawna rejestracja surowych przebiegow. Jedyny sposob na zmiane manifestu.
+
+    NIE nadpisuje istniejacej rejestracji. Wersja z JP-01 tylko drukowala
+    ostrzezenie i konczyla sie kodem 0, wiec sekwencja `zmien raw -> register
+    -> extract` przywracala zielony `check` - dokladnie ta droga wybielenia,
+    przed ktora manifest mial chronic. Komunikat mowil "nowy przebieg wymaga
+    register pod nowym run ID", a kod tego nie egzekwowal.
+    """
     manifest = load_manifest(evidence_dir) or {"schema": 1, "runs": {}}
     changed = []
     for raw in sorted(evidence_dir.glob("run_*.txt")):
@@ -409,8 +498,12 @@ def cmd_register(evidence_dir: Path = EVIDENCE_DIR, schemas: dict = RUN_SCHEMAS)
         if prev and prev["sha256"] == digest:
             continue
         if prev:
-            print(f"  UWAGA {run_id}: nadpisuje rejestracje "
-                  f"({prev['sha256'][:16]} -> {digest[:16]})")
+            raise EvidenceError(
+                f"{run_id}: rejestracja juz istnieje z innym sha256 "
+                f"({prev['sha256'][:16]} na dysku {digest[:16]}). "
+                f"'register' nie nadpisuje historii - nowy przebieg zapisz pod NOWYM "
+                f"run ID; swiadome przerejestrowanie wymaga recznej, widocznej "
+                f"w diffie edycji {MANIFEST_NAME}")
         manifest["runs"][run_id] = {
             "file": raw.name,
             "sha256": digest,
