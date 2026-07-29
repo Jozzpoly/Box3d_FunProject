@@ -5,6 +5,9 @@ Sprawdza KSZTALT i wewnetrzna spojnosc pliku telemetrii. NIE orzeka, czy
 eksperyment jest sensowny ani czy ktorykolwiek wariant jest lepszy - to nie
 jest narzedzie do wnioskowania.
 
+Pola `reference_*` licza sie z nominalnego promienia i punktu odniesienia pod
+srodkiem masy. To NIE predkosc rzeczywistego punktu kontaktu z manifoldu.
+
     python tools/jozz_wheel_bench/validate_phase_telemetry.py <plik.csv>
 """
 
@@ -28,7 +31,8 @@ NUMERIC = [
     "linear_velocity_x", "linear_velocity_y", "linear_velocity_z",
     "angular_velocity_x", "angular_velocity_y", "angular_velocity_z",
     "wheel_axle_world_x", "wheel_axle_world_y", "wheel_axle_world_z",
-    "omega_spin_rad_s", "rim_surface_speed_m_s", "longitudinal_slip_speed_m_s",
+    "omega_spin_rad_s", "reference_radius_m",
+    "reference_rim_speed_m_s", "reference_slip_speed_m_s",
     "translational_kinetic_energy_J", "rotational_kinetic_energy_J", "total_kinetic_energy_J",
     "cumulative_x_displacement_m", "cumulative_path_length_m",
     "cumulative_spin_angle_rad", "cumulative_revolutions",
@@ -82,19 +86,19 @@ def main(path: Path) -> int:
                 fail.append(f"6: {tag}: {col} = {r[col]} < 0")
 
         # 8: warunki poczatkowe zgodne z zadanymi.
-        # Tolerancja 1e-4, nie 0: `cylinder-32` wchodzi w okno z vx = 12.9999981,
-        # bo srodek masy jego hulla nie lezy dokladnie w origin ciala we float32,
-        # a `b3Body_SetMassData` (src/body.c:1834-1842) przesuwa srodek masy BEZ
-        # korekty predkosci liniowej. To wlasnosc istniejacego stendu, nie
-        # instrumentacji - JP-02 ja REJESTRUJE, nie naprawia. Kazda odchylka jest
-        # drukowana ponizej, wiec zluzowana tolerancja niczego nie chowa.
+        # Tolerancja 1e-4, nie 0: `cylinder-32` wchodzi w okno z vx odbiegajacym
+        # od 13 m/s o okolo -1.9e-6 m/s. Mechanizm przyczynowy pozostaje
+        # NIEROZSTRZYGNIETY - JP-02 rejestruje sama obserwacje. Kazda odchylka
+        # jest drukowana ponizej, wiec zluzowana tolerancja niczego nie chowa.
         if r["boundary"] == "INITIAL":
             if abs(float(r["linear_velocity_x"]) - V0) > 1e-4:
                 fail.append(f"8: {tag}: vx = {r['linear_velocity_x']}, zadane {V0}")
             if abs(float(r["omega_spin_rad_s"]) + V0 / WHEEL_R) > 1e-3:
                 fail.append(f"8: {tag}: omega_spin = {r['omega_spin_rad_s']}, zadane {-V0/WHEEL_R:.5f}")
-            if abs(float(r["longitudinal_slip_speed_m_s"])) > 1e-3:
-                fail.append(f"8: {tag}: slip = {r['longitudinal_slip_speed_m_s']}, oczekiwano ~0")
+            if abs(float(r["reference_slip_speed_m_s"])) > 1e-3:
+                fail.append(f"8: {tag}: reference_slip = {r['reference_slip_speed_m_s']}, oczekiwano ~0")
+            if abs(float(r["reference_radius_m"]) - WHEEL_R) > 1e-6:
+                fail.append(f"8: {tag}: reference_radius_m = {r['reference_radius_m']}, oczekiwano {WHEEL_R}")
 
     # 7: droga i bezwzgledna liczba obrotow nie cofaja sie miedzy granicami
     for lc in LOAD_CASES:

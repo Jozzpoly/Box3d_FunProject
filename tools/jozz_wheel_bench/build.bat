@@ -1,9 +1,19 @@
 @echo off
 rem NOTE: never name a variable LIB here - that is the linker's library search path.
 call "C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat" >nul 2>&1
-set REPO=C:\Pliki_Joza\Gamo_devovo\Box3d_FunProject\box3d
 set HERE=%~dp0
-set BOX3DLIB=%REPO%\build\src\Release\box3d.lib
+rem Provenance musi opisywac DRZEWO, KTORE WLASNIE KOMPILUJEMY. Sciezka zapisana
+rem na sztywno powodowala, ze build w czystym checkoucie stemplowal SHA i dirty
+rem state zupelnie innego repozytorium - stempel wygladal poprawnie, a opisywal
+rem co innego. Repo wyznaczamy z polozenia tego skryptu.
+for %%I in ("%HERE%..\..") do set REPO=%%~fI
+rem box3d.lib moze pochodzic z innego, zbudowanego drzewa - jej tozsamosc niesie
+rem osobny stempel ponizej, wiec nie klamie o zrodle.
+if "%JOZZ_BOX3D_LIB%"=="" (
+	set BOX3DLIB=%REPO%\build\src\Release\box3d.lib
+) else (
+	set BOX3DLIB=%JOZZ_BOX3D_LIB%
+)
 
 rem --- provenance: an artifact that does not certify itself is not evidence ---
 pushd "%REPO%"

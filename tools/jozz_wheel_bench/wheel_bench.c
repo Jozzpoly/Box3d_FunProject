@@ -678,12 +678,18 @@ static void EmitPhase( const char* loadCase, const char* envelope, const char* b
 	else
 		fwd = ( b3Vec3 ){ (float)( fwd.x / fl ), (float)( fwd.y / fl ), (float)( fwd.z / fl ) };
 
+	// UWAGA NA NAZWY. Ponizsze wielkosci sa REFERENCYJNE: licza sie z nominalnego
+	// WHEEL_R i z punktu odniesienia R ponizej srodka masy. To NIE jest predkosc
+	// rzeczywistego punktu kontaktu z manifoldu - ten lezy gdzie indziej i przy
+	// fasetowanym obwodzie zmienia sie w trakcie obrotu. Slip z manifoldu nie jest
+	// w JP-02 implementowany; nazwy `reference_*` maja nie pozwolic pomylic jednego
+	// z drugim przy pozniejszym czytaniu CSV.
 	double omegaSpin = Dot3( w, axleU );
 	b3Vec3 r = { -WHEEL_R * up.x, -WHEEL_R * up.y, -WHEEL_R * up.z };
 	double rimContribution = Dot3( b3Cross( w, r ), fwd );
-	double rimSurfaceSpeed = -rimContribution;
+	double referenceRimSpeed = -rimContribution;
 	double vLong = Dot3( v, fwd );
-	double slipSpeed = vLong - rimSurfaceSpeed;
+	double referenceSlipSpeed = vLong - referenceRimSpeed;
 
 	double keTrans = 0.5 * md.mass * Dot3( v, v );
 	b3Vec3 wLocal = b3InvRotateVector( q, w );
@@ -691,9 +697,9 @@ static void EmitPhase( const char* loadCase, const char* envelope, const char* b
 
 	// Slip ratio nie jest wyprowadzane przy predkosci bliskiej zeru - dziedzina
 	// jawna, nie ukryta w wartosci.
-	double ref = fabs( rimSurfaceSpeed ) > fabs( vLong ) ? fabs( rimSurfaceSpeed ) : fabs( vLong );
+	double ref = fabs( referenceRimSpeed ) > fabs( vLong ) ? fabs( referenceRimSpeed ) : fabs( vLong );
 	int ratioValid = ref > 0.1;
-	double slipRatio = ratioValid ? slipSpeed / ref : 0.0;
+	double slipRatio = ratioValid ? referenceSlipSpeed / ref : 0.0;
 
 	double gravityLoad = (double)md.mass * 10.0;			   // swiat: b3DefaultWorldDef gravity.y = -10
 	double externalDown = (double)nominalLoadN - md.mass * 9.81; // stend liczy docisk z 9.81
@@ -706,7 +712,9 @@ static void EmitPhase( const char* loadCase, const char* envelope, const char* b
 	ok &= TeleNum( v.x ); ok &= TeleNum( v.y ); ok &= TeleNum( v.z );
 	ok &= TeleNum( w.x ); ok &= TeleNum( w.y ); ok &= TeleNum( w.z );
 	ok &= TeleNum( axleU.x ); ok &= TeleNum( axleU.y ); ok &= TeleNum( axleU.z );
-	ok &= TeleNum( omegaSpin ); ok &= TeleNum( rimSurfaceSpeed ); ok &= TeleNum( slipSpeed );
+	ok &= TeleNum( omegaSpin );
+	ok &= TeleNum( WHEEL_R ); // reference_radius_m - jawnie, zeby nie bylo domyslne
+	ok &= TeleNum( referenceRimSpeed ); ok &= TeleNum( referenceSlipSpeed );
 	ok &= TeleNum( keTrans ); ok &= TeleNum( keRot ); ok &= TeleNum( keTrans + keRot );
 	ok &= TeleNum( (double)p.x - acc->startX );
 	ok &= TeleNum( acc->pathLength );
@@ -730,7 +738,7 @@ static const char* TELE_HEADER =
 	"linear_velocity_x,linear_velocity_y,linear_velocity_z,"
 	"angular_velocity_x,angular_velocity_y,angular_velocity_z,"
 	"wheel_axle_world_x,wheel_axle_world_y,wheel_axle_world_z,"
-	"omega_spin_rad_s,rim_surface_speed_m_s,longitudinal_slip_speed_m_s,"
+	"omega_spin_rad_s,reference_radius_m,reference_rim_speed_m_s,reference_slip_speed_m_s,"
 	"translational_kinetic_energy_J,rotational_kinetic_energy_J,total_kinetic_energy_J,"
 	"cumulative_x_displacement_m,cumulative_path_length_m,cumulative_spin_angle_rad,cumulative_revolutions,"
 	"nominal_load_N,external_downforce_N,gravity_load_N,effective_static_load_N,"

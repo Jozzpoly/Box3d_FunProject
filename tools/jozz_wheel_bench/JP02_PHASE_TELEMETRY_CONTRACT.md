@@ -14,6 +14,19 @@ raportowany, więc nie wiadomo, czy wariant wchodzi w okno pomiarowe tocząc si�
 ślizgając, czy prawie stojąc. Bez tego żadna metryka toczenia z §7 nie ma
 znanej dziedziny.
 
+## Język, którego jednostka używa o energii
+
+JP-02 mierzy energię kinetyczną w trzech punktach. **Nie mierzy pełnego bilansu
+pracy**, więc wolno mówić wyłącznie o **zmianie lub spadku energii kinetycznej**.
+Słowa „strata" i „dysypacja" są zakazane — sugerowałyby zamknięty bilans, którego
+ta jednostka nie liczy.
+
+## Obserwacja `cylinder-32` — status nierozstrzygnięty
+
+Początkowe `vx` różni się od 13 m/s o około **−1.9e−6 m/s**, jako jedyny z pięciu
+wariantów. **Mechanizm przyczynowy pozostaje nierozstrzygnięty.** Zapisujemy samą
+obserwację; żadnej hipotezy nie utrwalamy jako dowiedzionej.
+
 ## Czego jednostka NIE rozstrzyga
 
 Czy §7 jest ważne czy nieważne; który backend wygrywa; czy potrzebny jest nowy
@@ -61,10 +74,16 @@ Przebieg nazywany w §7 „432 N" ma więc faktycznie 440 N.
 - **Kierunek jazdy** `forward = normalize(up × axle)`, `up = (0,1,0)`.
 - **Znaki.** `omega_spin = ω_world · axle`. Przy stanie zadanym `ω = (0,0,−v/R)`
   i osi `+ẑ` daje to `omega_spin ≈ −25.29 rad/s` — **ujemne**.
-  `rim_surface_speed = −(ω × r)·forward` gdzie `r = −R·up`, co przy stanie
-  zadanym daje **+13 m/s**. `slip_speed = v·forward − rim_surface_speed`,
-  czyli **0 przy czystym toczeniu**. Dodatni ruch pojazdu i ujemna prędkość
-  kątowa nie dają odwróconej interpretacji.
+  `reference_rim_speed = −(ω × r)·forward` gdzie `r = −R·up`, co przy stanie
+  zadanym daje **+13 m/s**. `reference_slip_speed = v·forward −
+  reference_rim_speed`, czyli **0 przy czystym toczeniu**. Dodatni ruch pojazdu
+  i ujemna prędkość kątowa nie dają odwróconej interpretacji.
+- **Pola `reference_*` nie mierzą rzeczywistego punktu kontaktu.** Liczą się
+  z **nominalnego** `reference_radius_m = WHEEL_R` i z punktu odniesienia `R`
+  pod środkiem masy. Rzeczywisty punkt kontaktu z manifoldu leży gdzie indziej,
+  a przy fasetowanym obwodzie zmienia się w trakcie obrotu. Slip z manifoldu
+  **nie jest** w JP-02 implementowany; przedrostek `reference_` istnieje po to,
+  by nie dało się pomylić jednego z drugim przy późniejszym czytaniu CSV.
 - **Energia obrotowa** z pełnego tensora: `ω_local = R⁻¹·ω_world`,
   `E = ½ ω_local · (I_local · ω_local)`. Nie z jednego elementu tensora.
 - **Slip ratio** nie jest wyprowadzane przy prędkości bliskiej zeru. Surowe
