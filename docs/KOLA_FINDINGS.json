@@ -1,0 +1,148 @@
+{
+  "schema": 1,
+  "purpose": "Jedyne miejsce, w ktorym zyje AKTUALNY status kazdego findingu F-xx / P-xx. Dokumenty KOLA_*.md moga finding OPISYWAC, ale nie moga nadawac mu statusu. Sprawdzane przez tools/evidence/evidence.py check.",
+  "updated": "2026-07-29",
+  "statuses": {
+    "ENGINE_FACT": "Wlasciwosc kodu Box3D, weryfikowalna przez odczyt zrodla. Nie wymaga transferu Q2-Q4.",
+    "MATH_FACT": "Czysta matematyka badanych funkcji, bez silnika. Nie wymaga transferu.",
+    "MODEL_FACT": "Wynik modelu analitycznego, ktorego zalozen stend NIE spelnia. Ostrzezenie, nie prawo produktu.",
+    "MODEL_INFERENCE": "Mechanizm zaproponowany jako wyjasnienie pomiaru. Wspolsprawca, nie dowiedziony jako dominujacy.",
+    "BENCH_PRELIMINARY": "Zmierzone na stendzie v2 w jednym rigu, ze znanymi confoundami. Nie przenosi sie na pojazd.",
+    "DESIGN_INFERENCE": "Wniosek projektowy z policzalna podstawa, ale bez pomiaru w silniku.",
+    "OWNER_DECISION": "Rozstrzygniete przez Jozza. Pomiar tego nie zmienia.",
+    "SUPERSEDED": "Zastapione przez pozniejszy finding. Nie cytowac.",
+    "EVIDENCE_BROKEN": "Liczby findingu NIE wystepuja w zadnym zachowanym surowym przebiegu. Nie cytowac do czasu regeneracji."
+  },
+  "findings": {
+    "F-01": {
+      "status": "ENGINE_FACT",
+      "claim": "Format hulla: 6N polkrawedzi <= 255 -> pryzmat max 42 scianki, profil 4-pierscieniowy max 18.",
+      "scope": "Jeden stockowy b3CreateHull i badane generatory. NIE dowodzi niemozliwosci biezni w kazdej reprezentacji (compound, multi-shape, struktura miekka, tire law).",
+      "evidence": ["2026_07_27_v2#A.prism_budget"],
+      "code": "include/box3d/collision.h B3_HULL_LIMIT"
+    },
+    "F-02": {
+      "status": "ENGINE_FACT",
+      "claim": "Masa i bezwladnosc pochodza z objetosci collidera, wiec zmieniaja sie 1.58-1.87x miedzy obwiedniami.",
+      "scope": "Domyslna sciezka produktowa, gestosc 77. Kazde porownanie ksztaltow bez zamrozonej masy jest niewazne.",
+      "evidence": ["2026_07_27_v2#C.mass"],
+      "code": "src/shape.c b3ComputeShapeMass"
+    },
+    "F-03": {
+      "status": "BENCH_PRELIMINARY",
+      "claim": "Model 'wiecej scianek = gladziej' jest falszywy: prism-42 toczy sie gorzej niz cylinder-32.",
+      "scope": "Jeden rig o zmiennej predkosci, dwa punkty N (32 i 42), jedna faza wielokata. NIE jest kontrolowanym sweepem N.",
+      "evidence": ["2026_07_27_v2#E.1900N"],
+      "supersedes": []
+    },
+    "F-04": {
+      "status": "OWNER_DECISION",
+      "claim": "Split envelope wedlug kategorii powierzchni odpada produktowo.",
+      "scope": "Decyzja O-3 (2026-07-27): odrzucone jest przelaczanie NATURY collidera wedlug rol skanu. Tagowanie geometrii dla materialow, gameplayu i analizy NIE jest odrzucone.",
+      "evidence": ["none"]
+    },
+    "F-05": {
+      "status": "BENCH_PRELIMINARY",
+      "claim": "Metryki nie zgadzaja sie ze soba; ranking wariantow zalezy od wybranej metryki.",
+      "scope": "Stend v2, metryki vy_rms / penetracja / churn / vx_end.",
+      "evidence": ["2026_07_27_v2#E.1900N", "2026_07_27_v2#E.432N"]
+    },
+    "F-06": {
+      "status": "BENCH_PRELIMINARY",
+      "claim": "Ranking reprezentacji zmienia sie miedzy stendem a pojazdem.",
+      "scope": "Ostrzezenie metodyczne. Podstawa reguly 'stend != pojazd'.",
+      "evidence": ["none"]
+    },
+    "F-07": {
+      "status": "SUPERSEDED",
+      "claim": "Liczba scianek nie kosztuje nic; kosztuje liczba shape'ow.",
+      "scope": "ZASTAPIONE przez F-08. W KOLA_01 par.5 wystepuje nadal z etykieta VERIFIED-MEASURED - ta etykieta jest NIEAKTUALNA.",
+      "superseded_by": "F-08",
+      "evidence": ["none"]
+    },
+    "F-08": {
+      "status": "BENCH_PRELIMINARY",
+      "claim": "Koszt kranowy jednego kola: sfera 1.13 us (box) / 2.12 us (mesh); najdrozszy phased union-4 3.88 / 12.24 us.",
+      "scope": "Slope 0-8 kol, 7 swiezych swiatow x 400 krokow, mediana. Kazdy wariant w SWOIM wlasnym stanie po 60 krokach rozgrzewki - to koszt wariantu w tym stanie, nie czysty koszt bryly. Okno 400 krokow jest za krotkie dla n=0 (~0.08 ms lacznie).",
+      "evidence": ["2026_07_27_v2#D.box", "2026_07_27_v2#D.mesh"],
+      "note": "2026-07-29: tabela w KOLA_01 par.7.2 zawierala dziesiec liczb, z ktorych ZADNA nie wystepowala w zachowanym surowym przebiegu (sfera 1.14 vs 1.13, mesh 2.01 vs 2.12, rozrzut '4-14%' vs realne max 47.4%). Tabela zostala zastapiona blokiem generowanym z surowego logu. Zrodlo rozbieznosci nieznane - albo przebieg posredni, ktorego nie zachowano, albo przepisanie z kontekstu."
+    },
+    "F-09": {
+      "status": "BENCH_PRELIMINARY",
+      "claim": "Pod stalym dociskiem 1900 N ranking wariantow odwraca sie wzgledem 440 N.",
+      "scope": "Wolne kolo 44 kg pod stalym dociskiem - NIE quarter-car. Realny nacisk 1908.36 N (grawitacja swiata to 10, nie 9.81). Przed oknem pomiarowym 2 s ukrytego rozbiegu, wiec vx_end jest po 6 s, a stan na granicy W->M nie zostal zapisany. Wszystkie metryki zalezne od ruchu sa nieporownywalne miedzy wariantami.",
+      "evidence": ["2026_07_27_v2#E.1900N", "2026_07_27_v2#E.432N"]
+    },
+    "F-10": {
+      "status": "MODEL_INFERENCE",
+      "claim": "Churn tozsamosci kontaktu jest jednym z mechanizmow agitacji fasetowanego kola.",
+      "scope": "Wspolsprawca silnie poparty, NIE dowiedziony jako dominujacy. churn liczony jako udzial punktow impulse-active, ktore nie istnialy w poprzednim kroku - to metryka tozsamosci, nie bezposrednia metryka utraconego warm startu.",
+      "evidence": ["2026_07_27_v2#E.1900N"]
+    },
+    "F-11": {
+      "status": "MODEL_FACT",
+      "claim": "Strata energii toczacego sie wielokata ~ 4pi^2 (mR^2/I_c)/N na obrot, I_c = I_cm + mR^2. Dla N=32: 1.13% omegi i 2.25% energii na wierzcholek.",
+      "scope": "Model idealnego rimless wheel: pojedynczy punkt podparcia, zderzenie plastyczne, brak poslizgu, brak podatnosci. Box3D ma manifold wielopunktowy, soft-step i tarcie - zaden z tych warunkow nie jest spelniony. Model NIE zalezy od docisku, wiec NIE tlumaczy roznicy 440 N vs 1900 N.",
+      "evidence": ["none"]
+    },
+    "F-12": {
+      "status": "BENCH_PRELIMINARY",
+      "claim": "Globalny sweep stockowego contactHertz nie naprawia fasetowanych hulli w tym rigu.",
+      "scope": "Sweep mial SZESC etykiet, ale tylko PIEC roznych ustawien: zadane 60 Hz i 30 Hz daja identyczny efektywny 30 Hz (P-15). Kolumny 60Hz i 30Hz w surowym logu sa tym samym przebiegiem. Obala suwak, NIE rodzine podatnosci (wlasny wiez opony, nieliniowa sztywnosc, enveloping, soft ring pozostaja nietkniete).",
+      "evidence": ["none"]
+    },
+    "F-13": {
+      "status": "MATH_FACT",
+      "claim": "Laboratorium profilu: krzywizna obwodu, camber, elipsoida, Lame, swept-disk - czysta geometria bez silnika.",
+      "scope": "Wlasciwosci badanych funkcji wsparcia. Metryka drukowana jako 'flat b=' to PRZESUNIECIE PUNKTU WSPARCIA przy 1 stopniu, nie szerokosc plaskiego pasa. Dla kierunku, w ktorym ekstremalny jest caly odcinek, gradient numeryczny wybiera arbitralny punkt z support setu.",
+      "evidence": ["none"]
+    },
+    "F-14": {
+      "status": "DESIGN_INFERENCE",
+      "claim": "Asymetria kierunkow: dyskretyzacja w poprzek biezni jest tansza niz wzdluz obwodu.",
+      "scope": "Podstawa policzalna: czestotliwosc przejsc miedzy cechami wokol obwodu N*v/(2 pi R) ~ 129 Hz (N=32, 13 m/s) vs jednostki Hz w poprzek (ograniczone tempem zmiany cambera). Nie zmierzone w silniku. 'Nikt tego nie wykorzystal' zawezone do: nikt w TYM projekcie.",
+      "evidence": ["none"]
+    },
+
+    "P-01": { "status": "ENGINE_FACT", "claim": "Limit formatu hulla.", "scope": "= F-01.", "evidence": ["2026_07_27_v2#A.prism_budget"] },
+    "P-02": { "status": "ENGINE_FACT", "claim": "Masa z objetosci collidera.", "scope": "= F-02.", "evidence": ["2026_07_27_v2#C.mass"] },
+    "P-03": {
+      "status": "MODEL_INFERENCE",
+      "claim": "Churn rosnie z liczba scianek, amplituda tarki maleje jak 1/N^2.",
+      "scope": "'Liniowo' WYCOFANE - nie wykonano kontrolowanego sweepu N przy stalej predkosci. Sa dwa punkty (32, 42) w rigu o zmiennej predkosci. Uczciwie: wyzszy churn zaobserwowany dla prism-42 niz cylinder-32 w jednym rigu.",
+      "evidence": ["2026_07_27_v2#E.1900N"]
+    },
+    "P-04": { "status": "MODEL_FACT", "claim": "Strata energii wielokata.", "scope": "= F-11.", "evidence": ["none"] },
+    "P-05": { "status": "BENCH_PRELIMINARY", "claim": "Globalny contactHertz nie zastepuje geometrii.", "scope": "= F-12. FAKT (sweep negatywny) i INFERENCJA (faseta przenosi load przy 0.1 mm, wiec dzwignia podatnosci sie nie aktywuje) maja OSOBNE statusy - inferencja jest niezweryfikowana.", "evidence": ["none"] },
+    "P-06": { "status": "MATH_FACT", "claim": "Bryla obrotowa ma krzywizne obwodu R; hull ma tam narozek.", "scope": "Kierunek OBWODOWY na koronie ustawionej pionowo, przy zewnetrznym promieniu R.", "evidence": ["none"] },
+    "P-07": { "status": "MATH_FACT", "claim": "Elipsoida: rho korony = (W/2)^2/R = 0.093 m. Zero swobodnych parametrow profilu.", "scope": "Elipsoida != superelipsoida - dwie rodziny, dwa patche.", "evidence": ["none"] },
+    "P-08": { "status": "MATH_FACT", "claim": "Revolved Lame nie ma czlonka o koronie posredniej: p=2 daje rho=0.093, kazde p>2 daje krzywizne 0 w apeksie.", "scope": "Krzywizna zerowa w apeksie NIE oznacza doslownie plaskiego odcinka - dla skonczonego p krzywa jest gladka i scisle wypukla.", "evidence": ["none"] },
+    "P-09": { "status": "MATH_FACT", "claim": "Plaska korona powoduje, ze pochylone kolo robi sie WIEKSZE (prism-42: 0.514 -> 0.558 przy 20 st.).", "scope": "'Realna opona odwrotnie' WYCOFANE - brak zrodla.", "evidence": ["none"] },
+    "P-10": { "status": "DESIGN_INFERENCE", "claim": "Asymetria kierunkow.", "scope": "= F-14. Tani support query NIE oznacza taniego collision pipeline: GJK/EPA, generator manifoldu, stabilne featureId, casty i CCD pozostaja nieznane.", "evidence": ["none"] },
+    "P-11": { "status": "ENGINE_FACT", "claim": "Tarcie liniowe jest CENTRALNE na manifold - jeden frictionImpulse niezaleznie od liczby punktow; b3ManifoldPoint NIE ma per-point tangentialImpulse.", "scope": "Zweryfikowane 2026-07-29.", "evidence": ["none"], "code": "include/box3d/types.h:2557-2610" },
+    "P-12": { "status": "ENGINE_FACT", "claim": "b3_compoundShape nie ma zarejestrowanej pary z mesh ani height.", "scope": "Dla badanego commitu 959aefb.", "evidence": ["none"] },
+    "P-13": { "status": "ENGINE_FACT", "claim": "Telemetria manifoldu (featureId, persisted, impulsy) jest dostepna publicznym API; zaden patch core nie jest do tego potrzebny.", "scope": "Wystarcza do podstawowego observera. totalNormalImpulse to SUMA impulsu normalnego przez podkroki, sluzaca do rozpoznania kontaktu spekulatywnego, ktory oddzialywal w kroku - NIE dowod stalego podparcia. Stad nazwa impulse_active_point, nie 'punkt nosny'.", "evidence": ["none"], "code": "include/box3d/types.h:2571-2591" },
+
+    "P-14": {
+      "status": "ENGINE_FACT",
+      "claim": "Promien oporu toczenia: sphere -> sphere.radius, capsule -> capsule.radius, hull -> 0.25 * hull->innerRadius, pozostale -> 0.",
+      "scope": "Zweryfikowane 2026-07-29 wobec zewnetrznego audytu, ktory twierdzil, ze promien jest brany WYLACZNIE ze sphere/capsule - to jest NIEPRAWDA. Hull dostaje cwiartke promienia wewnetrznego, czyli okolo 4x mniejszy opor toczenia niz sfera o tym samym rozmiarze. W stendzie ten tor jest NIEAKTYWNY (material nie ustawia rollingResistance), ale ma znaczenie dla par.2.2 KOLA_02: silnik JUZ ma wlasna, zalezna od typu bryly regule oporu toczenia i podwojne liczenie jest realnym ryzykiem.",
+      "evidence": ["none"],
+      "code": "src/contact.c:646-684"
+    },
+    "P-15": {
+      "status": "ENGINE_FACT",
+      "claim": "Efektywny contactHertz = min(zadany, 0.125 * inv_h), gdzie inv_h = subStepCount * inv_dt.",
+      "scope": "Przy 60 Hz swiata i 4 podkrokach inv_h = 240, wiec sufit wynosi 30 Hz. Kazde zadanie >= 30 Hz daje ten sam wynik. To tlumaczy identyczne kolumny 60Hz i 30Hz w eksperymencie F jako SKUTEK KODU, nie zjawisko fizyczne.",
+      "evidence": ["none"],
+      "code": "src/physics_world.c:1101,1114"
+    },
+    "P-16": {
+      "status": "ENGINE_FACT",
+      "claim": "Tarcie pary jest srednia geometryczna: sqrtf(frictionA * frictionB).",
+      "scope": "Stend ustawia grunt na 1.2 i zostawia kolo na domyslnym 0.6, wiec efektywne tarcie sceny wynosi ~0.849, a nie 1.2 jak opisuja to naglowki stendu i dokumenty. Naglowek v2.1 musi drukowac mu_wheel, mu_ground, regule mieszania i mu_effective.",
+      "evidence": ["none"],
+      "code": "src/physics_world.c:154"
+    }
+  }
+}

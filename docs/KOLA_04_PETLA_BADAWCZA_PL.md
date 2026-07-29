@@ -1,0 +1,512 @@
+# Pętla badawcza kół i opon — wersja rekurencyjna
+
+Data przebudowy: 2026-07-27 (zastępuje pętlę I0–I6 z 2026-07-25)
+Korekta po audycie zewnętrznym: 2026-07-28
+Podstawa: decyzje właściciela O-1…O-5 z 2026-07-27 + dowody `KOLA_01` §7
+(statusy §7 są `PROVISIONAL` do czasu odbioru stendu v2.1 — `KOLA_05`)
+
+---
+
+## 0. Po co ta pętla istnieje i czym jest jej produkt
+
+Właściciel rozstrzygnął dwie rzeczy, które zmieniają charakter całego programu:
+
+> **O-1/O-2 (`OWNER DECISION`):** wolno badać kilka pomysłów równolegle i **nie
+> trzeba finalnie zostać przy jednym**. Cały obecny projekt to poligon przed
+> większym (JES). **Dokumentacja porażek jest warta tyle samo co sukcesów.**
+
+> **O-5 (`OWNER DECISION`):** kontynuujemy etap badawczy **bez wyboru
+> zwycięzcy**. Hybryda i jeden backend pozostają otwarte.
+
+Poniższa hierarchia produktu jest **propozycją metodyczną agenta**
+(`RESEARCH PROGRAM PROPOSAL`), a nie literalną decyzją właściciela. O-1/O-2
+mówią, że wolno prowadzić wiele gałęzi i że porażki są cenne — nie rozstrzygają
+same z siebie kolejności `PRAWA > PRZYRZĄD > KANDYDACI`. To samo dotyczy
+kształtu `WheelState` (N-05) i wszystkich kontraktów w `KOLA_02`.
+
+Z tym zastrzeżeniem: **produktem** tego programu nie jest „koło", tylko trzy
+rzeczy, w tej kolejności ważności:
+
+```
+1. PRAWA  - zdania o mechanizmach, ktore przenosza sie do JES i pozostana
+            prawdziwe niezaleznie od tego, co wybierzemy
+2. PRZYRZAD - stend, ktory potrafi obalic pomysl w godzine zamiast w miesiac
+3. KANDYDACI - rodziny z uczciwie zmierzonym sufitem, awansowane LUB odrzucone
+```
+
+Rodzina odrzucona pomiarem jest **wynikiem pozytywnym**. Nie kasujemy jej —
+przenosimy do rejestru §6 razem z prawem, które ją obaliło, i z kryterium,
+które ją przywróci.
+
+### 0.1 Bramka przeglądu artefaktów (`GATE-A`, obowiązuje od 2026-07-27)
+
+Powtarzający się błąd tego programu, nazwany w audycie zewnętrznym i przyjęty:
+
+```
+ciekawy wynik -> nazwanie go prawem -> zamkniecie rodziny ->
+przebudowa dokumentacji -> zapis do pamieci -> DOPIERO POTEM pelny audyt
+```
+
+Od teraz każdy świeży wynik przez pierwszą rundę trafia wyłącznie do
+`PROVISIONAL FINDINGS`. Przed zmianą statusu w `KOLA_00`/`KOLA_04` albo zapisem
+do pamięci projektu musi przejść sześć kroków:
+
+```
+1. artefakty (kod + surowy wydruk + manifest)
+2. niezalezna kontrola (przeczytanie kodu, nie tylko wydruku)
+3. jawna lista confoundow
+4. kontrkandydat, ktory tlumaczylby to samo
+5. test transferu o poziom wyzej
+6. dopiero status
+```
+
+Słów `PRAWO`, `ROZSTRZYGNIĘTE`, `RODZINA ODRZUCONA` nie wolno użyć bez
+transferu na poziom V2.
+
+---
+
+## 1. Dlaczego pętla jest rekurencyjna, a nie liniowa
+
+Roadmapa zakłada, że wiadomo, co jest krokiem następnym. Tu nie wiadomo —
+i dwa razy pod rząd okazało się, że **odpowiedź z niższego poziomu unieważniła
+pytanie z wyższego**:
+
+- pomiar kosztu CPU (poziom 5) obalił hipotezę o barierze wydajności (poziom 2);
+- prawo straty energii wielokąta (poziom 2) wykreśliło całą rodzinę
+  reprezentacji (poziom 3), której szukaliśmy przez dwie iteracje.
+
+Dlatego pętla ma **poziomy** i **regułę powrotu**, a nie etapy.
+
+### 1.1 Poziomy
+
+```
+L0  NIEZMIENNIKI     Co musi byc prawda niezaleznie od rozwiazania.
+                     Zrodla: decyzje wlasciciela, fakty o silniku.
+
+L1  ZJAWISKA         Co fizycznie dzieje sie na styku opony, na czym nam zalezy.
+                     Jednostka: obserwowalne zachowanie, nie mechanizm.
+
+L2  PRAWA            Mechanizmy i ich zakresy. Zdania typu "X skaluje sie jak Y,
+                     w zakresie Z, obalane przez W".
+
+L3  REPREZENTACJE    Konkretna struktura danych / bryla / wiez, ktora realizuje
+                     mechanizm.
+
+L4  INTEGRACJA       Co Box3D musi naprawde zmienic, zeby to uniesc.
+
+L5  DOWODY           Pomiar, ktory rozstrzyga. Cztery poziomy walidacji (§3).
+```
+
+### 1.2 Reguła powrotu (to jest cała rekurencja)
+
+> Każdy wynik na poziomie `Ln` musi zostać **skonfrontowany z poziomem `Ln-1`
+> i `Ln-2`**, zanim pójdziemy w dół. Jeśli wynik zmienia zdanie na wyższym
+> poziomie, **wracamy tam i przepisujemy je**, nawet jeśli kosztuje to całą
+> iterację.
+
+Trzy pytania kończące każdą iterację:
+
+```
+R-a  Czy ten wynik uniewaznia ktores ZJAWISKO albo NIEZMIENNIK?
+R-b  Czy ten wynik jest PRAWEM (przenosi sie), czy tylko wlasnoscia
+     jednego prototypu / jednego manifoldu / jednej sceny?
+R-c  Czy istnieje tansze pytanie, ktore powinno bylo pasc pierwsze?
+```
+
+`R-c` jest najważniejsze i najczęściej pomijane. Dwa razy odpowiedź brzmiała
+„tak": koszt CPU trzeba było zmierzyć przed budową drogiego wariantu, a prawo
+wielokąta wyprowadzić przed poszukiwaniem idealnego N.
+
+---
+
+## 2. Stan poziomów na 2026-07-27
+
+### L0 — Niezmienniki
+
+```
+N-01  Ta sama podstawowa geometria kola odpowiada za kontakt z gruntem, skala,
+      sciana, obiektem ruchomym i innym pojazdem. Kategorie moga filtrowac
+      wyjatki, nie moga przelaczac natury opony.        [OWNER CONSTRAINT]
+N-02  PERMANENTNIE ODRZUCONE (O-3): przelaczanie NATURY collidera opony
+      wedlug kategorii powierzchni. Kolo ma dzialac na nierozroznionym
+      meshu. NIE jest odrzucone: tagowanie skanu jako takie - tagi moga
+      kiedys sluzyc materialom, semantyce, optymalizacji, gameplayowi
+      i analizie.                                       [OWNER DECISION]
+N-03  Felga i opona beda osobnymi assetami; wiele felg x wiele opon.
+N-04  Koszt mierzony PER KOLO. Architektura nie zaklada jednego auta.
+N-05  WheelState musi od poczatku umiec reprezentowac cisnienie, zuzycie,
+      temperature, proste uszkodzenie, oddzielenie opony od felgi,
+      zmiane parametrow w runtime - nawet jesli backend tego nie uzywa.
+N-06  Trzy swiaty opon sa rownowazne: drift/przegrzewanie, zwykla jazda,
+      ciezki offroad wtulajacy sie w kamienie.
+N-07  Werdykt o feelu nalezy wylacznie do wlasciciela.
+N-08  Kazdy patch w src/ musi miec WYLACZNIK i przejsc ZDO-S (identycznosc
+      semantyczna przy funkcji OFF). To jest niezmiennik.
+      ZDO-B (identycznosc BITOWA) NIE jest jeszcze niezmiennikiem - zalezy
+      od otwartej decyzji D-CORE-02. Sprzecznosc z poprzednia wersja
+      tego pliku usunieta 2026-07-27.
+N-09  Masa i bezwladnosc kola musza byc JAWNE, nigdy pochodna objetosci
+      collidera.                                        [z P-02]
+```
+
+### L1 — Zjawiska (czego chcemy od styku opony)
+
+Lista jest celowo pisana jako **obserwowalne zachowanie**, nie jako mechanizm.
+Kolumna „mierzalne" mówi, czy w ogóle umiemy to dziś zobaczyć.
+
+```
+Z-01  kolo toczy sie bez strat i bez drgan na plaskim         mierzalne  TAK
+Z-02  kolo ma poprawna szerokosc - nie zahacza bokiem         mierzalne  TAK
+Z-03  kolo reaguje na pochylenie: styk przechodzi
+      korona -> bark -> bok                                   mierzalne  TAK
+Z-04  styk jest POWIERZCHNIA, nie punktem                     mierzalne  czesciowo
+Z-05  footprint zmienia sie z cisnieniem i obciazeniem        mierzalne  NIE
+Z-06  opona wtula sie lokalnie w kamien / krawedz             mierzalne  NIE
+Z-07  przyczepnosc zalezy od poslizgu wzdluznego i katowego   mierzalne  NIE
+Z-08  przyczepnosc zalezy od obciazenia nieliniowo            mierzalne  NIE
+Z-09  opona ma pamiec: relaksacja, temperatura, zuzycie       mierzalne  NIE
+Z-10  kolo lezace bokiem / pojazd przewrocony zachowuje sie
+      geometrycznie sensownie                                 mierzalne  TAK
+Z-11  felga moze zaczac kontaktowac (uszkodzenie, debeading)  mierzalne  NIE
+Z-12  koszt jest liniowy w liczbie kol                        mierzalne  TAK
+```
+
+**Sześć z dwunastu zjawisk jest dziś niemierzalnych.** To jest ważniejsza
+informacja niż ranking kandydatów: nie umiemy jeszcze zobaczyć większości tego,
+o co nam chodzi. Rozbudowa przyrządu (L5) ma pierwszeństwo przed wyborem bryły.
+
+### L2 — Prawa (stan na dziś)
+
+```
+P-01  Limit formatu hulla: 6N polkrawedzi <= 255 -> pryzmat <= 42 scianki,
+      profil o 4 pierscieniach <= 18 scianek.              ENGINE FACT (F-01)
+P-02  Masa z objetosci collidera zmienia sie 1.58-1.87x miedzy obwiedniami.
+      Kazde porownanie ksztaltow bez zamrozonej masy jest niewazne. BENCH FACT (F-02)
+P-03  Churn tozsamosci kontaktu rosnie liniowo z liczba scianek,
+      amplituda tarki maleje jak 1/N^2. Nie ma dobrego N.
+      PROVISIONAL - wspolsprawca silnie poparty, nie dowiedziony
+      jako mechanizm dominujacy. Wymaga stalej predkosci
+      i normalizacji na metr/obrot.                         (F-10)
+P-04  Strata energii toczacego sie wielokata ~ 4pi^2 (mR^2/I_c) / N na obrot,
+      I_c = I_cm + mR^2. Dla N=32 to ~2.25% energii na wierzcholek
+      i ~51% na obrot. Dla 1% trzeba N~2300. Limit formatu to 42.
+      MODEL FACT (idealny rimless wheel) + BENCH WARNING.
+      OTWARTE: transfer na stala predkosc, quarter-car, pojazd
+      i inne procedury kontaktu.                            (F-11)
+P-05  Globalny sweep stockowego contactHertz nie naprawia fasetowanych
+      hulli w tescie constant-downforce: podatnosc dziala przez
+      penetracje, a faseta na plaskim gruncie penetruje ~0.1 mm.
+      OBALONY SUWAK, NIE CALA RODZINA PODATNOSCI.           (F-12)
+P-06  Kazda bryla obrotowa ma krzywizne obwodu dokladnie R; kazdy hull ma
+      w tym miejscu narozek.                                MATH FACT (F-13)
+P-07  Elipsoida: rho korony = (W/2)^2 / R. Dla naszego kola 0.093 m, czyli
+      ostrzej niz opona motocyklowa. Zero swobodnych parametrow profilu.
+                                                            MATH FACT (F-13)
+P-08  Rodzina revolved Lame nie ma czlonka o koronie posredniej: dla p=2
+      rho=0.093, dla kazdego p>2 krzywizna w apeksie = 0.
+      Przejscie nieciagle.                                  MATH FACT (F-13)
+P-09  Plaska korona powoduje, ze pochylone kolo robi sie WIEKSZE
+      (prism-42: 0.514 -> 0.558 przy 20 stopniach), bo skraj barku lezy
+      dalej od osi niz srodek korony.                       MATH FACT (F-13)
+      "Realna opona odwrotnie" - WYCOFANE, brak zrodla.
+P-10  Asymetria kierunkow: czestotliwosc przejsc miedzy cechami wokol
+      obwodu wynosi N*v/(2 pi R) ~ 129 Hz przy N=32 i 13 m/s, a w poprzek
+      biezni jest ograniczona tempem zmiany cambera (rzad jednostek Hz).
+      Roznica ~2 rzedy wielkosci.
+      STRONG DESIGN INFERENCE (F-14). Wymaga pomiaru przejsc
+      korona-bark-bok w orientacjach ekstremalnych.
+P-11  Tarcie w Box3D jest CENTRALNE na manifold - jeden `frictionImpulse`
+      niezaleznie od liczby punktow.                        ENGINE FACT
+P-12  `b3_compoundShape` nie ma zarejestrowanej pary z mesh ani height.
+                                                            ENGINE FACT
+P-13  Telemetria manifoldu (featureId, persisted, impulsy) jest dostepna
+      publicznym API. Zaden patch core nie jest do tego potrzebny.
+                                                            ENGINE FACT
+```
+
+### L3 — Reprezentacje: statusy
+
+```
+sfera                  KONTROLA. Toczy sie idealnie (vx_end 12.93/13.0),
+                       ale +295 mm szerokosci; wysokosc jazdy identyczna
+                       przy kazdym camberze (izotropia), wiec geometria
+                       nie odroznia korony, barku i boku.
+hull fasetowy          BARDZO PODEJRZANY jako powierzchnia toczna.
+                       NIE zamkniety: P-04 to model idealny + ostrzezenie
+                       ze stendu o znanych wadach (KOLA_01 §7.9).
+                       Bramka: rig Q2 (stala predkosc) w KOLA_05.
+                       Nadal dopuszczalny dla BOKU i barku.
+elipsoida              KANDYDAT WASKI. Sufit zmierzony (P-07). Zero parametrow.
+                       Reaguje na camber geometrycznie, ale nie daje
+                       footprintu, camber thrust ani pneumatic trail.
+swept-disk             KANDYDAT. Plaska korona (pelna szerokosc 277 mm),
+                       sterowany bark, ale P-09 i skok wsparcia 140 mm.
+revolved Lame          KANDYDAT Z LUKA (P-08).
+revolved convex profile OTWARTA HIPOTEZA KONSTRUKCYJNA (P-10).
+                       Nie sprawdzono manifoldu ani niczego z L4.
+                       Do porownania w R3 wchodza tez: luki odcinkowe,
+                       splajn scisle wypukly, probkowane wsparcie,
+                       zaokraglony wielokat, ogolny support-mapped convex.
+podatnosc kontaktu     Globalny contactHertz OBALONY jako zamiennik
+                       geometrii (P-05). Rodzina podatnosci NIE obalona:
+                       wlasny wiez opony, elastyczny pierscien, model
+                       enveloping i struktura pozostaja otwarte.
+wiele shape'ow         OTWARTE. Koszt zmierzony (union-4 = 6.07x sfery na meshu).
+struktura miekka       OTWARTE. Kompletny koszt wciaz nieznany.
+model aplikacyjny      OTWARTE, niedoceniony. Nie narusza N-01, jesli collider
+                       zostaje i probki tylko dokladaja wiezy.
+prawo opony            ORTOGONALNE do wszystkich powyzszych. Dziala na kazdym
+                       backendzie. Obsluguje Z-07..Z-09.
+```
+
+### L4 — Integracja: nic nie ruszamy
+
+Zero wpisów w ledgerze `KOLA_03` §5.1. Warunki C1–C4 niespełnione dla każdego
+kandydata. Reguła: **żaden wpis, dopóki nie zostanie nazwane konkretne brakujące
+pole albo zdarzenie publicznego API**, a dla nowej bryły — dopóki nie istnieje
+osobny dowód wykonalności manifoldu (§3, poziom V1b).
+
+---
+
+## 3. Poziomy walidacji
+
+```
+V0  MATEMATYKA        Poza silnikiem, bez fizyki. Profil, wsparcie, krzywizna,
+                      pozy ekstremalne. Godziny. Obala tanio.
+V1  STEND             tools/jozz_wheel_bench. Mechanizm w izolacji. Godziny.
+V1b MANIFOLD LAB      Osobny dowod wykonalnosci kontaktu dla nowej bryly:
+                      shape-plaszczyzna, -trojkat, -krawedz, -hull, przejscia
+                      miedzy trojkatami, featureId, persisted, warm start,
+                      plaska korona i maly bark, replay/determinizm.
+                      WARUNEK KONIECZNY przed jakimkolwiek patchem core.
+V2  SONDA PRODUKTOWA  Headless, pelny pojazd, walidator z ROOTA repo.
+                      Sprawdza TRANSFER: czy wynik ze stendu dotyczy auta.
+V3  PRZEJAZD JOZZA    Jedyny poziom, ktory AKCEPTUJE. Werdykt o feelu.
+```
+
+Reguły:
+
+- **V1 blokuje wyłącznie na crashu, niestabilności i złamanym niezmienniku.**
+  Nie blokuje na jednej słabej metryce — to była wada poprzedniej wersji pętli.
+- **Dowód skaluje się z nieodwracalnością.** Zmiana w `samples/` — V1+V2.
+  Zmiana w `src/` — V0+V1+V1b+V2+V3+próba aktualizacji upstreamu.
+- **Każdy pomiar podaje zakres sceny.** Bez zakresu wynik nie wchodzi do `KOLA_01`.
+- **Confound musi być nazwany w tym samym akapicie co liczba** (przykład: F-09,
+  gdzie `vy_rms` jest nieporównywalne między wierszami, bo warianty fasetowe
+  się zatrzymują, a nieruchome koło ma z definicji niską agitację).
+
+---
+
+## 4. Iteracje
+
+Iteracje **nie są etapami roadmapy**. Są wejściami do pętli. Kolejność jest
+propozycją; reguła powrotu (§1.2) może ją przestawić w każdej chwili.
+Zgodnie z O-1 **kilka gałęzi wolno prowadzić równolegle**.
+
+### R0 — RESET — `OPEN FOR CORRECTION`, **nie zamknięta**
+
+Przebudowa instrumentu i przepisanie pytania od zjawisk, nie od brył.
+Produkt: stend v2, `KOLA_01` §7, hipotezy P-03…P-10.
+
+Zamknięcie R0 z 2026-07-27 **cofnięte** po audycie zewnętrznym: instrument ma
+dwanaście udokumentowanych wad (`KOLA_01` §7.9), a dwie z nich (ukryty rozbieg,
+błędna nazwa rigu) zanieczyszczają wszystkie metryki jakości toczenia.
+**R0 zamknie się dopiero wraz z odbiorem stendu v2.1** (`KOLA_05`).
+
+### R0.5 — KALIBRACJA INSTRUMENTU (`KOLA_05`) — bramka do wszystkiego dalej
+
+Rigi Q0–Q4, słownik metryk, manifest dowodowy, rejestr confoundów.
+**Dopóki nie działa, żaden wynik nie awansuje na prawo.** Protokół jest
+zaprojektowany i opisany **przed** uruchomieniem — to warunek, żeby wynik dało
+się odróżnić od artefaktu narzędzia.
+
+### R1 — WIDZIALNOŚĆ (najwyższy priorytet po R0.5)
+
+**Pytanie:** sześć z dwunastu zjawisk (Z-04…Z-09, Z-11) jest dziś niemierzalnych.
+Ile z nich da się zobaczyć bez dotykania `src/`?
+
+Zakres:
+- rozkład nacisku po punktach manifoldu w czasie → czy Z-04 jest w ogóle widoczny;
+- ile manifoldów i punktów nośnych daje kontakt z **meshem** (nie z pudłem) —
+  bo teren ze skanu jest meshem, a P-11 mówi, że każdy manifold ma własną
+  kotwicę tarcia; to może być cichy sterownik feelu;
+- czy `b3ShapeCast` wzdłuż profilu opony da tanią miarę „co jest pod kołem",
+  jako *przyrząd pomiarowy*, jeszcze nie jako model.
+
+Falsyfikator R1 (**zawężony po krytyce**): jeżeli rozkład nacisku po punktach
+jest degeneracyjny (1 punkt niesie > 90% obciążenia), wniosek brzmi
+**„obecna para bryła + procedura manifoldu nie dostarcza użytecznego rozkładu
+nacisku"** — a nie „Z-04 jest nieosiągalny żadną bryłą sztywną". Wynik zależy
+od bryły, generatora manifoldu, gruntu i algorytmu redukcji punktów; inna para
+może rozłożyć impulsy inaczej.
+
+### R2 — ATLAS ZJAWISK TRZECH ŚWIATÓW
+
+**Pytanie:** czym różnią się mierzalnie drift, zwykła jazda i offroad skalny?
+
+Nie „jakiej opony potrzebują", tylko: jakie **wielkości obserwowalne** muszą
+istnieć w każdym z nich i które z nich dzielą. Produkt: tabela zjawisko × świat
+z kolumną „czy jeden backend może to unieść".
+
+To jest iteracja, która **rozstrzyga pytanie o hybrydę** — dziś odpowiadamy na
+nie intuicją.
+
+### R3 — LABORATORIUM PROFILU (V0, rozszerzenie)
+
+Rozbudowa eksperymentu G ze stendu:
+- profil jako **wypukły wielokąt 2D obrotowy** (P-10) — pełna parametryzacja;
+- 5–6 realnych profili opon, nie tylko obecny asset offroad;
+- sweep rozmiarów i proporcji (R/W od 1.2 do 4);
+- porównanie wsparcia i normalnych z gęstym meshem referencyjnym;
+- pozy: pion, camber, jedno koło, bok, ściana, krawędź, dwie powierzchnie,
+  pojazd przewrócony;
+- **kontrkandydaci obowiązkowo**: jeden prostszy (swept-disk), jeden ogólniejszy
+  (dowolne wsparcie).
+
+Falsyfikator R3: jeżeli profil wielokątny obrotowy nie potrafi odtworzyć korony
+o `rho` 0.5–1.5 m przy jednoczesnym barku 10–25 mm, rodzina traci główną
+przewagę nad swept-diskiem i schodzi do remisu.
+
+### R4 — PRAWO OPONY BEZ GEOMETRII (gałąź równoległa)
+
+Ortogonalna do całej reszty. Sprawdza, ile z Z-07…Z-09 da się dostać na
+**dzisiejszej sferze**, bez zmiany bryły.
+
+**Zakres dopuszczalnych wniosków ze sfery** (zawężony po krytyce): elipsa
+tarcia, krzywe poślizgu, wrażliwość na obciążenie, termika jako model stanu —
+i tylko na płaskim gruncie. **Nie wolno** z tego rigu wnioskować o camberze,
+kontakcie barku, boku, konformowaniu w offroadzie ani o przewróconym pojeździe.
+
+Teza „trzy światy żyją głównie w prawie opony" jest trafna dla driftu i zwykłej
+jazdy. **Ciężki offroad zależy fundamentalnie od geometrii, podatności, kontaktu
+na krawędziach i rozkładu nacisku** — nie wpisywać tego jako ogólnego prawa.
+
+Falsyfikator R4: jeżeli centralne tarcie na manifold (P-11) nie pozwala
+odtworzyć elipsy tarcia i wrażliwości na obciążenie, to `B3X-TIREFRAME-001`
+staje się pierwszym realnym kandydatem do core — i to **przed** jakąkolwiek nową
+bryłą.
+
+### R5 — MANIFOLD LAB (V1b) — bramka do core
+
+Uruchamiana **tylko** dla kandydata, który przeszedł R3. Bez tego dowodu żaden
+patch core nie powstaje.
+
+### R6 — KOSZT FORKA NA PRAWDZIWYM DIFFIE
+
+Dopiero po R5: realny diff dla danych i API, dispatchu, masy/AABB, generacji
+kontaktu, zapytań/castów/CCD, snapshotów/nagrań, debug draw, testów, próby
+aktualizacji upstreamu. **Liczba `case` nie jest kosztem.**
+
+### R7 — KONFRONTACJA (V3)
+
+Przejazd właściciela. Jedyny poziom akceptujący.
+
+### R8 — GAŁĄŹ PODATNA / ENVELOPING (równoległa, otwarta)
+
+Gałąź, której globalny `contactHertz` **nie** zamknął. Do porównania:
+własny więz normalny opony, pierścień sztywno-elastyczny, model obejmujący
+nierówność (*enveloping road*), minimalny miękki pierścień, model plamy
+kontaktu, pełna struktura. Literatura modelowania opon (elastyczne pierścienie,
+rozkład nacisku, walidacja quarter-car / over-cleat) jest **źródłem mechanizmów
+do porównania, nie gotowym systemem do skopiowania**.
+
+### R∞ — DECYZJA UPSTREAM (niezależna od geometrii, starzeje się)
+
+`D-CORE-03`. Nie zależy od żadnej z powyższych i z każdym tygodniem drożeje.
+
+---
+
+## 5. Rejestr pytań otwartych
+
+```
+U-01  OTWARTE ZAWEZONE. Churn jest silnie poparty jako wspolsprawca.
+      Brakuje korelacji czasowej przy STALEJ predkosci.            -> Q2
+U-02  OTWARTE ZAWEZONE. Test constant-downforce wykonany.
+      Quarter-car i pelny pojazd nierozstrzygniete.                -> Q3/Q4
+U-03  WSTEPNE. Koszt krancowy zmierzony, ale kazdy wariant byl
+      w innym stanie dynamicznym i przy innym allowFastRotation.   -> Q1c
+U-04  OTWARTE ZAWEZONE. Globalny contactHertz negatywny.
+      Podatnosc wlasciwa oponie nietknieta.                        -> R8
+U-17  Kto jest WLASCICIELEM oporu toczenia dla nowej bryly i czy
+      nie liczymy go podwojnie z prawem opony. Cztery osobne
+      pytania: API / solver / geometria (promien efektywny na
+      koronie, barku, boku) / prawo opony.                         -> Q2
+U-18  Czy metryki na METR i na OBROT odwracaja ranking F-09.       -> Q2
+U-19  Ile wynosi vx i omega na POCZATKU okna pomiarowego.          -> Q0/Q1
+U-05  Ile kosztuje KOMPLETNA struktura miekka (ciala+jointy+cisnienie+substepy).
+U-06  Czy pasy w poprzek walcza ze soba jak phased-union.
+U-07  Czy kontakt liniowy ma stabilna tozsamosc cech i warm start na trojkatach.
+U-08  Realny diff nowej bryly w tym konkretnym kodzie.
+U-09  WYCOFANE (dotyczylo rodziny "podatnosc zamiast geometrii").
+U-10  Czy trzy swiaty moga dzielic jeden backend.                 -> R2
+U-11  Kontrolowane porownanie stend vs pojazd.                    -> R1/V2
+U-12  WYCOFANE. Role skanu odrzucone permanentnie (N-02).
+U-13  Ile obciazenia niesie POJEDYNCZY punkt manifoldu - czy Z-04
+      jest osiagalny jakakolwiek bryla sztywna.                   -> R1
+U-14  Ile manifoldow daje kolo na MESHU (nie na pudle) i czy kazdy
+      wnosi wlasna kotwice tarcia (P-11).                         -> R1
+U-15  Czy prawo opony na dzisiejszej sferze obsluguje Z-07..Z-09.  -> R4
+U-16  Czy profil wielokatny obrotowy potrafi korone rho 0.5-1.5 m
+      przy barku 10-25 mm.                                        -> R3
+```
+
+## 6. Rejestr rodzin: odrzucone i zawieszone (produkt, nie porażka)
+
+Kolumna „poziom" mówi, jak mocny jest wpis: `ZAMKNIĘTE` = decyzja właściciela
+albo fakt o silniku; `ZAWIESZONE` = wynik pomiarowy o znanym, wąskim zakresie,
+który wraca do gry po transferze V2.
+
+| Rodzina | Poziom | Odrzucona przez | Zakres | Co ją przywróci |
+|---|---|---|---|---|
+| split envelope (sfera+cylinder na maskach) | ZAMKNIĘTE | `OWNER DECISION` + N-01 | produktowo, architektonicznie | nic — to niezmiennik |
+| przełączanie **natury** collidera wg kategorii powierzchni | ZAMKNIĘTE | `OWNER DECISION` O-3 | permanentnie | nic (ale tagi do materiałów/gameplayu nie są tym samym) |
+| hull fasetowy jako **powierzchnia toczna** | **ZAWIESZONE** | P-04 (model) + stend v2 (ostrzeżenie) | hulle `b3CreateHull`, N ≤ 42, jedno wolne koło pod stałym dociskiem, grunt pudełkowy | wynik z rigu Q2: fasetowany obwód o mocy strat porównywalnej z bryłą gładką; albo inna procedura kontaktu (convex margin, wygładzone normalne, własny manifold) |
+| globalny `contactHertz` jako **zamiennik geometrii** | **ZAWIESZONE** | P-05 | płaski grunt pudełkowy, hulle 32/42, hertz ≥ 6 Hz, zmienna prędkość | mechanizm podatności działający na wymuszenie kinematyczne, nie na penetrację |
+| `b3_compoundShape` na terenie ze skanu | ZAMKNIĘTE | P-12 | teren mesh, bez patcha core | rejestracja pary compound×mesh |
+| `B3X-CONTACTOBS-001` (patch telemetrii) | ZAMKNIĘTE | P-13 | — | nazwanie brakującego pola publicznego API |
+
+**Nie wolno jeszcze zakładać** (lista przyjęta z audytu): że hull jako każda
+możliwa powierzchnia toczna jest martwy; że 2300 ścianek to uniwersalne
+wymaganie solvera; że churn jest jedyną przyczyną; że globalny `contactHertz`
+obala podatność opony; że 6–10 punktów profilu wystarczy; że wielokąt obrotowy
+będzie tani; że koncept jest globalnie nowatorski; że bryła sztywna da
+footprint; że prawo opony na sferze rozstrzyga offroad; że jakakolwiek rodzina
+albo hybryda już wygrała.
+
+## 7. Rozliczenie z materiałami zewnętrznymi
+
+Pakiet metodyczny („Proving Ground v1.2") i **cztery** dokumenty „Second Brain"
+(ostatni: pełny audyt stendu v2 z 2026-07-27) są **źródłem metody i krytyki, nie
+planem**. Audyt v2 został w całości zweryfikowany wobec kodu i przyjęty; jego
+rozliczenie punkt po punkcie jest w odpowiedzi z 2026-07-28 oraz w `KOLA_01`
+§7.9. Przyjęte z nich w całości:
+
+- bramka `GATE-A` przed zmianą statusu (§0.1);
+- rozdzielenie decyzji właściciela od propozycji programu badawczego;
+- rigi Q0–Q4 jako drabina transferu (`KOLA_05`);
+- normalizacja metryk na metr i na obrót;
+
+- rozdzielenie support mappingu od manifoldu jako osobnych problemów;
+- „liczba `case` nie jest kosztem, funkcja wsparcia nie jest jeszcze bryłą";
+- niezmiennik N-01 (jedna geometria wobec każdej powierzchni i orientacji);
+- pętla kontrolna dla każdego atrakcyjnego pomysłu (wcielona w §1.2);
+- wszystkie zarzuty metodologiczne wobec stendu v1 (wcielone w stend v2).
+
+Odrzucone lub skorygowane po konfrontacji z kodem i pomiarem — patrz odpowiedź
+z 2026-07-27, sekcja walidacji.
+
+## 8. Decyzje właściciela
+
+```
+ROZSTRZYGNIETE 2026-07-27
+  O-1  wolno badac kilka pomyslow rownolegle; nie trzeba wybierac jednego
+  O-2  poligon przed JES; porazki dokumentujemy na rowni z sukcesami
+  O-3  tagowanie rol skanu odrzucone permanentnie
+  O-4  naprawa przyrzadu NIE jest decyzja wlasciciela - to obowiazek agenta
+  O-5  etap badawczy bez wyboru zwyciezcy; hybryda i jeden backend otwarte
+
+OTWARTE
+  D-CORE-01  prymat utrzymywalnosci upstreamu (KOLA_03 §8)
+  D-CORE-02  Zero-Delta-Off jako warunek konieczny
+  D-CORE-03  aktualizacja do upstream/main teraz  <- starzeje sie
+```

@@ -1,0 +1,100 @@
+Jozz wheel bench | box3d 0.1.0 | wheel R=0.5141 W=0.4375
+
+=== A) HULL BUDGET: straight prism (sharp shoulders) ===
+ sides   pts_in    verts  halfedg    faces    ripple_mm    meanR_m
+     8       16       16       48       10       39.134     0.5010
+    12       24       24       72       14       17.518     0.5082
+    16       32       32       96       18        9.878     0.5108
+    20       40       40      120       22        6.329     0.5120
+    24       48       48      144       26        4.398     0.5126
+    28       56       56      168       30        3.233     0.5130
+    32       64       64      192       34        2.476     0.5133
+    36       72       72      216       38        1.956     0.5134
+    40       80       80      240       42        1.585     0.5136
+Box3D: hull final half edge count of 288 exceeds limit of 255
+    48       96   ---- b3CreateHull returned NULL (budget exceeded)
+  -> max usable prism sides = 40
+
+=== B) HULL BUDGET: tire profile (rounded shoulders) ===
+  shoulder radius 0.12 m, section half width 0.2188 m
+ sides  rings   pts_in    verts  halfedg    faces    ripple_mm
+     8      2       16       16       48       10       29.999
+    10      2       20       20       60       12       19.289
+    12      2       24       24       72       14       13.429
+    14      2       28       28       84       16        9.881
+    16      2       32       32       96       18        7.573
+    24      2       48       48      144       26        3.372
+    32      2       64       64      192       34        1.898
+    40      2       80       80      240       42        1.215
+Box3D: hull final half edge count of 264 exceeds limit of 255
+  -> rings=2 : max sides = 42
+     8      3       24       24       80       18       39.134
+    10      3       30       30      100       22       25.162
+    12      3       36       36      120       26       17.518
+    14      3       42       42      140       30       12.890
+    16      3       48       48      160       34        9.878
+    24      3       72       72      240       50        4.398
+Box3D: hull final half edge count of 260 exceeds limit of 255
+  -> rings=3 : max sides = 24
+     8      4       32       32      112       26       39.134
+    10      4       40       40      140       32       25.162
+    12      4       48       48      168       38       17.518
+    14      4       56       56      196       44       12.890
+    16      4       64       64      224       50        9.878
+Box3D: hull final half edge count of 280 exceeds limit of 255
+  -> rings=4 : max sides = 18
+     8      5       40       40      144       34       39.134
+    10      5       50       50      180       42       25.162
+    12      5       60       60      216       50       17.518
+    14      5       70       70      252       58       12.890
+Box3D: hull final half edge count of 288 exceeds limit of 255
+  -> rings=5 : max sides = 14
+     8      6       48       48      176       42       39.134
+    10      6       60       60      220       52       25.162
+Box3D: hull final half edge count of 264 exceeds limit of 255
+  -> rings=6 : max sides = 10
+
+  reference: perfect sphere ripple = 0.000 mm, correct width = NO
+Box3D: hull final half edge count of 258 exceeds limit of 255
+Box3D: hull final half edge count of 266 exceeds limit of 255
+
+[chosen budgets] prism sides=42 ; tire profile sides=18 rings=4
+
+=== C) MASS / INERTIA CONFOUND (density 77 kg/m^3, product default path) ===
+envelope          mass_kg     I_spin    I_trans   I_sp/mr2   note
+sphere              43.83      4.633      4.633      0.400   1 shape(s)
+cylinder-32         27.79      3.649      2.268      0.497   1 shape(s)
+split(sph+cyl)      43.83      4.633      4.633      0.400   2 shape(s)
+phased union-4      27.79      3.649      2.268      0.497   4 shape(s)
+prism-Nmax          27.87      3.669      2.279      0.498   1 shape(s)
+tire profile        23.47      2.674      1.657      0.431   1 shape(s)
+  physical reference: solid sphere I/mr2 = 0.400 ; real tire+rim ~0.55-0.80
+
+=== D) CPU COST PER WHEEL (box hull ground, 4 free-rolling wheels, 600 steps) ===
+envelope            ms/step   us/wheel    vs sphere
+sphere               0.0059       1.48         1.00x
+cylinder-32          0.0052       1.31         0.88x
+split(sph+cyl)       0.0077       1.94         1.31x
+phased union-4       0.0136       3.39         2.29x
+prism-Nmax           0.0051       1.28         0.86x
+tire profile         0.0050       1.25         0.84x
+
+=== D) CPU COST PER WHEEL (MESH ground, 4 free-rolling wheels, 600 steps) ===
+envelope            ms/step   us/wheel    vs sphere
+sphere               0.0089       2.23         1.00x
+cylinder-32          0.0089       2.23         1.00x
+split(sph+cyl)       0.0132       3.30         1.48x
+phased union-4       0.0292       7.31         3.28x
+prism-Nmax           0.0095       2.37         1.06x
+tire profile         0.0089       2.23         1.00x
+
+=== E) ROLL QUALITY, MASS FROZEN (44 kg, v=13 m/s, 4 s, flat box ground) ===
+envelope           vy_rms_m/s    contact_%    y_drop_mm       vx_end
+sphere                 0.1249        100.0        0.053        12.97
+cylinder-32            0.5004         70.4      175.957         9.68
+split(sph+cyl)         0.5001         72.9      173.144         9.68
+phased union-4         0.1885         98.8       17.899         8.17
+prism-Nmax             0.5443         44.2      120.999         9.77
+tire profile           0.7024         35.4      230.234         6.64
+
+done
