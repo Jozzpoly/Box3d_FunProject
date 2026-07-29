@@ -45,6 +45,16 @@
 #ifndef BENCH_LIB_STAMP
 #define BENCH_LIB_STAMP "unknown"
 #endif
+#ifndef BENCH_SRC_SHA256
+#define BENCH_SRC_SHA256 "unknown"
+#endif
+#ifndef BENCH_LIB_SHA256
+#define BENCH_LIB_SHA256 "unknown"
+#endif
+// Plik wykonywalny nie moze zahaszowac sam siebie w czasie budowy, wiec wartosc
+// przychodzi z --exe-sha256; walidator Q2A sprawdza ja wobec pliku na dysku.
+#define BENCH_EXE_SHA256 "supplied-via---exe-sha256"
+static const char* g_exeSha = BENCH_EXE_SHA256;
 
 #define WHEEL_R 0.5141f
 #define WHEEL_W 0.4375f
@@ -615,6 +625,65 @@ static double OmegaSpin( b3BodyId body )
 	return Dot3( b3Body_GetAngularVelocity( body ), axle ) / n;
 }
 
+// JEDNA implementacja konwencji znakow, uzywana i przez telemetrie faz, i przez
+// Q2A. Dwie kopie tej samej konwencji rozjechalyby sie przy pierwszej zmianie.
+//
+// Pola `reference*` licza sie z NOMINALNEGO promienia i punktu odniesienia R pod
+// srodkiem masy - to nie predkosc rzeczywistego punktu kontaktu z manifoldu.
+typedef struct
+{
+	b3Vec3 axleUnit;
+	b3Vec3 forward;
+	int degenerate;
+	double omegaSpin;
+	double referenceRimSpeed;
+	double referenceSlipSpeed;
+	double keTrans;
+	double keRot;
+} WheelKin;
+
+static WheelKin ComputeWheelKin( b3BodyId body )
+{
+	WheelKin k;
+	memset( &k, 0, sizeof( k ) );
+
+	b3Vec3 v = b3Body_GetLinearVelocity( body );
+	b3Vec3 w = b3Body_GetAngularVelocity( body );
+	b3Quat q = b3Body_GetRotation( body );
+	b3MassData md = b3Body_GetMassData( body );
+
+	b3Vec3 axle = WheelAxleWorld( body );
+	double axleLen = sqrt( Dot3( axle, axle ) );
+	k.axleUnit = ( b3Vec3 ){ 0.0f, 0.0f, 1.0f };
+	if ( axleLen > 1e-9 )
+		k.axleUnit = ( b3Vec3 ){ (float)( axle.x / axleLen ), (float)( axle.y / axleLen ),
+								 (float)( axle.z / axleLen ) };
+
+	// forward = up x axle. Przy osi rownoleglej do pionu kierunek jazdy przestaje
+	// byc okreslony - wtedy swiatowe X i jawna flaga, zamiast cichej bzdury.
+	b3Vec3 up = { 0.0f, 1.0f, 0.0f };
+	b3Vec3 fwd = b3Cross( up, k.axleUnit );
+	double fl = sqrt( Dot3( fwd, fwd ) );
+	if ( fl < 1e-6 )
+	{
+		k.forward = ( b3Vec3 ){ 1.0f, 0.0f, 0.0f };
+		k.degenerate = 1;
+	}
+	else
+		k.forward = ( b3Vec3 ){ (float)( fwd.x / fl ), (float)( fwd.y / fl ), (float)( fwd.z / fl ) };
+
+	k.omegaSpin = Dot3( w, k.axleUnit );
+	b3Vec3 r = { -WHEEL_R * up.x, -WHEEL_R * up.y, -WHEEL_R * up.z };
+	double rimContribution = Dot3( b3Cross( w, r ), k.forward );
+	k.referenceRimSpeed = -rimContribution;
+	k.referenceSlipSpeed = Dot3( v, k.forward ) - k.referenceRimSpeed;
+
+	k.keTrans = 0.5 * md.mass * Dot3( v, v );
+	b3Vec3 wLocal = b3InvRotateVector( q, w );
+	k.keRot = 0.5 * Dot3( wLocal, b3MulMV( md.inertia, wLocal ) );
+	return k;
+}
+
 static void PhaseAccumInit( PhaseAccum* a, b3BodyId body )
 {
 	memset( a, 0, sizeof( *a ) );
@@ -655,45 +724,16 @@ static void EmitPhase( const char* loadCase, const char* envelope, const char* b
 	b3Pos p = b3Body_GetPosition( body );
 	b3Vec3 v = b3Body_GetLinearVelocity( body );
 	b3Vec3 w = b3Body_GetAngularVelocity( body );
-	b3Quat q = b3Body_GetRotation( body );
 	b3MassData md = b3Body_GetMassData( body );
 
-	b3Vec3 axle = WheelAxleWorld( body );
-	double axleLen = sqrt( Dot3( axle, axle ) );
-	int degenerate = 0;
-	b3Vec3 axleU = { 0.0f, 0.0f, 1.0f };
-	if ( axleLen > 1e-9 )
-		axleU = ( b3Vec3 ){ (float)( axle.x / axleLen ), (float)( axle.y / axleLen ), (float)( axle.z / axleLen ) };
-
-	// forward = up x axle. Przy osi rownoleglej do pionu kierunek jazdy przestaje
-	// byc okreslony - wtedy swiatowe X i jawna flaga, zamiast cichej bzdury.
-	b3Vec3 up = { 0.0f, 1.0f, 0.0f };
-	b3Vec3 fwd = b3Cross( up, axleU );
-	double fl = sqrt( Dot3( fwd, fwd ) );
-	if ( fl < 1e-6 )
-	{
-		fwd = ( b3Vec3 ){ 1.0f, 0.0f, 0.0f };
-		degenerate = 1;
-	}
-	else
-		fwd = ( b3Vec3 ){ (float)( fwd.x / fl ), (float)( fwd.y / fl ), (float)( fwd.z / fl ) };
-
-	// UWAGA NA NAZWY. Ponizsze wielkosci sa REFERENCYJNE: licza sie z nominalnego
-	// WHEEL_R i z punktu odniesienia R ponizej srodka masy. To NIE jest predkosc
-	// rzeczywistego punktu kontaktu z manifoldu - ten lezy gdzie indziej i przy
-	// fasetowanym obwodzie zmienia sie w trakcie obrotu. Slip z manifoldu nie jest
-	// w JP-02 implementowany; nazwy `reference_*` maja nie pozwolic pomylic jednego
-	// z drugim przy pozniejszym czytaniu CSV.
-	double omegaSpin = Dot3( w, axleU );
-	b3Vec3 r = { -WHEEL_R * up.x, -WHEEL_R * up.y, -WHEEL_R * up.z };
-	double rimContribution = Dot3( b3Cross( w, r ), fwd );
-	double referenceRimSpeed = -rimContribution;
-	double vLong = Dot3( v, fwd );
-	double referenceSlipSpeed = vLong - referenceRimSpeed;
-
-	double keTrans = 0.5 * md.mass * Dot3( v, v );
-	b3Vec3 wLocal = b3InvRotateVector( q, w );
-	double keRot = 0.5 * Dot3( wLocal, b3MulMV( md.inertia, wLocal ) );
+	WheelKin k = ComputeWheelKin( body );
+	b3Vec3 axleU = k.axleUnit;
+	int degenerate = k.degenerate;
+	double omegaSpin = k.omegaSpin;
+	double referenceRimSpeed = k.referenceRimSpeed;
+	double referenceSlipSpeed = k.referenceSlipSpeed;
+	double keTrans = k.keTrans, keRot = k.keRot;
+	double vLong = Dot3( v, k.forward );
 
 	// Slip ratio nie jest wyprowadzane przy predkosci bliskiej zeru - dziedzina
 	// jawna, nie ukryta w wartosci.
@@ -1214,20 +1254,539 @@ static void ExperimentProfileLab( Budgets bud )
 
 // ---------------------------------------------------------------- main
 
+// ---------------------------------------------------------------- Q2A
+// Eksperyment przy utrzymywanej predkosci. Kontrakt: Q2A_CONSTANT_SPEED_BOX_CONTRACT.md.
+// KAZDA liczba ponizej jest zapisana w kontrakcie PRZED pierwszym przebiegiem.
+
+#define Q2A_TARGET_V 13.0
+#define Q2A_KP 440.0		// m/tau przy tau = 0.1 s
+#define Q2A_KI 1100.0		// omega_n = 5 rad/s, zeta = 1.0 (krytycznie tlumiony)
+#define Q2A_FMAX 1900.0		// = efektywne obciazenie, czyli limit przyczepnosci przy mu=1
+#define Q2A_LOAD_N 1900.0	// efektywne obciazenie normalne
+#define Q2A_GRAVITY 10.0	// FAKTYCZNA grawitacja swiata, nie 9.81
+#define Q2A_FRICTION 1.0f	// na obu materialach -> efektywne sqrt(1*1) = 1
+#define Q2A_STAB_TOL 0.05
+#define Q2A_STAB_STEPS 60
+#define Q2A_TIMEOUT_STEPS 900
+#define Q2A_DISTANCE_M 50.0
+#define Q2A_MEAS_CAP 12000 // bezpiecznik, nie kryterium
+
+// Osobny builder, zeby material byl JAWNY i zeby nie tknac BuildEnvelope
+// wspoldzielonego z sekcjami A-G. Nie ma b3Shape_SetRollingResistance, wiec
+// material musi byc podany przy tworzeniu shape'u.
+static int BuildEnvelopeQ2A( b3BodyId body, EnvMode mode, float density, Budgets b )
+{
+	b3ShapeDef sd = b3DefaultShapeDef();
+	sd.density = density;
+	sd.baseMaterial.friction = Q2A_FRICTION;
+	sd.baseMaterial.rollingResistance = 0.0f; // jawnie zero, nie odziedziczone
+	static b3Vec3 pts[4096];
+
+	if ( mode == ENV_SPHERE )
+	{
+		b3Sphere s = { { 0, 0, 0 }, WHEEL_R };
+		b3CreateSphereShape( body, &sd, &s );
+		return 1;
+	}
+	if ( mode == ENV_PRISM_MAX )
+	{
+		int n = MakePrismPoints( pts, 4096, b.maxSides, WHEEL_R, 0.5f * WHEEL_W );
+		b3HullData* h = b3CreateHull( pts, n, n );
+		if ( h == NULL )
+			return 0;
+		b3CreateHullShape( body, &sd, h );
+		b3DestroyHull( h );
+		return 1;
+	}
+	return 0; // Q2A obsluguje wylacznie kontrole i JEDEN wariant fasetowany
+}
+
+typedef struct
+{
+	int qualified;
+	int qualSteps;
+	double qualTime, qualDistance;
+	int measSteps, satSteps;
+	double duration, distance, pathLength, revolutions;
+	double errSumAbs, errSumSq, errMax;
+	// Diagnostyka fazy kwalifikacji - bez niej "failed_to_qualify" jest gola
+	// asercja, a nie wynikiem. Nie jest kryterium, tylko opisem tego, co bylo.
+	double qErrSumAbs, qErrSumSq, qErrMax;
+	int qBestConsec;
+	double wDriveSigned, wDrivePos, wDriveNeg, wDriveAbs, wDownforce, wGravity;
+	double keT0, keR0, peG0, keT1, keR1, peG1;
+	// Kontrola spojnosci calkowania w PIONIE: suma v_y*dt kontra faktyczne delta y.
+	// Gdy sie rozjezdzaja, pionowe czlony bilansu pracy sa bez wartosci - i to ma
+	// byc WIDOCZNE w danych, nie ukryte w residualu.
+	double vyIntegral, deltaY;
+} Q2AResult;
+
+static Q2AResult RunQ2A( EnvMode m, Budgets bud, FILE* samples, const char* variant, int rep, int* outOk )
+{
+	Q2AResult r;
+	memset( &r, 0, sizeof( r ) );
+	*outOk = 0;
+
+	b3WorldDef wd = b3DefaultWorldDef();
+	wd.workerCount = 1;
+	b3WorldId w = b3CreateWorld( &wd );
+
+	b3BodyDef gd = b3DefaultBodyDef();
+	gd.position = ( b3Pos ){ 0.0f, -1.0f, 0.0f };
+	b3BodyId ground = b3CreateBody( w, &gd );
+	b3ShapeDef gs = b3DefaultShapeDef();
+	gs.baseMaterial.friction = Q2A_FRICTION;
+	gs.baseMaterial.rollingResistance = 0.0f;
+	b3BoxHull box = b3MakeBoxHull( 400.0f, 1.0f, 60.0f );
+	b3CreateHullShape( ground, &gs, &box.base );
+
+	b3BodyDef bd = b3DefaultBodyDef();
+	bd.type = b3_dynamicBody;
+	bd.position = ( b3Pos ){ -180.0f, WHEEL_R + 0.001f, 0.0f };
+	bd.rotation = b3ComputeQuatBetweenUnitVectors( ( b3Vec3 ){ 0, 1, 0 }, ( b3Vec3 ){ 0, 0, 1 } );
+	bd.linearVelocity = ( b3Vec3 ){ (float)Q2A_TARGET_V, 0.0f, 0.0f };
+	bd.angularVelocity = ( b3Vec3 ){ 0.0f, 0.0f, -(float)Q2A_TARGET_V / WHEEL_R };
+	bd.enableSleep = false;
+	bd.allowFastRotation = true;
+	b3BodyId body = b3CreateBody( w, &bd );
+	if ( BuildEnvelopeQ2A( body, m, 77.0f, bud ) == 0 )
+	{
+		b3DestroyWorld( w );
+		return r;
+	}
+	FreezeMass( body, UNSPRUNG_KG );
+	b3World_EnableContinuous( w, false );
+
+	const double downN = Q2A_LOAD_N - UNSPRUNG_KG * Q2A_GRAVITY; // 1900 - 440 = 1460
+	double integral = 0.0;
+	int consec = 0, step = 0;
+
+	// --- kwalifikacja: staly warm-up NIE jest bramka -----------------------
+	for ( step = 0; step < Q2A_TIMEOUT_STEPS; ++step )
+	{
+		b3Vec3 v = b3Body_GetLinearVelocity( body );
+		double err = Q2A_TARGET_V - v.x;
+		double fraw = Q2A_KP * err + Q2A_KI * integral;
+		double f = fraw > Q2A_FMAX ? Q2A_FMAX : ( fraw < -Q2A_FMAX ? -Q2A_FMAX : fraw );
+		if ( fabs( fraw ) <= Q2A_FMAX )
+			integral += err * TELE_DT; // anti-windup: calka zamarza w saturacji
+		b3Body_ApplyForceToCenter( body, ( b3Vec3 ){ (float)f, -(float)downN, 0.0f }, true );
+		b3World_Step( w, 1.0f / 60.0f, 4 );
+
+		b3Vec3 v2 = b3Body_GetLinearVelocity( body );
+		double e2 = Q2A_TARGET_V - (double)v2.x;
+		r.qErrSumAbs += fabs( e2 );
+		r.qErrSumSq += e2 * e2;
+		if ( fabs( e2 ) > r.qErrMax )
+			r.qErrMax = fabs( e2 );
+		if ( fabs( e2 ) <= Q2A_STAB_TOL )
+			++consec;
+		else
+			consec = 0;
+		if ( consec > r.qBestConsec )
+			r.qBestConsec = consec;
+
+		if ( samples )
+		{
+			b3Pos pq = b3Body_GetPosition( body );
+			WheelKin kq = ComputeWheelKin( body );
+			if ( fprintf( samples, "%s,%d,qualification,%d,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%d,%.9g,%.9g,%.9g,"
+								   "%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g\n",
+						  variant, rep, step + 1, ( step + 1 ) * TELE_DT, (double)pq.x + 180.0, Q2A_TARGET_V,
+						  (double)v2.x, e2, f, f * (double)v2.x, fabs( f ) >= 0.999 * Q2A_FMAX ? 1 : 0,
+						  kq.omegaSpin, kq.referenceRimSpeed, kq.referenceSlipSpeed, 0.0, (double)pq.y,
+						  (double)v2.y, kq.keTrans, kq.keRot, kq.keTrans + kq.keRot,
+						  UNSPRUNG_KG * Q2A_GRAVITY * (double)pq.y ) < 0 )
+				g_teleFailed = 1;
+		}
+
+		if ( consec >= Q2A_STAB_STEPS )
+		{
+			r.qualified = 1;
+			break;
+		}
+	}
+	r.qualSteps = ( r.qualified ? step + 1 : Q2A_TIMEOUT_STEPS );
+	r.qualTime = r.qualSteps * TELE_DT;
+	{
+		b3Pos pq = b3Body_GetPosition( body );
+		r.qualDistance = (double)pq.x + 180.0;
+	}
+
+	// --- okno pomiarowe: staly dystans ------------------------------------
+	if ( r.qualified )
+	{
+		WheelKin k0 = ComputeWheelKin( body );
+		b3Pos p0 = b3Body_GetPosition( body );
+		r.keT0 = k0.keTrans;
+		r.keR0 = k0.keRot;
+		r.peG0 = UNSPRUNG_KG * Q2A_GRAVITY * (double)p0.y;
+		double x0 = (double)p0.x, absSpin = 0.0;
+		b3Pos prev = p0;
+
+		int ms = 0;
+		while ( ms < Q2A_MEAS_CAP )
+		{
+			b3Vec3 v = b3Body_GetLinearVelocity( body );
+			double err = Q2A_TARGET_V - v.x;
+			double fraw = Q2A_KP * err + Q2A_KI * integral;
+			double f = fraw > Q2A_FMAX ? Q2A_FMAX : ( fraw < -Q2A_FMAX ? -Q2A_FMAX : fraw );
+			if ( fabs( fraw ) <= Q2A_FMAX )
+				integral += err * TELE_DT;
+			b3Body_ApplyForceToCenter( body, ( b3Vec3 ){ (float)f, -(float)downN, 0.0f }, true );
+			b3World_Step( w, 1.0f / 60.0f, 4 );
+			++ms;
+
+			// Calkowanie: prostokat po stanie POKROKOWYM - regula jest czescia kontraktu,
+			// bo residual bilansu od niej zalezy.
+			b3Vec3 v2 = b3Body_GetLinearVelocity( body );
+			b3Pos p = b3Body_GetPosition( body );
+			WheelKin k = ComputeWheelKin( body );
+
+			double pDrive = f * (double)v2.x;
+			double pDown = -downN * (double)v2.y;
+			double pGrav = -UNSPRUNG_KG * Q2A_GRAVITY * (double)v2.y;
+			r.wDriveSigned += pDrive * TELE_DT;
+			if ( pDrive > 0.0 )
+				r.wDrivePos += pDrive * TELE_DT;
+			else
+				r.wDriveNeg += pDrive * TELE_DT;
+			r.wDriveAbs += fabs( pDrive ) * TELE_DT;
+			r.wDownforce += pDown * TELE_DT;
+			r.wGravity += pGrav * TELE_DT;
+			r.vyIntegral += (double)v2.y * TELE_DT;
+
+			double e2 = Q2A_TARGET_V - (double)v2.x;
+			r.errSumAbs += fabs( e2 );
+			r.errSumSq += e2 * e2;
+			if ( fabs( e2 ) > r.errMax )
+				r.errMax = fabs( e2 );
+			int sat = fabs( f ) >= 0.999 * Q2A_FMAX;
+			if ( sat )
+				++r.satSteps;
+
+			double dx = (double)p.x - prev.x, dy = (double)p.y - prev.y, dz = (double)p.z - prev.z;
+			r.pathLength += sqrt( dx * dx + dy * dy + dz * dz );
+			prev = p;
+			absSpin += fabs( k.omegaSpin ) * TELE_DT;
+			r.distance = (double)p.x - x0;
+
+			if ( samples )
+			{
+				double keTot = k.keTrans + k.keRot;
+				double peG = UNSPRUNG_KG * Q2A_GRAVITY * (double)p.y;
+				if ( fprintf( samples,
+							  "%s,%d,measurement,%d,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%d,"
+							  "%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g\n",
+							  variant, rep, ms, ms * TELE_DT, r.distance, Q2A_TARGET_V, (double)v2.x, e2, f,
+							  pDrive, sat ? 1 : 0, k.omegaSpin, k.referenceRimSpeed, k.referenceSlipSpeed,
+							  absSpin / ( 2.0 * PI ), (double)p.y, (double)v2.y, k.keTrans, k.keRot, keTot,
+							  peG ) < 0 )
+					g_teleFailed = 1;
+			}
+
+			if ( r.distance >= Q2A_DISTANCE_M )
+				break;
+		}
+		r.measSteps = ms;
+		r.duration = ms * TELE_DT;
+		r.revolutions = absSpin / ( 2.0 * PI );
+
+		WheelKin k1 = ComputeWheelKin( body );
+		b3Pos p1 = b3Body_GetPosition( body );
+		r.keT1 = k1.keTrans;
+		r.keR1 = k1.keRot;
+		r.peG1 = UNSPRUNG_KG * Q2A_GRAVITY * (double)p1.y;
+		r.deltaY = (double)p1.y - (double)p0.y;
+	}
+
+	b3DestroyWorld( w );
+	*outOk = 1;
+	return r;
+}
+
+static FILE* OpenNew( const char* dir, const char* name, char* pathOut, size_t cap )
+{
+	snprintf( pathOut, cap, "%s\\%s", dir, name );
+	FILE* probe = fopen( pathOut, "rb" );
+	if ( probe )
+	{
+		fclose( probe );
+		fprintf( stderr, "BLAD: %s juz istnieje - Q2A nie nadpisuje plikow\n", pathOut );
+		return NULL;
+	}
+	FILE* f = fopen( pathOut, "wb" );
+	if ( f == NULL )
+		fprintf( stderr, "BLAD: nie moge otworzyc %s do zapisu\n", pathOut );
+	return f;
+}
+
+static const char* Q2A_SAMPLE_HEADER =
+	"variant,rep,phase,step,time_s,distance_m,target_speed_m_s,actual_speed_m_s,speed_error_m_s,"
+	"drive_force_N,drive_power_W,controller_saturated,"
+	"omega_spin_rad_s,reference_rim_speed_m_s,reference_slip_speed_m_s,cumulative_revolutions,"
+	"position_y_m,velocity_y_m_s,"
+	"kinetic_translation_J,kinetic_rotation_J,kinetic_total_J,potential_gravity_J\n";
+
+static const char* Q2A_SUMMARY_HEADER =
+	"variant,rep,stage,status,qualification_steps,qualification_time_s,qualification_distance_m,"
+	"qual_err_rms_m_s,qual_err_max_m_s,qual_best_consecutive_steps,"
+	"measure_steps,duration_s,distance_m,path_length_m,revolutions,"
+	"err_mean_abs_m_s,err_rms_m_s,err_max_m_s,saturated_steps,saturated_fraction,"
+	"W_drive_signed_J,W_drive_positive_J,W_drive_negative_J,W_drive_absolute_J,"
+	"W_downforce_J,W_gravity_J,"
+	"dKE_translation_J,dKE_rotation_J,dKE_total_J,dPE_gravity_J,energy_residual_J,"
+	// Kolejnosc MUSI odpowiadac kolejnosci argumentow w WriteQ2ASummaryRow.
+	// Pierwsza wersja miala te dwie kolumny wyzej, a wartosci nizej - wynikiem
+	// bylo przesuniecie: `vy_integral_m` niosl w rzeczywistosci W_drive_per_m_J.
+	"W_drive_per_m_J,W_drive_per_rev_J,vy_integral_m,delta_y_m,"
+	"gate_mean_err,gate_rms,gate_saturation\n";
+
+static void WriteQ2ASummaryRow( FILE* f, const char* variant, int rep, const char* stage, const Q2AResult* r )
+{
+	const char* status = r->qualified ? "qualified" : "failed_to_qualify";
+	double n = r->measSteps > 0 ? (double)r->measSteps : 1.0;
+	double meanAbs = r->errSumAbs / n;
+	double rms = sqrt( r->errSumSq / n );
+	double satFrac = (double)r->satSteps / n;
+	double dKeT = r->keT1 - r->keT0, dKeR = r->keR1 - r->keR0;
+	double dKeTot = dKeT + dKeR, dPe = r->peG1 - r->peG0;
+	double residual = r->wDriveSigned + r->wDownforce + r->wGravity - dKeTot;
+	double perM = r->distance > 0.0 ? r->wDriveSigned / r->distance : 0.0;
+	double perRev = r->revolutions > 0.0 ? r->wDriveSigned / r->revolutions : 0.0;
+	double qn = r->qualSteps > 0 ? (double)r->qualSteps : 1.0;
+	// Bramki dotycza OKNA POMIAROWEGO. Gdy przebieg sie nie zakwalifikowal, okna
+	// nie ma - wtedy "PASS" bylby klamstwem policzonym z zer.
+	const char* gMean = r->qualified ? ( meanAbs <= 0.05 ? "PASS" : "FAIL" ) : "n/a";
+	const char* gRms = r->qualified ? ( rms <= 0.10 ? "PASS" : "FAIL" ) : "n/a";
+	const char* gSat = r->qualified ? ( satFrac <= 0.05 ? "PASS" : "FAIL" ) : "n/a";
+	fprintf( f,
+			 "%s,%d,%s,%s,%d,%.9g,%.9g,"
+			 "%.9g,%.9g,%d,"
+			 "%d,%.9g,%.9g,%.9g,%.9g,"
+			 "%.9g,%.9g,%.9g,%d,%.9g,"
+			 "%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,"
+			 "%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%s,%s,%s\n",
+			 variant, rep, stage, status, r->qualSteps, r->qualTime, r->qualDistance,
+			 sqrt( r->qErrSumSq / qn ), r->qErrMax, r->qBestConsec, r->measSteps, r->duration, r->distance,
+			 r->pathLength, r->revolutions, meanAbs, rms, r->errMax, r->satSteps, satFrac, r->wDriveSigned,
+			 r->wDrivePos, r->wDriveNeg, r->wDriveAbs, r->wDownforce, r->wGravity, dKeT, dKeR, dKeTot, dPe,
+			 residual, perM, perRev, r->vyIntegral, r->deltaY, gMean, gRms, gSat );
+}
+
+// Sciezki Windows zawieraja backslashe, ktore w JSON sa znakiem ucieczki. Bez
+// tego manifest byl SKLADNIOWO ZEPSUTY - a manifest, ktorego nie da sie
+// sparsowac, nie jest provenance.
+static void JsonEscape( const char* in, char* out, size_t cap )
+{
+	size_t j = 0;
+	for ( size_t i = 0; in[i] != '\0' && j + 2 < cap; ++i )
+	{
+		unsigned char c = (unsigned char)in[i];
+		if ( c == '\\' || c == '"' )
+		{
+			out[j++] = '\\';
+			out[j++] = (char)c;
+		}
+		else if ( c < 0x20 )
+			out[j++] = ' ';
+		else
+			out[j++] = (char)c;
+	}
+	out[j] = '\0';
+}
+
+static int ExperimentQ2A( Budgets bud, const char* outDir, const char* cmdlineRaw )
+{
+	char cmdline[2048];
+	JsonEscape( cmdlineRaw, cmdline, sizeof( cmdline ) );
+	char pathM[1024], pathS[1024], pathU[1024];
+	FILE* fs = OpenNew( outDir, "q2a_samples.csv", pathS, sizeof( pathS ) );
+	if ( fs == NULL )
+		return 3;
+	FILE* fu = OpenNew( outDir, "q2a_summary.csv", pathU, sizeof( pathU ) );
+	if ( fu == NULL )
+	{
+		fclose( fs );
+		return 3;
+	}
+	FILE* fm = OpenNew( outDir, "q2a_manifest.json", pathM, sizeof( pathM ) );
+	if ( fm == NULL )
+	{
+		fclose( fs );
+		fclose( fu );
+		return 3;
+	}
+
+	fprintf( fs, "%s", Q2A_SAMPLE_HEADER );
+	fprintf( fu, "%s", Q2A_SUMMARY_HEADER );
+
+	fprintf( fm,
+			 "{\n"
+			 "  \"experiment\": \"Q2A\",\n"
+			 "  \"contract\": \"tools/jozz_wheel_bench/Q2A_CONSTANT_SPEED_BOX_CONTRACT.md\",\n"
+			 "  \"provenance\": {\n"
+			 "    \"git_sha\": \"%s\",\n"
+			 "    \"git_dirty\": \"%s\",\n"
+			 "    \"box3d_lib_stamp\": \"%s\",\n"
+			 "    \"source_sha256\": \"%s\",\n"
+			 "    \"box3d_lib_sha256\": \"%s\",\n"
+			 "    \"exe_sha256\": \"%s\",\n"
+			 "    \"box3d_api\": \"%d.%d.%d\",\n"
+			 "    \"compiler_msc_full_ver\": %d,\n"
+			 "    \"command_line\": \"%s\"\n"
+			 "  },\n"
+			 "  \"physics\": {\n"
+			 "    \"ground\": \"flat box hull 400x1x60 at y=-1\",\n"
+			 "    \"dt_s\": %.17g, \"substeps\": %d,\n"
+			 "    \"world_gravity_y\": %.17g,\n"
+			 "    \"mass_kg\": %.17g,\n"
+			 "    \"inertia_spin_factor\": 0.70, \"inertia_transverse_factor\": 0.55,\n"
+			 "    \"wheel_radius_m\": %.17g, \"wheel_width_m\": %.17g,\n"
+			 "    \"friction_each_material\": %.17g, \"friction_effective\": %.17g,\n"
+			 "    \"rolling_resistance_each_material\": 0.0,\n"
+			 "    \"effective_normal_load_N\": %.17g,\n"
+			 "    \"external_downforce_N\": %.17g,\n"
+			 "    \"gravity_load_N\": %.17g,\n"
+			 "    \"continuous_collision\": false,\n"
+			 "    \"prism_sides\": %d\n"
+			 "  },\n"
+			 "  \"controller\": {\n"
+			 "    \"type\": \"PI with anti-windup (integral frozen while saturated)\",\n"
+			 "    \"target_speed_m_s\": %.17g, \"Kp_N_per_m_s\": %.17g, \"Ki_N_per_m\": %.17g,\n"
+			 "    \"force_limit_N\": %.17g,\n"
+			 "    \"force_application\": \"ApplyForceToCenter along world +X, no intended torque\",\n"
+			 "    \"integration_rule\": \"rectangle on post-step state, dt=1/60\"\n"
+			 "  },\n"
+			 "  \"qualification\": {\n"
+			 "    \"stabilisation_tolerance_m_s\": %.17g,\n"
+			 "    \"stabilisation_consecutive_steps\": %d,\n"
+			 "    \"timeout_steps\": %d,\n"
+			 "    \"measure_window\": \"fixed distance\",\n"
+			 "    \"measure_distance_m\": %.17g,\n"
+			 "    \"gates\": { \"err_mean_abs_max\": 0.05, \"err_rms_max\": 0.10,"
+			 " \"saturated_fraction_max\": 0.05, \"err_max_gated\": false }\n"
+			 "  },\n"
+			 "  \"variants\": [\"sphere\", \"prism-Nmax\"],\n"
+			 "  \"registered_in_raw_manifest\": false\n"
+			 "}\n",
+			 BENCH_GIT_SHA, BENCH_GIT_DIRTY, BENCH_LIB_STAMP, BENCH_SRC_SHA256, BENCH_LIB_SHA256,
+			 g_exeSha, b3GetVersion().major, b3GetVersion().minor, b3GetVersion().revision,
+#if defined( _MSC_FULL_VER )
+			 _MSC_FULL_VER,
+#else
+			 0,
+#endif
+			 cmdline, TELE_DT, TELE_SUBSTEPS, -Q2A_GRAVITY, (double)UNSPRUNG_KG, (double)WHEEL_R,
+			 (double)WHEEL_W, (double)Q2A_FRICTION, (double)Q2A_FRICTION, Q2A_LOAD_N,
+			 Q2A_LOAD_N - UNSPRUNG_KG * Q2A_GRAVITY, UNSPRUNG_KG * Q2A_GRAVITY, bud.maxSides, Q2A_TARGET_V,
+			 Q2A_KP, Q2A_KI, Q2A_FMAX, Q2A_STAB_TOL, Q2A_STAB_STEPS, Q2A_TIMEOUT_STEPS, Q2A_DISTANCE_M );
+
+	printf( "\n=== Q2A) CONSTANT-SPEED BOX - paired experiment ===\n" );
+	printf( "    target %.1f m/s, effective load %.0f N (gravity %.0f N + downforce %.0f N),\n", Q2A_TARGET_V,
+			Q2A_LOAD_N, UNSPRUNG_KG * Q2A_GRAVITY, Q2A_LOAD_N - UNSPRUNG_KG * Q2A_GRAVITY );
+	printf( "    friction %.1f/%.1f, rollingResistance 0/0, window = fixed %.0f m\n", (double)Q2A_FRICTION,
+			(double)Q2A_FRICTION, Q2A_DISTANCE_M );
+	printf( "%-12s %4s %-18s %8s %8s %9s %9s %10s %12s %12s\n", "variant", "rep", "status", "qual_s", "dist_m",
+			"err_mean", "err_max", "sat_%", "W_drive_J", "W_per_m_J" );
+
+	struct
+	{
+		EnvMode mode;
+		const char* name;
+	} runs[2] = { { ENV_SPHERE, "sphere" }, { ENV_PRISM_MAX, "prism-Nmax" } };
+
+	int failures = 0;
+	// Etap A: kwalifikacja regulatora WYLACZNIE na sphere.
+	for ( int stage = 0; stage < 2; ++stage )
+	{
+		int lo = ( stage == 0 ) ? 0 : 0, hi = ( stage == 0 ) ? 1 : 2;
+		int reps = ( stage == 0 ) ? 1 : 3;
+		for ( int i = lo; i < hi; ++i )
+		{
+			for ( int rep = 1; rep <= reps; ++rep )
+			{
+				int ok = 0;
+				Q2AResult r = RunQ2A( runs[i].mode, bud, fs, runs[i].name, stage == 0 ? 0 : rep, &ok );
+				if ( !ok )
+				{
+					printf( "%-12s %4d  (not representable)\n", runs[i].name, rep );
+					++failures;
+					continue;
+				}
+				const char* stageName = ( stage == 0 ) ? "A_qualification" : "B_locked";
+				WriteQ2ASummaryRow( fu, runs[i].name, stage == 0 ? 0 : rep, stageName, &r );
+				double n = r.measSteps > 0 ? (double)r.measSteps : 1.0;
+				printf( "%-12s %4d %-18s %8.3f %8.2f %9.4f %9.4f %9.1f%% %12.1f %12.3f\n", runs[i].name,
+						stage == 0 ? 0 : rep, r.qualified ? "qualified" : "FAILED_TO_QUALIFY", r.qualTime,
+						r.distance, r.errSumAbs / n, r.errMax, 100.0 * r.satSteps / n, r.wDriveSigned,
+						r.distance > 0.0 ? r.wDriveSigned / r.distance : 0.0 );
+				if ( !r.qualified )
+				{
+					// Wynik negatywny musi byc SPRAWDZALNY, nie tylko oznajmiony.
+					double qn = r.qualSteps > 0 ? (double)r.qualSteps : 1.0;
+					printf( "             ^ faza kwalifikacji: przejechal %.1f m, blad RMS %.4f m/s, "
+							"max %.4f m/s,\n               najdluzsza seria w tolerancji %d/%d krokow "
+							"(tolerancja %.2f m/s)\n",
+							r.qualDistance, sqrt( r.qErrSumSq / qn ), r.qErrMax, r.qBestConsec, Q2A_STAB_STEPS,
+							Q2A_STAB_TOL );
+				}
+				fflush( stdout );
+			}
+		}
+		if ( stage == 0 )
+			printf( "    ^ etap A: regulator zakwalifikowany na sphere; nastawy ZAMROZONE\n" );
+	}
+
+	int bad = 0;
+	if ( fflush( fs ) != 0 || ferror( fs ) || fclose( fs ) != 0 )
+		bad = 1;
+	if ( fflush( fu ) != 0 || ferror( fu ) || fclose( fu ) != 0 )
+		bad = 1;
+	if ( fflush( fm ) != 0 || ferror( fm ) || fclose( fm ) != 0 )
+		bad = 1;
+	if ( bad || g_teleFailed )
+	{
+		fprintf( stderr, "BLAD: zapis Q2A nieudany\n" );
+		return 4;
+	}
+	printf( "Q2A -> %s\n", outDir );
+	return failures ? 5 : 0;
+}
+
 int main( int argc, char** argv )
 {
 	setvbuf( stdout, NULL, _IONBF, 0 ); // never hide where a crash happened
 
 	const char* telePath = NULL;
+	const char* q2aDir = NULL;
+	char cmdline[1024] = { 0 };
+	for ( int i = 0; i < argc; ++i )
+	{
+		size_t used = strlen( cmdline );
+		snprintf( cmdline + used, sizeof( cmdline ) - used, "%s%s", i ? " " : "", argv[i] );
+	}
 	for ( int i = 1; i < argc; ++i )
 	{
 		if ( strcmp( argv[i], "--phase-telemetry" ) == 0 && i + 1 < argc )
 			telePath = argv[++i];
+		else if ( strcmp( argv[i], "--q2a" ) == 0 && i + 1 < argc )
+			q2aDir = argv[++i];
+		else if ( strcmp( argv[i], "--exe-sha256" ) == 0 && i + 1 < argc )
+			g_exeSha = argv[++i];
 		else
 		{
-			fprintf( stderr, "uzycie: %s [--phase-telemetry <plik.csv>]\n", argv[0] );
+			fprintf( stderr,
+					 "uzycie: %s [--phase-telemetry <plik.csv>] [--q2a <katalog>] "
+					 "[--exe-sha256 <hex>]\n",
+					 argv[0] );
 			return 2;
 		}
+	}
+	if ( telePath && q2aDir )
+	{
+		fprintf( stderr, "BLAD: --phase-telemetry i --q2a wykluczaja sie (osobne eksperymenty)\n" );
+		return 2;
 	}
 	if ( telePath )
 	{
@@ -1294,6 +1853,15 @@ int main( int argc, char** argv )
 	}
 	printf( "\n[chosen budgets] prism sides=%d ; tire profile sides=%d rings=%d\n", bud.maxSides, bud.tireSides,
 			bud.tireRings );
+
+	// Q2A jest osobnym eksperymentem: gdy jest wlaczony, sekcje C-G nie sa
+	// uruchamiane wcale. Dzieki temu ich output nie moze byc przez Q2A dotkniety.
+	if ( q2aDir )
+	{
+		int rc = ExperimentQ2A( bud, q2aDir, cmdline );
+		printf( "\ndone\n" );
+		return rc;
+	}
 
 	ExperimentMassConfound( bud );
 	ExperimentProfileLab( bud );
