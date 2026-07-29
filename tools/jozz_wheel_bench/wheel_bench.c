@@ -557,6 +557,185 @@ static void ExperimentCost( Budgets bud, int useMeshGround )
 
 // ---------------------------------------------------------------- E  (repaired)
 
+// ---------------------------------------------------------------- JP-02 phase telemetry
+// Instrumentacja, nie zmiana eksperymentu. Kontrakt: JP02_PHASE_TELEMETRY_CONTRACT.md.
+// Cala praca stoi za `if ( tele != NULL )`, wiec bez flagi --phase-telemetry do petli
+// nie dochodzi ani jedna dodatkowa instrukcja.
+
+#define TELE_SCHEMA 1
+#define TELE_DT ( 1.0 / 60.0 )
+#define TELE_SUBSTEPS 4
+#define TELE_WARMUP_STEPS 120
+#define TELE_MEASURE_STEPS 240
+
+static FILE* g_tele = NULL;
+static int g_teleRecords = 0;
+static int g_teleFailed = 0;
+
+typedef struct
+{
+	double pathLength;	 // calka |dx|
+	double spinAngle;	 // calka omega_spin dt        (ZE ZNAKIEM, moze malec)
+	double absSpinAngle; // calka |omega_spin| dt      (niemalejaca)
+	double startX;
+	b3Pos prevPos;
+} PhaseAccum;
+
+// s_envName jest dopelnione spacjami pod wydruk tabeli; CSV potrzebuje nazwy bez ogona
+static const char* TrimEnvName( EnvMode m )
+{
+	static char buf[32];
+	strncpy( buf, s_envName[m], sizeof( buf ) - 1 );
+	buf[sizeof( buf ) - 1] = '\0';
+	for ( int i = (int)strlen( buf ) - 1; i >= 0 && buf[i] == ' '; --i )
+		buf[i] = '\0';
+	return buf;
+}
+
+static double Dot3( b3Vec3 a, b3Vec3 b )
+{
+	return (double)a.x * b.x + (double)a.y * b.y + (double)a.z * b.z;
+}
+
+// Os obrotu kola to LOKALNE Y - FreezeMass stawia iSpin na inertia.cy. Nie wolno
+// zalozyc swiatowego Z: to prawda tylko w kroku 0, zanim cialo zdazy sie obrocic.
+static b3Vec3 WheelAxleWorld( b3BodyId body )
+{
+	return b3RotateVector( b3Body_GetRotation( body ), ( b3Vec3 ){ 0.0f, 1.0f, 0.0f } );
+}
+
+// omega_spin = rzut predkosci katowej na os kola. Przy stanie zadanym
+// (os +z, omega_z = -v/R) wychodzi UJEMNE - i tak ma zostac.
+static double OmegaSpin( b3BodyId body )
+{
+	b3Vec3 axle = WheelAxleWorld( body );
+	double n = sqrt( Dot3( axle, axle ) );
+	if ( n < 1e-9 )
+		return 0.0;
+	return Dot3( b3Body_GetAngularVelocity( body ), axle ) / n;
+}
+
+static void PhaseAccumInit( PhaseAccum* a, b3BodyId body )
+{
+	memset( a, 0, sizeof( *a ) );
+	a->prevPos = b3Body_GetPosition( body );
+	a->startX = a->prevPos.x;
+}
+
+static void PhaseAccumStep( PhaseAccum* a, b3BodyId body )
+{
+	b3Pos p = b3Body_GetPosition( body );
+	double dx = (double)p.x - a->prevPos.x, dy = (double)p.y - a->prevPos.y, dz = (double)p.z - a->prevPos.z;
+	a->pathLength += sqrt( dx * dx + dy * dy + dz * dz );
+	a->prevPos = p;
+
+	double ws = OmegaSpin( body );
+	a->spinAngle += ws * TELE_DT;
+	a->absSpinAngle += fabs( ws ) * TELE_DT;
+}
+
+static int TeleNum( double v )
+{
+	// Nie-skonczona wartosc nie moze trafic do pliku. Cichy NaN w dowodzie jest
+	// gorszy niz brak dowodu.
+	if ( !( v == v ) || v > 1e300 || v < -1e300 )
+	{
+		g_teleFailed = 1;
+		return 0;
+	}
+	return fprintf( g_tele, ",%.9g", v ) >= 0;
+}
+
+static void EmitPhase( const char* loadCase, const char* envelope, const char* boundary, int globalStep,
+					   b3BodyId body, const PhaseAccum* acc, float nominalLoadN )
+{
+	if ( g_tele == NULL || g_teleFailed )
+		return;
+
+	b3Pos p = b3Body_GetPosition( body );
+	b3Vec3 v = b3Body_GetLinearVelocity( body );
+	b3Vec3 w = b3Body_GetAngularVelocity( body );
+	b3Quat q = b3Body_GetRotation( body );
+	b3MassData md = b3Body_GetMassData( body );
+
+	b3Vec3 axle = WheelAxleWorld( body );
+	double axleLen = sqrt( Dot3( axle, axle ) );
+	int degenerate = 0;
+	b3Vec3 axleU = { 0.0f, 0.0f, 1.0f };
+	if ( axleLen > 1e-9 )
+		axleU = ( b3Vec3 ){ (float)( axle.x / axleLen ), (float)( axle.y / axleLen ), (float)( axle.z / axleLen ) };
+
+	// forward = up x axle. Przy osi rownoleglej do pionu kierunek jazdy przestaje
+	// byc okreslony - wtedy swiatowe X i jawna flaga, zamiast cichej bzdury.
+	b3Vec3 up = { 0.0f, 1.0f, 0.0f };
+	b3Vec3 fwd = b3Cross( up, axleU );
+	double fl = sqrt( Dot3( fwd, fwd ) );
+	if ( fl < 1e-6 )
+	{
+		fwd = ( b3Vec3 ){ 1.0f, 0.0f, 0.0f };
+		degenerate = 1;
+	}
+	else
+		fwd = ( b3Vec3 ){ (float)( fwd.x / fl ), (float)( fwd.y / fl ), (float)( fwd.z / fl ) };
+
+	double omegaSpin = Dot3( w, axleU );
+	b3Vec3 r = { -WHEEL_R * up.x, -WHEEL_R * up.y, -WHEEL_R * up.z };
+	double rimContribution = Dot3( b3Cross( w, r ), fwd );
+	double rimSurfaceSpeed = -rimContribution;
+	double vLong = Dot3( v, fwd );
+	double slipSpeed = vLong - rimSurfaceSpeed;
+
+	double keTrans = 0.5 * md.mass * Dot3( v, v );
+	b3Vec3 wLocal = b3InvRotateVector( q, w );
+	double keRot = 0.5 * Dot3( wLocal, b3MulMV( md.inertia, wLocal ) );
+
+	// Slip ratio nie jest wyprowadzane przy predkosci bliskiej zeru - dziedzina
+	// jawna, nie ukryta w wartosci.
+	double ref = fabs( rimSurfaceSpeed ) > fabs( vLong ) ? fabs( rimSurfaceSpeed ) : fabs( vLong );
+	int ratioValid = ref > 0.1;
+	double slipRatio = ratioValid ? slipSpeed / ref : 0.0;
+
+	double gravityLoad = (double)md.mass * 10.0;			   // swiat: b3DefaultWorldDef gravity.y = -10
+	double externalDown = (double)nominalLoadN - md.mass * 9.81; // stend liczy docisk z 9.81
+	if ( externalDown < 0.0 )
+		externalDown = 0.0;
+
+	int ok = fprintf( g_tele, "%d,%s,%s,%s,%d,%.9g", TELE_SCHEMA, loadCase, envelope, boundary, globalStep,
+					  globalStep * TELE_DT ) >= 0;
+	ok &= TeleNum( p.x ); ok &= TeleNum( p.y ); ok &= TeleNum( p.z );
+	ok &= TeleNum( v.x ); ok &= TeleNum( v.y ); ok &= TeleNum( v.z );
+	ok &= TeleNum( w.x ); ok &= TeleNum( w.y ); ok &= TeleNum( w.z );
+	ok &= TeleNum( axleU.x ); ok &= TeleNum( axleU.y ); ok &= TeleNum( axleU.z );
+	ok &= TeleNum( omegaSpin ); ok &= TeleNum( rimSurfaceSpeed ); ok &= TeleNum( slipSpeed );
+	ok &= TeleNum( keTrans ); ok &= TeleNum( keRot ); ok &= TeleNum( keTrans + keRot );
+	ok &= TeleNum( (double)p.x - acc->startX );
+	ok &= TeleNum( acc->pathLength );
+	ok &= TeleNum( acc->spinAngle );
+	ok &= TeleNum( acc->absSpinAngle / ( 2.0 * PI ) );
+	ok &= TeleNum( nominalLoadN );
+	ok &= TeleNum( externalDown );
+	ok &= TeleNum( gravityLoad );
+	ok &= TeleNum( externalDown + gravityLoad );
+	ok &= TeleNum( TELE_DT );
+	ok &= ( fprintf( g_tele, ",%d,%.9g,%d,%d\n", TELE_SUBSTEPS, slipRatio, ratioValid, degenerate ) >= 0 );
+	if ( !ok )
+		g_teleFailed = 1;
+	else
+		++g_teleRecords;
+}
+
+static const char* TELE_HEADER =
+	"schema_version,load_case,envelope,boundary,global_step,time_s,"
+	"position_x,position_y,position_z,"
+	"linear_velocity_x,linear_velocity_y,linear_velocity_z,"
+	"angular_velocity_x,angular_velocity_y,angular_velocity_z,"
+	"wheel_axle_world_x,wheel_axle_world_y,wheel_axle_world_z,"
+	"omega_spin_rad_s,rim_surface_speed_m_s,longitudinal_slip_speed_m_s,"
+	"translational_kinetic_energy_J,rotational_kinetic_energy_J,total_kinetic_energy_J,"
+	"cumulative_x_displacement_m,cumulative_path_length_m,cumulative_spin_angle_rad,cumulative_revolutions,"
+	"nominal_load_N,external_downforce_N,gravity_load_N,effective_static_load_N,"
+	"dt_s,substeps,slip_ratio,slip_ratio_domain_valid,axle_degenerate\n";
+
 typedef struct
 {
 	double vyRms;
@@ -569,8 +748,9 @@ typedef struct
 	double manifoldsAvg;
 } RollResult;
 
+// teleLoadCase == NULL  ->  zero telemetrii i zero dodatkowej pracy (sekcja F)
 static RollResult RunRoll( EnvMode m, Budgets bud, float loadN, float contactHertz, float contactDamping,
-						   float contactSpeed, int* outOk )
+						   float contactSpeed, int* outOk, const char* teleLoadCase )
 {
 	RollResult rr;
 	memset( &rr, 0, sizeof( rr ) );
@@ -612,11 +792,25 @@ static RollResult RunRoll( EnvMode m, Budgets bud, float loadN, float contactHer
 
 	b3Vec3 down = ( b3Vec3 ){ 0.0f, -( loadN - UNSPRUNG_KG * 9.81f ), 0.0f };
 	b3World_EnableContinuous( w, false );
+
+	PhaseAccum acc;
+	if ( teleLoadCase )
+	{
+		PhaseAccumInit( &acc, body );
+		EmitPhase( teleLoadCase, TrimEnvName( m ), "INITIAL", 0, body, &acc, loadN );
+	}
+
 	for ( int i = 0; i < 120; ++i )
 	{
 		b3Body_ApplyForceToCenter( body, down, true );
 		b3World_Step( w, 1.0f / 60.0f, 4 );
+		if ( teleLoadCase )
+			PhaseAccumStep( &acc, body );
 	}
+	// Rekord powstaje PO 120. kroku i PRZED pierwszym krokiem pomiaru - to jest
+	// dokladnie stan, z ktorego rusza obecna petla pomiarowa.
+	if ( teleLoadCase )
+		EmitPhase( teleLoadCase, TrimEnvName( m ), "MEASURE_START", TELE_WARMUP_STEPS, body, &acc, loadN );
 
 	double sumSq = 0.0, sumLoaded = 0.0, sumNew = 0.0, sumPen = 0.0, sumMan = 0.0;
 	int steps = 240, stepsLoaded = 0;
@@ -640,7 +834,12 @@ static RollResult RunRoll( EnvMode m, Budgets bud, float loadN, float contactHer
 		sumMan += cs.manifolds;
 		if ( cs.loadedPoints > 0 )
 			++stepsLoaded;
+		if ( teleLoadCase )
+			PhaseAccumStep( &acc, body );
 	}
+	if ( teleLoadCase )
+		EmitPhase( teleLoadCase, TrimEnvName( m ), "MEASURE_END", TELE_WARMUP_STEPS + TELE_MEASURE_STEPS, body, &acc,
+				   loadN );
 	b3Vec3 vEnd = b3Body_GetLinearVelocity( body );
 
 	rr.vyRms = sqrt( sumSq / (double)steps );
@@ -669,7 +868,7 @@ static void ExperimentRollQuality( Budgets bud )
 	for ( int m = 0; m < ENV_COUNT; ++m )
 	{
 		int ok = 0;
-		RollResult r = RunRoll( (EnvMode)m, bud, CORNER_LOAD_N, 0.0f, 0.0f, 0.0f, &ok );
+		RollResult r = RunRoll( (EnvMode)m, bud, CORNER_LOAD_N, 0.0f, 0.0f, 0.0f, &ok, "corner_1900N" );
 		if ( !ok )
 		{
 			printf( "%-16s   (not representable)\n", s_envName[m] );
@@ -688,7 +887,7 @@ static void ExperimentRollQuality( Budgets bud )
 	for ( int m = 0; m < ENV_COUNT; ++m )
 	{
 		int ok = 0;
-		RollResult r = RunRoll( (EnvMode)m, bud, UNSPRUNG_KG * 9.81f, 0.0f, 0.0f, 0.0f, &ok );
+		RollResult r = RunRoll( (EnvMode)m, bud, UNSPRUNG_KG * 9.81f, 0.0f, 0.0f, 0.0f, &ok, "v1_432N" );
 		if ( !ok )
 			continue;
 		printf( "%-16s %10.4f %10.2f %10.1f %8.1f%% %10.3f\n", s_envName[m], r.vyRms, r.loadedPointsAvg, r.churnPct,
@@ -726,7 +925,7 @@ static void ExperimentCompliance( Budgets bud )
 		{
 			int rok = 0;
 			RollResult r = RunRoll( probe[pi], bud, CORNER_LOAD_N, hz[i], def.contactDampingRatio, def.contactSpeed,
-									&rok );
+									&rok, NULL ); // sekcja F: bez telemetrii
 			if ( !rok )
 			{
 				ok = 0;
@@ -1007,9 +1206,40 @@ static void ExperimentProfileLab( Budgets bud )
 
 // ---------------------------------------------------------------- main
 
-int main( void )
+int main( int argc, char** argv )
 {
 	setvbuf( stdout, NULL, _IONBF, 0 ); // never hide where a crash happened
+
+	const char* telePath = NULL;
+	for ( int i = 1; i < argc; ++i )
+	{
+		if ( strcmp( argv[i], "--phase-telemetry" ) == 0 && i + 1 < argc )
+			telePath = argv[++i];
+		else
+		{
+			fprintf( stderr, "uzycie: %s [--phase-telemetry <plik.csv>]\n", argv[0] );
+			return 2;
+		}
+	}
+	if ( telePath )
+	{
+		// Istniejacy plik telemetrii nie moze zniknac po cichu.
+		FILE* probe = fopen( telePath, "rb" );
+		if ( probe )
+		{
+			fclose( probe );
+			fprintf( stderr, "BLAD: %s juz istnieje - telemetria nie nadpisuje plikow\n", telePath );
+			return 3;
+		}
+		g_tele = fopen( telePath, "wb" );
+		if ( g_tele == NULL )
+		{
+			fprintf( stderr, "BLAD: nie moge otworzyc %s do zapisu\n", telePath );
+			return 3;
+		}
+		if ( fprintf( g_tele, "%s", TELE_HEADER ) < 0 )
+			g_teleFailed = 1;
+	}
 	time_t now = time( NULL );
 	char stamp[64];
 	strftime( stamp, sizeof( stamp ), "%Y-%m-%d %H:%M:%S", localtime( &now ) );
@@ -1065,5 +1295,28 @@ int main( void )
 	ExperimentCost( bud, 1 );
 
 	printf( "\ndone\n" );
+
+	if ( g_tele )
+	{
+		// Blad zapisu telemetrii nie moze zostac zignorowany - artefakt niepelny
+		// jest gorszy niz brak artefaktu, bo wyglada tak samo.
+		if ( fflush( g_tele ) != 0 || ferror( g_tele ) )
+			g_teleFailed = 1;
+		if ( fclose( g_tele ) != 0 )
+			g_teleFailed = 1;
+		g_tele = NULL;
+		const int expected = 2 * ENV_COUNT * 3;
+		if ( g_teleRecords != expected )
+		{
+			fprintf( stderr, "BLAD telemetrii: %d rekordow, oczekiwano %d\n", g_teleRecords, expected );
+			return 4;
+		}
+		if ( g_teleFailed )
+		{
+			fprintf( stderr, "BLAD telemetrii: zapis nieudany albo wartosc nieskonczona\n" );
+			return 4;
+		}
+		printf( "phase telemetry: %d rekordow -> %s\n", g_teleRecords, telePath );
+	}
 	return 0;
 }
