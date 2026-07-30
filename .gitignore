@@ -12,3 +12,12 @@ CMakeUserPresets.json
 .tmp/
 .fetchcontent-cache/
 *.b3rec
+
+# Artefakty stendu badawczego kola i okna wizualnego. Surowe logi w
+# tools/jozz_wheel_bench/evidence/ NIE sa ignorowane - to sa dowody.
+tools/jozz_wheel_bench/wheel_bench.exe
+tools/jozz_wheel_bench/wheel_bench.obj
+tools/jozz_wheel_bench/jozz_wheel_rig.obj
+tools/jozz_wheel_bench/equivalence_out/
+jozz_wheel_scope_observations.txt
+tools/evidence/__pycache__/
