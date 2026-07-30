@@ -274,6 +274,12 @@ osobny dowód wykonalności manifoldu (§3, poziom V1b).
 V0  MATEMATYKA        Poza silnikiem, bez fizyki. Profil, wsparcie, krzywizna,
                       pozy ekstremalne. Godziny. Obala tanio.
 V1  STEND             tools/jozz_wheel_bench. Mechanizm w izolacji. Godziny.
+V1v OKNO WIZUALNE     samples "Jozz Wheel / Wheel Scope". TEN SAM rig co V1,
+                      widziany i sterowany na zywo. Minuty. NIE akceptuje
+                      i nie odrzuca - dostarcza obserwacje i hipotezy oraz
+                      pozwala wlascicielowi wplywac na kierunek badan PRZED
+                      wyborem kandydata. Wspolnota fizyki z V1 jest
+                      dowodzona bajtowo: check_visual_equivalence.py.
 V1b MANIFOLD LAB      Osobny dowod wykonalnosci kontaktu dla nowej bryly:
                       shape-plaszczyzna, -trojkat, -krawedz, -hull, przejscia
                       miedzy trojkatami, featureId, persisted, warm start,
@@ -288,6 +294,18 @@ Reguły:
 
 - **V1 blokuje wyłącznie na crashu, niestabilności i złamanym niezmienniku.**
   Nie blokuje na jednej słabej metryce — to była wada poprzedniej wersji pętli.
+- **Nowy istotny mechanizm fizyczny nie przechodzi kilku iteracji bez
+  odpowiednika w V1v.** Wprowadzone 2026-07-30 po audycie kolejności prac:
+  drabina prowadziła V0 → V1 → V1b → V2 → V3, więc pierwszy obraz dla
+  właściciela wypadał **po** bramce do patcha core i po integracji z pojazdem.
+  Program powstał z obserwacji V3-owej (kolizja sferyczna na skałach), a plan
+  stawiał ten poziom na końcu. V1v jest tani (minuty) i nie zastępuje V3:
+  V3 nadal jest jedynym poziomem, który AKCEPTUJE.
+- **Sesja z ingerencją w fizykę nie jest przebiegiem dowodowym.** V1v rozdziela
+  to praktycznie: `OBSERVATION` (bez ingerencji) i `EXPLORATION` (po ingerencji,
+  flaga lepka, widoczna na ekranie i w zapisie obserwacji). Droga do faktu:
+  obserwacja → jawna hipoteza → poprawka kontraktu **przed** przebiegiem →
+  zamrożony eksperyment headless.
 - **Dowód skaluje się z nieodwracalnością.** Zmiana w `samples/` — V1+V2.
   Zmiana w `src/` — V0+V1+V1b+V2+V3+próba aktualizacji upstreamu.
 - **Każdy pomiar podaje zakres sceny.** Bez zakresu wynik nie wchodzi do `KOLA_01`.

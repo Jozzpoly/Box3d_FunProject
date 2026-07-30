@@ -83,9 +83,24 @@ i udokumentowany w `KOLA_01`.
 
 ```
 tools/jozz_wheel_bench/     izolowany stend badawczy (linkuje box3d.lib, nie dotyka repo)
-  wheel_bench.c             eksperymenty A-G, opisane w KOLA_01 (v2)
+  wheel_bench.c             PROTOKOŁY eksperymentów A-G i Q2A, opisane w KOLA_01 (v2)
+  jozz_wheel_rig.c/.h       WSPÓLNY rig: świat, ciało, materiał, masa, regulator.
+                            Ten sam plik kompilują stend i target `samples`.
   build.bat                 kompilacja MSVC, wymaga zbudowanego build/src/Release/box3d.lib
   evidence/                 surowe wydruki przebiegów (nie kasować)
+```
+
+Okno wizualne na ten sam rig (poziom `V1v`, `KOLA_04` §3):
+
+```bash
+build\bin\Debug\samples.exe --sample-name "Wheel Scope"
+```
+
+Instrukcja dla właściciela: `tools/jozz_wheel_bench/WHEEL_SCOPE_OWNER_SESSION_PL.md`.
+Dowód, że okno pokazuje tę samą fizykę (600 kroków bajt w bajt):
+
+```bash
+python tools\jozz_wheel_bench\check_visual_equivalence.py
 ```
 
 Stend v2 ma znane wady (`KOLA_01` §7.9). Protokół v2.1: `KOLA_05`.

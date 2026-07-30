@@ -17,6 +17,12 @@ tylko skrót + link. Gdy przekroczy ~30 wpisów — najstarsze usuń (są w gici
 
 ---
 
+## 2026-07-30 · Wheel Scope: wizualne okno na rig badawczy koła · jozz-scan-terrain-f0
+- CO:     Wspólny `jozz_wheel_rig.c/.h` (świat, ciało, materiał, masa, regulator PI) linkowany przez stend headless **i** nowy sample „Jozz Wheel / Wheel Scope"; nowy poziom walidacji `V1v` w `KOLA_04` §3; `check_visual_equivalence.py` (600 kroków bajt w bajt), `--rig-perturb-check`, instrukcja `WHEEL_SCOPE_OWNER_SESSION_PL.md`.
+- CZEMU:  Drabina walidacji prowadziła V0→V1→V1b→V2→V3, więc pierwszy obraz dla Jozza wypadał PO bramce do patcha core. Program powstał z obserwacji V3-owej (sfera na skałach), a plan stawiał ten poziom na końcu.
+- EFEKT:  Q2A/telemetria bajtowo identyczne po refaktorze, bramka A-G `GATE OK`, headless == visual bajt w bajt (oba warianty, także przy innym tempie rysowania, kamerze i overlayu). Pierwsza obserwacja: prism-42 wymaga ~135 N na 13 m/s (~156 J/m), sphere ~0 N — różnica nigdy dotąd niezmierzona, bo prism nie przechodził kwalifikacji Q2A.
+- DALEJ:  Q2A-R1 wymaga korekty kontraktu PRZED przebiegiem (kryterium wejścia ostrzejsze niż bramki okna; wariant bez kwalifikacji nie daje pracy na metr). Obserwacja ≠ dowód.
+
 ## 2026-07-24 · System spawnów per-fragment (2 poziomy) + fundament wielu skanów · jozz-scan-terrain-f0
 - CO:     Każdy fragment mapy (Płyta/Offroad/Skan) ma własny spawn na 2 poziomach: **sesyjny** (ustawiany z pozycji auta, nietrwały) i **domyślny** (commitowany `assets/vehicle_spawns.txt`, przeżywa czysty build). Sekcja „Spawn pojazdu" w każdym segmencie Mapy: pola X/Z + „Z pozycji auta" (`b3Body_GetPosition(chassisId)`) / „Respawn tutaj" (`TeleportTo`, ustawia sesyjny=checkpoint „R") / „Zapisz jako domyślny" / „Wyczyść sesyjny" / „Usuń domyślny". Efektywny = sesyjny ?? domyślny ?? wbudowany. Klasyfikator `ClassifyJozzMapFragment` (czysty, `world_layout.h`) + probe walidatora. FUNDAMENT WIELU SKANÓW: `LoadScanTile()`→overload `LoadScanTile(packDir)` (szew selektora), `m_scanId`=leaf paczki, spawn domyślny skanu keyowany per-ID (`scan.<id>=`) → każdy przyszły skan pamięta swój spawn.
 - CZEMU:  Jozz: móc zmieniać miejsce respawnu per fragment, sesyjny „na teraz" + domyślny trwały; przy okazji przygotować grunt pod wybór wielu skanów z UI (niedługo dużo testowych skanów), ale samego selektora dziś NIE budować.
