@@ -50,12 +50,19 @@ def main(root: Path, exe: Path | None) -> int:
     prov = man["provenance"]
     # Zrodlo lezy obok TEGO pliku, nie obok katalogu wynikow - katalog wynikow
     # jest w scratchu i nie zawiera zrodel.
-    src = Path(__file__).resolve().parent / "wheel_bench.c"
-    for label, path, key in (("source", src, "source_sha256"),):
-        if path.exists():
+    here = Path(__file__).resolve().parent
+    # Fizyka mieszka w TRZECH plikach od wydzielenia wspolnego rigu. Sprawdzanie
+    # tylko wheel_bench.c przepuscilo by zmiane nastaw regulatora bez sladu.
+    for label, path, key in (("source", here / "wheel_bench.c", "source_sha256"),
+                             ("rig", here / "jozz_wheel_rig.c", "rig_source_sha256"),
+                             ("rig_header", here / "jozz_wheel_rig.h", "rig_header_sha256")):
+        declared = prov.get(key)
+        if not declared:
+            fail.append(f"provenance: brak {key} - manifest nie opisuje calego zrodla fizyki")
+        elif path.exists():
             got = sha256(path)
-            if got != prov[key]:
-                warn.append(f"{label}: sha w manifescie {prov[key][:16]} != plik na dysku {got[:16]} "
+            if got != declared:
+                warn.append(f"{label}: sha w manifescie {declared[:16]} != plik na dysku {got[:16]} "
                             f"(zrodlo moglo sie zmienic po przebiegu)")
         else:
             warn.append(f"{label}: {path} nie istnieje - nie moge zweryfikowac sha")
