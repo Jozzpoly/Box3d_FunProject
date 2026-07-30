@@ -148,10 +148,30 @@ typedef struct
 	char lastPerturbation[96];
 } JozzRig;
 
+// Haki renderera. Silnik potrzebuje ich w definicji swiata, zeby cokolwiek dalo
+// sie narysowac - bez nich okno wizualne pokazuje pusty ekran (zmierzone).
+//
+// Ten typ istnieje po to, zeby frontend graficzny nie mial dostepu do NICZEGO
+// innego w b3WorldDef. Gdyby rig przyjmowal cala definicje albo dowolny
+// "dekorator", tryb wizualny moglby po cichu zmienic grawitacje, liczbe watkow
+// albo pojemnosci - i zdanie "widac to samo" przestaloby byc prawdziwe.
+// Wezsze API zamyka te droge na poziomie typu, nie zaufania.
+typedef struct
+{
+	b3CreateDebugShapeCallback* createDebugShape;
+	b3DestroyDebugShapeCallback* destroyDebugShape;
+	void* userDebugShapeContext;
+} JozzRigRenderHooks;
+
 // Tworzy WLASNY swiat identyczny z headless (workerCount = 1, continuous off),
 // grunt 400x1x60 pod y=-1 i cialo w stanie nominalnego toczenia przy
 // JOZZ_RIG_TARGET_V. Zwraca 0, gdy wariant jest nieprzedstawialny.
 int JozzRig_Create( JozzRig* rig, JozzRigVariant v, int prismSides );
+
+// To samo, plus haki renderera. Ze wzgledu na fizyke oba warianty MUSZA dawac
+// bit-identyczny przebieg; sprawdza to check_visual_equivalence.py.
+int JozzRig_CreateWithRenderHooks( JozzRig* rig, JozzRigVariant v, int prismSides,
+								   const JozzRigRenderHooks* hooks );
 void JozzRig_Destroy( JozzRig* rig );
 
 // DOKLADNIE jeden krok o stalym dt. Kolejnosc operacji jest czescia kontraktu:

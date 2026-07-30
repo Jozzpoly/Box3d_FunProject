@@ -252,6 +252,7 @@ set(SAMPLE_FILES
     sample_issues.cpp
     sample_joint.cpp
     sample_jozz_vehicle_lab.cpp
+    sample_jozz_wheel_scope.cpp
     host/screenshot.cpp
     host/screenshot.h
     sample_manifold.cpp
@@ -274,6 +275,14 @@ add_executable(samples ${SAMPLE_FILES})
 # fundamental problem than the font glyph range (host/gui.cpp) also fixed for
 # the same reason. /utf-8 is a no-op for the plain-ASCII box3d demo samples.
 target_compile_options(samples PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
+
+# WSPOLNY rig stendu badawczego kola. To NIE jest kopia - to ten sam plik,
+# ktory kompiluje tools/jozz_wheel_bench/build.bat. Gdyby Wheel Scope mial
+# wlasna kopie fizyki, zdanie "widac to samo, co mierzymy" nie byloby faktem.
+# Dodawany przez target_sources, nie przez SAMPLE_FILES, bo source_group(TREE)
+# wymaga plikow POD katalogiem samples/.
+target_sources(samples PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../tools/jozz_wheel_bench/jozz_wheel_rig.c")
+target_include_directories(samples PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../tools/jozz_wheel_bench")
 
 # Jozz: headless metadata/contract/vehicle guard, no GUI. Runs in CI-style validation.
 # R1 split (2026-07-10): the probe bodies live in validation/, one file per

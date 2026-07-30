@@ -215,6 +215,12 @@ double JozzRig_Distance( const JozzRig* rig )
 
 int JozzRig_Create( JozzRig* rig, JozzRigVariant v, int prismSides )
 {
+	return JozzRig_CreateWithRenderHooks( rig, v, prismSides, NULL );
+}
+
+int JozzRig_CreateWithRenderHooks( JozzRig* rig, JozzRigVariant v, int prismSides,
+								   const JozzRigRenderHooks* hooks )
+{
 	memset( rig, 0, sizeof( *rig ) );
 	rig->variant = v;
 	rig->prismSides = prismSides;
@@ -224,6 +230,13 @@ int JozzRig_Create( JozzRig* rig, JozzRigVariant v, int prismSides )
 
 	b3WorldDef wd = b3DefaultWorldDef();
 	wd.workerCount = 1;
+	// Haki renderera to JEDYNE pola, ktore frontend graficzny moze dolozyc.
+	if ( hooks )
+	{
+		wd.createDebugShape = hooks->createDebugShape;
+		wd.destroyDebugShape = hooks->destroyDebugShape;
+		wd.userDebugShapeContext = hooks->userDebugShapeContext;
+	}
 	rig->world = b3CreateWorld( &wd );
 
 	b3BodyDef gd = b3DefaultBodyDef();

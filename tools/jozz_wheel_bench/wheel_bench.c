@@ -1651,6 +1651,79 @@ static int RigTrace( const char* path, const char* variantName, int steps )
 	return 0;
 }
 
+// --------------------------------------------------- test oznaczania zaburzen
+// Sprawdza MECHANIZM, ktorego uzywa okno wizualne: czy zaburzenie rzeczywiscie
+// zmienia fizyke i czy zostaje oznaczone. Nie sprawdza podpiecia klawiatury -
+// to trzeba zobaczyc na ekranie.
+static int RigPerturbCheck( void )
+{
+	JozzRig ctl, per;
+	int sides = JozzRig_ProbeMaxPrismSides();
+	if ( JozzRig_Create( &ctl, JOZZ_RIG_SPHERE, sides ) == 0 || JozzRig_Create( &per, JOZZ_RIG_SPHERE, sides ) == 0 )
+	{
+		fprintf( stderr, "BLAD: nie moge zbudowac rigu\n" );
+		return 5;
+	}
+	for ( int i = 0; i < 100; ++i )
+	{
+		JozzRig_Step( &ctl, NULL );
+		JozzRig_Step( &per, NULL );
+	}
+	char a[512], b[512];
+	JozzRig_DigestLine( &ctl, a, sizeof( a ) );
+	JozzRig_DigestLine( &per, b, sizeof( b ) );
+	int fail = 0;
+	if ( strcmp( a, b ) != 0 )
+	{
+		fprintf( stderr, "BLAD: dwa nietkniete rigi rozjechaly sie przed zaburzeniem\n" );
+		fail = 1;
+	}
+	if ( per.perturbed != 0 )
+	{
+		fprintf( stderr, "BLAD: flaga zaburzenia podniesiona bez zaburzenia\n" );
+		fail = 1;
+	}
+
+	b3Vec3 imp = { 0.0f, 0.0f, 260.0f };
+	JozzRig_ApplyImpulse( &per, imp, "test: kopniak w bok" );
+	if ( per.perturbed != 1 || per.perturbCount != 1 )
+	{
+		fprintf( stderr, "BLAD: zaburzenie NIE zostalo oznaczone\n" );
+		fail = 1;
+	}
+	for ( int i = 0; i < 100; ++i )
+	{
+		JozzRig_Step( &ctl, NULL );
+		JozzRig_Step( &per, NULL );
+	}
+	JozzRig_DigestLine( &ctl, a, sizeof( a ) );
+	JozzRig_DigestLine( &per, b, sizeof( b ) );
+	if ( strcmp( a, b ) == 0 )
+	{
+		fprintf( stderr, "BLAD: zaburzenie NIE zmienilo fizyki - oznaczenie bez skutku\n" );
+		fail = 1;
+	}
+	// Flaga jest lepka: skutek zaburzenia zostaje w stanie ciala na zawsze.
+	JozzRig_ApplyImpulse( &per, imp, "test: drugi kopniak" );
+	if ( per.perturbCount != 2 || per.perturbed != 1 )
+	{
+		fprintf( stderr, "BLAD: licznik zaburzen nie rosnie albo flaga spadla\n" );
+		fail = 1;
+	}
+
+	printf( "PERTURB CHECK %s\n", fail ? "FAILED" : "OK" );
+	if ( !fail )
+	{
+		printf( "  zaburzenie zmienia fizyke      : tak (odciski stanu sie roznia)\n" );
+		printf( "  zaburzenie jest oznaczone      : tak (perturbed=1, licznik=%d)\n", per.perturbCount );
+		printf( "  oznaczenie jest lepkie         : tak\n" );
+		printf( "  UWAGA: to test mechanizmu, nie podpiecia klawiatury.\n" );
+	}
+	JozzRig_Destroy( &ctl );
+	JozzRig_Destroy( &per );
+	return fail ? 1 : 0;
+}
+
 int main( int argc, char** argv )
 {
 	setvbuf( stdout, NULL, _IONBF, 0 ); // never hide where a crash happened
@@ -1660,6 +1733,7 @@ int main( int argc, char** argv )
 	const char* tracePath = NULL;
 	const char* traceVariant = NULL;
 	int traceSteps = 600;
+	int perturbCheck = 0;
 	char cmdline[1024] = { 0 };
 	for ( int i = 0; i < argc; ++i )
 	{
@@ -1680,22 +1754,29 @@ int main( int argc, char** argv )
 			traceVariant = argv[++i];
 		else if ( strcmp( argv[i], "--rig-trace-steps" ) == 0 && i + 1 < argc )
 			traceSteps = atoi( argv[++i] );
+		else if ( strcmp( argv[i], "--rig-perturb-check" ) == 0 )
+			perturbCheck = 1;
 		else
 		{
 			fprintf( stderr,
 					 "uzycie: %s [--phase-telemetry <plik.csv>] [--q2a <katalog>] "
 					 "[--exe-sha256 <hex>]\n"
 					 "       %s --rig-trace <plik.csv> [--rig-trace-variant sphere|prism-Nmax] "
-					 "[--rig-trace-steps N]\n",
-					 argv[0], argv[0] );
+					 "[--rig-trace-steps N]\n"
+					 "       %s --rig-perturb-check\n",
+					 argv[0], argv[0], argv[0] );
 			return 2;
 		}
 	}
-	if ( ( telePath && q2aDir ) || ( tracePath && ( telePath || q2aDir ) ) )
+	if ( ( telePath && q2aDir ) || ( tracePath && ( telePath || q2aDir ) ) ||
+		 ( perturbCheck && ( telePath || q2aDir || tracePath ) ) )
 	{
-		fprintf( stderr, "BLAD: --phase-telemetry, --q2a i --rig-trace wykluczaja sie (osobne przebiegi)\n" );
+		fprintf( stderr, "BLAD: --phase-telemetry, --q2a, --rig-trace i --rig-perturb-check "
+						 "wykluczaja sie (osobne przebiegi)\n" );
 		return 2;
 	}
+	if ( perturbCheck )
+		return RigPerturbCheck();
 	// --rig-trace jest testem ekwiwalencji, nie eksperymentem: nie liczy zadnej
 	// sekcji, nie pisze zadnego dowodu, tylko odcisk stanu krok po kroku.
 	if ( tracePath )
