@@ -6,6 +6,39 @@ Status programu: **R0.5 — kalibracja instrumentu. Stend v2 istotnie ulepszony,
 ale nadal kalibrowany; wyniki `PROVISIONAL`; geometria pozostaje pytaniem
 otwartym; implementacja produktowa NIE rozpoczęta**
 
+> **Etap następny przyjęty 2026-07-31: `Q3 — Quarter Car Lab`.** Koło na piaście
+> i zawieszeniu, pod masą resorowaną, **napędzane momentem**. Plan wykonawczy
+> `Q3-0…Q3-6`: `KOLA_04` §4 (R0.5). Specyfikacja rigu: `KOLA_05` §1.2.
+> - nazwa **`Q3`**, wewnątrz drabiny `Q0–Q4` — propozycja „W2" odrzucona,
+>   bo `W2` jest już warstwą architektury (`KOLA_02` §4);
+> - odstępstwo od drabiny zapisane jawnie: spec mówił „brak napędu",
+>   właściciel zdecydował o momencie napędowym; wersja bierna zostaje kontrolą;
+> - **`KOLA_05` §1.3 — `suspensionHertz` nie jest częstotliwością resorowania.**
+>   Sztywność podąża za masą efektywną więzu (150+44 kg → **34,02 kg**), więc ta
+>   sama liczba na dwóch kandydatach o różnej masie nieresorowanej to dwie różne
+>   sprężyny. Nowe pytania `U-24…U-26` rozstrzyga sonda `Q3-1` **przed** budową
+>   rigu, bo jej wynik może zmienić jego projekt.
+
+> **Rewizja 2026-07-31 (druga) — POWSTAŁ PIERWSZY NOWY SYSTEM KOŁA.**
+> Właściciel uchylił zapis kontraktu Q3 „żadnych nowych obwiedni w tym etapie"
+> i polecił skończyć działającym kandydatem, nie kolejnym planem.
+> - **`torus-N`** — trzecia obwiednia w programie: pierścień N kapsuł o osi
+>   równoległej do osi koła, płaska bieżnia i zaokrąglone barki. Powód jest
+>   zmierzony: pryzmat nie przejdzie ~42 ścianek (`F-01`) i ma ostre krawędzie,
+>   na których skacze normalna kontaktu. Kapsuł można dać 64.
+> - **Q3 działa w obu trybach**: `wheel_bench.exe --qc-compare` (macierz
+>   kandydat × droga × prędkość) i okno `Quarter Car Scope` na TYM SAMYM rigu.
+> - **`F-21`** — `torus-64` wobec dzisiejszego `prism-42` przy 4 m/s: strata
+>   **−33%**, `sprung_accel_rms` **−83%**, contact churn **0% wobec 90%**.
+> - **`F-22`** — i robi to **mimo o 57% większego tętnienia promienia**. Nie
+>   rządzi amplituda odchyłki, tylko obecność ostrych krawędzi.
+> - **`F-23`** — cena: **13× CPU** (0,094 ms/krok wobec 0,007). Realny handel.
+> - **`F-24`** — przy 13 m/s pojedynczy przebieg **nie jest powtarzalny** na
+>   poziomie progu ważności; każda komórka porównania idzie 3× z przesuniętym
+>   startem i podaje rozrzut.
+> - Werdykt o feelu należy do Jozza i **nie został wydany** (reguła twarda 5).
+>   Otwarte: `Q3-5` (wzorzec zachowania) — dopiero po akceptacji w oknie.
+
 > **Rewizja 2026-07-31 — instrument dostał pamięć i punkt odniesienia.**
 > Nie zmienia to statusu programu ani żadnego wyniku. Zmienia to, co da się
 > o instrumencie stwierdzić maszynowo:

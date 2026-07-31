@@ -1,0 +1,77 @@
+# SONDA Q3-1 - kalibracja wiezu b3WheelJoint
+# git 3928179 (core clean), rig sha256 1082eac055fbe7b80a19fd7056f294f779e5275eb70e8118850e7645ffa873cd
+#
+# masa resorowana 150.0 kg, nieresorowana 44.0 kg, g = 10.00
+# dt = 1/60 s, kolo = sfera R 0.5141 m, I_spin 0.70 mR^2, I_trans 0.55 mR^2
+# nadwozie: b3MotionLocks linearZ + wszystkie katowe (jesli nie napisano inaczej)
+
+== 0: kontrola konstrukcji ==
+nadwozie: b3Body_GetMass 150.0000 kg, massData.mass 150.0000 kg, I_zz 37.5000
+kolo    : b3Body_GetMass 44.0000 kg, massData.mass 44.0000 kg, I_yy 8.1404 (os obrotu)
+zadane  : nadwozie 150.0 kg, kolo 44.0 kg, I_spin 8.1404
+translacja wiezu w chwili montazu: 0.000000060 m
+kontrola konstrukcji: OK
+
+masa zredukowana obu cial : 34.0206 kg
+masa resorowana           : 150.0000 kg
+iloraz                    : 4.4091
+
+== A+B: sztywnosc i czestotliwosc wlasna wobec zadanego `hertz` ==
+# k_pred_sprung = m_sprung*(2pi*f)^2   - gdyby hertz byl czestotliwoscia resoru
+# k_pred_red    = m_red*(2pi*f)^2      - gdyby szedl za masa efektywna wiezu
+
+   hertz   ugiecie[m]     k_zmierz   k_pred_spr   k_pred_red    f_n[Hz]    zeta_zm
+    0.50     4.481039        334.7       1480.4        335.8      0.246      0.181
+    1.00     1.116849       1343.1       5921.8       1343.1      0.467      0.179
+    1.50     0.496372       3021.9      13324.0       3021.9      0.701      0.185
+    2.00     0.279209       5372.3      23687.1       5372.3      0.938      0.191
+    3.00     0.124093      12087.7      53295.9      12087.7      1.381      0.202
+    6.00     0.031023      48350.9     213183.5      48350.9      2.776      0.236
+
+== punkt pracy kontraktu Q3 ==
+zadana sztywnosc przy kole : 13500.0 N/m
+wyliczony hertz            : 3.17041 Hz
+OSIAGNIETA sztywnosc       : 13500.0 N/m  (blad -0.000 %)
+ugiecie statyczne          : 0.1111 m
+czestotliwosc resoru f_n   : 1.4770 Hz  (zadany hertz byl 3.1704)
+tlumienie zmierzone        : 0.2043  (zadane zeta 0.35)
+
+== C: ta sama sprezyna, rozna liczba podkrokow (U-25) ==
+# hertz = 1.50, zeta = 0.35, wszystko inne zamrozone
+
+  podkroki   ugiecie[m]     k_zmierz    f_n[Hz]
+         1     0.496372       3021.9      0.689
+         2     0.496371       3021.9      0.699
+         4     0.496372       3021.9      0.701
+         8     0.496372       3021.9      0.702
+
+== D: moment napedowy - ktora bezwladnosc odpowiada (U-26) ==
+# tau = 500.0 N*m, kolo w powietrzu, g = 0
+# I_spin  = 8.1404 kg*m^2 -> alfa oczekiwana 61.422 rad/s^2
+# I_trans = 6.3960 kg*m^2 -> alfa oczekiwana 78.173 rad/s^2
+
+KONTROLA b3Body_ApplyTorque (bez wiezu): alfa 62.198 rad/s^2, iloraz_spin 1.0126
+
+              nadwozie      tau  podkr  alfa_zmierz  iloraz_spin czystosc_osi
+     obrot zablokowany      100      1       24.519       1.9960       1.0000
+     obrot zablokowany      100      4       24.789       2.0179       1.0000
+     obrot zablokowany      100      8       24.835       2.0217       1.0000
+     obrot zablokowany      500      1      122.596       1.9960       1.0000
+     obrot zablokowany      500      4      123.945       2.0179       1.0000
+     obrot zablokowany      500      8      124.173       2.0216       1.0000
+     obrot zablokowany     1000      1      245.192       1.9960       1.0000
+     obrot zablokowany     1000      4      247.892       2.0179       1.0000
+     obrot zablokowany     1000      8      248.348       2.0217       1.0000
+        obrot SWOBODNY      100      1       24.519       1.9960       1.0000
+        obrot SWOBODNY      100      4       24.789       2.0179       1.0000
+        obrot SWOBODNY      100      8       24.835       2.0216       1.0000
+        obrot SWOBODNY      500      1      122.596       1.9960       1.0000
+        obrot SWOBODNY      500      4      123.945       2.0179       1.0000
+        obrot SWOBODNY      500      8      124.173       2.0216       1.0000
+        obrot SWOBODNY     1000      1      245.192       1.9960       1.0000
+        obrot SWOBODNY     1000      4      247.891       2.0179       1.0000
+        obrot SWOBODNY     1000      8      248.348       2.0217       1.0000
+
+# Czytanie wyniku: `iloraz_spin` blisko 1.000 znaczy, ze moment
+# dziala na I_spin - czyli ramka B jest ustawiona poprawnie.
+# `czystosc_osi` blisko 1.000 znaczy, ze kolo kreci sie wokol swojej osi.

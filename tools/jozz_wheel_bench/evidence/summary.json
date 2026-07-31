@@ -490,6 +490,28 @@
           ]
         }
       }
+    },
+    "q3_compare_2026_07_31": {
+      "source_file": "run_q3_compare_2026_07_31.txt",
+      "source_sha256": "c086d7d91831d53fe2555580d124492f61d8f2ea533bdd6204c7a13c4448179e",
+      "source_bytes": 4738,
+      "provenance": {
+        "Box3D": "hull final half edge count of 258 exceeds limit of 255"
+      },
+      "tables": {}
+    },
+    "qc_probe_2026_07_31": {
+      "source_file": "run_qc_probe_2026_07_31.txt",
+      "source_sha256": "148a948f4fb55e693624cba6461c8777d80bfec49e186dae73f660779ba0d632",
+      "source_bytes": 4293,
+      "provenance": {
+        "== 0": "kontrola konstrukcji ==",
+        "nadwozie": "b3Body_GetMass 150.0000 kg, massData.mass 150.0000 kg, I_zz 37.5000",
+        "kolo": "b3Body_GetMass 44.0000 kg, massData.mass 44.0000 kg, I_yy 8.1404 (os obrotu)",
+        "zadane": "nadwozie 150.0 kg, kolo 44.0 kg, I_spin 8.1404",
+        "translacja wiezu w chwili montazu": "0.000000060 m"
+      },
+      "tables": {}
     }
   }
 }

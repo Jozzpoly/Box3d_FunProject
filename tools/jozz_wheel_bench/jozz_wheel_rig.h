@@ -47,7 +47,18 @@ typedef enum
 {
 	JOZZ_RIG_SPHERE = 0,
 	JOZZ_RIG_PRISM_MAX = 1,
-	JOZZ_RIG_VARIANT_COUNT = 2
+	// Pierscien kapsul: obwiednia zlozona z N kapsul o osi rownoleglej do osi
+	// kola, rozstawionych po okregu o promieniu (wheelR - crownR). Powstaje
+	// przyblizenie torusa. Powod istnienia jest zmierzony, nie estetyczny:
+	//   * pryzmat ma OSTRE krawedzie - normalna kontaktu skacze na wierzcholku;
+	//   * b3CreateHull nie przyjmuje wiecej niz ~42 scianek (F-01), wiec
+	//     "zageszczaj dalej" nie jest droga wyjscia;
+	//   * kapsul mozna dac 64 albo 96 i tetnienie promienia dalej spada.
+	// Przy TYCH proporcjach kola (R 0.5141, W 0.4375) pierscien kapsul ma przy
+	// rownym N WIEKSZE tetnienie niz pryzmat - wygrywa dopiero tam, gdzie
+	// pryzmat sie konczy. Liczby: JozzRig_EnvelopeRipple.
+	JOZZ_RIG_TORUS = 2,
+	JOZZ_RIG_VARIANT_COUNT = 3
 } JozzRigVariant;
 
 const char* JozzRig_VariantName( JozzRigVariant v );
@@ -72,6 +83,10 @@ typedef struct
 {
 	// geometria i masa
 	JozzRigVariant variant;
+	// Liczba ELEMENTOW obwiedni, nie tylko scianek pryzmatu: dla `prism-Nmax`
+	// to liczba scianek, dla `torus-N` liczba kapsul. Jedno pole, bo to jest ta
+	// sama zmienna programu - gestosc podzialu obwodu - i chcemy ja porownywac
+	// miedzy wariantami przy rownej wartosci.
 	int prismSides;
 	float wheelR;
 	float wheelW;
@@ -79,6 +94,11 @@ typedef struct
 	float inertiaSpinFactor;  // iSpin = f * m * R^2 wokol osi kola
 	float inertiaTransFactor; // iTr   = f * m * R^2 wokol pozostalych osi
 	float density;			  // gestosc shape'u; masa i tak jest zamrazana
+	// Promien przekroju korony (`torus-N`). Jednoczesnie promien zaokraglenia
+	// barku opony i promien kapsuly. Bieznia PLASKA ma szerokosc wheelW-2*crownR,
+	// wiec to pole handluje: wiekszy crownR = mniejsze tetnienie promienia, ale
+	// wezszy plaski styk. Ignorowane przez pozostale warianty.
+	float crownR;
 
 	// scena
 	float groundHalfX, groundHalfY, groundHalfZ;
@@ -191,6 +211,23 @@ void JozzRig_FreezeMassEx( b3BodyId body, float kg, float radius, float spinFact
 int JozzRig_BuildEnvelope( b3BodyId body, JozzRigVariant v, float density, int prismSides );
 int JozzRig_BuildEnvelopeEx( b3BodyId body, JozzRigVariant v, float density, int prismSides, float radius,
 							 float width, float friction );
+
+// Droga uzywana przez OBA rigi (Q2A i Q3). Bierze cala konfiguracje, bo od
+// `torus-N` obwiednia potrzebuje wiecej niz siedem luznych argumentow, a lista
+// argumentow, ktora rosnie przy kazdym wariancie, jest zaproszeniem do podania
+// ich w zlej kolejnosci. Zwraca 0, gdy wariant jest NIEPRZEDSTAWIALNY.
+int JozzRig_BuildEnvelopeFromConfig( b3BodyId body, const JozzRigConfig* c );
+
+// Najmniejsze N, przy ktorym pierscien kapsul jest SZCZELNY (sasiedzi zachodza
+// na siebie). Ponizej tej wartosci obwiednia ma dziury i kolo wpada miedzy
+// kapsuly - dlatego BuildEnvelope taka konstrukcje odrzuca, zamiast zbudowac
+// cos, co wyglada jak kolo i toczy sie jak grzechotka. Zwraca 0 poza `torus-N`.
+int JozzRig_MinTorusSegments( const JozzRigConfig* c );
+
+// Tetnienie promienia obwiedni w METRACH: R_nominalne - R_najmniejsze.
+// Jedyna liczba porownywalna MIEDZY wariantami wprost, bo nie zalezy od tego,
+// czy obwiednia jest z hulla, czy z kapsul. sphere = 0.
+double JozzRig_EnvelopeRipple( const JozzRigConfig* c );
 
 // --- rig ---------------------------------------------------------------------
 

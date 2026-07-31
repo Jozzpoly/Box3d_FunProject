@@ -338,6 +338,95 @@ Rigi Q0–Q4, słownik metryk, manifest dowodowy, rejestr confoundów.
 zaprojektowany i opisany **przed** uruchomieniem — to warunek, żeby wynik dało
 się odróżnić od artefaktu narzędzia.
 
+Stan szczebli: **Q2A zbudowany i zamknięty bramkami** (2026-07-31 — konfiguracja
+jako plik, blokada zachowania, ekwiwalencja okno/stend). Następny szczebel: Q3.
+
+#### Etap `Q3 — Quarter Car Lab` — plan wykonawczy (przyjęty 2026-07-31)
+
+**Decyzje właściciela z tej sesji.** Nazwa: `Q3`, wewnątrz istniejącej drabiny —
+propozycja „W2" odrzucona, bo `W2` jest już warstwą architektury (`KOLA_02` §4)
+i jedna nazwa nie może wskazywać na warstwę kontraktu i na stend naraz.
+Domknięcie etapu: **rig zwalidowany na znanych obwiedniach** (sfera,
+pryzmat-N); nowy kandydat ląduje w etapie następnym, na zaufanym już rigu.
+
+**Decyzja agenta (reguła twarda 1 — zamrożona masa).** W tym etapie masa
+nieresorowana jest **zamrożona** między kandydatami, więc porównujemy geometrię.
+Kandydaci o różnej masie to `U-23`, otwierane dopiero po `Q3-1`.
+
+Architektura: kandydat wychodzi z rigu i staje się osobnym bytem, wspólnym dla
+obu stendów — to mechaniczna podstawa reguły transferu (`KOLA_05` §1):
+
+```
+JozzWheelSpec         KANDYDAT: felga + opona, geometria, masa, bezwladnosc, material
+   |                  jeden plik opisuje kandydata dla OBU rigow
+   +-- JozzRigConfig  Q2A: swobodne kolo, sila w srodku masy          [istnieje]
+   +-- JozzQcConfig   Q3:  piasta + zawieszenie + masa resorowana     [nowe]
+                           + moment + profil drogi
+```
+
+| # | Krój | Produkt | Bramka domykająca |
+|---|---|---|---|
+| `Q3-0` | kontrakt przed pierwszym przebiegiem | `Q3_QUARTER_CAR_CONTRACT.md`: masy, sprężyna w N/m, tłumienie, skok, profil drogi, protokół momentu, co unieważnia przebieg | dokument istnieje **przed** kodem rigu |
+| `Q3-1` | **sonda silnika** | pomiar mapy `hertz ↔ N/m`, wrażliwość na podkroki, weryfikacja osi obrotu przez `τ/α` (`KOLA_05` §1.3) | nowe wpisy w `KOLA_FINDINGS.json` (numery nadawane **razem z pomiarem**, nie z góry) + surowe logi w `evidence/` |
+| ~~`Q3-2`~~ | ~~kandydat jako osobny byt~~ | **SKREŚLONY 2026-07-31** — wydzielenie `JozzWheelSpec` było architekturą na zapas. Q3 woła istniejące `JozzRig_BuildEnvelopeEx`/`FreezeMassEx`, które już biorą jawne parametry. Wspólna maszyneria serializacji powstanie **w chwili**, gdy pojawi się druga konfiguracja — nie wcześniej | — |
+| `Q3-3` | rig Q3 headless | `jozz_qc_rig.c/.h`, `--qc-trace`, `--qc-compare` | **ZAMKNIĘTY 2026-07-31**: samokontrola konstrukcji odmawia pracy, gdy zbudowany układ ≠ zamówiony |
+| `Q3-4` | okno `Quarter Car Scope` | `samples/sample_jozz_quarter_car.cpp` na TYM SAMYM rigu, wybór kandydata i drogi, okno pomiarowe na żywo | **ZAMKNIĘTY 2026-07-31**: obejrzane na zrzucie, nie zadeklarowane |
+| `Q3-5` | wzorzec zachowania | golden dla Q3, wpis w `check_all.py` | **OTWARTY** — dopiero po akceptacji rigu przez właściciela w oknie (reguła pracy 3) |
+| `Q3-6` | pierwsze porównanie | macierz kandydat × droga × prędkość, 3 powtórzenia na komórkę | **ZAMKNIĘTY 2026-07-31**: `F-21`…`F-24`, surowy przebieg `evidence/run_q3_compare_2026_07_31.txt` |
+| `Q3-7` | **nowa obwiednia `torus-N`** | pierścień N kapsuł jako trzeci wariant `JozzRigVariant`, dostępny także w Q2A | **ZAMKNIĘTY 2026-07-31**: aneks §4.1 kontraktu, decyzja właściciela uchyliła zakaz nowych obwiedni w tym etapie |
+
+**Stan na 2026-07-31: `Q3-0` i `Q3-1` ZAMKNIĘTE.** Kontrakt:
+`tools/jozz_wheel_bench/Q3_QUARTER_CAR_CONTRACT.md`. Sonda: `--qc-probe`,
+surowy przebieg `evidence/run_qc_probe_2026_07_31.txt`. Sonda **zmieniła projekt
+rigu w dwóch miejscach** — dokładnie po to szła pierwsza:
+
+1. **Napęd przez `b3Body_ApplyTorque`, nie przez silnik więzu** (`F-20`: silnik
+   daje 2,018× zadanego momentu, ze współczynnikiem zależnym od podkroków).
+2. **Protokół domyślny to stała prędkość z mierzonym momentem**, nie stały
+   moment — inaczej kandydaci jadą z różnymi prędkościami i wraca dokładnie ten
+   confound, który `KOLA_05` §1.1 opisuje jako główną wadę stendu v2.
+
+Trzy rzeczy ustawione **wbrew odruchowi**, każda z powodem:
+
+1. **Sonda silnika przed rigiem.** `Q3-1` może zmienić projekt `Q3-3`. Budowa
+   najpierw oznacza przebudowę po pomiarze — albo przemilczenie pomiaru.
+2. **Wzorzec zachowania na końcu.** Blokada założona na rig, którego nikt nie
+   oglądał, zamraża błąd i nadaje mu status faktu. Q2A dostał wzorzec po
+   akceptacji i tak samo ma być tutaj (reguła pracy 3, `KOLA_00`).
+3. **Okno służy feelowi, stend liczbom.** Hot-swap A/B jest konieczny, bo pamięć
+   feelu jest krótka — ale przebudowa ciała w trakcie przebiegu **znaczy sesję
+   jako A/B, nie jako pomiar**. Pomiary idą przez stend, jeden kandydat na
+   przebieg. Maszyneria oznaczania zaburzeń już to potrafi (V1v, §3).
+
+### Stan na koniec 2026-07-31: etap zamknięty poza `Q3-5`
+
+Właściciel uchylił ograniczenie „żadnych nowych obwiedni w tym etapie" i polecił
+skończyć **działającym nowym systemem koła**. Rig, okno i nowa obwiednia powstały
+w jednej sesji; ryzyko z reguły twardej 3 (nowy rig + nowy kandydat naraz)
+zostało spłacone tym, że **sfera i pryzmat są w tej samej tabeli** — gdyby rig
+był dziwny, byłyby dziwne razem z torusem.
+
+Zmierzone: `F-21` (torus-64 bije prism-42 o 33% straty i 83% `a_rms` przy 4 m/s),
+`F-22` (**wygrywa mimo o 57% większego tętnienia promienia** — decydują ostre
+krawędzie, nie amplituda), `F-23` (cena: 13× CPU), `F-24` (przy 13 m/s pojedynczy
+przebieg nie jest powtarzalny na poziomie progu ważności — stąd 3 powtórzenia na
+komórkę).
+
+Dwie rzeczy złapane przez konstrukcję, nie przez test:
+
+1. **Skok zawieszenia liczony od zera** — samokontrola odmówiła budowy, bo samo
+   ugięcie statyczne (111 mm) przekraczało zamówiony skok 100 mm. Kontrakt §5
+   podawał tylko sztywność; teraz podaje bump/droop **od punktu statycznego**.
+2. **Niewidoczna masa resorowana** — `categoryBits = 0` wycinało nadwozie także
+   z `b3World_Draw`, więc okno pokazywało koło wiszące w powietrzu. Zobaczone na
+   zrzucie. `maskBits = 0` w zupełności wystarcza, żeby nic nie kolidowało.
+
+Poza zakresem etapu, świadomie: prawo opony (`W3`) i prowadzenie boczne,
+rozszerzanie `JozzRigConfig` o pola zawieszenia (martwe pola w Q2A i zmiana
+nagłówka `# config` we wzorcach bez zmiany fizyki) oraz `jozz_vehicle_m6_
+suspension_rig.cpp` (1404 linie maszynerii pojazdu wpiętej w assety, które
+`KOLA_02` §3 nazywa blokerem; bierzemy stamtąd liczby i lekcję, nie kod).
+
 ### R1 — WIDZIALNOŚĆ (najwyższy priorytet po R0.5)
 
 **Pytanie:** sześć z dwunastu zjawisk (Z-04…Z-09, Z-11) jest dziś niemierzalnych.
@@ -478,6 +567,31 @@ U-21  Sweep po PREDKOSCI przy stalym dt, z jawnym przejsciem
 U-22  Sweep po LICZBIE SCIANEK N przy zamrozonej masie. Jedyny
       sposob odroznienia "wiecej scianek = gladziej" (F-03 mowi,
       ze falszywe) od efektu granicy fasetowania.                 -> R0.5
+U-23  Czy kandydaci o ROZNEJ masie nieresorowanej daja sie w ogole
+      uczciwie porownac. KOLA_05 1.3: ta sama liczba hertz to inna
+      sprezyna przy innej masie. Otwierane dopiero po Q3-1, bo
+      dopiero wtedy wiadomo, czy pytanie ma sens.                  -> Q3
+U-24  ZAMKNIETE 2026-07-31 -> F-18. Mapa jest DOKLADNA, nie
+      przyblizona: k = m_red*(2pi*f)^2 co do 5 cyfr. Zadane
+      13500 N/m -> hertz 3.17041 -> osiagniete 13500.0 N/m.
+U-25  ZAMKNIETE 2026-07-31 -> F-19. Wynik NEGATYWNY: sztywnosc
+      statyczna nie zalezy od podkrokow (1/2/4/8 identyczne do
+      5 cyfr), f_n zmienia sie o 1.9%. Zawieszenie NIE jest
+      miejscem wrazliwym na podkroki - wrazliwy jest kontakt.
+U-26  ZAMKNIETE 2026-07-31. Ramki ustawione poprawnie: kontrola
+      b3Body_ApplyTorque daje alfa/(tau/I_spin) = 1.013 przy
+      czystosci osi 1.0000. Przy okazji wyszlo F-20: silnik
+      wiezu daje 2.018x zadanego momentu.
+U-27  Czy suspensionDampingRatio jest przeskalowany, czy zmierzone
+      0.204 przy zadanych 0.35 to wlasnosc ukladu 2-DOF (masa
+      resorowana + nieresorowana na sztywnosci kontaktu) albo mojego
+      estymatora dekrementu. Sztywnosc statyczna jest wolna od tego
+      zastrzezenia, bo mierzy sie ja w rownowadze.                 -> Q3
+U-28  DLUG NARZEDZIOWY: sonda Q3-1 jest zarejestrowana jako
+      raw-only, wiec F-18/F-19/F-20 nie moga wskazac dowodu
+      maszynowo (odwolanie run#tabela wymaga schematu tabel
+      w evidence.py). Liczby w kontrakcie Q3 par.10 sa dzis
+      PRZEPISANE, a regula 9 chce generowanych.                    -> narzedzia
 ```
 
 **Uwaga do `U-20`…`U-22` (2026-07-31).** Te trzy sweepy zostały już raz

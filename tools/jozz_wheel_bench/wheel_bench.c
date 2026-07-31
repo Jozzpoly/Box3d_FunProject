@@ -25,9 +25,11 @@
 // Rig (swiat, cialo, material, masa, regulator, bilans pracy) zyje w osobnym
 // module, wspolnym z okienkiem wizualnym. Stend odpowiada tylko za PROTOKOL:
 // kwalifikacje, okno pomiarowe, CSV i manifest.
+#include "jozz_qc_rig.h"
 #include "jozz_wheel_rig.h"
 
 #include <math.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1756,6 +1758,903 @@ static int RigPerturbCheck( void )
 	return fail ? 1 : 0;
 }
 
+// ------------------------------------------------------------- sonda Q3-1
+// KOLA_05 par.1.3 TWIERDZI, ze `suspensionHertz` nie jest czestotliwoscia
+// resorowania, bo sztywnosc podaza za masa efektywna wiezu. To twierdzenie
+// powstalo z CZYTANIA src/wheel_joint.c. Przeczytany kod jest hipoteza
+// o zachowaniu, a nie zachowaniem - dlatego ta sonda go MIERZY.
+//
+// Sonda jest DIAGNOSTYKA, nie rigiem Q3. Buduje minimalny uklad wprost na API
+// silnika, zeby wynik nie zalezal od zadnej naszej warstwy. Rig Q3 powstaje PO
+// niej i ma prawo wygladac inaczej wlasnie dlatego, ze ona cos pokazala.
+//
+// Cztery pomiary, kazdy odpowiada na jedno pytanie z rejestru:
+//   A  sztywnosc statyczna przy kole        -> U-24
+//   B  czestotliwosc wlasna i tlumienie     -> U-24
+//   C  wrazliwosc na liczbe podkrokow       -> U-25
+//   D  alfa = tau / I, ktore I              -> U-26
+
+#define QC_PROBE_DT ( 1.0 / 60.0 )
+#define QC_MOUNT_H 0.6f
+
+typedef struct
+{
+	b3WorldId world;
+	b3BodyId ground;
+	b3BodyId chassis;
+	b3BodyId wheel;
+	b3JointId joint;
+} QcProbe;
+
+typedef struct
+{
+	double sprungKg;
+	double unsprungKg;
+	float hertz;
+	float zeta;
+	int substeps;
+	double gravity;
+	int withGround;
+	int chassisAngularFree;
+	float maxSpinTorque;
+} QcProbeDef;
+
+static b3Quat QcSuspensionFrame( void )
+{
+	// cx ramki A = os zawieszenia (src/wheel_joint.c:459) -> swiatowe +Y
+	// cz ramki A = os obrotu w spoczynku                  -> swiatowe +Z
+	b3Matrix3 m;
+	m.cx.x = 0.0f, m.cx.y = 1.0f, m.cx.z = 0.0f;
+	m.cy.x = -1.0f, m.cy.y = 0.0f, m.cy.z = 0.0f;
+	m.cz.x = 0.0f, m.cz.y = 0.0f, m.cz.z = 1.0f;
+	return b3MakeQuatFromMatrix( &m );
+}
+
+static b3Quat QcWheelFrame( void )
+{
+	// cz ramki B = os obrotu (src/wheel_joint.c:473). Cialo kola jest obrocone
+	// tak, ze jego LOKALNE Y lezy na swiatowym Z - a I_spin siedzi wlasnie na
+	// lokalnym Y (jozz_wheel_rig.c:810). Wiec cz ramki B musi byc lokalnym Y.
+	// To jest DOKLADNIE to miejsce, w ktorym blad sie nie wywala, tylko po cichu
+	// podstawia I_trans zamiast I_spin. Pomiar D sprawdza, czy trafilem.
+	b3Matrix3 m;
+	m.cx.x = 1.0f, m.cx.y = 0.0f, m.cx.z = 0.0f;
+	m.cy.x = 0.0f, m.cy.y = 0.0f, m.cy.z = -1.0f;
+	m.cz.x = 0.0f, m.cz.y = 1.0f, m.cz.z = 0.0f;
+	return b3MakeQuatFromMatrix( &m );
+}
+
+static void QcProbeBuild( QcProbe* p, const QcProbeDef* d )
+{
+	memset( p, 0, sizeof( *p ) );
+	JozzRigConfig base = JozzRig_DefaultConfig();
+
+	b3WorldDef wd = b3DefaultWorldDef();
+	wd.workerCount = 1;
+	wd.gravity.x = 0.0f;
+	wd.gravity.y = -(float)d->gravity;
+	wd.gravity.z = 0.0f;
+	p->world = b3CreateWorld( &wd );
+	b3World_EnableContinuous( p->world, false );
+
+	const float R = base.wheelR;
+
+	if ( d->withGround )
+	{
+		b3BodyDef gd = b3DefaultBodyDef();
+		gd.position.x = 0.0f, gd.position.y = -base.groundHalfY, gd.position.z = 0.0f;
+		p->ground = b3CreateBody( p->world, &gd );
+		b3ShapeDef gs = b3DefaultShapeDef();
+		gs.baseMaterial.friction = base.friction;
+		gs.baseMaterial.rollingResistance = 0.0f;
+		b3BoxHull box = b3MakeBoxHull( base.groundHalfX, base.groundHalfY, base.groundHalfZ );
+		b3CreateHullShape( p->ground, &gs, &box.base );
+	}
+
+	// Kolo: ta sama obwiednia, masa i bezwladnosc co Q2A. Sonda nie ma prawa
+	// mierzyc innego kola niz to, ktore potem pojedzie w rigu.
+	b3BodyDef bw = b3DefaultBodyDef();
+	bw.type = b3_dynamicBody;
+	bw.position.x = 0.0f, bw.position.y = R, bw.position.z = 0.0f;
+	{
+		b3Vec3 from, to;
+		from.x = 0.0f, from.y = 1.0f, from.z = 0.0f;
+		to.x = 0.0f, to.y = 0.0f, to.z = 1.0f;
+		bw.rotation = b3ComputeQuatBetweenUnitVectors( from, to );
+	}
+	bw.enableSleep = false;
+	bw.allowFastRotation = true;
+	p->wheel = b3CreateBody( p->world, &bw );
+	JozzRig_BuildEnvelopeEx( p->wheel, JOZZ_RIG_SPHERE, base.density, 0, base.wheelR, base.wheelW,
+							 base.friction );
+	JozzRig_FreezeMassEx( p->wheel, (float)d->unsprungKg, base.wheelR, base.inertiaSpinFactor,
+						  base.inertiaTransFactor );
+
+	// Nadwozie. KOLEJNOSC TYCH TRZECH KROKOW JEST CZESCIA KONSTRUKCJI, nie stylem:
+	//   shape -> blokady -> masa.
+	// Pierwsza wersja sondy nie miala shape'u i ustawiala mase PRZED blokadami.
+	// b3Body_SetMotionLocks wola b3UpdateBodyMassData, gdy zmienia sie status
+	// fixedRotation (src/body.c), a ten przelicza mase Z KSZTALTOW - wiec 150 kg
+	// po cichu stawalo sie 0 kg i caly pomiar mierzyl nieruchomy sufit.
+	// Shape istnieje po to, zeby cialo bylo samo w sobie spojne; maskBits = 0
+	// zamyka mu kolizje na poziomie filtra, wiec nadal o nic nie zawadza.
+	b3BodyDef bc = b3DefaultBodyDef();
+	bc.type = b3_dynamicBody;
+	bc.position.x = 0.0f, bc.position.y = R + QC_MOUNT_H, bc.position.z = 0.0f;
+	bc.enableSleep = false;
+	p->chassis = b3CreateBody( p->world, &bc );
+	{
+		b3ShapeDef cs = b3DefaultShapeDef();
+		cs.filter.categoryBits = 0;
+		cs.filter.maskBits = 0;
+		b3BoxHull cb = b3MakeBoxHull( 0.30f, 0.20f, 0.30f );
+		b3CreateHullShape( p->chassis, &cs, &cb.base );
+	}
+	{
+		b3MotionLocks lk;
+		memset( &lk, 0, sizeof( lk ) );
+		lk.linearZ = true;
+		lk.angularX = lk.angularY = lk.angularZ = d->chassisAngularFree ? false : true;
+		b3Body_SetMotionLocks( p->chassis, lk );
+	}
+	{
+		b3MassData md = b3Body_GetMassData( p->chassis );
+		md.mass = (float)d->sprungKg;
+		md.center.x = 0.0f, md.center.y = 0.0f, md.center.z = 0.0f;
+		float I = (float)d->sprungKg * 0.25f; // dowolna, ale JAWNA i wypisana
+		md.inertia.cx.x = I, md.inertia.cx.y = 0.0f, md.inertia.cx.z = 0.0f;
+		md.inertia.cy.x = 0.0f, md.inertia.cy.y = I, md.inertia.cy.z = 0.0f;
+		md.inertia.cz.x = 0.0f, md.inertia.cz.y = 0.0f, md.inertia.cz.z = I;
+		b3Body_SetMassData( p->chassis, md );
+	}
+
+	b3WheelJointDef jd = b3DefaultWheelJointDef();
+	jd.base.bodyIdA = p->chassis;
+	jd.base.bodyIdB = p->wheel;
+	jd.base.localFrameA.p.x = 0.0f, jd.base.localFrameA.p.y = -QC_MOUNT_H, jd.base.localFrameA.p.z = 0.0f;
+	jd.base.localFrameA.q = QcSuspensionFrame();
+	jd.base.localFrameB.p.x = 0.0f, jd.base.localFrameB.p.y = 0.0f, jd.base.localFrameB.p.z = 0.0f;
+	jd.base.localFrameB.q = QcWheelFrame();
+	jd.base.collideConnected = false;
+	jd.enableSuspensionSpring = true;
+	jd.suspensionHertz = d->hertz;
+	jd.suspensionDampingRatio = d->zeta;
+	jd.enableSuspensionLimit = false; // sonda mierzy SPREZYNE, nie zderzaki
+	jd.enableSteering = false;
+	jd.enableSpinMotor = d->maxSpinTorque > 0.0f;
+	jd.maxSpinTorque = d->maxSpinTorque;
+	// Silnik predkosciowy z nieosiagalna zadana predkoscia = zrodlo STALEGO
+	// momentu. To jedyny sposob, zeby "napedzany momentem" znaczylo moment.
+	jd.spinSpeed = d->maxSpinTorque > 0.0f ? 1.0e6f : 0.0f;
+	p->joint = b3CreateWheelJoint( p->world, &jd );
+}
+
+static void QcProbeDestroy( QcProbe* p )
+{
+	if ( B3_IS_NON_NULL( p->world ) )
+		b3DestroyWorld( p->world );
+	memset( p, 0, sizeof( *p ) );
+}
+
+// Dodatnia = nadwozie BLIZEJ kola. Znak jest tu ZMIERZONY przez konstrukcje,
+// nie zalozony: kontrakt Q3 par.10 wymaga wypisania konwencji.
+static double QcTravel( const QcProbe* p )
+{
+	b3Pos c = b3Body_GetPosition( p->chassis );
+	b3Pos w = b3Body_GetPosition( p->wheel );
+	return (double)QC_MOUNT_H - ( (double)c.y - (double)w.y );
+}
+
+static void QcStep( QcProbe* p, const QcProbeDef* d, int n )
+{
+	for ( int i = 0; i < n; ++i )
+		b3World_Step( p->world, (float)QC_PROBE_DT, d->substeps );
+}
+
+typedef struct
+{
+	double staticTravel; // m, ugiecie w rownowadze
+	double kMeasured;	 // N/m, sprung*g / ugiecie
+	double fn;			 // Hz, z przejsc przez zero
+	double zetaMeasured; // z dekrementu logarytmicznego
+	int crossings;
+} QcSpringResult;
+
+static QcSpringResult QcMeasureSpring( const QcProbeDef* d )
+{
+	QcSpringResult r;
+	memset( &r, 0, sizeof( r ) );
+
+	QcProbe p;
+	QcProbeBuild( &p, d );
+
+	// A) statyka: 20 s na uspokojenie, potem ugiecie wzgledem stanu montazu
+	QcStep( &p, d, 1200 );
+	r.staticTravel = QcTravel( &p );
+	if ( fabs( r.staticTravel ) > 1e-9 )
+		r.kMeasured = d->sprungKg * d->gravity / r.staticTravel;
+
+	// B) dynamika: kopniecie PREDKOSCIA (nie teleportem - teleport wnosi wlasny
+	// artefakt), potem przejscia przez zero wzgledem nowej rownowagi
+	const double eq = r.staticTravel;
+	{
+		b3Vec3 v = b3Body_GetLinearVelocity( p.chassis );
+		v.y = -1.0f;
+		b3Body_SetLinearVelocity( p.chassis, v );
+	}
+
+	enum
+	{
+		QC_SAMPLES = 900
+	};
+	static double sig[QC_SAMPLES];
+	for ( int i = 0; i < QC_SAMPLES; ++i )
+	{
+		QcStep( &p, d, 1 );
+		sig[i] = QcTravel( &p ) - eq;
+	}
+
+	// czestotliwosc: srednia odleglosc miedzy kolejnymi przejsciami przez zero
+	double firstCross = -1.0, lastCross = -1.0;
+	int nc = 0;
+	for ( int i = 1; i < QC_SAMPLES; ++i )
+	{
+		if ( ( sig[i - 1] <= 0.0 && sig[i] > 0.0 ) || ( sig[i - 1] >= 0.0 && sig[i] < 0.0 ) )
+		{
+			double denom = sig[i] - sig[i - 1];
+			double frac = fabs( denom ) > 1e-15 ? ( -sig[i - 1] / denom ) : 0.0;
+			double t = ( (double)( i - 1 ) + frac ) * QC_PROBE_DT;
+			if ( nc == 0 )
+				firstCross = t;
+			lastCross = t;
+			nc += 1;
+		}
+	}
+	r.crossings = nc;
+	if ( nc >= 3 )
+	{
+		double halfPeriod = ( lastCross - firstCross ) / (double)( nc - 1 );
+		if ( halfPeriod > 1e-9 )
+			r.fn = 1.0 / ( 2.0 * halfPeriod );
+	}
+
+	// tlumienie: dekrement logarytmiczny na dwoch pierwszych szczytach tego
+	// samego znaku (szukamy ekstremow lokalnych po obu stronach zera)
+	{
+		double a1 = 0.0, a2 = 0.0;
+		int found = 0;
+		for ( int i = 1; i < QC_SAMPLES - 1 && found < 2; ++i )
+		{
+			int isPeak = ( sig[i] > sig[i - 1] && sig[i] >= sig[i + 1] && sig[i] > 0.0 );
+			if ( isPeak )
+			{
+				if ( found == 0 )
+					a1 = sig[i];
+				else
+					a2 = sig[i];
+				found += 1;
+			}
+		}
+		if ( found == 2 && a2 > 1e-12 && a1 > a2 )
+		{
+			double delta = log( a1 / a2 );
+			r.zetaMeasured = delta / sqrt( 4.0 * JOZZ_RIG_PI * JOZZ_RIG_PI + delta * delta );
+		}
+	}
+
+	QcProbeDestroy( &p );
+	return r;
+}
+
+typedef struct
+{
+	double alpha;	  // rad/s^2, zmierzone
+	double omegaEnd;  // rad/s po oknie
+	double axisPurity; // |w_os| / |w|, 1.0 = obrot dokladnie wokol osi kola
+} QcTorqueResult;
+
+static QcTorqueResult QcMeasureTorque( const QcProbeDef* d, int steps )
+{
+	QcTorqueResult r;
+	memset( &r, 0, sizeof( r ) );
+
+	QcProbe p;
+	QcProbeBuild( &p, d );
+	QcStep( &p, d, steps );
+
+	b3Vec3 w = b3Body_GetAngularVelocity( p.wheel );
+	double mag = sqrt( (double)w.x * w.x + (double)w.y * w.y + (double)w.z * w.z );
+	// os kola w swiecie to +Z (cialo obrocone tak, ze lokalne Y lezy na Z)
+	r.omegaEnd = fabs( (double)w.z );
+	r.axisPurity = mag > 1e-12 ? r.omegaEnd / mag : 0.0;
+	r.alpha = r.omegaEnd / ( (double)steps * QC_PROBE_DT );
+
+	QcProbeDestroy( &p );
+	return r;
+}
+
+static void QcEmit( FILE* f, const char* fmt, ... )
+{
+	va_list ap;
+	va_start( ap, fmt );
+	vprintf( fmt, ap );
+	va_end( ap );
+	if ( f )
+	{
+		va_start( ap, fmt );
+		vfprintf( f, fmt, ap );
+		va_end( ap );
+	}
+}
+
+static int QcProbeRun( const char* outPath )
+{
+	FILE* f = outPath ? fopen( outPath, "wb" ) : NULL;
+	if ( outPath && f == NULL )
+	{
+		fprintf( stderr, "BLAD: nie moge zapisac %s\n", outPath );
+		return 3;
+	}
+
+	JozzRigConfig base = JozzRig_DefaultConfig();
+	const double SPRUNG = 150.0;
+	const double UNSPRUNG = base.massKg;
+	const double G = base.gravity;
+
+	QcEmit( f, "# SONDA Q3-1 - kalibracja wiezu b3WheelJoint\n" );
+	QcEmit( f, "# git %s (%s), rig sha256 %s\n", BENCH_GIT_SHA, BENCH_GIT_DIRTY, BENCH_RIG_SHA256 );
+	QcEmit( f, "#\n" );
+	QcEmit( f, "# masa resorowana %.1f kg, nieresorowana %.1f kg, g = %.2f\n", SPRUNG, UNSPRUNG, G );
+	QcEmit( f, "# dt = 1/60 s, kolo = sfera R %.4f m, I_spin %.2f mR^2, I_trans %.2f mR^2\n",
+			base.wheelR, base.inertiaSpinFactor, base.inertiaTransFactor );
+	QcEmit( f, "# nadwozie: b3MotionLocks linearZ + wszystkie katowe (jesli nie napisano inaczej)\n\n" );
+
+	// ---- 0: czy uklad jest tym, co myslalem, ze zbudowalem --------------
+	// Ta sekcja istnieje, bo pierwszy przebieg sondy dal ugiecie ~7000x mniejsze
+	// od modelu I zerowa roznice miedzy zablokowanym a swobodnym nadwoziem.
+	// Zanim wyciagne wniosek o silniku, sprawdzam WLASNA konstrukcje.
+	{
+		QcProbeDef d;
+		memset( &d, 0, sizeof( d ) );
+		d.sprungKg = 150.0;
+		d.unsprungKg = UNSPRUNG;
+		d.hertz = 1.5f;
+		d.zeta = 0.35f;
+		d.substeps = base.substeps;
+		d.gravity = G;
+		d.withGround = 1;
+		QcProbe p;
+		QcProbeBuild( &p, &d );
+		b3MassData mc = b3Body_GetMassData( p.chassis );
+		b3MassData mw = b3Body_GetMassData( p.wheel );
+		QcEmit( f, "== 0: kontrola konstrukcji ==\n" );
+		QcEmit( f, "nadwozie: b3Body_GetMass %.4f kg, massData.mass %.4f kg, I_zz %.4f\n",
+				b3Body_GetMass( p.chassis ), mc.mass, mc.inertia.cz.z );
+		QcEmit( f, "kolo    : b3Body_GetMass %.4f kg, massData.mass %.4f kg, I_yy %.4f (os obrotu)\n",
+				b3Body_GetMass( p.wheel ), mw.mass, mw.inertia.cy.y );
+		QcEmit( f, "zadane  : nadwozie %.1f kg, kolo %.1f kg, I_spin %.4f\n", d.sprungKg, d.unsprungKg,
+				base.inertiaSpinFactor * UNSPRUNG * (double)base.wheelR * base.wheelR );
+		QcEmit( f, "translacja wiezu w chwili montazu: %.9f m\n", QcTravel( &p ) );
+
+		// Sonda, ktora nie sprawdza wlasnej konstrukcji, mierzy cokolwiek.
+		// Ten warunek zapalil sie na czerwono przy pierwszym przebiegu i wlasnie
+		// dlatego zostaje w kodzie na stale.
+		int bad = 0;
+		if ( fabs( (double)b3Body_GetMass( p.chassis ) - d.sprungKg ) > 1e-3 )
+			bad = 1;
+		if ( fabs( (double)b3Body_GetMass( p.wheel ) - d.unsprungKg ) > 1e-3 )
+			bad = 1;
+		if ( fabs( QcTravel( &p ) ) > 1e-6 )
+			bad = 1;
+		QcProbeDestroy( &p );
+		if ( bad )
+		{
+			QcEmit( f, "\nSONDA ODMAWIA PRACY: zbudowany uklad nie jest tym, ktory zamowiono.\n" );
+			if ( f )
+				fclose( f );
+			return 1;
+		}
+		QcEmit( f, "kontrola konstrukcji: OK\n\n" );
+	}
+
+	const double mRed = SPRUNG * UNSPRUNG / ( SPRUNG + UNSPRUNG );
+	QcEmit( f, "masa zredukowana obu cial : %.4f kg\n", mRed );
+	QcEmit( f, "masa resorowana           : %.4f kg\n", SPRUNG );
+	QcEmit( f, "iloraz                    : %.4f\n\n", SPRUNG / mRed );
+
+	// ---- A + B: co naprawde ustawia `hertz` -------------------------------
+	QcEmit( f, "== A+B: sztywnosc i czestotliwosc wlasna wobec zadanego `hertz` ==\n" );
+	QcEmit( f, "# k_pred_sprung = m_sprung*(2pi*f)^2   - gdyby hertz byl czestotliwoscia resoru\n" );
+	QcEmit( f, "# k_pred_red    = m_red*(2pi*f)^2      - gdyby szedl za masa efektywna wiezu\n\n" );
+	QcEmit( f, "%8s %12s %12s %12s %12s %10s %10s\n", "hertz", "ugiecie[m]", "k_zmierz", "k_pred_spr",
+			"k_pred_red", "f_n[Hz]", "zeta_zm" );
+
+	const float hertzSweep[] = { 0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 6.0f };
+	for ( int i = 0; i < (int)( sizeof( hertzSweep ) / sizeof( hertzSweep[0] ) ); ++i )
+	{
+		QcProbeDef d;
+		memset( &d, 0, sizeof( d ) );
+		d.sprungKg = SPRUNG;
+		d.unsprungKg = UNSPRUNG;
+		d.hertz = hertzSweep[i];
+		d.zeta = 0.35f;
+		d.substeps = base.substeps;
+		d.gravity = G;
+		d.withGround = 1;
+		QcSpringResult r = QcMeasureSpring( &d );
+
+		double omega = 2.0 * JOZZ_RIG_PI * hertzSweep[i];
+		QcEmit( f, "%8.2f %12.6f %12.1f %12.1f %12.1f %10.3f %10.3f\n", hertzSweep[i], r.staticTravel,
+				r.kMeasured, SPRUNG * omega * omega, mRed * omega * omega, r.fn, r.zetaMeasured );
+	}
+
+	// ---- punkt pracy kontraktu Q3 -----------------------------------------
+	// Kontrakt zamawia sztywnosc w N/m. Tu jest jedyne miejsce, w ktorym ta
+	// liczba zamienia sie na `hertz` - i od razu jest SPRAWDZANA pomiarem.
+	{
+		const double K_TARGET = 13500.0;
+		const double hz = sqrt( K_TARGET / mRed ) / ( 2.0 * JOZZ_RIG_PI );
+		QcProbeDef d;
+		memset( &d, 0, sizeof( d ) );
+		d.sprungKg = SPRUNG;
+		d.unsprungKg = UNSPRUNG;
+		d.hertz = (float)hz;
+		d.zeta = 0.35f;
+		d.substeps = base.substeps;
+		d.gravity = G;
+		d.withGround = 1;
+		QcSpringResult r = QcMeasureSpring( &d );
+		QcEmit( f, "\n== punkt pracy kontraktu Q3 ==\n" );
+		QcEmit( f, "zadana sztywnosc przy kole : %.1f N/m\n", K_TARGET );
+		QcEmit( f, "wyliczony hertz            : %.5f Hz\n", hz );
+		QcEmit( f, "OSIAGNIETA sztywnosc       : %.1f N/m  (blad %+.3f %%)\n", r.kMeasured,
+				100.0 * ( r.kMeasured - K_TARGET ) / K_TARGET );
+		QcEmit( f, "ugiecie statyczne          : %.4f m\n", r.staticTravel );
+		QcEmit( f, "czestotliwosc resoru f_n   : %.4f Hz  (zadany hertz byl %.4f)\n", r.fn, hz );
+		QcEmit( f, "tlumienie zmierzone        : %.4f  (zadane zeta 0.35)\n", r.zetaMeasured );
+	}
+
+	// ---- C: wrazliwosc na liczbe podkrokow --------------------------------
+	QcEmit( f, "\n== C: ta sama sprezyna, rozna liczba podkrokow (U-25) ==\n" );
+	QcEmit( f, "# hertz = 1.50, zeta = 0.35, wszystko inne zamrozone\n\n" );
+	QcEmit( f, "%10s %12s %12s %10s\n", "podkroki", "ugiecie[m]", "k_zmierz", "f_n[Hz]" );
+	const int subSweep[] = { 1, 2, 4, 8 };
+	for ( int i = 0; i < 4; ++i )
+	{
+		QcProbeDef d;
+		memset( &d, 0, sizeof( d ) );
+		d.sprungKg = SPRUNG;
+		d.unsprungKg = UNSPRUNG;
+		d.hertz = 1.5f;
+		d.zeta = 0.35f;
+		d.substeps = subSweep[i];
+		d.gravity = G;
+		d.withGround = 1;
+		QcSpringResult r = QcMeasureSpring( &d );
+		QcEmit( f, "%10d %12.6f %12.1f %10.3f\n", subSweep[i], r.staticTravel, r.kMeasured, r.fn );
+	}
+
+	// ---- D: alfa = tau / I, ktore I ---------------------------------------
+	QcEmit( f, "\n== D: moment napedowy - ktora bezwladnosc odpowiada (U-26) ==\n" );
+	const double R2 = (double)base.wheelR * base.wheelR;
+	const double iSpin = base.inertiaSpinFactor * UNSPRUNG * R2;
+	const double iTrans = base.inertiaTransFactor * UNSPRUNG * R2;
+	const float TAU = 500.0f;
+	QcEmit( f, "# tau = %.1f N*m, kolo w powietrzu, g = 0\n", TAU );
+	QcEmit( f, "# I_spin  = %.4f kg*m^2 -> alfa oczekiwana %.3f rad/s^2\n", iSpin, TAU / iSpin );
+	QcEmit( f, "# I_trans = %.4f kg*m^2 -> alfa oczekiwana %.3f rad/s^2\n\n", iTrans, TAU / iTrans );
+	// KONTROLA: moment przylozony WPROST do ciala, z pominieciem wiezu. Bez tego
+	// nie da sie odroznic "silnik wiezu jest przeskalowany" od "bezwladnosc kola
+	// jest inna, niz mysle" - a to sa dwa zupelnie rozne wnioski.
+	{
+		QcProbeDef d;
+		memset( &d, 0, sizeof( d ) );
+		d.sprungKg = SPRUNG;
+		d.unsprungKg = UNSPRUNG;
+		d.hertz = 1.5f;
+		d.zeta = 0.35f;
+		d.substeps = base.substeps;
+		d.gravity = 0.0;
+		d.withGround = 0;
+		d.maxSpinTorque = 0.0f; // silnik WYLACZONY
+		QcProbe p;
+		QcProbeBuild( &p, &d );
+		b3Vec3 t;
+		t.x = 0.0f, t.y = 0.0f, t.z = TAU;
+		for ( int i = 0; i < 60; ++i )
+		{
+			b3Body_ApplyTorque( p.wheel, t, true );
+			b3World_Step( p.world, (float)QC_PROBE_DT, d.substeps );
+		}
+		b3Vec3 w = b3Body_GetAngularVelocity( p.wheel );
+		double alpha = fabs( (double)w.z ) / ( 60.0 * QC_PROBE_DT );
+		QcEmit( f, "KONTROLA b3Body_ApplyTorque (bez wiezu): alfa %.3f rad/s^2, iloraz_spin %.4f\n\n",
+				alpha, alpha / ( TAU / iSpin ) );
+		QcProbeDestroy( &p );
+	}
+
+	QcEmit( f, "%22s %8s %6s %12s %12s %12s\n", "nadwozie", "tau", "podkr", "alfa_zmierz", "iloraz_spin",
+			"czystosc_osi" );
+	const float tauSweep[] = { 100.0f, 500.0f, 1000.0f };
+	const int tauSubs[] = { 1, 4, 8 };
+	for ( int variant = 0; variant < 2; ++variant )
+	{
+		for ( int ti = 0; ti < 3; ++ti )
+		{
+			for ( int si = 0; si < 3; ++si )
+			{
+				QcProbeDef d;
+				memset( &d, 0, sizeof( d ) );
+				d.sprungKg = SPRUNG;
+				d.unsprungKg = UNSPRUNG;
+				d.hertz = 1.5f;
+				d.zeta = 0.35f;
+				d.substeps = tauSubs[si];
+				d.gravity = 0.0;
+				d.withGround = 0;
+				d.chassisAngularFree = variant;
+				d.maxSpinTorque = tauSweep[ti];
+				QcTorqueResult r = QcMeasureTorque( &d, 60 );
+				QcEmit( f, "%22s %8.0f %6d %12.3f %12.4f %12.4f\n",
+						variant ? "obrot SWOBODNY" : "obrot zablokowany", tauSweep[ti], tauSubs[si], r.alpha,
+						r.alpha / ( tauSweep[ti] / iSpin ), r.axisPurity );
+			}
+		}
+	}
+
+	QcEmit( f, "\n# Czytanie wyniku: `iloraz_spin` blisko 1.000 znaczy, ze moment\n" );
+	QcEmit( f, "# dziala na I_spin - czyli ramka B jest ustawiona poprawnie.\n" );
+	QcEmit( f, "# `czystosc_osi` blisko 1.000 znaczy, ze kolo kreci sie wokol swojej osi.\n" );
+
+	if ( f )
+		fclose( f );
+	return 0;
+}
+
+// ================================================================ Q3: QUARTER CAR
+//
+// Protokol, nie fizyka. Fizyka jest w jozz_qc_rig.c i jest ta sama dla okna.
+// Kontrakt: Q3_QUARTER_CAR_CONTRACT.md.
+
+#define QC_WARMUP_STEPS 120 // 2 s: dojazd do progu i wygaszenie startowego stanu
+#define QC_WINDOW_STEPS 600 // 10 s okna pomiarowego
+
+typedef struct
+{
+	const char* label;
+	JozzRigVariant variant;
+	int segments;
+} QcCandidate;
+
+// Lista kandydatow JEST eksperymentem, nie wygoda interfejsu. Kazda pozycja
+// odpowiada na inne pytanie:
+//   sphere       kontrola: obwiednia bez zadnej struktury
+//   prism-Nmax   dzisiejsze kolo produktu, na granicy tego, co przyjmuje hull
+//   prism-32     ten sam pryzmat przy N rownym torusowi (uczciwe zestawienie)
+//   torus-32     nowy kandydat przy tym samym N co pryzmat
+//   torus-64     nowy kandydat TAM, GDZIE PRYZMAT JUZ NIE SIEGA
+static int QcCandidates( QcCandidate* out, int cap )
+{
+	int nMax = JozzRig_ProbeMaxPrismSides();
+	int n = 0;
+	if ( n < cap )
+		out[n++] = ( QcCandidate ){ "sphere", JOZZ_RIG_SPHERE, 0 };
+	if ( n < cap )
+		out[n++] = ( QcCandidate ){ "prism-Nmax", JOZZ_RIG_PRISM_MAX, nMax };
+	if ( n < cap )
+		out[n++] = ( QcCandidate ){ "prism-32", JOZZ_RIG_PRISM_MAX, 32 };
+	if ( n < cap )
+		out[n++] = ( QcCandidate ){ "torus-32", JOZZ_RIG_TORUS, 32 };
+	if ( n < cap )
+		out[n++] = ( QcCandidate ){ "torus-64", JOZZ_RIG_TORUS, 64 };
+	return n;
+}
+
+// Ile razy powtarzamy KAZDA komorke macierzy i o ile przesuwamy punkt startu.
+//
+// Powod jest zmierzony, nie ostroznosciowy: przesuniecie wysokosci mocowania
+// nadwozia o 35 cm - wielkosc geometrycznie NEUTRALNA dla tego wiezu - przerzucilo
+// `airborne` dla torus-32 przy 13 m/s z 6.0% na 10.8%, czyli przez prog wazności.
+// Kolo skaczace po fasetach jest ukladem chaotycznym. Pojedynczy przebieg podaje
+// wiec liczbe z dokladnoscia, ktorej nie ma, a roznica dwoch pojedynczych
+// przebiegow nie odroznia kandydata od zaokraglenia.
+//
+// Przesuwamy PUNKT STARTU, a nie cokolwiek w konstrukcji: to jedyna zmiana,
+// ktora na plaskiej plycie nie dotyka ani kola, ani zawieszenia, ani drogi -
+// zmienia wylacznie faze, w ktorej obwiednia spotyka pierwszy krok.
+#define QC_REPEATS 3
+static const double s_qcStartJitter[QC_REPEATS] = { 0.0, 0.0137, 0.0271 };
+
+typedef struct
+{
+	JozzQcWindow win;
+	double msPerStep;
+	int shapes;
+	double ripple;
+	int built;
+	char err[192];
+} QcRunResult;
+
+// Wynik komorki: srednia z powtorzen i POLOWA ROZRZUTU. Rozrzut jest tu rowno
+// wazny z wartoscia - bez niego tabela zaprasza do czytania roznic, ktorych nie
+// ma. `invalid` zapala sie, gdy KTOREKOLWIEK powtorzenie bylo niewazne.
+typedef struct
+{
+	double torque, torqueSpread;
+	double loss;
+	double accel, accelSpread;
+	double airborne, airborneSpread;
+	double travelRms;
+	double churn;
+	double slip;
+	double speed;
+	double msPerStep;
+	int shapes;
+	double ripple;
+	int repeats;
+	int invalid;
+	int built;
+	char err[192];
+	char why[160];
+} QcCell;
+
+static void QcAccumulate( double v, double* mean, double* lo, double* hi, int first )
+{
+	*mean += v;
+	if ( first || v < *lo )
+		*lo = v;
+	if ( first || v > *hi )
+		*hi = v;
+}
+
+// Jeden przebieg: rozgrzewka, potem okno pomiarowe. `tracePath` moze byc NULL.
+static QcRunResult QcRunOne( const JozzQcConfig* cfg, const char* tracePath )
+{
+	QcRunResult r;
+	memset( &r, 0, sizeof( r ) );
+	JozzQc_WindowBegin( &r.win );
+
+	JozzQcRig rig;
+	if ( JozzQc_Create( &rig, cfg, NULL, r.err, sizeof( r.err ) ) == 0 )
+		return r;
+	r.built = 1;
+	r.shapes = rig.shapeCount;
+	{
+		JozzRigConfig w = JozzQc_WheelConfig( cfg );
+		r.ripple = JozzRig_EnvelopeRipple( &w );
+	}
+
+	FILE* f = NULL;
+	if ( tracePath )
+	{
+		f = fopen( tracePath, "wb" );
+		if ( f == NULL )
+		{
+			snprintf( r.err, sizeof( r.err ), "nie moge otworzyc %s do zapisu", tracePath );
+			JozzQc_Destroy( &rig );
+			r.built = 0;
+			return r;
+		}
+		char cd[768];
+		JozzQc_ConfigDigest( cfg, cd, sizeof( cd ) );
+		fprintf( f, "# rig=Q3-quarter-car warmup=%d window=%d shapes=%d ripple_mm=%.4f\n", QC_WARMUP_STEPS,
+				 QC_WINDOW_STEPS, r.shapes, 1000.0 * r.ripple );
+		fprintf( f, "# config %s\n", cd );
+		fprintf( f, "# build %s %s rig=%s\n", BENCH_GIT_SHA, BENCH_GIT_DIRTY, BENCH_RIG_SHA256 );
+		fprintf( f, "%s", JOZZ_QC_TRACE_HEADER );
+	}
+
+	JozzQcSample s;
+	for ( int i = 0; i < QC_WARMUP_STEPS; ++i )
+		JozzQc_Step( &rig, &s );
+
+	double t0 = NowMs();
+	char line[640];
+	for ( int i = 0; i < QC_WINDOW_STEPS; ++i )
+	{
+		JozzQc_Step( &rig, &s );
+		JozzQc_WindowAdd( &r.win, &s );
+		if ( f )
+		{
+			JozzQc_TraceLine( &s, line, sizeof( line ) );
+			fputs( line, f );
+		}
+	}
+	r.msPerStep = ( NowMs() - t0 ) / (double)QC_WINDOW_STEPS;
+	JozzQc_WindowEnd( &r.win, &rig );
+	JozzQc_Destroy( &rig );
+	if ( f )
+		fclose( f );
+	return r;
+}
+
+static QcCell QcRunCell( const JozzQcConfig* base )
+{
+	QcCell c;
+	memset( &c, 0, sizeof( c ) );
+	double tLo = 0, tHi = 0, aLo = 0, aHi = 0, bLo = 0, bHi = 0;
+
+	for ( int i = 0; i < QC_REPEATS; ++i )
+	{
+		JozzQcConfig cfg = *base;
+		cfg.startX += s_qcStartJitter[i];
+		QcRunResult r = QcRunOne( &cfg, NULL );
+		if ( !r.built )
+		{
+			snprintf( c.err, sizeof( c.err ), "%s", r.err );
+			return c;
+		}
+		c.built = 1;
+		c.shapes = r.shapes;
+		c.ripple = r.ripple;
+		QcAccumulate( r.win.driveTorqueMean, &c.torque, &tLo, &tHi, i == 0 );
+		QcAccumulate( r.win.sprungAccelRms, &c.accel, &aLo, &aHi, i == 0 );
+		QcAccumulate( r.win.airborneFraction, &c.airborne, &bLo, &bHi, i == 0 );
+		c.loss += r.win.lossPower;
+		c.travelRms += r.win.travelRms;
+		c.churn += r.win.contactChurnPct;
+		c.slip += r.win.slipRatioMean;
+		c.speed += r.win.speedMean;
+		c.msPerStep += r.msPerStep;
+		c.repeats += 1;
+		if ( r.win.invalid && c.invalid == 0 )
+		{
+			c.invalid = 1;
+			snprintf( c.why, sizeof( c.why ), "%s", r.win.invalidWhy );
+		}
+	}
+
+	double n = (double)c.repeats;
+	c.torque /= n, c.accel /= n, c.airborne /= n;
+	c.loss /= n, c.travelRms /= n, c.churn /= n, c.slip /= n, c.speed /= n, c.msPerStep /= n;
+	c.torqueSpread = 0.5 * ( tHi - tLo );
+	c.accelSpread = 0.5 * ( aHi - aLo );
+	c.airborneSpread = 0.5 * ( bHi - bLo );
+	return c;
+}
+
+static int QcParseVariant( const char* name, JozzRigVariant* out )
+{
+	for ( int i = 0; i < JOZZ_RIG_VARIANT_COUNT; ++i )
+	{
+		if ( strcmp( name, JozzRig_VariantName( (JozzRigVariant)i ) ) == 0 )
+		{
+			*out = (JozzRigVariant)i;
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static int QcParseRoad( const char* name, JozzQcRoad* out )
+{
+	for ( int i = 0; i < JOZZ_QC_ROAD_COUNT; ++i )
+	{
+		if ( strcmp( name, JozzQc_RoadName( (JozzQcRoad)i ) ) == 0 )
+		{
+			*out = (JozzQcRoad)i;
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static int QcTrace( const char* path, const JozzQcConfig* cfg )
+{
+	FILE* probe = fopen( path, "rb" );
+	if ( probe )
+	{
+		fclose( probe );
+		fprintf( stderr, "BLAD: %s juz istnieje - trace nie nadpisuje plikow\n", path );
+		return 3;
+	}
+	QcRunResult r = QcRunOne( cfg, path );
+	if ( !r.built )
+	{
+		fprintf( stderr, "BLAD: %s\n", r.err );
+		return 5;
+	}
+	printf( "Q3 trace -> %s\n", path );
+	printf( "  kandydat %s N=%d  ksztaltow %d  tetnienie %.3f mm\n", JozzRig_VariantName( cfg->variant ),
+			cfg->segments, r.shapes, 1000.0 * r.ripple );
+	printf( "  droga %s  napd %s  v_zad %.2f m/s  hertz %.5f (z %.0f N/m)\n", JozzQc_RoadName( cfg->road ),
+			JozzQc_DriveName( cfg->drive ), cfg->targetSpeed, JozzQc_Hertz( cfg ), (double)cfg->springNPerM );
+	printf( "  moment %.2f Nm  strata %.1f W  a_rms %.3f m/s2  w powietrzu %.1f%%  skok rms %.4f m\n",
+			r.win.driveTorqueMean, r.win.lossPower, r.win.sprungAccelRms, 100.0 * r.win.airborneFraction,
+			r.win.travelRms );
+	if ( r.win.invalid )
+		printf( "  PRZEBIEG NIEWAZNY: %s\n", r.win.invalidWhy );
+	return 0;
+}
+
+// Macierz kandydat x droga x predkosc. To jest realny wynik etapu Q3: jedna
+// tabela, w ktorej nowy kandydat stoi obok dzisiejszego kola produktu w tych
+// samych warunkach, z jawnym znacznikiem wazności kazdego przebiegu.
+static int QcCompare( const char* csvPath )
+{
+	FILE* probe = fopen( csvPath, "rb" );
+	if ( probe )
+	{
+		fclose( probe );
+		fprintf( stderr, "BLAD: %s juz istnieje\n", csvPath );
+		return 3;
+	}
+	FILE* f = fopen( csvPath, "wb" );
+	if ( f == NULL )
+	{
+		fprintf( stderr, "BLAD: nie moge otworzyc %s\n", csvPath );
+		return 3;
+	}
+
+	QcCandidate cand[8];
+	int nc = QcCandidates( cand, 8 );
+	// Dwie predkosci, bo to dwa ROZNE rezimy przyrzadu, nie dwa punkty pracy:
+	//   13.0  predkosc kontraktowa Q2A; ~2.2 elementu obwiedni na krok, wiec
+	//         struktura obwiedni jest PONIZEJ rozdzielczosci czasowej solvera
+	//   4.0   ponizej predkosci ciaglego styku dla tego rigu (~4.8 m/s) i ~0.7
+	//         elementu na krok, wiec obwiednia jest widzialna
+	const double speeds[2] = { 13.0, 4.0 };
+
+	fprintf( f, "# Q3 quarter car - porownanie kandydatow\n" );
+	fprintf( f, "# build %s %s rig=%s\n", BENCH_GIT_SHA, BENCH_GIT_DIRTY, BENCH_RIG_SHA256 );
+	fprintf( f, "# warmup=%d window=%d repeats=%d\n", QC_WARMUP_STEPS, QC_WINDOW_STEPS, QC_REPEATS );
+	fprintf( f, "candidate,segments,shapes,ripple_mm,road,target_v,drive_torque_nm,torque_spread,loss_power_w,"
+				"sprung_accel_rms,accel_spread,airborne_frac,airborne_spread,travel_rms,churn_pct,"
+				"slip_mean,speed_mean,ms_per_step,valid,why\n" );
+
+	printf( "\n=== Q3 QUARTER CAR - porownanie kandydatow ===\n" );
+	printf( "sprezyna 13500 N/m, zeta 0.35, masa resorowana 150 kg, nieresorowana 44 kg\n" );
+	printf( "okno %d krokow po %d krokach rozgrzewki, dt 1/60, 4 podkroki\n", QC_WINDOW_STEPS,
+			QC_WARMUP_STEPS );
+	printf( "kazda komorka to %d przebiegi z przesunietym punktem startu; +- to POLOWA ROZRZUTU\n\n",
+			QC_REPEATS );
+
+	for ( int si = 0; si < 2; ++si )
+	{
+		for ( int ri = 0; ri < JOZZ_QC_ROAD_COUNT; ++ri )
+		{
+			printf( "--- droga %s, v_zad %.1f m/s ---\n", JozzQc_RoadName( (JozzQcRoad)ri ), speeds[si] );
+			printf( "%-12s %5s %6s %8s %16s %8s %15s %13s %8s %7s\n", "kandydat", "N", "shape", "tetn_mm",
+					"moment Nm", "strata_W", "a_rms m/s2", "w powietrzu", "churn%", "ms/krok" );
+			for ( int ci = 0; ci < nc; ++ci )
+			{
+				JozzQcConfig cfg = JozzQc_DefaultConfig();
+				cfg.variant = cand[ci].variant;
+				cfg.segments = cand[ci].segments;
+				cfg.road = (JozzQcRoad)ri;
+				cfg.targetSpeed = speeds[si];
+				cfg.startSpeed = speeds[si];
+
+				QcCell c = QcRunCell( &cfg );
+				if ( !c.built )
+				{
+					printf( "%-12s   NIEZBUDOWANY: %s\n", cand[ci].label, c.err );
+					fprintf( f, "%s,%d,0,0,%s,%.17g,,,,,,,,,,,,,0,%s\n", cand[ci].label, cand[ci].segments,
+							 JozzQc_RoadName( (JozzQcRoad)ri ), speeds[si], c.err );
+					continue;
+				}
+				printf( "%-12s %5d %6d %8.3f %9.2f+-%-4.2f %8.1f %8.3f+-%-5.3f %6.1f+-%-4.1f%% %8.1f %7.3f%s\n",
+						cand[ci].label, cand[ci].segments, c.shapes, 1000.0 * c.ripple, c.torque, c.torqueSpread,
+						c.loss, c.accel, c.accelSpread, 100.0 * c.airborne, 100.0 * c.airborneSpread, c.churn,
+						c.msPerStep, c.invalid ? "  NIEWAZNY" : "" );
+				fprintf( f, "%s,%d,%d,%.6f,%s,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,"
+							"%.17g,%.17g,%.17g,%d,%s\n",
+						 cand[ci].label, cand[ci].segments, c.shapes, 1000.0 * c.ripple,
+						 JozzQc_RoadName( (JozzQcRoad)ri ), speeds[si], c.torque, c.torqueSpread, c.loss,
+						 c.accel, c.accelSpread, c.airborne, c.airborneSpread, c.travelRms, c.churn, c.slip,
+						 c.speed, c.msPerStep, c.invalid ? 0 : 1, c.why );
+				fflush( stdout );
+			}
+			printf( "\n" );
+		}
+	}
+	fclose( f );
+	printf( "tabela -> %s\n", csvPath );
+	printf( "\nCzego ta tabela NIE mowi: nic o feelu (to V3, wylacznie Jozz) i nic o\n" );
+	printf( "pelnym pojezdzie (to Q4). Wynik Q3 nie awansuje na prawo bez Q4.\n" );
+	return 0;
+}
+
 int main( int argc, char** argv )
 {
 	setvbuf( stdout, NULL, _IONBF, 0 ); // never hide where a crash happened
@@ -1769,6 +2668,11 @@ int main( int argc, char** argv )
 	int traceSteps = 600;
 	int perturbCheck = 0;
 	int configCheck = 0;
+	const char* qcProbe = NULL;
+	const char* qcTrace = NULL;
+	const char* qcCompare = NULL;
+	JozzQcConfig qcCfg = JozzQc_DefaultConfig();
+	int qcCfgTouched = 0;
 	char cmdline[1024] = { 0 };
 	for ( int i = 0; i < argc; ++i )
 	{
@@ -1797,6 +2701,40 @@ int main( int argc, char** argv )
 			perturbCheck = 1;
 		else if ( strcmp( argv[i], "--rig-config-check" ) == 0 )
 			configCheck = 1;
+		else if ( strcmp( argv[i], "--qc-probe" ) == 0 && i + 1 < argc )
+			qcProbe = argv[++i];
+		else if ( strcmp( argv[i], "--qc-trace" ) == 0 && i + 1 < argc )
+			qcTrace = argv[++i];
+		else if ( strcmp( argv[i], "--qc-compare" ) == 0 && i + 1 < argc )
+			qcCompare = argv[++i];
+		else if ( strcmp( argv[i], "--qc-variant" ) == 0 && i + 1 < argc )
+		{
+			if ( QcParseVariant( argv[++i], &qcCfg.variant ) == 0 )
+			{
+				fprintf( stderr, "BLAD: nieznany wariant '%s' (sphere|prism-Nmax|torus-N)\n", argv[i] );
+				return 2;
+			}
+			qcCfgTouched = 1;
+		}
+		else if ( strcmp( argv[i], "--qc-road" ) == 0 && i + 1 < argc )
+		{
+			if ( QcParseRoad( argv[++i], &qcCfg.road ) == 0 )
+			{
+				fprintf( stderr, "BLAD: nieznana droga '%s' (flat|cleat|comb)\n", argv[i] );
+				return 2;
+			}
+			qcCfgTouched = 1;
+		}
+		else if ( strcmp( argv[i], "--qc-segments" ) == 0 && i + 1 < argc )
+			qcCfg.segments = atoi( argv[++i] ), qcCfgTouched = 1;
+		else if ( strcmp( argv[i], "--qc-crown" ) == 0 && i + 1 < argc )
+			qcCfg.crownR = (float)atof( argv[++i] ), qcCfgTouched = 1;
+		else if ( strcmp( argv[i], "--qc-speed" ) == 0 && i + 1 < argc )
+		{
+			qcCfg.targetSpeed = atof( argv[++i] );
+			qcCfg.startSpeed = qcCfg.targetSpeed;
+			qcCfgTouched = 1;
+		}
 		else
 		{
 			fprintf( stderr,
@@ -1805,11 +2743,43 @@ int main( int argc, char** argv )
 					 "       %s --rig-trace <plik.csv> [--rig-trace-variant sphere|prism-Nmax] "
 					 "[--rig-trace-steps N] [--rig-config <plik.rig>]\n"
 					 "       %s --rig-perturb-check | --rig-config-check | "
-					 "--rig-config-template <plik.rig>\n",
-					 argv[0], argv[0], argv[0] );
+					 "--rig-config-template <plik.rig> | --qc-probe <plik.txt>\n"
+					 "       %s --qc-compare <plik.csv>\n"
+					 "       %s --qc-trace <plik.csv> [--qc-variant sphere|prism-Nmax|torus-N] "
+					 "[--qc-segments N] [--qc-crown m] [--qc-road flat|cleat|comb] [--qc-speed m/s]\n",
+					 argv[0], argv[0], argv[0], argv[0], argv[0] );
 			return 2;
 		}
 	}
+	if ( ( qcTrace || qcCompare ) &&
+		 ( telePath || q2aDir || tracePath || perturbCheck || configCheck || qcProbe ) )
+	{
+		fprintf( stderr, "BLAD: --qc-trace i --qc-compare sa osobnymi przebiegami\n" );
+		return 2;
+	}
+	if ( qcTrace && qcCompare )
+	{
+		fprintf( stderr, "BLAD: --qc-trace i --qc-compare wykluczaja sie\n" );
+		return 2;
+	}
+	if ( qcCfgTouched && qcTrace == NULL )
+	{
+		// Ustawienie kandydata bez przebiegu, ktory go uzyje, znaczy, ze ktos
+		// mysli, ze wlasnie cos zmierzyl. --qc-compare ma WLASNA liste kandydatow.
+		fprintf( stderr, "BLAD: opcje --qc-* dzialaja tylko razem z --qc-trace\n" );
+		return 2;
+	}
+	if ( qcCompare )
+		return QcCompare( qcCompare );
+	if ( qcTrace )
+		return QcTrace( qcTrace, &qcCfg );
+	if ( qcProbe && ( telePath || q2aDir || tracePath || perturbCheck || configCheck ) )
+	{
+		fprintf( stderr, "BLAD: --qc-probe jest osobnym przebiegiem\n" );
+		return 2;
+	}
+	if ( qcProbe )
+		return QcProbeRun( qcProbe );
 	if ( ( telePath && q2aDir ) || ( tracePath && ( telePath || q2aDir ) ) ||
 		 ( perturbCheck && ( telePath || q2aDir || tracePath ) ) ||
 		 ( configCheck && ( telePath || q2aDir || tracePath || perturbCheck ) ) )

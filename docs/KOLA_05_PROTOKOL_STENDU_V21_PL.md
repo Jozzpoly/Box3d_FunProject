@@ -74,10 +74,93 @@ Q2  regulator predkosci: sila pozioma PD utrzymujaca vx = 13.0 m/s
       regulator musi byc opisany jawnie (wzmocnienia, limit, pasmo)
       i ten sam dla wszystkich wariantow - inaczej mierzymy regulator
 Q3  masa resorowana 150 kg na jawnym wiezie pionowym
-      sztywnosc i tlumienie z presetu pojazdu, wypisane w naglowku
-      brak sterowania, brak napedu
+      ZMIENIONE 2026-07-31 (decyzja wlasciciela): rig JEST napedzany momentem.
+        Wersja bez napedu zostaje jako KONTROLA, nie jako jedyny tryb.
+        Powod zmiany: bez napedu Q3 odpowiada wylacznie na "jak udary
+        transferuja", a pytanie produktowe o opone brzmi takze "co robi
+        przyczepnosc pod momentem".
+      sprezyna i tlumienie podawane FIZYCZNIE przy kole (N/m, N*s/m);
+        `suspensionHertz` jest WYLICZANY, nigdy wpisywany - patrz 1.3
+      profil drogi jest polem konfiguracji: plasko (kontrola) / prog o
+        zadanej wysokosci / grzebien progow o zadanym rozstawie.
+        Bez wymuszenia Q3 na plaskim pudle mierzy fasety wielokata,
+        nie transfer udaru.
+      nadwozie usztywnione JAWNIE; sposob usztywnienia jest czescia
+        kontraktu, nie detalem sceny (patrz 1.3, spinMass)
 Q4  jozz_vehicle_validation.exe z ROOTA repo, sonda coast-down
 ```
+
+### 1.3 `suspensionHertz` nie jest częstotliwością resorowania
+
+**Ostrzeżenie o confoundzie, nie ciekawostka.** Cytowane z implementacji
+(reguła 11 `KOLA_00`: nigdy z komentarza nagłówka):
+
+```c
+// src/wheel_joint.c:463-465
+float k = base->invMassA + base->invMassB
+        + b3Dot( rAn, b3MulMV( base->invIA, rAn ) )
+        + b3Dot( rBn, b3MulMV( base->invIB, rBn ) );
+joint->suspensionMass = k > 0.0f ? 1.0f / k : 0.0f;
+
+// src/wheel_joint.c:468  (b3MakeSoft -> src/solver.h:264)
+joint->suspensionSoftness = b3MakeSoft( suspensionHertz, dampingRatio, context->h );
+
+// src/wheel_joint.c:684
+float impulse = -massScale * joint->suspensionMass * ( cdot + bias ) - ...
+```
+
+Sztywność podąża za **masą efektywną więzu**, czyli masą zredukowaną obu ciał
+wzdłuż osi zawieszenia — nie za masą resorowaną:
+
+| masa resorowana + nieresorowana | masa efektywna więzu |
+|---|---|
+| 150 kg + 44 kg | **34,02 kg** |
+| 150 kg + 30 kg | **25,00 kg** |
+
+**Rozliczenie z pomiarem (`Q3-1`, 2026-07-31).** Powyższe powstało z *czytania*
+kodu. Sonda `wheel_bench --qc-probe` zmierzyła każdy z trzech wniosków — dwa
+potwierdziła, **trzeci obaliła**:
+
+1. ✅ **POTWIERDZONE, dokładnie.** Zmierzona sztywność zgadza się z
+   `m_red·(2πf)²` do 5 cyfr znaczących w całym zakresie `f` ∈ [0,5; 6] Hz, a od
+   `m_sprung·(2πf)²` odbiega o stały czynnik 4,409 (= 150/34,02). Rzeczywista
+   częstotliwość resorowania = `hertz · √(m_red/m_sprung)`, czyli dla tych mas
+   **`hertz`/2,10**. Ustawienie „6 Hz" daje resor 2,86 Hz.
+   → `F-18`
+2. ❌ **OBALONE dla sztywności statycznej.** Podkroki 1/2/4/8 dają sztywność
+   **identyczną do 5 cyfr** (3021,9 N/m przy `hertz` 1,5); `f_n` zmienia się
+   o 1,9%. To jest **wynik negatywny i produkt**: zawieszenie *nie* jest
+   miejscem wrażliwym na podkroki — wrażliwy jest kontakt (`F-16`).
+   → `F-19`
+3. ❌ **OBALONE.** Bezwładność obrotowa nadwozia **nie wpływa na napęd w ogóle**
+   (wynik identyczny do trzech miejsc przy obrocie zablokowanym i swobodnym).
+   Powód: przy nasyceniu impuls silnika jest przycinany do `h·maxSpinTorque`,
+   więc `spinMass` w ogóle nie wchodzi do wyniku. Zamiast tego wyszło coś
+   ważniejszego: **silnik dostarcza 2,018× zadanego momentu**. → `F-20`
+
+Blokady obrotu nadwozia zostają w kontrakcie Q3 mimo obalenia tego punktu —
+uzasadnia je definicja quarter-cara, nie ten mechanizm.
+
+Wbrew obawie, że schemat `bias`/`massScale` nie jest liniową sprężyną i mapa
+`hertz ↔ N/m` będzie tylko przybliżeniem — **inwersja jest dokładna**. Punkt
+pracy kontraktu Q3: zadane 13 500 N/m → `hertz` 3,17041 → osiągnięte
+13 500,0 N/m, błąd **−0,000%**, ugięcie statyczne 111,1 mm.
+
+Osobna pułapka tej samej klasy, **sprawdzona i czysta**: `JozzRig_FreezeMassEx`
+kładzie `I_spin` na lokalnym Y (`jozz_wheel_rig.c:810`), a więz kręci wokół
+Z ramki B (`wheel_joint.c:473`). Kontrola `b3Body_ApplyTorque` daje
+`α/(τ/I_spin) = 1,013` przy czystości osi 1,0000 — ramki są ustawione poprawnie,
+a masa i bezwładność koła są tym, co zamówiono.
+
+**Uwaga metodyczna, warta więcej niż same liczby.** Pierwszy przebieg sondy dał
+ugięcie ~7000× mniejsze od modelu i zerową różnicę między wariantami. Przyczyną
+nie był silnik, tylko **kolejność wywołań w mojej własnej konstrukcji**:
+`b3Body_SetMotionLocks` woła `b3UpdateBodyMassData`, gdy zmienia się status
+`fixedRotation` (`src/body.c`), a ten przelicza masę **z kształtów** — nadwozie
+bez shape'u traciło zadane 150 kg i stawało się nieruchomym sufitem. Poprawna
+kolejność to `shape → blokady → masa`. Sonda ma od tego czasu sekcję 0, która
+**odmawia pracy**, gdy zbudowany układ nie jest tym, który zamówiono. Gdyby jej
+nie było, cała reszta tej sekcji byłaby pomiarem sufitu.
 
 ---
 

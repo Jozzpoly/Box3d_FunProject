@@ -252,6 +252,7 @@ set(SAMPLE_FILES
     sample_issues.cpp
     sample_joint.cpp
     sample_jozz_vehicle_lab.cpp
+    sample_jozz_quarter_car.cpp
     sample_jozz_wheel_scope.cpp
     host/screenshot.cpp
     host/screenshot.h
@@ -281,7 +282,8 @@ target_compile_options(samples PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
 # wlasna kopie fizyki, zdanie "widac to samo, co mierzymy" nie byloby faktem.
 # Dodawany przez target_sources, nie przez SAMPLE_FILES, bo source_group(TREE)
 # wymaga plikow POD katalogiem samples/.
-target_sources(samples PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../tools/jozz_wheel_bench/jozz_wheel_rig.c")
+target_sources(samples PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../tools/jozz_wheel_bench/jozz_wheel_rig.c"
+                               "${CMAKE_CURRENT_SOURCE_DIR}/../tools/jozz_wheel_bench/jozz_qc_rig.c")
 target_include_directories(samples PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../tools/jozz_wheel_bench")
 
 # Jozz: headless metadata/contract/vehicle guard, no GUI. Runs in CI-style validation.

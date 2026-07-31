@@ -17,6 +17,8 @@ const char* JozzRig_VariantName( JozzRigVariant v )
 		return "sphere";
 	if ( v == JOZZ_RIG_PRISM_MAX )
 		return "prism-Nmax";
+	if ( v == JOZZ_RIG_TORUS )
+		return "torus-N";
 	return "?";
 }
 
@@ -35,6 +37,11 @@ JozzRigConfig JozzRig_DefaultConfig( void )
 	c.inertiaSpinFactor = 0.70f;
 	c.inertiaTransFactor = 0.55f;
 	c.density = 77.0f;
+	// 0.20 m: przy W = 0.4375 zostawia 37.5 mm plaskiej bieżni i daje najmniejsze
+	// tetnienie, jakie ta szerokosc dopuszcza (crownR <= W/2). Wybor jest swiadomie
+	// po stronie GLADKOSCI, bo dzisiejszy kontakt to Coulomb - szerokosc plaskiego
+	// styku nie wplywa na tarcie, dopoki nie ma prawa opony (W3).
+	c.crownR = 0.20f;
 
 	c.groundHalfX = 400.0f;
 	c.groundHalfY = 1.0f;
@@ -62,18 +69,26 @@ void JozzRig_ConfigDigest( const JozzRigConfig* c, char* out, size_t cap )
 {
 	if ( out == NULL || cap == 0 )
 		return;
+	// `crown=` pojawia sie WYLACZNIE dla wariantu, ktory go uzywa. Nie jest to
+	// kosmetyka: odcisk konfiguracji idzie do naglowka wzorca zachowania, wiec
+	// bezwarunkowe dopisanie pola oznaczaloby czerwona blokade na sphere i prism
+	// - czyli sygnal "eksperyment sie zmienil" tam, gdzie nie zmienilo sie nic.
+	char crown[64];
+	crown[0] = '\0';
+	if ( c->variant == JOZZ_RIG_TORUS )
+		snprintf( crown, sizeof( crown ), " crown=%.9g", (double)c->crownR );
 	snprintf( out, cap,
 			  "v=%s N=%d R=%.9g W=%.9g m=%.9g iS=%.9g iT=%.9g rho=%.9g "
 			  "gnd=%.9g/%.9g/%.9g mu=%.9g g=%.17g "
 			  "x0=%.17g v0=%.17g gap=%.9g "
 			  "load=%.17g ctl=%d tgt=%.17g kp=%.17g ki=%.17g fmax=%.17g "
-			  "dt=%.17g sub=%d",
+			  "dt=%.17g sub=%d%s",
 			  JozzRig_VariantName( c->variant ), c->variant == JOZZ_RIG_SPHERE ? 0 : c->prismSides,
 			  (double)c->wheelR, (double)c->wheelW, (double)c->massKg, (double)c->inertiaSpinFactor,
 			  (double)c->inertiaTransFactor, (double)c->density, (double)c->groundHalfX, (double)c->groundHalfY,
 			  (double)c->groundHalfZ, (double)c->friction, c->gravity, c->startX, c->startSpeed,
 			  (double)c->startGap, c->loadN, c->controllerEnabled, c->targetSpeed, c->kp, c->ki, c->fmax, c->dt,
-			  c->substeps );
+			  c->substeps, crown );
 }
 
 // ------------------------------------------------- konfiguracja jako plik
@@ -116,6 +131,7 @@ static const JrField s_configFields[] = {
 	{ "inertia_spin", JR_F_FLOAT, JR_OFF( inertiaSpinFactor ), NULL },
 	{ "inertia_trans", JR_F_FLOAT, JR_OFF( inertiaTransFactor ), NULL },
 	{ "density", JR_F_FLOAT, JR_OFF( density ), NULL },
+	{ "crown_r", JR_F_FLOAT, JR_OFF( crownR ), NULL },
 
 	{ "ground_half_x", JR_F_FLOAT, JR_OFF( groundHalfX ), "scena" },
 	{ "ground_half_y", JR_F_FLOAT, JR_OFF( groundHalfY ), NULL },
@@ -415,8 +431,8 @@ int JozzRig_ConfigWriteFile( const JozzRigConfig* c, const char* path, const cha
 // Obie liczby ponizej to ostatnio zaudytowany uklad struktury na x64. Gdy ktoras
 // przestanie sie zgadzac: NAJPIERW dopisz pole do s_configFields, dopiero potem
 // zaktualizuj liczby. Odwrotna kolejnosc kasuje calego straznika.
-#define JOZZ_RIG_CONFIG_SIZEOF 144
-#define JOZZ_RIG_CONFIG_PADDING 12 // bajty wyrownania: 3 dziury po 4 przed double
+#define JOZZ_RIG_CONFIG_SIZEOF 152
+#define JOZZ_RIG_CONFIG_PADDING 16 // bajty wyrownania: 4 dziury po 4 przed double
 
 int JozzRig_ConfigSelfTest( char* err, size_t errCap )
 {
@@ -648,7 +664,10 @@ double JozzRig_CriticalSpeed( const JozzRigConfig* c )
 
 double JozzRig_FacetsPerStep( const JozzRigConfig* c, double speed )
 {
-	if ( c->variant != JOZZ_RIG_PRISM_MAX || c->prismSides <= 0 || c->wheelR <= 0.0f || c->dt <= 0.0 )
+	// Dotyczy kazdej obwiedni DZIELONEJ NA ELEMENTY, nie tylko pryzmatu: dla
+	// `torus-N` element to kapsula i pytanie jest identyczne - ile ich mija punkt
+	// styku miedzy dwiema aktualizacjami manifoldu.
+	if ( c->variant == JOZZ_RIG_SPHERE || c->prismSides <= 0 || c->wheelR <= 0.0f || c->dt <= 0.0 )
 		return 0.0;
 	// obwod / liczba scianek = dlugosc cieciwy; ile ich mija w jednym kroku
 	double chord = 2.0 * JOZZ_RIG_PI * (double)c->wheelR / (double)c->prismSides;
@@ -855,6 +874,115 @@ int JozzRig_BuildEnvelopeEx( b3BodyId body, JozzRigVariant v, float density, int
 	return 0;
 }
 
+// --------------------------------------------------------------- torus-N
+//
+// Geometria pierscienia kapsul, wypisana raz i uzywana przez wszystkie trzy
+// miejsca, ktore o nia pytaja (budowa, warunek szczelnosci, tetnienie).
+// Uklad lokalny kola jest ten sam co w JozzRig_MakePrismPoints: os obrotu to
+// LOKALNE Y, obwod lezy w plaszczyznie X-Z.
+//
+//   ringR   = wheelR - crownR      promien, na ktorym siedza osie kapsul
+//   halfLen = W/2 - crownR         polowa PLASKIEJ czesci bieżni
+//
+// Kapsula ma os rownolegla do osi kola, wiec w kierunku toczenia daje luk o
+// promieniu crownR, a w poprzek - walec zakonczony czaszami. To jest dokladnie
+// profil opony: plaska bieznia i zaokraglone barki.
+
+typedef struct
+{
+	double ringR;
+	double halfLen;
+	double crownR;
+	int n;
+	int valid; // 0 = wymiary same w sobie bez sensu (nie mylic ze szczelnoscia)
+} JrTorusGeom;
+
+static JrTorusGeom JrTorus( const JozzRigConfig* c )
+{
+	JrTorusGeom g;
+	memset( &g, 0, sizeof( g ) );
+	g.crownR = (double)c->crownR;
+	g.ringR = (double)c->wheelR - g.crownR;
+	g.halfLen = 0.5 * (double)c->wheelW - g.crownR;
+	g.n = c->prismSides;
+	g.valid = ( g.crownR > 0.0 && g.ringR > 0.0 && g.halfLen >= 0.0 && g.n >= 3 );
+	return g;
+}
+
+int JozzRig_MinTorusSegments( const JozzRigConfig* c )
+{
+	if ( c->variant != JOZZ_RIG_TORUS )
+		return 0;
+	JrTorusGeom g = JrTorus( c );
+	if ( !g.valid || g.crownR >= g.ringR )
+		return 3;
+	// Sasiednie kapsuly zachodza na siebie, gdy polowa rozstawu osi jest mniejsza
+	// od promienia: ringR * sin(pi/N) <= crownR.
+	double nMin = JOZZ_RIG_PI / asin( g.crownR / g.ringR );
+	int n = (int)ceil( nMin - 1e-9 );
+	return n < 3 ? 3 : n;
+}
+
+double JozzRig_EnvelopeRipple( const JozzRigConfig* c )
+{
+	if ( c->variant == JOZZ_RIG_SPHERE )
+		return 0.0;
+	if ( c->prismSides < 3 || c->wheelR <= 0.0f )
+		return 0.0;
+	double theta = JOZZ_RIG_PI / (double)c->prismSides;
+	if ( c->variant == JOZZ_RIG_PRISM_MAX )
+		return (double)c->wheelR * ( 1.0 - cos( theta ) );
+
+	JrTorusGeom g = JrTorus( c );
+	if ( !g.valid )
+		return 0.0;
+	double s = g.ringR * sin( theta );
+	if ( s > g.crownR )
+		return -1.0; // obwiednia NIESZCZELNA - nie ma czego mierzyc
+	// Najdalszy punkt obwiedni na dwusiecznej miedzy dwiema kapsulami.
+	double rMin = g.ringR * cos( theta ) + sqrt( g.crownR * g.crownR - s * s );
+	return (double)c->wheelR - rMin;
+}
+
+static int JrBuildTorus( b3BodyId body, const b3ShapeDef* sd, const JozzRigConfig* c )
+{
+	JrTorusGeom g = JrTorus( c );
+	if ( !g.valid )
+		return 0;
+	if ( c->prismSides < JozzRig_MinTorusSegments( c ) )
+		return 0; // dziurawa obwiednia; patrz naglowek JozzRig_MinTorusSegments
+
+	for ( int i = 0; i < g.n; ++i )
+	{
+		double a = 2.0 * JOZZ_RIG_PI * (double)i / (double)g.n;
+		b3Capsule cap;
+		cap.radius = (float)g.crownR;
+		cap.center1.x = (float)( g.ringR * cos( a ) );
+		cap.center1.y = (float)( -g.halfLen );
+		cap.center1.z = (float)( g.ringR * sin( a ) );
+		cap.center2.x = cap.center1.x;
+		cap.center2.y = (float)( +g.halfLen );
+		cap.center2.z = cap.center1.z;
+		if ( B3_IS_NULL( b3CreateCapsuleShape( body, sd, &cap ) ) )
+			return 0;
+	}
+	return 1;
+}
+
+int JozzRig_BuildEnvelopeFromConfig( b3BodyId body, const JozzRigConfig* c )
+{
+	if ( c->variant == JOZZ_RIG_TORUS )
+	{
+		b3ShapeDef sd = b3DefaultShapeDef();
+		sd.density = c->density;
+		sd.baseMaterial.friction = c->friction;
+		sd.baseMaterial.rollingResistance = 0.0f;
+		return JrBuildTorus( body, &sd, c );
+	}
+	return JozzRig_BuildEnvelopeEx( body, c->variant, c->density, c->prismSides, c->wheelR, c->wheelW,
+									c->friction );
+}
+
 // ---------------------------------------------------------------- rig
 
 double JozzRig_Downforce( const JozzRig* rig )
@@ -940,8 +1068,7 @@ int JozzRig_CreateFromConfig( JozzRig* rig, const JozzRigConfig* cfg, const Jozz
 	bd.enableSleep = false;
 	bd.allowFastRotation = true;
 	rig->body = b3CreateBody( rig->world, &bd );
-	if ( JozzRig_BuildEnvelopeEx( rig->body, cfg->variant, cfg->density, cfg->prismSides, cfg->wheelR,
-								  cfg->wheelW, cfg->friction ) == 0 )
+	if ( JozzRig_BuildEnvelopeFromConfig( rig->body, cfg ) == 0 )
 	{
 		b3DestroyWorld( rig->world );
 		memset( rig, 0, sizeof( *rig ) );

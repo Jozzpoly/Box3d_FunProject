@@ -118,6 +118,55 @@
       "evidence": ["none"],
       "code": "src/physics_world.c:1114, :1101; src/types.c:20"
     },
+    "F-18": {
+      "status": "ENGINE_FACT",
+      "claim": "b3WheelJoint: `suspensionHertz` jest czestotliwoscia wlasna MASY ZREDUKOWANEJ wiezu, nie masy resorowanej. Zmierzona sztywnosc = m_red*(2pi*f)^2 co do 5 cyfr znaczacych dla f w [0.5, 6] Hz. Rzeczywista czestotliwosc resorowania = hertz * sqrt(m_red/m_sprung); dla 150+44 kg to hertz/2.0998, czyli ustawienie 6 Hz daje resor 2.86 Hz.",
+      "scope": "Zmierzone sonda Q3-1 (2026-07-31) na ukladzie nadwozie 150 kg + kolo 44 kg, wiez pionowy, grunt-pudlo, dt 1/60, 4 podkroki. Inwersja jest DOKLADNA: zadane 13500 N/m -> hertz 3.17041 -> osiagniete 13500.0 N/m (blad -0.000%). KONSEKWENCJA: ten sam hertz na kandydatach o roznej masie nieresorowanej to rozne sprezyny - stad wymog podawania sztywnosci w N/m. Surowy przebieg: evidence/run_qc_probe_2026_07_31.txt, zarejestrowany w RAW_MANIFEST.json (sha256 148a948f4fb5, tryb raw-only), regeneracja: `wheel_bench.exe --qc-probe`. Odwolanie maszynowe run#tabela bedzie mozliwe dopiero po nadaniu sondzie schematu tabel - dlug zapisany jako U-28.",
+      "evidence": ["none"],
+      "code": "src/wheel_joint.c:463-465, :468, :684; src/solver.h:264"
+    },
+    "F-19": {
+      "status": "ENGINE_FACT",
+      "claim": "Sztywnosc statyczna zawieszenia jest NIEZALEZNA od liczby podkrokow: 1/2/4/8 podkrokow daje 3021.9 N/m identycznie do 5 cyfr. Czestotliwosc wlasna zmienia sie o 1.9% (0.689 -> 0.702 Hz).",
+      "scope": "Wynik NEGATYWNY i celowo zachowany (regula twarda 6). Zawezenie F-16: podkroki zmieniaja twardosc KONTAKTU, ale nie sprezyny zawieszenia. Zmierzone sonda Q3-1 przy hertz 1.5, zeta 0.35, reszta zamrozona. Surowy przebieg: evidence/run_qc_probe_2026_07_31.txt, zarejestrowany w RAW_MANIFEST.json (sha256 148a948f4fb5, tryb raw-only), regeneracja: `wheel_bench.exe --qc-probe`. Odwolanie maszynowe run#tabela bedzie mozliwe dopiero po nadaniu sondzie schematu tabel - dlug zapisany jako U-28.",
+      "evidence": ["none"],
+      "code": "src/solver.h:264"
+    },
+    "F-20": {
+      "status": "BENCH_PRELIMINARY",
+      "claim": "Silnik obrotu b3WheelJoint przy nasyceniu dostarcza 2.018x zadanego `maxSpinTorque` (4 podkroki; 1.996x przy 1, 2.022x przy 8). Zaleznosc od tau idealnie liniowa (100/500/1000 N*m daja ten sam iloraz). Bezwladnosc obrotowa nadwozia NIE wplywa na wynik.",
+      "scope": "FAKT (pomiar) i MECHANIZM (hipoteza) maja osobne statusy, jak w P-05. Fakt: iloraz zmierzony sonda Q3-1, kolo w powietrzu, g=0. Kontrola b3Body_ApplyTorque wprost na cialo daje alfa/(tau/I_spin) = 1.013, wiec masa i bezwladnosc kola sa poprawne, a przeskalowanie siedzi w sciezce silnika wiezu. Brak wplywu nadwozia tlumaczy sie tym, ze przy nasyceniu impuls jest przycinany do h*maxSpinTorque i spinMass wypada z wyniku - to jest INFERENCJA, nie pomiar. Mechanizm samego 2x NIEUSTALONY. KONSEKWENCJA: Q3 napedza kolo przez b3Body_ApplyTorque, silnik wiezu wylaczony. Surowy przebieg: evidence/run_qc_probe_2026_07_31.txt, zarejestrowany w RAW_MANIFEST.json (sha256 148a948f4fb5, tryb raw-only), regeneracja: `wheel_bench.exe --qc-probe`. Odwolanie maszynowe run#tabela bedzie mozliwe dopiero po nadaniu sondzie schematu tabel - dlug zapisany jako U-28.",
+      "evidence": ["none"],
+      "code": "src/wheel_joint.c:660-672, :552-555"
+    },
+    "F-21": {
+      "status": "BENCH_PRELIMINARY",
+      "claim": "Nowa obwiednia `torus-N` (pierscien N kapsul o osi rownoleglej do osi kola) bije pryzmat w Q3 przy 4.0 m/s na plaskiej plycie. torus-64 vs prism-42 (dzisiejsze kolo produktu): moc strat 425.7 vs 638.7 W (-33.3%), sprung_accel_rms 0.055 vs 0.332 m/s2 (-83.4%), contact_churn 0.0% vs 89.7%. Polowa rozrzutu z 3 powtorzen: 0.00 dla obu kandydatow.",
+      "scope": "Q3 quarter car, masa resorowana 150 kg, nieresorowana 44 kg ZAMROZONA miedzy kandydatami, sprezyna 13500 N/m, zeta 0.35, naped przez b3Body_ApplyTorque przy stalej predkosci, dt 1/60, 4 podkroki, okno 600 krokow po 120 rozgrzewki. WAZNE OGRANICZENIE: przy predkosci kontraktowej 13 m/s obwiednia mija punkt styku ~2.2 elementu na krok, wiec jej struktura jest PONIZEJ rozdzielczosci czasowej solvera - przewaga torusa na stracie tam znika (2587 vs 1849 W na korzysc pryzmatu), a przewaga na a_rms zostaje (0.468 vs 1.512). Pryzmat jest tam jednak 5.8% krokow w powietrzu, wiec jego nizsza zmierzona strata czesciowo odzwierciedla KROTSZY czas styku, nie mniejszy opor. Nie awansuje na prawo bez Q4. Surowy przebieg: evidence/run_q3_compare_2026_07_31.txt (sha256 c086d7d91831, raw-only), regeneracja: `wheel_bench.exe --qc-compare <plik.csv>`. Odwolanie maszynowe run#tabela dopiero po nadaniu schematu tabel - dlug U-28.",
+      "evidence": ["none"],
+      "code": "tools/jozz_wheel_bench/jozz_wheel_rig.c JrBuildTorus; tools/jozz_wheel_bench/jozz_qc_rig.c"
+    },
+    "F-22": {
+      "status": "BENCH_PRELIMINARY",
+      "claim": "Tetnienie promienia obwiedni NIE rzadzi jakoscia toczenia. Przy TEJ SAMEJ liczbie elementow (N=32) torus ma o 57% WIEKSZE tetnienie niz pryzmat (3.896 vs 2.476 mm), a mimo to o 42% mniejsza moc strat (523 vs 903 W), o 67% mniejsze sprung_accel_rms (0.177 vs 0.531) i o rzad wielkosci mniejszy churn (8.6% vs 70.1%). Roznica lezy w OSTRYCH KRAWEDZIACH, nie w amplitudzie odchylki promienia.",
+      "scope": "Wynik odwrotny do przewidywania, ktore towarzyszylo projektowi obwiedni - dlatego zapisany osobno od F-21. Warunki jak w F-21, droga flat, 4.0 m/s, rozrzut 0.00-0.01. Zawezenie interpretacji F-02 (`wiecej scianek != gladziej`): nie chodzi o gestosc podzialu, tylko o to, czy podzial wprowadza nieciaglosc normalnej. Surowy przebieg: evidence/run_q3_compare_2026_07_31.txt (sha256 c086d7d91831, raw-only).",
+      "evidence": ["none"],
+      "code": "tools/jozz_wheel_bench/jozz_wheel_rig.c JozzRig_EnvelopeRipple"
+    },
+    "F-23": {
+      "status": "BENCH_PRELIMINARY",
+      "claim": "Cena gladkosci jest w CPU, nie w pamieci ani w budzecie hulla: torus-64 kosztuje 0.094 ms na krok swiata wobec 0.007 ms dla pryzmatu (13x), torus-32 0.036 ms (5x). Pryzmat jest jednym ksztaltem, pierscien kapsul ma ich N.",
+      "scope": "Pomiar SCIANY ZEGARA calego b3World_Step dla jednego kola na plycie, kompilacja /O2, 1 watek, 600 krokow po rozgrzewce, srednia z 3 powtorzen. NIE jest to koszt krancowy na kolo w pelnym pojezdzie (tamten mierzy sekcja D stendu przez nachylenie serii 0/1/2/4/8) i nie obejmuje kosztu broadphase przy wielu kolach naraz. Surowy przebieg: evidence/run_q3_compare_2026_07_31.txt (sha256 c086d7d91831, raw-only).",
+      "evidence": ["none"],
+      "code": "tools/jozz_wheel_bench/wheel_bench.c QcRunOne"
+    },
+    "F-24": {
+      "status": "BENCH_PRELIMINARY",
+      "claim": "Przy 13 m/s pojedynczy przebieg Q3 nie jest powtarzalny na poziomie progu wazności. Zmiana wysokosci mocowania nadwozia o 0.35 m - geometrycznie NEUTRALNA dla tego wiezu (os pionowa, oba zaczepy na osi, zerowe ramie) - przerzucila `airborne_fraction` dla torus-32 z 6.0% na 10.8%, czyli przez prog 10% z par. 8 kontraktu.",
+      "scope": "Nie jest to blad implementacji: kolo skaczace po fasetach jest ukladem chaotycznym i rozne zaokraglenie zmiennoprzecinkowe rozjezdza trajektorie. KONSEKWENCJA WYKONAWCZA: --qc-compare powtarza kazda komorke 3x z przesunietym punktem startu (0 / 13.7 / 27.1 mm) i podaje polowe rozrzutu obok sredniej; komorka jest NIEWAZNA, gdy niewazne jest ktorekolwiek powtorzenie. Przy 4 m/s rozrzut jest zerowy do trzech miejsc - problem dotyczy wylacznie rezimu, w ktorym kolo traci ciagly styk. Surowy przebieg: evidence/run_q3_compare_2026_07_31.txt (sha256 c086d7d91831, raw-only).",
+      "evidence": ["none"],
+      "code": "tools/jozz_wheel_bench/wheel_bench.c QC_REPEATS, s_qcStartJitter"
+    },
 
     "P-01": { "status": "ENGINE_FACT", "claim": "Limit formatu hulla.", "scope": "= F-01.", "evidence": ["2026_07_27_v2#A.prism_budget"] },
     "P-02": { "status": "ENGINE_FACT", "claim": "Masa z objetosci collidera.", "scope": "= F-02.", "evidence": ["2026_07_27_v2#C.mass"] },
