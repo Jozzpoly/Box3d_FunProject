@@ -21,3 +21,14 @@ tools/jozz_wheel_bench/jozz_wheel_rig.obj
 tools/jozz_wheel_bench/equivalence_out/
 jozz_wheel_scope_observations.txt
 tools/evidence/__pycache__/
+
+# Polka konstrukcji: prywatny warsztat Ownera, nie dowod. Plik .rig wart
+# zachowania trafia do repo jawnie, przez `git add -f`, razem z powodem.
+wheel_scope_bench/
+jozz_rig_config_selftest.tmp
+
+# Stempel prowieniencji jest PRODUKTEM buildu: build.bat przelicza go przy
+# kazdej kompilacji, wiec sledzony brudzil drzewo po kazdym uruchomieniu i
+# `git status` przestawal cokolwiek znaczyc. wheel_bench.c wlacza go za
+# __has_include, wiec jego brak jest obsluzony. Odsledzony 2026-07-31.
+tools/jozz_wheel_bench/bench_provenance.h
