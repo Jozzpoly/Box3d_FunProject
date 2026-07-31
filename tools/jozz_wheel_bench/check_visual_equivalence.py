@@ -31,22 +31,63 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 BENCH = HERE / "wheel_bench.exe"
-SAMPLES = REPO / "build" / "bin" / "Debug" / "samples.exe"
 STEPS = 600
 SAMPLE_NAME = "Wheel Scope"
 
+# Kazda binarka ma WLASNA liste zrodel. Wspolna lista wygladala oszczedniej, ale
+# kazala przebudowac stend po zmianie w pliku sample'a, ktorego stend nie
+# kompiluje - a bramka zadajaca pracy bez powodu uczy przebudowywac odruchowo,
+# czyli dokladnie odwrotnie, niz powinna.
+RIG = (HERE / "jozz_wheel_rig.c", HERE / "jozz_wheel_rig.h")
+BENCH_SOURCES = RIG + (HERE / "wheel_bench.c",)
+SAMPLES_SOURCES = RIG + (REPO / "samples" / "sample_jozz_wheel_scope.cpp",
+                         REPO / "samples" / "sample.cpp", REPO / "samples" / "sample.h")
 
-def run_headless(out: Path, variant: str, steps: int) -> None:
-    subprocess.run([str(BENCH), "--rig-trace", str(out), "--rig-trace-variant", variant,
-                    "--rig-trace-steps", str(steps)], check=True, capture_output=True)
+
+def pick_samples() -> Path | None:
+    """Najnowsza istniejaca binarka samples.
+
+    Sciezka byla wczesniej przypieta na sztywno do `Debug`. Skutek zlapany
+    2026-07-30: przy pracy na buildzie Release test przez cala sesje porownywal
+    stend ze SKOMPILOWANYM POPRZEDNIEGO DNIA oknem i swiecil na zielono, nie
+    dotykajac ani razu zmienionego kodu. Bramka, ktora testuje nieaktualna
+    binarke, jest gorsza od braku bramki, bo daje falszywa pewnosc.
+    """
+    found = [p for p in (REPO / "build" / "bin" / c / "samples.exe" for c in ("Release", "Debug"))
+             if p.exists()]
+    return max(found, key=lambda p: p.stat().st_mtime) if found else None
 
 
-def run_visual(out: Path, variant: str, steps: int, divider: int = 1, plain: bool = False) -> None:
+def check_freshness(samples: Path) -> list[str]:
+    stale = []
+    for binary, sources in ((samples, SAMPLES_SOURCES), (BENCH, BENCH_SOURCES)):
+        if not binary.exists():
+            continue
+        newer = [s.name for s in sources if s.exists() and s.stat().st_mtime > binary.stat().st_mtime]
+        if newer:
+            stale.append(f"{binary.relative_to(REPO)} starsza niz: {', '.join(newer)}")
+    return stale
+
+
+def run_headless(out: Path, variant: str | None, steps: int, config: Path | None = None) -> None:
+    cmd = [str(BENCH), "--rig-trace", str(out), "--rig-trace-steps", str(steps)]
+    cmd += ["--rig-config", str(config)] if config else ["--rig-trace-variant", variant or "sphere"]
+    subprocess.run(cmd, check=True, capture_output=True)
+
+
+def run_visual(out: Path, variant: str | None, steps: int, divider: int = 1, plain: bool = False,
+               config: Path | None = None) -> None:
     env = dict(os.environ)
+    # Sweep-owe nadpisania z otoczenia zmienilyby konfiguracje pod testem.
+    for k in ("JOZZ_RIG_SIDES", "JOZZ_RIG_START_V", "JOZZ_RIG_RECORD", "JOZZ_RIG_CONFIG"):
+        env.pop(k, None)
     env["JOZZ_RIG_TRACE"] = str(out)
-    env["JOZZ_RIG_VARIANT"] = variant
     env["JOZZ_RIG_TRACE_STEPS"] = str(steps)
     env["JOZZ_RIG_TRACE_DIVIDER"] = str(divider)
+    if config:
+        env["JOZZ_RIG_CONFIG"] = str(config)
+    else:
+        env["JOZZ_RIG_VARIANT"] = variant or "sphere"
     if plain:
         env["JOZZ_RIG_TRACE_VIEW_PLAIN"] = "1"
     # Zapas klatek: przy dzielniku N jeden krok fizyki potrzebuje N klatek.
@@ -82,10 +123,21 @@ def compare(label: str, a: Path, b: Path, failures: list[str]) -> None:
 
 
 def main(out: Path) -> int:
-    for exe in (BENCH, SAMPLES):
-        if not exe.exists():
-            print(f"BRAK {exe} - zbuduj najpierw stend i target samples", file=sys.stderr)
-            return 2
+    global SAMPLES
+    SAMPLES = pick_samples()
+    if SAMPLES is None or not BENCH.exists():
+        print("BRAK binarki - zbuduj stend i target samples", file=sys.stderr)
+        return 2
+
+    stale = check_freshness(SAMPLES)
+    if stale:
+        print("BLAD: binarka starsza niz zrodla - test dotyczylby nieaktualnego kodu:",
+              file=sys.stderr)
+        for s in stale:
+            print(f"  - {s}", file=sys.stderr)
+        return 2
+    print(f"binarka okna: {SAMPLES.relative_to(REPO)}")
+
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True)
@@ -110,6 +162,36 @@ def main(out: Path) -> int:
     plain = out / "visual_sphere_plain.csv"
     run_visual(plain, "sphere", 200, plain=True)
     compare("sphere      pelny widok == goly widok", ref200, plain, failures)
+
+    print("4) konstrukcja z polki: ten sam PLIK w oknie i w stendzie")
+    # Plik pisany tutaj RECZNIE, nie wygenerowany przez stend. To celowe: gdyby
+    # test uzywal pliku zapisanego przez to samo narzedzie, ktore go potem czyta,
+    # dowodzilby tylko wewnetrznej zgodnosci. Recznie napisany plik sprawdza, czy
+    # format jest naprawde otwarty - czyli czy agent albo Owner moga go stworzyc.
+    # Plik jest NIEPELNY (brak wiekszosci kluczy) i NIEDOMYSLNY (inny wariant,
+    # inne N, inna predkosc, inne obciazenie) - obie te cechy sa czescia testu.
+    rig = out / "z_polki.rig"
+    rig.write_text(
+        "format 1\n"
+        "# test: konstrukcja napisana recznie, celowo niepelna i niedomyslna\n"
+        "variant prism-Nmax\n"
+        "prism_sides 17\n"
+        "start_speed 3\n"
+        "target_speed 3\n"
+        "load_n 1200\n",
+        encoding="ascii")
+    hc, vc = out / "headless_konstrukcja.csv", out / "visual_konstrukcja.csv"
+    run_headless(hc, None, 300, config=rig)
+    run_visual(vc, None, 300, config=rig)
+    compare("konstrukcja headless == visual", hc, vc, failures)
+    # Bez tego test przeszedlby take wtedy, gdyby OBA frontendy zignorowaly plik
+    # i uruchomily konfiguracje domyslna - identycznie i bezuzytecznie.
+    ref_default = out / "headless_sphere.csv"
+    if ref_default.exists() and body(hc)[:200] == body(ref_default)[:200]:
+        failures.append("konstrukcja: plik zostal ZIGNOROWANY (przebieg jak domyslny)")
+        print("  BLAD  konstrukcja: plik zostal zignorowany - przebieg jak domyslny")
+    else:
+        print("  OK    konstrukcja: plik naprawde zmienil przebieg (rozny od domyslnego)")
 
     print()
     if failures:
