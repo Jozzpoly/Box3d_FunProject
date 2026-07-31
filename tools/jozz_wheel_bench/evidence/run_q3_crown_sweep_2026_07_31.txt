@@ -1,0 +1,15 @@
+﻿
+=== Q3 PRZEMIATANIE: crown od 0.04 do 0.19, 6 punktow ===
+baza: torus-N N=64 droga flat v_zad 4.00 k 13500 N/m zeta 0.350
+kazdy punkt to 3 przebiegi z przesunietym startem; +- to POLOWA ROZRZUTU
+
+punkt           shape  tetn_mm        moment Nm strata_W      a_rms m/s2   w powietrzu   churn% ms/krok
+crown=0.04         64    8.031    102.20+-0.00    795.2    0.076+-0.000    0.0+-0.0 %     26.9   0.046
+crown=0.07         64    4.013     94.41+-0.00    734.6    0.081+-0.000    0.0+-0.0 %     21.3   0.052
+crown=0.1          64    2.585     83.41+-0.00    649.0    0.063+-0.000    0.0+-0.0 %      9.4   0.060
+crown=0.13         64    1.836     75.80+-0.00    589.7    0.063+-0.000    0.0+-0.0 %      3.8   0.066
+crown=0.16         64    1.373     69.19+-0.00    538.3    0.062+-0.000    0.0+-0.0 %      0.1   0.075
+crown=0.19         64    1.057     58.75+-0.00    457.1    0.050+-0.000    0.0+-0.0 %      0.0   0.083
+
+tabela -> C:\Users\Pioter\AppData\Local\Temp\claude\C--Pliki-Joza-Gamo-devovo-Box3d-FunProject-box3d\cfc3a648-3d74-4a7b-bb58-8e353be21dc4\scratchpad\sw2.csv
+Czego to NIE mowi: nic o feelu (V3, wylacznie Jozz) i nic o pelnym pojezdzie (Q4).

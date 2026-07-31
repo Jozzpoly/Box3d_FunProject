@@ -421,6 +421,54 @@ Dwie rzeczy złapane przez konstrukcję, nie przez test:
    z `b3World_Draw`, więc okno pokazywało koło wiszące w powietrzu. Zobaczone na
    zrzucie. `maskBits = 0` w zupełności wystarcza, żeby nic nie kolidowało.
 
+#### Rewizja 2026-07-31 (druga sesja): okno staje się warsztatem, `Q3-8`
+
+| krok | co | wynik | stan |
+|---|---|---|---|
+| `Q3-8` | **warsztat w oknie** | protokół pomiaru wspólny, konstrukcja `.qc`, strojenie na żywo, przemiatanie | **ZAMKNIĘTY 2026-07-31** |
+
+Właściciel po pierwszej jeździe: kierunek dobry, ale okno „bardzo surowe
+i niewygodne, część kontrolek nie działa poprawnie, zbyt mały wpływ na rig".
+Diagnoza po przeglądzie kodu i po zrzutach: to nie był brak suwaków, tylko
+**cztery różne blokady eksperymentowania**.
+
+1. **Każde pokrętło przebudowywało rig**, a przebudowa startuje 80 m przed
+   punktem pomiaru — więc po każdym ruchu suwaka trzeba było odczekać 2 s
+   dojazdu (przy spowolnieniu 1:8 — pół minuty). Teraz sprężyna, tłumienie,
+   skok, tryb napędu i prędkość zadana idą **na żywo** przez `JozzQc_Set*`,
+   a to, co musi przebudować, **od razu wykonuje rozgrzewkę w jednej klatce**.
+2. **Okno nie umiało zmierzyć.** Protokół (rozgrzewka, okno, 3 powtórzenia,
+   lista kandydatów) siedział w `wheel_bench.c`, więc jedyną drogą do liczby
+   bench-grade z okna byłoby napisanie **drugiej kopii protokołu**. Przeniesiony
+   do `jozz_qc_rig.c`; oba frontendy wołają `JozzQc_MeasureCell`. Sprawdzone:
+   okno i stend dają te same liczby (churn 89,7 / 70,1 / 8,6 / 0,0).
+3. **Nie dało się odłożyć przypadku.** Q2A miało `.rig`, Q3 nie miało nic.
+   Format `.qc` opisuje cały narożnik, ma ten sam potrójny strażnik i tę samą
+   bramkę; `--qc-config` w stendzie zamyka pętlę okno → stend. Sprawdzone:
+   plik i flagi dają przebieg identyczny co do bajtu.
+4. **Dało się zbudować ślepy zaułek.** Za mały promień korony (nieszczelny
+   pierścień) albo `torus-64` → pryzmat (limit hulla) kończyły się napisem
+   „rig nie powstał" bez drogi powrotnej. Teraz konstrukcja jest **wciskana
+   w zakres budowalny z jawnym komunikatem**, a nieudana budowa zostawia
+   przycisk powrotu do ostatniej działającej.
+
+Rozszerzenie workflow: **przemiatanie jednego parametru** — w oknie i w stendzie
+(`--qc-sweep --qc-sweep-param segments|crown|spring|speed|obstacle`). A/B dwóch
+konstrukcji odpowiada „która lepsza"; przemiatanie odpowiada „co ten parametr
+właściwie robi", a od tego zaczyna się każdy nowy system koła.
+
+**`F-25` — pierwszy wynik, który dał ten warsztat, i obala mój własny zapis.**
+W kodzie (`jozz_wheel_rig.h`, pole `crownR`) stało napisane, że promień korony
+handluje gładkość za szerokość płaskiej bieżni. Przemiatanie 0,04 → 0,19 m dla
+`torus-64` przy 4 m/s pokazuje **monotoniczną poprawę wszystkiego**: strata
+795,2 → 457,1 W (−43%), churn 26,9% → 0,0%, `sprung_accel_rms` −34%, przy
+zwężeniu płaskiej bieżni z 358 do 58 mm. Rozrzut zerowy w każdym z 6 punktów.
+Cena jest, ale gdzie indziej: **CPU rośnie 1,7×** (0,048 → 0,082 ms/krok), bo
+większe kapsuły dają więcej punktów styku. Dlaczego to nie zamyka sprawy: Q3 na
+płaskiej płycie **nie stawia kołu siły bocznej ani pochylenia**, więc nie może
+zmierzyć, po co płaska bieżnia istnieje. Kompromis, jeśli istnieje, leży poza
+tym szczeblem — i to jest pytanie dla `W3`, nie dla Q3.
+
 Poza zakresem etapu, świadomie: prawo opony (`W3`) i prowadzenie boczne,
 rozszerzanie `JozzRigConfig` o pola zawieszenia (martwe pola w Q2A i zmiana
 nagłówka `# config` we wzorcach bez zmiany fizyki) oraz `jozz_vehicle_m6_

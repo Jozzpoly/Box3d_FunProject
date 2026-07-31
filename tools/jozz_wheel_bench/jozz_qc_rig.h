@@ -6,9 +6,16 @@
 // zmienia eksperyment, a nie widok.
 //
 // Ten sam podzial odpowiedzialnosci co w jozz_wheel_rig.h i z tego samego powodu:
-//   ten modul     - swiat, droga, ciala, wiez, naped, metryki
-//   wheel_bench.c - PROTOKOL (okno pomiarowe, CSV, porownanie kandydatow)
+//   ten modul     - swiat, droga, ciala, wiez, naped, metryki, PROTOKOL POMIARU
+//   wheel_bench.c - CSV, tabela, linia polecen
 //   sample        - kamera, overlay, wejscie
+//
+// Protokol pomiaru (rozgrzewka, okno, powtorzenia, lista kandydatow) przeniosl
+// sie tutaj ze stendu, bo od wersji warsztatowej uruchamiaja go OBA frontendy:
+// stend przy --qc-compare i okno przyciskiem "zmierz jak stend". Dopoki siedzial
+// w wheel_bench.c, jedyna droga do liczby bench-grade z okna bylo napisanie
+// drugiej kopii - a dwie kopie protokolu to dwa niezalezne twierdzenia o tym
+// samym przebiegu, czyli dokladnie to, czemu ten podzial mial zapobiec.
 //
 // Obwiednia i masa kola pochodza z jozz_wheel_rig - to NIE jest wygoda, tylko
 // warunek reguly transferu: kandydat w Q3 musi byc fizycznie tym samym obiektem,
@@ -117,6 +124,45 @@ double JozzQc_StaticSag( const JozzQcConfig* c );
 // Widok kola jako JozzRigConfig - JEDNO zrodlo obwiedni i masy dla obu rigow.
 JozzRigConfig JozzQc_WheelConfig( const JozzQcConfig* c );
 
+// Najmniejsze N, przy ktorym TA konfiguracja jest budowalna. Poza `torus-N`
+// zwraca 3. Istnieje osobno od JozzRig_MinTorusSegments, zeby frontend nie
+// musial skladac JozzRigConfig tylko po to, zeby zapytac o granice suwaka.
+int JozzQc_MinSegments( const JozzQcConfig* c );
+
+// Najwieksze N budowalne dla tego wariantu: dla pryzmatu twardy limit hulla
+// (F-01), dla pierscienia kapsul limit praktyczny.
+int JozzQc_MaxSegments( const JozzQcConfig* c );
+
+// Wciska `segments` w zakres BUDOWALNY i zwraca 1, gdy cos zmienil.
+// Powod: pierscien kapsul robi sie nieszczelny, gdy Owner ciagnie promien korony
+// w dol, a przelaczenie torus-64 -> pryzmat zada 64 scianek, ktorych hull nie
+// przyjmie. W obu przypadkach KAZDA przebudowa konczyla sie bledem, a okno
+// pokazywalo "rig nie powstal" bez drogi powrotnej. Wciskniecie N jest jedyna
+// zmiana zachowujaca zamowiona geometrie przekroju; jest JAWNE, bo frontend
+// pokazuje, ze N zostalo zmienione i o ile.
+//
+// Wolane WYLACZNIE ze sciezki suwaka. Plik konstrukcji i linia polecen maja byc
+// odrzucane, a nie po cichu poprawiane: opisuja inna konstrukcje niz ta, ktora
+// dalo by sie uruchomic.
+int JozzQc_ClampSegments( JozzQcConfig* c );
+
+// --- konstrukcja jako plik ---------------------------------------------------
+// Ten sam format i ten sam kontrakt co `.rig` (jozz_wheel_rig.h): `klucz wartosc`,
+// `#` to komentarz, brak klucza = domyslna, nieznany klucz = BLAD, zapis->odczyt
+// ->zapis jest bajtowo identyczny. Rozszerzenie `.qc`, bo opisuje CALY narożnik,
+// nie samo kolo.
+#define JOZZ_QC_CONFIG_FORMAT 1
+#define JOZZ_QC_CONFIG_TEXT_CAP 3072
+
+int JozzQc_ConfigToText( const JozzQcConfig* c, char* out, size_t cap, const char* note );
+int JozzQc_ConfigFromText( JozzQcConfig* c, const char* text, char* err, size_t errCap );
+int JozzQc_ConfigWriteFile( const JozzQcConfig* c, const char* path, const char* note );
+int JozzQc_ConfigReadFile( JozzQcConfig* c, const char* path, char* err, size_t errCap );
+
+// Sprawdza SAM format: kompletnosc tabeli pol, przebieg tam i z powrotem,
+// stabilnosc powtornego zapisu i odrzucanie zepsutego pliku. Wolane przez bramke.
+int JozzQc_ConfigSelfTest( char* err, size_t errCap );
+
 // --- odczyt po kroku ---------------------------------------------------------
 typedef struct
 {
@@ -188,6 +234,32 @@ void JozzQc_Step( JozzQcRig* rig, JozzQcSample* out );
 
 void JozzQc_MarkPerturbation( JozzQcRig* rig, const char* what );
 
+// --- strojenie na zywo -------------------------------------------------------
+// Pola, ktore box3d potrafi zmienic na biegnacym wiezie. Istnieja, bo warsztat
+// bez nich nie jest warsztatem: kazde pokretlo wymagalo przebudowy, a przebudowa
+// kasuje przebieg, wiec zmiany sztywnosci NIE DALO SIE poczuc - dalo sie tylko
+// obejrzec dwa osobne przebiegi i porownac je z pamieci.
+//
+// Kontrakt: te funkcje aktualizuja TAKZE rig->cfg, wiec odcisk konfiguracji
+// zawsze opisuje to, co wiez faktycznie robi. Nie sa zaburzeniem fizyki (nie
+// dotykaja stanu cial), ale uniewazniaja OKNO POMIAROWE - dlatego frontend
+// zeruje okno po kazdym wywolaniu. Liczby bench-grade i tak pochodza z
+// JozzQc_MeasureCell, ktore ZAWSZE buduje rig od nowa.
+
+// Sztywnosc w N/m i tlumienie. Przelicza tez granice skoku, bo ugiecie statyczne
+// idzie za sztywnoscia - rozdzielenie tych dwoch operacji dawalo zawieszenie,
+// ktore przy miekkiej sprezynie stalo na zderzaku bez zadnego komunikatu.
+void JozzQc_SetSuspension( JozzQcRig* rig, float springNPerM, float zeta );
+
+// Skok liczony OD PUNKTU STATYCZNEGO, jak w konfiguracji.
+void JozzQc_SetTravel( JozzQcRig* rig, float bumpTravel, float droopTravel );
+
+// Tryb napedu i jego nastawy. Zmiana trybu zeruje calke regulatora: bez tego
+// powrot do trybu predkosci startuje z windupem uzbieranym, zanim naped w ogole
+// byl wlaczony.
+void JozzQc_SetDrive( JozzQcRig* rig, JozzQcDrive mode, double targetSpeed, double constTorque );
+void JozzQc_SetDriveGains( JozzQcRig* rig, double kp, double ki, double maxTorque );
+
 // Punkty kontaktu kola do rysowania. Bez klasyfikacji - klasyfikacja nalezy do
 // eksperymentu, nie do rysowania.
 int JozzQc_ContactPoints( const JozzQcRig* rig, JozzRigContactPoint* out, int cap );
@@ -224,6 +296,86 @@ void JozzQc_WindowEnd( JozzQcWindow* w, const JozzQcRig* rig );
 	"step,time,x,speed,drive_torque,travel,sprung_y,sprung_accel_y,wheel_y,omega_spin,slip,normal_impulse,"           \
 	"loaded_pts,new_loaded_pts,airborne,limit_hit,saturated\n"
 void JozzQc_TraceLine( const JozzQcSample* s, char* out, size_t cap );
+
+// --- protokol pomiaru --------------------------------------------------------
+// Kontrakt par. 8. Te trzy liczby sa czescia eksperymentu, nie ustawieniem
+// wygody - zmiana ktorejkolwiek zmienia to, co znacza wszystkie dotychczasowe
+// wyniki Q3.
+#define JOZZ_QC_WARMUP_STEPS 120 // 2 s: dojazd do progu i wygaszenie startu
+#define JOZZ_QC_WINDOW_STEPS 600 // 10 s okna pomiarowego
+#define JOZZ_QC_REPEATS 3
+
+// Przesuniecie punktu startu miedzy powtorzeniami. Powod jest ZMIERZONY (F-24):
+// przesuniecie mocowania nadwozia o 35 cm - wielkosc geometrycznie neutralna dla
+// tego wiezu - przerzucilo `airborne` dla torus-32 przy 13 m/s z 6.0% na 10.8%,
+// czyli przez prog wazności. Kolo skaczace po fasetach jest ukladem chaotycznym,
+// wiec pojedynczy przebieg podaje liczbe z dokladnoscia, ktorej nie ma.
+// Przesuwamy PUNKT STARTU, bo na plaskiej plycie to jedyna zmiana nietykajaca
+// ani kola, ani zawieszenia, ani drogi - zmienia sama faze spotkania z gruntem.
+extern const double JozzQc_StartJitter[JOZZ_QC_REPEATS];
+
+typedef struct
+{
+	JozzQcWindow win;
+	double msPerStep;
+	int shapes;
+	double ripple;
+	int traceCount;
+	int built;
+	char err[192];
+} JozzQcRunResult;
+
+// Jeden przebieg: rozgrzewka, potem okno. `traceOut` (moze byc NULL) dostaje
+// probki okna - zapis do pliku nalezy do wolajacego i celowo dzieje sie PO
+// przebiegu, zeby I/O nie wchodzilo do mierzonego `msPerStep`.
+JozzQcRunResult JozzQc_MeasureOne( const JozzQcConfig* cfg, int warmup, int windowSteps, JozzQcSample* traceOut,
+								   int traceCap );
+
+// Komorka macierzy: srednia z JOZZ_QC_REPEATS przebiegow i POLOWA ROZRZUTU.
+// Rozrzut jest tu rowno wazny z wartoscia - bez niego tabela zaprasza do
+// czytania roznic, ktorych nie ma. `invalid` zapala sie, gdy KTOREKOLWIEK
+// powtorzenie bylo niewazne.
+typedef struct
+{
+	double torque, torqueSpread;
+	double loss;
+	double accel, accelSpread;
+	double airborne, airborneSpread;
+	double travelRms;
+	double churn;
+	double slip;
+	double speed;
+	double msPerStep;
+	int shapes;
+	double ripple;
+	int repeats;
+	int invalid;
+	int built;
+	char err[192];
+	char why[160];
+} JozzQcCell;
+
+JozzQcCell JozzQc_MeasureCell( const JozzQcConfig* base, int warmup, int windowSteps );
+
+// --- lista kandydatow --------------------------------------------------------
+// Lista JEST eksperymentem, nie wygoda interfejsu, i dlatego stoi tutaj: gdy
+// mialy ja obie strony osobno, okno pokazywalo `prism-Nmax` z wpisanym na sztywno
+// N=42, a stend probowal realna granice hulla tego buildu. Rozjazd oznaczalby,
+// ze Owner ocenia feel czegos innego niz to, co zostalo zmierzone.
+//   sphere       kontrola: obwiednia bez zadnej struktury
+//   prism-Nmax   dzisiejsze kolo produktu, na granicy tego, co przyjmuje hull
+//   prism-32     ten sam pryzmat przy N rownym torusowi (uczciwe zestawienie)
+//   torus-32     nowy kandydat przy tym samym N co pryzmat
+//   torus-64     nowy kandydat TAM, GDZIE PRYZMAT JUZ NIE SIEGA
+typedef struct
+{
+	const char* label;
+	JozzRigVariant variant;
+	int segments;
+} JozzQcCandidate;
+
+#define JOZZ_QC_CANDIDATE_CAP 8
+int JozzQc_Candidates( JozzQcCandidate* out, int cap );
 
 #ifdef __cplusplus
 }

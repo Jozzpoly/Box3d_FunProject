@@ -5,10 +5,36 @@
 #include "jozz_qc_rig.h"
 
 #include <math.h>
+#include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
+#if defined( _WIN32 )
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
+#include <time.h>
+#endif
+
 #define JQC_PI 3.14159265358979
+
+// Zegar do kosztu CPU na krok. Osobny od stendu, bo protokol pomiaru mieszka
+// teraz tutaj, a ten plik kompiluje sie takze do `samples` - stad warunek na
+// windows.h zamiast bezwarunkowego include.
+static double JqcNowMs( void )
+{
+#if defined( _WIN32 )
+	LARGE_INTEGER f, c;
+	QueryPerformanceFrequency( &f );
+	QueryPerformanceCounter( &c );
+	return 1000.0 * (double)c.QuadPart / (double)f.QuadPart;
+#else
+	struct timespec ts;
+	clock_gettime( CLOCK_MONOTONIC, &ts );
+	return 1000.0 * (double)ts.tv_sec + 1e-6 * (double)ts.tv_nsec;
+#endif
+}
 
 const char* JozzQc_RoadName( JozzQcRoad r )
 {
@@ -127,6 +153,40 @@ JozzRigConfig JozzQc_WheelConfig( const JozzQcConfig* c )
 	return w;
 }
 
+int JozzQc_MinSegments( const JozzQcConfig* c )
+{
+	if ( c->variant != JOZZ_RIG_TORUS )
+		return 3;
+	{
+		JozzRigConfig w = JozzQc_WheelConfig( c );
+		int n = JozzRig_MinTorusSegments( &w );
+		return n > 3 ? n : 3;
+	}
+}
+
+int JozzQc_MaxSegments( const JozzQcConfig* c )
+{
+	if ( c->variant == JOZZ_RIG_PRISM_MAX )
+		return JozzRig_ProbeMaxPrismSides();
+	if ( c->variant == JOZZ_RIG_TORUS )
+		return 128;
+	return 3;
+}
+
+int JozzQc_ClampSegments( JozzQcConfig* c )
+{
+	int lo = JozzQc_MinSegments( c );
+	int hi = JozzQc_MaxSegments( c );
+	int was = c->segments;
+	if ( hi < lo )
+		hi = lo;
+	if ( c->segments < lo )
+		c->segments = lo;
+	else if ( c->segments > hi )
+		c->segments = hi;
+	return c->segments != was;
+}
+
 double JozzQc_ReducedMass( const JozzQcConfig* c )
 {
 	double a = (double)c->sprungKg, b = (double)c->unsprungKg;
@@ -171,6 +231,560 @@ void JozzQc_ConfigDigest( const JozzQcConfig* c, char* out, size_t cap )
 			  (double)c->mountH, JozzQc_RoadName( c->road ), (double)c->obstacleH, (double)c->obstacleLen,
 			  (double)c->combSpacing, JozzQc_DriveName( c->drive ), c->targetSpeed, c->kp, c->ki, c->maxTorque,
 			  c->constTorque, c->startX, c->startSpeed, c->gravity, c->dt, c->substeps );
+}
+
+// ---------------------------------------------------- konstrukcja jako plik
+//
+// Ta sama konstrukcja co `.rig`: JEDNA tabela pol obsluguje zapis i odczyt, bo
+// przy dwoch osobnych funkcjach dolozenie pola do JozzQcConfig i zapomnienie o
+// nim po jednej ze stron daje plik, ktory CICHO gubi czesc tozsamosci przebiegu.
+// Rozszerzenie `.qc`, bo plik opisuje caly narożnik: kolo, zawieszenie, droge,
+// naped i przyrzad.
+
+typedef enum
+{
+	JQ_F_INT,
+	JQ_F_FLOAT,
+	JQ_F_DOUBLE,
+	JQ_F_VARIANT,
+	JQ_F_ROAD,
+	JQ_F_DRIVE
+} JqFieldKind;
+
+typedef struct
+{
+	const char* key;
+	JqFieldKind kind;
+	size_t off;
+	const char* group; // niepusty zaczyna nowa sekcje w zapisie
+} JqField;
+
+#define JQ_OFF( f ) offsetof( JozzQcConfig, f )
+
+static const JqField s_qcFields[] = {
+	{ "variant", JQ_F_VARIANT, JQ_OFF( variant ), "kolo" },
+	{ "segments", JQ_F_INT, JQ_OFF( segments ), NULL },
+	{ "wheel_r", JQ_F_FLOAT, JQ_OFF( wheelR ), NULL },
+	{ "wheel_w", JQ_F_FLOAT, JQ_OFF( wheelW ), NULL },
+	{ "crown_r", JQ_F_FLOAT, JQ_OFF( crownR ), NULL },
+	{ "unsprung_kg", JQ_F_FLOAT, JQ_OFF( unsprungKg ), NULL },
+	{ "inertia_spin", JQ_F_FLOAT, JQ_OFF( inertiaSpin ), NULL },
+	{ "inertia_trans", JQ_F_FLOAT, JQ_OFF( inertiaTrans ), NULL },
+	{ "density", JQ_F_FLOAT, JQ_OFF( density ), NULL },
+	{ "friction", JQ_F_FLOAT, JQ_OFF( friction ), NULL },
+
+	{ "sprung_kg", JQ_F_FLOAT, JQ_OFF( sprungKg ), "zawieszenie" },
+	{ "spring_n_per_m", JQ_F_FLOAT, JQ_OFF( springNPerM ), NULL },
+	{ "zeta", JQ_F_FLOAT, JQ_OFF( zeta ), NULL },
+	{ "bump_travel", JQ_F_FLOAT, JQ_OFF( bumpTravel ), NULL },
+	{ "droop_travel", JQ_F_FLOAT, JQ_OFF( droopTravel ), NULL },
+	{ "mount_h", JQ_F_FLOAT, JQ_OFF( mountH ), NULL },
+
+	{ "ground_half_x", JQ_F_FLOAT, JQ_OFF( groundHalfX ), "droga" },
+	{ "ground_half_z", JQ_F_FLOAT, JQ_OFF( groundHalfZ ), NULL },
+	{ "road", JQ_F_ROAD, JQ_OFF( road ), NULL },
+	{ "obstacle_h", JQ_F_FLOAT, JQ_OFF( obstacleH ), NULL },
+	{ "obstacle_len", JQ_F_FLOAT, JQ_OFF( obstacleLen ), NULL },
+	{ "comb_spacing", JQ_F_FLOAT, JQ_OFF( combSpacing ), NULL },
+
+	{ "drive", JQ_F_DRIVE, JQ_OFF( drive ), "naped" },
+	{ "target_speed", JQ_F_DOUBLE, JQ_OFF( targetSpeed ), NULL },
+	{ "kp", JQ_F_DOUBLE, JQ_OFF( kp ), NULL },
+	{ "ki", JQ_F_DOUBLE, JQ_OFF( ki ), NULL },
+	{ "max_torque", JQ_F_DOUBLE, JQ_OFF( maxTorque ), NULL },
+	{ "const_torque", JQ_F_DOUBLE, JQ_OFF( constTorque ), NULL },
+	{ "start_speed", JQ_F_DOUBLE, JQ_OFF( startSpeed ), NULL },
+	{ "start_x", JQ_F_DOUBLE, JQ_OFF( startX ), NULL },
+
+	{ "gravity", JQ_F_DOUBLE, JQ_OFF( gravity ), "instrument" },
+	{ "dt", JQ_F_DOUBLE, JQ_OFF( dt ), NULL },
+	{ "substeps", JQ_F_INT, JQ_OFF( substeps ), NULL },
+};
+
+static const int s_qcFieldCount = (int)( sizeof( s_qcFields ) / sizeof( s_qcFields[0] ) );
+
+static size_t JqFieldSize( JqFieldKind k )
+{
+	switch ( k )
+	{
+		case JQ_F_INT:
+			return sizeof( int );
+		case JQ_F_FLOAT:
+			return sizeof( float );
+		case JQ_F_DOUBLE:
+			return sizeof( double );
+		case JQ_F_VARIANT:
+			return sizeof( JozzRigVariant );
+		case JQ_F_ROAD:
+			return sizeof( JozzQcRoad );
+		case JQ_F_DRIVE:
+			return sizeof( JozzQcDrive );
+	}
+	return 0;
+}
+
+// %.9g odtwarza kazdy float, %.17g kazdy double. Przy mniejszej liczbie cyfr
+// zapis-odczyt przesuwalby konstrukcje o ostatni bit, wiec plik dawalby INNY
+// przebieg niz ten, ktory Owner zapisal.
+static void JqWriteValue( const JqField* f, const void* base, char* out, size_t cap )
+{
+	const char* p = (const char*)base + f->off;
+	switch ( f->kind )
+	{
+		case JQ_F_INT:
+			snprintf( out, cap, "%d", *(const int*)p );
+			break;
+		case JQ_F_FLOAT:
+			snprintf( out, cap, "%.9g", (double)*(const float*)p );
+			break;
+		case JQ_F_DOUBLE:
+			snprintf( out, cap, "%.17g", *(const double*)p );
+			break;
+		case JQ_F_VARIANT:
+			snprintf( out, cap, "%s", JozzRig_VariantName( *(const JozzRigVariant*)p ) );
+			break;
+		case JQ_F_ROAD:
+			snprintf( out, cap, "%s", JozzQc_RoadName( *(const JozzQcRoad*)p ) );
+			break;
+		case JQ_F_DRIVE:
+			snprintf( out, cap, "%s", JozzQc_DriveName( *(const JozzQcDrive*)p ) );
+			break;
+	}
+}
+
+static int JqParseValue( const JqField* f, void* base, const char* value, char* err, size_t errCap )
+{
+	char* p = (char*)base + f->off;
+	char* end = NULL;
+	int i;
+	switch ( f->kind )
+	{
+		case JQ_F_INT:
+		{
+			long v = strtol( value, &end, 10 );
+			if ( end == value )
+				break;
+			*(int*)p = (int)v;
+			return 1;
+		}
+		case JQ_F_FLOAT:
+		{
+			double v = strtod( value, &end );
+			if ( end == value )
+				break;
+			*(float*)p = (float)v;
+			return 1;
+		}
+		case JQ_F_DOUBLE:
+		{
+			double v = strtod( value, &end );
+			if ( end == value )
+				break;
+			*(double*)p = v;
+			return 1;
+		}
+		case JQ_F_VARIANT:
+			for ( i = 0; i < JOZZ_RIG_VARIANT_COUNT; ++i )
+				if ( strcmp( value, JozzRig_VariantName( (JozzRigVariant)i ) ) == 0 )
+				{
+					*(JozzRigVariant*)p = (JozzRigVariant)i;
+					return 1;
+				}
+			snprintf( err, errCap, "nieznany wariant '%s'", value );
+			return 0;
+		case JQ_F_ROAD:
+			for ( i = 0; i < JOZZ_QC_ROAD_COUNT; ++i )
+				if ( strcmp( value, JozzQc_RoadName( (JozzQcRoad)i ) ) == 0 )
+				{
+					*(JozzQcRoad*)p = (JozzQcRoad)i;
+					return 1;
+				}
+			snprintf( err, errCap, "nieznana droga '%s'", value );
+			return 0;
+		case JQ_F_DRIVE:
+			for ( i = 0; i < JOZZ_QC_DRIVE_COUNT; ++i )
+				if ( strcmp( value, JozzQc_DriveName( (JozzQcDrive)i ) ) == 0 )
+				{
+					*(JozzQcDrive*)p = (JozzQcDrive)i;
+					return 1;
+				}
+			snprintf( err, errCap, "nieznany naped '%s'", value );
+			return 0;
+	}
+	snprintf( err, errCap, "pole '%s': '%s' nie jest liczba", f->key, value );
+	return 0;
+}
+
+int JozzQc_ConfigToText( const JozzQcConfig* c, char* out, size_t cap, const char* note )
+{
+	size_t used = 0;
+	int i;
+	int n = snprintf( out, cap, "format %d\n", JOZZ_QC_CONFIG_FORMAT );
+	if ( n < 0 || (size_t)n >= cap )
+		return 0;
+	used = (size_t)n;
+
+	if ( note && note[0] )
+	{
+		const char* s = note;
+		if ( used + 2 >= cap )
+			return 0;
+		out[used++] = '#';
+		out[used++] = ' ';
+		for ( ; *s && used + 1 < cap; ++s )
+			out[used++] = ( *s == '\n' || *s == '\r' ) ? ' ' : *s;
+		if ( used + 1 >= cap )
+			return 0;
+		out[used++] = '\n';
+	}
+
+	for ( i = 0; i < s_qcFieldCount; ++i )
+	{
+		char value[64];
+		JqWriteValue( &s_qcFields[i], c, value, sizeof( value ) );
+		n = snprintf( out + used, cap - used, "%s%s%s%s %s\n", s_qcFields[i].group ? "\n# " : "",
+					  s_qcFields[i].group ? s_qcFields[i].group : "", s_qcFields[i].group ? "\n" : "",
+					  s_qcFields[i].key, value );
+		if ( n < 0 || (size_t)n >= cap - used )
+			return 0;
+		used += (size_t)n;
+	}
+	return (int)used;
+}
+
+int JozzQc_ConfigFromText( JozzQcConfig* c, const char* text, char* err, size_t errCap )
+{
+	JozzQcConfig parsed = JozzQc_DefaultConfig();
+	const char* p = text;
+	int line = 0;
+	int sawFormat = 0;
+
+	if ( err && errCap )
+		err[0] = '\0';
+
+	while ( *p )
+	{
+		char buf[256];
+		char key[64];
+		const char* eol = strchr( p, '\n' );
+		size_t len = eol ? (size_t)( eol - p ) : strlen( p );
+		size_t k = 0;
+		const char* v;
+		int i, found = 0;
+
+		line += 1;
+
+		// Komentarz i pusta linia odpadaja PRZED limitem dlugosci: notatka z polki
+		// ma kilkaset znakow, wiec limit nalozony wczesniej odrzucalby wlasne pliki
+		// narzedzia - zapis by sie udawal, a odczyt nie.
+		{
+			const char* s = p;
+			const char* e = p + len;
+			while ( s < e && ( *s == ' ' || *s == '\t' || *s == '\r' ) )
+				++s;
+			if ( s == e || *s == '#' )
+			{
+				p = eol ? eol + 1 : p + len;
+				continue;
+			}
+		}
+
+		if ( len >= sizeof( buf ) )
+		{
+			snprintf( err, errCap, "linia %d za dluga", line );
+			return 0;
+		}
+		memcpy( buf, p, len );
+		buf[len] = '\0';
+		p = eol ? eol + 1 : p + len;
+
+		{
+			char* s = buf;
+			while ( *s == ' ' || *s == '\t' || *s == '\r' )
+				++s;
+			memmove( buf, s, strlen( s ) + 1 );
+		}
+
+		while ( buf[k] && buf[k] != ' ' && buf[k] != '\t' )
+			++k;
+		if ( k == 0 || k >= sizeof( key ) )
+		{
+			snprintf( err, errCap, "linia %d: brak klucza", line );
+			return 0;
+		}
+		memcpy( key, buf, k );
+		key[k] = '\0';
+
+		v = buf + k;
+		while ( *v == ' ' || *v == '\t' )
+			++v;
+		{
+			char* tail = (char*)v + strlen( v );
+			while ( tail > v && ( tail[-1] == ' ' || tail[-1] == '\t' || tail[-1] == '\r' ) )
+				*--tail = '\0';
+		}
+		if ( *v == '\0' )
+		{
+			snprintf( err, errCap, "linia %d: klucz '%s' bez wartosci", line, key );
+			return 0;
+		}
+
+		if ( strcmp( key, "format" ) == 0 )
+		{
+			if ( atoi( v ) != JOZZ_QC_CONFIG_FORMAT )
+			{
+				snprintf( err, errCap, "format pliku %s, obslugiwany %d", v, JOZZ_QC_CONFIG_FORMAT );
+				return 0;
+			}
+			sawFormat = 1;
+			continue;
+		}
+
+		for ( i = 0; i < s_qcFieldCount; ++i )
+		{
+			if ( strcmp( key, s_qcFields[i].key ) != 0 )
+				continue;
+			if ( JqParseValue( &s_qcFields[i], &parsed, v, err, errCap ) == 0 )
+				return 0;
+			found = 1;
+			break;
+		}
+		if ( found == 0 )
+		{
+			// Nieznany klucz to blad, nie ostrzezenie. Cicho zignorowana literowka
+			// daje plik, ktory OPISUJE jedna konstrukcje, a URUCHAMIA inna.
+			snprintf( err, errCap, "linia %d: nieznany klucz '%s'", line, key );
+			return 0;
+		}
+	}
+
+	if ( sawFormat == 0 )
+	{
+		snprintf( err, errCap, "brak linii 'format' - to nie jest plik konstrukcji narożnika" );
+		return 0;
+	}
+	*c = parsed;
+	return 1;
+}
+
+int JozzQc_ConfigWriteFile( const JozzQcConfig* c, const char* path, const char* note )
+{
+	char text[JOZZ_QC_CONFIG_TEXT_CAP];
+	FILE* f;
+	int n = JozzQc_ConfigToText( c, text, sizeof( text ), note );
+	if ( n <= 0 )
+		return 0;
+	f = fopen( path, "wb" );
+	if ( f == NULL )
+		return 0;
+	fwrite( text, 1, (size_t)n, f );
+	fclose( f );
+	return 1;
+}
+
+int JozzQc_ConfigReadFile( JozzQcConfig* c, const char* path, char* err, size_t errCap )
+{
+	char text[JOZZ_QC_CONFIG_TEXT_CAP];
+	size_t n;
+	FILE* f = fopen( path, "rb" );
+	if ( f == NULL )
+	{
+		snprintf( err, errCap, "nie moge otworzyc %s", path );
+		return 0;
+	}
+	n = fread( text, 1, sizeof( text ) - 1, f );
+	fclose( f );
+	text[n] = '\0';
+	return JozzQc_ConfigFromText( c, text, err, errCap );
+}
+
+// Ten sam potrojny straznik co w `.rig` i z tego samego powodu: rozmiar lapie
+// pole dodane do struktury i niedopisane do tabeli, mapa pokrycia lapie pole
+// USUNIETE z tabeli albo wpis o zlym offsecie (czego rozmiar nie widzi), a
+// przebieg tam i z powrotem lapie zla dokladnosc albo zly typ.
+//
+// Gdy ktoras liczba przestanie sie zgadzac: NAJPIERW dopisz pole do s_qcFields,
+// dopiero potem zaktualizuj liczbe. Odwrotna kolejnosc kasuje calego straznika.
+#define JOZZ_QC_CONFIG_SIZEOF 176
+#define JOZZ_QC_CONFIG_PADDING 8 // jedna dziura 4 B przed pierwszym double + ogon
+
+int JozzQc_ConfigSelfTest( char* err, size_t errCap )
+{
+	JozzQcConfig a = JozzQc_DefaultConfig();
+	JozzQcConfig b;
+	char textA[JOZZ_QC_CONFIG_TEXT_CAP];
+	char textB[JOZZ_QC_CONFIG_TEXT_CAP];
+	char e2[256];
+	unsigned char cover[JOZZ_QC_CONFIG_SIZEOF];
+	int i, uncovered = 0;
+
+	if ( err && errCap )
+		err[0] = '\0';
+
+	if ( sizeof( JozzQcConfig ) != JOZZ_QC_CONFIG_SIZEOF )
+	{
+		snprintf( err, errCap,
+				  "rozmiar JozzQcConfig to %d, audytowany %d - pole doszlo albo zniknelo; "
+				  "sprawdz, czy jest w s_qcFields",
+				  (int)sizeof( JozzQcConfig ), JOZZ_QC_CONFIG_SIZEOF );
+		return 0;
+	}
+
+	memset( cover, 0, sizeof( cover ) );
+	for ( i = 0; i < s_qcFieldCount; ++i )
+	{
+		size_t n = JqFieldSize( s_qcFields[i].kind );
+		size_t j;
+		for ( j = 0; j < n; ++j )
+		{
+			size_t at = s_qcFields[i].off + j;
+			if ( at >= sizeof( cover ) )
+			{
+				snprintf( err, errCap, "pole '%s' wystaje poza strukture", s_qcFields[i].key );
+				return 0;
+			}
+			if ( cover[at] )
+			{
+				snprintf( err, errCap, "pole '%s' nachodzi na inne (bajt %d)", s_qcFields[i].key, (int)at );
+				return 0;
+			}
+			cover[at] = 1;
+		}
+	}
+	for ( i = 0; i < (int)sizeof( cover ); ++i )
+		uncovered += cover[i] ? 0 : 1;
+	if ( uncovered != JOZZ_QC_CONFIG_PADDING )
+	{
+		snprintf( err, errCap,
+				  "tabela opisuje %d z %d bajtow struktury (nieopisane %d, wyrownanie %d) - "
+				  "ktores pole nie ma wpisu w s_qcFields",
+				  (int)sizeof( cover ) - uncovered, (int)sizeof( cover ), uncovered, JOZZ_QC_CONFIG_PADDING );
+		return 0;
+	}
+
+	// Kazde pole dostaje WLASNA wartosc, rozna od domyslnej i rozna od sasiadow:
+	// przy dwoch rownych wartosciach zamiana pol miejscami przeszlaby niezauwazona.
+	for ( i = 0; i < s_qcFieldCount; ++i )
+	{
+		char* p = (char*)&a + s_qcFields[i].off;
+		switch ( s_qcFields[i].kind )
+		{
+			case JQ_F_INT:
+				*(int*)p = 3 + i * 7;
+				break;
+			case JQ_F_FLOAT:
+				*(float*)p = (float)( i + 1 ) * 1.2345678f;
+				break;
+			case JQ_F_DOUBLE:
+				*(double*)p = (double)( i + 1 ) * 1.23456789012345678;
+				break;
+			case JQ_F_VARIANT:
+				*(JozzRigVariant*)p = JOZZ_RIG_TORUS;
+				break;
+			case JQ_F_ROAD:
+				*(JozzQcRoad*)p = JOZZ_QC_ROAD_COMB;
+				break;
+			case JQ_F_DRIVE:
+				*(JozzQcDrive*)p = JOZZ_QC_DRIVE_COAST;
+				break;
+		}
+	}
+
+	if ( JozzQc_ConfigToText( &a, textA, sizeof( textA ), "self-test" ) <= 0 )
+	{
+		snprintf( err, errCap, "zapis do tekstu nieudany (bufor?)" );
+		return 0;
+	}
+	if ( JozzQc_ConfigFromText( &b, textA, e2, sizeof( e2 ) ) == 0 )
+	{
+		snprintf( err, errCap, "odczyt wlasnego zapisu nieudany: %s", e2 );
+		return 0;
+	}
+	for ( i = 0; i < s_qcFieldCount; ++i )
+	{
+		const char* pa = (const char*)&a + s_qcFields[i].off;
+		const char* pb = (const char*)&b + s_qcFields[i].off;
+		// Porownanie POLAMI: bajty wyrownania nigdy nie przechodza przez plik.
+		if ( memcmp( pa, pb, JqFieldSize( s_qcFields[i].kind ) ) != 0 )
+		{
+			snprintf( err, errCap, "pole '%s' nie przezylo zapisu i odczytu", s_qcFields[i].key );
+			return 0;
+		}
+	}
+	if ( JozzQc_ConfigToText( &b, textB, sizeof( textB ), "self-test" ) <= 0 || strcmp( textA, textB ) != 0 )
+	{
+		snprintf( err, errCap, "ponowny zapis daje inny tekst - format nie jest stabilny" );
+		return 0;
+	}
+
+	// Odrzucenia. Kazde to konkretny sposob, w jaki plik moglby KLAMAC.
+	if ( JozzQc_ConfigFromText( &b, "format 1\nsegmenty 7\n", e2, sizeof( e2 ) ) != 0 )
+	{
+		snprintf( err, errCap, "nieznany klucz zostal przyjety" );
+		return 0;
+	}
+	if ( JozzQc_ConfigFromText( &b, "dt 0.01\n", e2, sizeof( e2 ) ) != 0 )
+	{
+		snprintf( err, errCap, "plik bez linii 'format' zostal przyjety" );
+		return 0;
+	}
+	if ( JozzQc_ConfigFromText( &b, "format 99\n", e2, sizeof( e2 ) ) != 0 )
+	{
+		snprintf( err, errCap, "obca wersja formatu zostala przyjeta" );
+		return 0;
+	}
+	if ( JozzQc_ConfigFromText( &b, "format 1\ndt szybko\n", e2, sizeof( e2 ) ) != 0 )
+	{
+		snprintf( err, errCap, "wartosc nieliczbowa zostala przyjeta" );
+		return 0;
+	}
+	if ( JozzQc_ConfigFromText( &b, "format 1\nroad kostka\n", e2, sizeof( e2 ) ) != 0 )
+	{
+		snprintf( err, errCap, "nieznana droga zostala przyjeta" );
+		return 0;
+	}
+	if ( JozzQc_ConfigFromText( &b, "format 1\ndrive turbo\n", e2, sizeof( e2 ) ) != 0 )
+	{
+		snprintf( err, errCap, "nieznany naped zostal przyjety" );
+		return 0;
+	}
+
+	// Plik niepelny jest LEGALNY i domyka sie domyslnymi. Bez tego kazdy zapisany
+	// przez Ownera plik przestawalby dzialac przy najblizszym nowym polu.
+	if ( JozzQc_ConfigFromText( &b, "format 1\nsegments 9\n", e2, sizeof( e2 ) ) == 0 )
+	{
+		snprintf( err, errCap, "plik czesciowy odrzucony: %s", e2 );
+		return 0;
+	}
+	{
+		JozzQcConfig d = JozzQc_DefaultConfig();
+		if ( b.segments != 9 || b.dt != d.dt || b.sprungKg != d.sprungKg || b.road != d.road )
+		{
+			snprintf( err, errCap, "plik czesciowy nie domknal sie domyslnymi" );
+			return 0;
+		}
+	}
+
+	// Dluga notatka z polki: znacznik czasu, tekst Ownera, krok i klasa sesji to
+	// grubo ponad 255 znakow. Gdy limit dlugosci linii obejmowal takze komentarze,
+	// narzedzie zapisywalo pliki, ktorych samo nie potrafilo wczytac.
+	{
+		char big[JOZZ_QC_CONFIG_TEXT_CAP];
+		char note[600];
+		memset( note, 'x', sizeof( note ) - 1 );
+		note[sizeof( note ) - 1] = '\0';
+		if ( JozzQc_ConfigToText( &a, big, sizeof( big ), note ) <= 0 )
+		{
+			snprintf( err, errCap, "zapis z dluga notatka nieudany" );
+			return 0;
+		}
+		if ( JozzQc_ConfigFromText( &b, big, e2, sizeof( e2 ) ) == 0 )
+		{
+			snprintf( err, errCap, "wlasny plik z dluga notatka odrzucony: %s", e2 );
+			return 0;
+		}
+	}
+	return 1;
 }
 
 // ---------------------------------------------------------------- ramki wiezu
@@ -472,6 +1086,57 @@ void JozzQc_MarkPerturbation( JozzQcRig* rig, const char* what )
 	snprintf( rig->lastPerturbation, sizeof( rig->lastPerturbation ), "%s", what ? what : "?" );
 }
 
+// ---------------------------------------------------------- strojenie na zywo
+
+// Granice skoku ida za ugieciem statycznym, a to za sztywnoscia. Jedna funkcja
+// dla obu, bo rozdzielenie ich dawalo zawieszenie, ktore po zmiekczeniu sprezyny
+// stalo na zderzaku bez zadnego komunikatu.
+static void JqcApplyLimits( JozzQcRig* rig )
+{
+	double sag = JozzQc_StaticSag( &rig->cfg );
+	rig->travelUpper = sag + (double)rig->cfg.bumpTravel;
+	rig->travelLower = sag - (double)rig->cfg.droopTravel;
+	b3WheelJoint_SetSuspensionLimits( rig->joint, (float)rig->travelLower, (float)rig->travelUpper );
+}
+
+void JozzQc_SetSuspension( JozzQcRig* rig, float springNPerM, float zeta )
+{
+	if ( B3_IS_NULL( rig->joint ) || springNPerM <= 0.0f )
+		return;
+	rig->cfg.springNPerM = springNPerM;
+	rig->cfg.zeta = zeta < 0.0f ? 0.0f : zeta;
+	rig->builtHertz = JozzQc_Hertz( &rig->cfg );
+	b3WheelJoint_SetSuspensionHertz( rig->joint, (float)rig->builtHertz );
+	b3WheelJoint_SetSuspensionDampingRatio( rig->joint, rig->cfg.zeta );
+	JqcApplyLimits( rig );
+}
+
+void JozzQc_SetTravel( JozzQcRig* rig, float bumpTravel, float droopTravel )
+{
+	if ( B3_IS_NULL( rig->joint ) || bumpTravel <= 0.0f || droopTravel <= 0.0f )
+		return;
+	rig->cfg.bumpTravel = bumpTravel;
+	rig->cfg.droopTravel = droopTravel;
+	JqcApplyLimits( rig );
+}
+
+void JozzQc_SetDrive( JozzQcRig* rig, JozzQcDrive mode, double targetSpeed, double constTorque )
+{
+	if ( rig->cfg.drive != mode )
+		rig->integral = 0.0; // inaczej powrot do trybu predkosci startuje z windupem
+	rig->cfg.drive = mode;
+	rig->cfg.targetSpeed = targetSpeed;
+	rig->cfg.constTorque = constTorque;
+}
+
+void JozzQc_SetDriveGains( JozzQcRig* rig, double kp, double ki, double maxTorque )
+{
+	rig->cfg.kp = kp;
+	rig->cfg.ki = ki;
+	rig->cfg.maxTorque = maxTorque > 0.0 ? maxTorque : rig->cfg.maxTorque;
+	rig->integral = 0.0;
+}
+
 int JozzQc_ContactPoints( const JozzQcRig* rig, JozzRigContactPoint* out, int cap )
 {
 	static b3ContactData cd[256];
@@ -703,4 +1368,149 @@ void JozzQc_TraceLine( const JozzQcSample* s, char* out, size_t cap )
 			  s->step, s->time, s->x, s->speed, s->driveTorque, s->travel, s->sprungY, s->sprungAccelY, s->wheelY,
 			  s->omegaSpin, s->slipRatio, s->normalImpulse, s->loadedPoints, s->newLoadedPoints, s->airborne,
 			  s->limitHit, s->saturated );
+}
+
+// ---------------------------------------------------------- protokol pomiaru
+
+const double JozzQc_StartJitter[JOZZ_QC_REPEATS] = { 0.0, 0.0137, 0.0271 };
+
+JozzQcRunResult JozzQc_MeasureOne( const JozzQcConfig* cfg, int warmup, int windowSteps, JozzQcSample* traceOut,
+								   int traceCap )
+{
+	JozzQcRunResult r;
+	JozzQcRig rig;
+	JozzQcSample s;
+	double t0;
+	int i;
+
+	memset( &r, 0, sizeof( r ) );
+	JozzQc_WindowBegin( &r.win );
+	if ( warmup < 0 )
+		warmup = 0;
+	if ( windowSteps < 1 )
+		windowSteps = 1;
+
+	if ( JozzQc_Create( &rig, cfg, NULL, r.err, sizeof( r.err ) ) == 0 )
+		return r;
+	r.built = 1;
+	r.shapes = rig.shapeCount;
+	{
+		JozzRigConfig w = JozzQc_WheelConfig( cfg );
+		r.ripple = JozzRig_EnvelopeRipple( &w );
+	}
+
+	for ( i = 0; i < warmup; ++i )
+		JozzQc_Step( &rig, &s );
+
+	t0 = JqcNowMs();
+	for ( i = 0; i < windowSteps; ++i )
+	{
+		JozzQc_Step( &rig, &s );
+		JozzQc_WindowAdd( &r.win, &s );
+		if ( traceOut && r.traceCount < traceCap )
+			traceOut[r.traceCount++] = s;
+	}
+	r.msPerStep = ( JqcNowMs() - t0 ) / (double)windowSteps;
+
+	JozzQc_WindowEnd( &r.win, &rig );
+	JozzQc_Destroy( &rig );
+	return r;
+}
+
+static void JqcAccumulate( double v, double* mean, double* lo, double* hi, int first )
+{
+	*mean += v;
+	if ( first || v < *lo )
+		*lo = v;
+	if ( first || v > *hi )
+		*hi = v;
+}
+
+JozzQcCell JozzQc_MeasureCell( const JozzQcConfig* base, int warmup, int windowSteps )
+{
+	JozzQcCell c;
+	double tLo = 0, tHi = 0, aLo = 0, aHi = 0, bLo = 0, bHi = 0, n;
+	int i;
+
+	memset( &c, 0, sizeof( c ) );
+	for ( i = 0; i < JOZZ_QC_REPEATS; ++i )
+	{
+		JozzQcConfig cfg = *base;
+		JozzQcRunResult r;
+		cfg.startX += JozzQc_StartJitter[i];
+		r = JozzQc_MeasureOne( &cfg, warmup, windowSteps, NULL, 0 );
+		if ( !r.built )
+		{
+			snprintf( c.err, sizeof( c.err ), "%s", r.err );
+			return c;
+		}
+		c.built = 1;
+		c.shapes = r.shapes;
+		c.ripple = r.ripple;
+		JqcAccumulate( r.win.driveTorqueMean, &c.torque, &tLo, &tHi, i == 0 );
+		JqcAccumulate( r.win.sprungAccelRms, &c.accel, &aLo, &aHi, i == 0 );
+		JqcAccumulate( r.win.airborneFraction, &c.airborne, &bLo, &bHi, i == 0 );
+		c.loss += r.win.lossPower;
+		c.travelRms += r.win.travelRms;
+		c.churn += r.win.contactChurnPct;
+		c.slip += r.win.slipRatioMean;
+		c.speed += r.win.speedMean;
+		c.msPerStep += r.msPerStep;
+		c.repeats += 1;
+		if ( r.win.invalid && c.invalid == 0 )
+		{
+			c.invalid = 1;
+			snprintf( c.why, sizeof( c.why ), "%s", r.win.invalidWhy );
+		}
+	}
+
+	n = (double)c.repeats;
+	c.torque /= n, c.accel /= n, c.airborne /= n;
+	c.loss /= n, c.travelRms /= n, c.churn /= n, c.slip /= n, c.speed /= n, c.msPerStep /= n;
+	c.torqueSpread = 0.5 * ( tHi - tLo );
+	c.accelSpread = 0.5 * ( aHi - aLo );
+	c.airborneSpread = 0.5 * ( bHi - bLo );
+	return c;
+}
+
+int JozzQc_Candidates( JozzQcCandidate* out, int cap )
+{
+	int nMax = JozzRig_ProbeMaxPrismSides();
+	int n = 0;
+	if ( n < cap )
+	{
+		out[n].label = "sphere";
+		out[n].variant = JOZZ_RIG_SPHERE;
+		out[n].segments = 0;
+		++n;
+	}
+	if ( n < cap )
+	{
+		out[n].label = "prism-Nmax";
+		out[n].variant = JOZZ_RIG_PRISM_MAX;
+		out[n].segments = nMax;
+		++n;
+	}
+	if ( n < cap )
+	{
+		out[n].label = "prism-32";
+		out[n].variant = JOZZ_RIG_PRISM_MAX;
+		out[n].segments = 32;
+		++n;
+	}
+	if ( n < cap )
+	{
+		out[n].label = "torus-32";
+		out[n].variant = JOZZ_RIG_TORUS;
+		out[n].segments = 32;
+		++n;
+	}
+	if ( n < cap )
+	{
+		out[n].label = "torus-64";
+		out[n].variant = JOZZ_RIG_TORUS;
+		out[n].segments = 64;
+		++n;
+	}
+	return n;
 }

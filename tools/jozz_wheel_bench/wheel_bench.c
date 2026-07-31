@@ -2316,202 +2316,12 @@ static int QcProbeRun( const char* outPath )
 // Protokol, nie fizyka. Fizyka jest w jozz_qc_rig.c i jest ta sama dla okna.
 // Kontrakt: Q3_QUARTER_CAR_CONTRACT.md.
 
-#define QC_WARMUP_STEPS 120 // 2 s: dojazd do progu i wygaszenie startowego stanu
-#define QC_WINDOW_STEPS 600 // 10 s okna pomiarowego
-
-typedef struct
-{
-	const char* label;
-	JozzRigVariant variant;
-	int segments;
-} QcCandidate;
-
-// Lista kandydatow JEST eksperymentem, nie wygoda interfejsu. Kazda pozycja
-// odpowiada na inne pytanie:
-//   sphere       kontrola: obwiednia bez zadnej struktury
-//   prism-Nmax   dzisiejsze kolo produktu, na granicy tego, co przyjmuje hull
-//   prism-32     ten sam pryzmat przy N rownym torusowi (uczciwe zestawienie)
-//   torus-32     nowy kandydat przy tym samym N co pryzmat
-//   torus-64     nowy kandydat TAM, GDZIE PRYZMAT JUZ NIE SIEGA
-static int QcCandidates( QcCandidate* out, int cap )
-{
-	int nMax = JozzRig_ProbeMaxPrismSides();
-	int n = 0;
-	if ( n < cap )
-		out[n++] = ( QcCandidate ){ "sphere", JOZZ_RIG_SPHERE, 0 };
-	if ( n < cap )
-		out[n++] = ( QcCandidate ){ "prism-Nmax", JOZZ_RIG_PRISM_MAX, nMax };
-	if ( n < cap )
-		out[n++] = ( QcCandidate ){ "prism-32", JOZZ_RIG_PRISM_MAX, 32 };
-	if ( n < cap )
-		out[n++] = ( QcCandidate ){ "torus-32", JOZZ_RIG_TORUS, 32 };
-	if ( n < cap )
-		out[n++] = ( QcCandidate ){ "torus-64", JOZZ_RIG_TORUS, 64 };
-	return n;
-}
-
-// Ile razy powtarzamy KAZDA komorke macierzy i o ile przesuwamy punkt startu.
+// Protokol pomiaru (rozgrzewka, okno, powtorzenia, lista kandydatow) ZYJE W
+// jozz_qc_rig.c, bo uruchamiaja go oba frontendy - stend tutaj i okno przyciskiem
+// "zmierz jak stend". Dopoki byl w tym pliku, okno nie mialo do niego dostepu i
+// jedyna droga do liczby bench-grade z okna bylo napisanie drugiej kopii.
 //
-// Powod jest zmierzony, nie ostroznosciowy: przesuniecie wysokosci mocowania
-// nadwozia o 35 cm - wielkosc geometrycznie NEUTRALNA dla tego wiezu - przerzucilo
-// `airborne` dla torus-32 przy 13 m/s z 6.0% na 10.8%, czyli przez prog wazności.
-// Kolo skaczace po fasetach jest ukladem chaotycznym. Pojedynczy przebieg podaje
-// wiec liczbe z dokladnoscia, ktorej nie ma, a roznica dwoch pojedynczych
-// przebiegow nie odroznia kandydata od zaokraglenia.
-//
-// Przesuwamy PUNKT STARTU, a nie cokolwiek w konstrukcji: to jedyna zmiana,
-// ktora na plaskiej plycie nie dotyka ani kola, ani zawieszenia, ani drogi -
-// zmienia wylacznie faze, w ktorej obwiednia spotyka pierwszy krok.
-#define QC_REPEATS 3
-static const double s_qcStartJitter[QC_REPEATS] = { 0.0, 0.0137, 0.0271 };
-
-typedef struct
-{
-	JozzQcWindow win;
-	double msPerStep;
-	int shapes;
-	double ripple;
-	int built;
-	char err[192];
-} QcRunResult;
-
-// Wynik komorki: srednia z powtorzen i POLOWA ROZRZUTU. Rozrzut jest tu rowno
-// wazny z wartoscia - bez niego tabela zaprasza do czytania roznic, ktorych nie
-// ma. `invalid` zapala sie, gdy KTOREKOLWIEK powtorzenie bylo niewazne.
-typedef struct
-{
-	double torque, torqueSpread;
-	double loss;
-	double accel, accelSpread;
-	double airborne, airborneSpread;
-	double travelRms;
-	double churn;
-	double slip;
-	double speed;
-	double msPerStep;
-	int shapes;
-	double ripple;
-	int repeats;
-	int invalid;
-	int built;
-	char err[192];
-	char why[160];
-} QcCell;
-
-static void QcAccumulate( double v, double* mean, double* lo, double* hi, int first )
-{
-	*mean += v;
-	if ( first || v < *lo )
-		*lo = v;
-	if ( first || v > *hi )
-		*hi = v;
-}
-
-// Jeden przebieg: rozgrzewka, potem okno pomiarowe. `tracePath` moze byc NULL.
-static QcRunResult QcRunOne( const JozzQcConfig* cfg, const char* tracePath )
-{
-	QcRunResult r;
-	memset( &r, 0, sizeof( r ) );
-	JozzQc_WindowBegin( &r.win );
-
-	JozzQcRig rig;
-	if ( JozzQc_Create( &rig, cfg, NULL, r.err, sizeof( r.err ) ) == 0 )
-		return r;
-	r.built = 1;
-	r.shapes = rig.shapeCount;
-	{
-		JozzRigConfig w = JozzQc_WheelConfig( cfg );
-		r.ripple = JozzRig_EnvelopeRipple( &w );
-	}
-
-	FILE* f = NULL;
-	if ( tracePath )
-	{
-		f = fopen( tracePath, "wb" );
-		if ( f == NULL )
-		{
-			snprintf( r.err, sizeof( r.err ), "nie moge otworzyc %s do zapisu", tracePath );
-			JozzQc_Destroy( &rig );
-			r.built = 0;
-			return r;
-		}
-		char cd[768];
-		JozzQc_ConfigDigest( cfg, cd, sizeof( cd ) );
-		fprintf( f, "# rig=Q3-quarter-car warmup=%d window=%d shapes=%d ripple_mm=%.4f\n", QC_WARMUP_STEPS,
-				 QC_WINDOW_STEPS, r.shapes, 1000.0 * r.ripple );
-		fprintf( f, "# config %s\n", cd );
-		fprintf( f, "# build %s %s rig=%s\n", BENCH_GIT_SHA, BENCH_GIT_DIRTY, BENCH_RIG_SHA256 );
-		fprintf( f, "%s", JOZZ_QC_TRACE_HEADER );
-	}
-
-	JozzQcSample s;
-	for ( int i = 0; i < QC_WARMUP_STEPS; ++i )
-		JozzQc_Step( &rig, &s );
-
-	double t0 = NowMs();
-	char line[640];
-	for ( int i = 0; i < QC_WINDOW_STEPS; ++i )
-	{
-		JozzQc_Step( &rig, &s );
-		JozzQc_WindowAdd( &r.win, &s );
-		if ( f )
-		{
-			JozzQc_TraceLine( &s, line, sizeof( line ) );
-			fputs( line, f );
-		}
-	}
-	r.msPerStep = ( NowMs() - t0 ) / (double)QC_WINDOW_STEPS;
-	JozzQc_WindowEnd( &r.win, &rig );
-	JozzQc_Destroy( &rig );
-	if ( f )
-		fclose( f );
-	return r;
-}
-
-static QcCell QcRunCell( const JozzQcConfig* base )
-{
-	QcCell c;
-	memset( &c, 0, sizeof( c ) );
-	double tLo = 0, tHi = 0, aLo = 0, aHi = 0, bLo = 0, bHi = 0;
-
-	for ( int i = 0; i < QC_REPEATS; ++i )
-	{
-		JozzQcConfig cfg = *base;
-		cfg.startX += s_qcStartJitter[i];
-		QcRunResult r = QcRunOne( &cfg, NULL );
-		if ( !r.built )
-		{
-			snprintf( c.err, sizeof( c.err ), "%s", r.err );
-			return c;
-		}
-		c.built = 1;
-		c.shapes = r.shapes;
-		c.ripple = r.ripple;
-		QcAccumulate( r.win.driveTorqueMean, &c.torque, &tLo, &tHi, i == 0 );
-		QcAccumulate( r.win.sprungAccelRms, &c.accel, &aLo, &aHi, i == 0 );
-		QcAccumulate( r.win.airborneFraction, &c.airborne, &bLo, &bHi, i == 0 );
-		c.loss += r.win.lossPower;
-		c.travelRms += r.win.travelRms;
-		c.churn += r.win.contactChurnPct;
-		c.slip += r.win.slipRatioMean;
-		c.speed += r.win.speedMean;
-		c.msPerStep += r.msPerStep;
-		c.repeats += 1;
-		if ( r.win.invalid && c.invalid == 0 )
-		{
-			c.invalid = 1;
-			snprintf( c.why, sizeof( c.why ), "%s", r.win.invalidWhy );
-		}
-	}
-
-	double n = (double)c.repeats;
-	c.torque /= n, c.accel /= n, c.airborne /= n;
-	c.loss /= n, c.travelRms /= n, c.churn /= n, c.slip /= n, c.speed /= n, c.msPerStep /= n;
-	c.torqueSpread = 0.5 * ( tHi - tLo );
-	c.accelSpread = 0.5 * ( aHi - aLo );
-	c.airborneSpread = 0.5 * ( bHi - bLo );
-	return c;
-}
+// Stendowi zostaje to, co jest jego: linia polecen, tabela na ekran i CSV.
 
 static int QcParseVariant( const char* name, JozzRigVariant* out )
 {
@@ -2548,11 +2358,39 @@ static int QcTrace( const char* path, const JozzQcConfig* cfg )
 		fprintf( stderr, "BLAD: %s juz istnieje - trace nie nadpisuje plikow\n", path );
 		return 3;
 	}
-	QcRunResult r = QcRunOne( cfg, path );
+	// Probki okna ida do bufora, a plik powstaje PO przebiegu: zapis w petli
+	// wchodzil do mierzonego kosztu kroku, wiec `--qc-trace` raportowal cene CPU
+	// obwiedni razem z cena fprintf.
+	static JozzQcSample trace[JOZZ_QC_WINDOW_STEPS];
+	JozzQcRunResult r = JozzQc_MeasureOne( cfg, JOZZ_QC_WARMUP_STEPS, JOZZ_QC_WINDOW_STEPS, trace,
+										   JOZZ_QC_WINDOW_STEPS );
 	if ( !r.built )
 	{
 		fprintf( stderr, "BLAD: %s\n", r.err );
 		return 5;
+	}
+	{
+		FILE* f = fopen( path, "wb" );
+		if ( f == NULL )
+		{
+			fprintf( stderr, "BLAD: nie moge otworzyc %s do zapisu\n", path );
+			return 3;
+		}
+		char cd[768];
+		JozzQc_ConfigDigest( cfg, cd, sizeof( cd ) );
+		fprintf( f, "# rig=Q3-quarter-car warmup=%d window=%d shapes=%d ripple_mm=%.4f\n", JOZZ_QC_WARMUP_STEPS,
+				 JOZZ_QC_WINDOW_STEPS, r.shapes, 1000.0 * r.ripple );
+		fprintf( f, "# config %s\n", cd );
+		fprintf( f, "# build %s %s rig=%s qc=%s\n", BENCH_GIT_SHA, BENCH_GIT_DIRTY, BENCH_RIG_SHA256,
+				 BENCH_QC_SHA256 );
+		fprintf( f, "%s", JOZZ_QC_TRACE_HEADER );
+		for ( int i = 0; i < r.traceCount; ++i )
+		{
+			char line[640];
+			JozzQc_TraceLine( &trace[i], line, sizeof( line ) );
+			fputs( line, f );
+		}
+		fclose( f );
 	}
 	printf( "Q3 trace -> %s\n", path );
 	printf( "  kandydat %s N=%d  ksztaltow %d  tetnienie %.3f mm\n", JozzRig_VariantName( cfg->variant ),
@@ -2564,6 +2402,140 @@ static int QcTrace( const char* path, const JozzQcConfig* cfg )
 			r.win.travelRms );
 	if ( r.win.invalid )
 		printf( "  PRZEBIEG NIEWAZNY: %s\n", r.win.invalidWhy );
+	return 0;
+}
+
+// PRZEMIATANIE jednego parametru. Porownanie kandydatow odpowiada na pytanie
+// "ktory lepszy". Nie odpowiada na "co ten parametr wlasciwie robi" - a od tego
+// zaczyna sie kazdy nowy system kola. Ten sam protokol pomiarowy, N punktow.
+//
+// Istnieje tez w oknie (zakladka Pomiar). Tutaj jest po to, zeby wynik byl
+// zwyklym przebiegiem konsolowym - czyli zeby dalo sie go zarejestrowac jako
+// dowod i uruchomic bez czlowieka przy klawiaturze.
+typedef enum
+{
+	QC_SWEEP_SEGMENTS = 0,
+	QC_SWEEP_CROWN,
+	QC_SWEEP_SPRING,
+	QC_SWEEP_SPEED,
+	QC_SWEEP_OBSTACLE,
+	QC_SWEEP_COUNT
+} QcSweepParam;
+
+static const char* s_qcSweepNames[QC_SWEEP_COUNT] = { "segments", "crown", "spring", "speed", "obstacle" };
+
+static int QcParseSweepParam( const char* name, QcSweepParam* out )
+{
+	for ( int i = 0; i < QC_SWEEP_COUNT; ++i )
+		if ( strcmp( name, s_qcSweepNames[i] ) == 0 )
+		{
+			*out = (QcSweepParam)i;
+			return 1;
+		}
+	return 0;
+}
+
+static void QcSweepApply( JozzQcConfig* c, QcSweepParam p, double v, char* tag, size_t tagCap )
+{
+	switch ( p )
+	{
+		case QC_SWEEP_SEGMENTS:
+			c->segments = (int)( v + 0.5 );
+			snprintf( tag, tagCap, "N=%d", c->segments );
+			break;
+		case QC_SWEEP_CROWN:
+			c->crownR = (float)v;
+			snprintf( tag, tagCap, "crown=%.4g", v );
+			break;
+		case QC_SWEEP_SPRING:
+			c->springNPerM = (float)v;
+			snprintf( tag, tagCap, "k=%.6g", v );
+			break;
+		case QC_SWEEP_SPEED:
+			c->targetSpeed = v;
+			c->startSpeed = v;
+			snprintf( tag, tagCap, "v=%.4g", v );
+			break;
+		default:
+			c->obstacleH = (float)v;
+			snprintf( tag, tagCap, "prog=%.4g", v );
+			break;
+	}
+}
+
+static int QcSweep( const char* csvPath, const JozzQcConfig* base, QcSweepParam param, double from, double to,
+					int steps )
+{
+	FILE* probe = fopen( csvPath, "rb" );
+	if ( probe )
+	{
+		fclose( probe );
+		fprintf( stderr, "BLAD: %s juz istnieje\n", csvPath );
+		return 3;
+	}
+	if ( steps < 2 )
+	{
+		fprintf( stderr, "BLAD: przemiatanie potrzebuje co najmniej 2 punktow\n" );
+		return 2;
+	}
+	FILE* f = fopen( csvPath, "wb" );
+	if ( f == NULL )
+	{
+		fprintf( stderr, "BLAD: nie moge otworzyc %s\n", csvPath );
+		return 3;
+	}
+
+	char baseDigest[768];
+	JozzQc_ConfigDigest( base, baseDigest, sizeof( baseDigest ) );
+	fprintf( f, "# Q3 quarter car - przemiatanie parametru '%s' od %.17g do %.17g w %d punktach\n",
+			 s_qcSweepNames[param], from, to, steps );
+	fprintf( f, "# build %s %s rig=%s qc=%s\n", BENCH_GIT_SHA, BENCH_GIT_DIRTY, BENCH_RIG_SHA256, BENCH_QC_SHA256 );
+	fprintf( f, "# warmup=%d window=%d repeats=%d\n", JOZZ_QC_WARMUP_STEPS, JOZZ_QC_WINDOW_STEPS, JOZZ_QC_REPEATS );
+	fprintf( f, "# baza %s\n", baseDigest );
+	fprintf( f, "point,value,segments,shapes,ripple_mm,road,target_v,drive_torque_nm,torque_spread,loss_power_w,"
+				"sprung_accel_rms,accel_spread,airborne_frac,airborne_spread,travel_rms,churn_pct,slip_mean,"
+				"speed_mean,ms_per_step,valid,why\n" );
+
+	printf( "\n=== Q3 PRZEMIATANIE: %s od %.6g do %.6g, %d punktow ===\n", s_qcSweepNames[param], from, to,
+			steps );
+	printf( "baza: %s N=%d droga %s v_zad %.2f k %.0f N/m zeta %.3f\n", JozzRig_VariantName( base->variant ),
+			base->variant == JOZZ_RIG_SPHERE ? 0 : base->segments, JozzQc_RoadName( base->road ),
+			base->targetSpeed, (double)base->springNPerM, (double)base->zeta );
+	printf( "kazdy punkt to %d przebiegi z przesunietym startem; +- to POLOWA ROZRZUTU\n\n", JOZZ_QC_REPEATS );
+	printf( "%-14s %6s %8s %16s %8s %15s %13s %8s %7s\n", "punkt", "shape", "tetn_mm", "moment Nm", "strata_W",
+			"a_rms m/s2", "w powietrzu", "churn%", "ms/krok" );
+
+	for ( int i = 0; i < steps; ++i )
+	{
+		double t = (double)i / (double)( steps - 1 );
+		double v = from + t * ( to - from );
+		JozzQcConfig cfg = *base;
+		char tag[48];
+		QcSweepApply( &cfg, param, v, tag, sizeof( tag ) );
+
+		JozzQcCell c = JozzQc_MeasureCell( &cfg, JOZZ_QC_WARMUP_STEPS, JOZZ_QC_WINDOW_STEPS );
+		if ( !c.built )
+		{
+			// Punkt niebudowalny NIE przerywa przemiatania i NIE jest po cichu
+			// pomijany: "tutaj konstrukcja sie konczy" jest wynikiem.
+			printf( "%-14s   NIEZBUDOWANY: %s\n", tag, c.err );
+			fprintf( f, "%d,%.17g,%d,0,0,%s,%.17g,,,,,,,,,,,,,0,%s\n", i, v, cfg.segments,
+					 JozzQc_RoadName( cfg.road ), cfg.targetSpeed, c.err );
+			continue;
+		}
+		printf( "%-14s %6d %8.3f %9.2f+-%-4.2f %8.1f %8.3f+-%-5.3f %6.1f+-%-4.1f%% %8.1f %7.3f%s\n", tag, c.shapes,
+				1000.0 * c.ripple, c.torque, c.torqueSpread, c.loss, c.accel, c.accelSpread, 100.0 * c.airborne,
+				100.0 * c.airborneSpread, c.churn, c.msPerStep, c.invalid ? "  NIEWAZNY" : "" );
+		fprintf( f, "%d,%.17g,%d,%d,%.6f,%s,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,"
+					"%.17g,%.17g,%d,%s\n",
+				 i, v, cfg.segments, c.shapes, 1000.0 * c.ripple, JozzQc_RoadName( cfg.road ), cfg.targetSpeed,
+				 c.torque, c.torqueSpread, c.loss, c.accel, c.accelSpread, c.airborne, c.airborneSpread,
+				 c.travelRms, c.churn, c.slip, c.speed, c.msPerStep, c.invalid ? 0 : 1, c.why );
+		fflush( stdout );
+	}
+	fclose( f );
+	printf( "\ntabela -> %s\n", csvPath );
+	printf( "Czego to NIE mowi: nic o feelu (V3, wylacznie Jozz) i nic o pelnym pojezdzie (Q4).\n" );
 	return 0;
 }
 
@@ -2586,8 +2558,8 @@ static int QcCompare( const char* csvPath )
 		return 3;
 	}
 
-	QcCandidate cand[8];
-	int nc = QcCandidates( cand, 8 );
+	JozzQcCandidate cand[JOZZ_QC_CANDIDATE_CAP];
+	int nc = JozzQc_Candidates( cand, JOZZ_QC_CANDIDATE_CAP );
 	// Dwie predkosci, bo to dwa ROZNE rezimy przyrzadu, nie dwa punkty pracy:
 	//   13.0  predkosc kontraktowa Q2A; ~2.2 elementu obwiedni na krok, wiec
 	//         struktura obwiedni jest PONIZEJ rozdzielczosci czasowej solvera
@@ -2596,18 +2568,20 @@ static int QcCompare( const char* csvPath )
 	const double speeds[2] = { 13.0, 4.0 };
 
 	fprintf( f, "# Q3 quarter car - porownanie kandydatow\n" );
-	fprintf( f, "# build %s %s rig=%s\n", BENCH_GIT_SHA, BENCH_GIT_DIRTY, BENCH_RIG_SHA256 );
-	fprintf( f, "# warmup=%d window=%d repeats=%d\n", QC_WARMUP_STEPS, QC_WINDOW_STEPS, QC_REPEATS );
+	fprintf( f, "# build %s %s rig=%s qc=%s\n", BENCH_GIT_SHA, BENCH_GIT_DIRTY, BENCH_RIG_SHA256,
+			 BENCH_QC_SHA256 );
+	fprintf( f, "# warmup=%d window=%d repeats=%d\n", JOZZ_QC_WARMUP_STEPS, JOZZ_QC_WINDOW_STEPS,
+			 JOZZ_QC_REPEATS );
 	fprintf( f, "candidate,segments,shapes,ripple_mm,road,target_v,drive_torque_nm,torque_spread,loss_power_w,"
 				"sprung_accel_rms,accel_spread,airborne_frac,airborne_spread,travel_rms,churn_pct,"
 				"slip_mean,speed_mean,ms_per_step,valid,why\n" );
 
 	printf( "\n=== Q3 QUARTER CAR - porownanie kandydatow ===\n" );
 	printf( "sprezyna 13500 N/m, zeta 0.35, masa resorowana 150 kg, nieresorowana 44 kg\n" );
-	printf( "okno %d krokow po %d krokach rozgrzewki, dt 1/60, 4 podkroki\n", QC_WINDOW_STEPS,
-			QC_WARMUP_STEPS );
+	printf( "okno %d krokow po %d krokach rozgrzewki, dt 1/60, 4 podkroki\n", JOZZ_QC_WINDOW_STEPS,
+			JOZZ_QC_WARMUP_STEPS );
 	printf( "kazda komorka to %d przebiegi z przesunietym punktem startu; +- to POLOWA ROZRZUTU\n\n",
-			QC_REPEATS );
+			JOZZ_QC_REPEATS );
 
 	for ( int si = 0; si < 2; ++si )
 	{
@@ -2625,7 +2599,7 @@ static int QcCompare( const char* csvPath )
 				cfg.targetSpeed = speeds[si];
 				cfg.startSpeed = speeds[si];
 
-				QcCell c = QcRunCell( &cfg );
+				JozzQcCell c = JozzQc_MeasureCell( &cfg, JOZZ_QC_WARMUP_STEPS, JOZZ_QC_WINDOW_STEPS );
 				if ( !c.built )
 				{
 					printf( "%-12s   NIEZBUDOWANY: %s\n", cand[ci].label, c.err );
@@ -2671,6 +2645,12 @@ int main( int argc, char** argv )
 	const char* qcProbe = NULL;
 	const char* qcTrace = NULL;
 	const char* qcCompare = NULL;
+	const char* qcConfig = NULL;
+	const char* qcTemplate = NULL;
+	const char* qcSweep = NULL;
+	QcSweepParam qcSweepParam = QC_SWEEP_SEGMENTS;
+	double qcSweepFrom = 3.0, qcSweepTo = 42.0;
+	int qcSweepSteps = 6;
 	JozzQcConfig qcCfg = JozzQc_DefaultConfig();
 	int qcCfgTouched = 0;
 	char cmdline[1024] = { 0 };
@@ -2735,6 +2715,27 @@ int main( int argc, char** argv )
 			qcCfg.startSpeed = qcCfg.targetSpeed;
 			qcCfgTouched = 1;
 		}
+		else if ( strcmp( argv[i], "--qc-config" ) == 0 && i + 1 < argc )
+			qcConfig = argv[++i];
+		else if ( strcmp( argv[i], "--qc-sweep" ) == 0 && i + 1 < argc )
+			qcSweep = argv[++i];
+		else if ( strcmp( argv[i], "--qc-sweep-param" ) == 0 && i + 1 < argc )
+		{
+			if ( QcParseSweepParam( argv[++i], &qcSweepParam ) == 0 )
+			{
+				fprintf( stderr, "BLAD: nieznany parametr '%s' (segments|crown|spring|speed|obstacle)\n",
+						 argv[i] );
+				return 2;
+			}
+		}
+		else if ( strcmp( argv[i], "--qc-sweep-from" ) == 0 && i + 1 < argc )
+			qcSweepFrom = atof( argv[++i] );
+		else if ( strcmp( argv[i], "--qc-sweep-to" ) == 0 && i + 1 < argc )
+			qcSweepTo = atof( argv[++i] );
+		else if ( strcmp( argv[i], "--qc-sweep-steps" ) == 0 && i + 1 < argc )
+			qcSweepSteps = atoi( argv[++i] );
+		else if ( strcmp( argv[i], "--qc-config-template" ) == 0 && i + 1 < argc )
+			qcTemplate = argv[++i];
 		else
 		{
 			fprintf( stderr,
@@ -2743,32 +2744,71 @@ int main( int argc, char** argv )
 					 "       %s --rig-trace <plik.csv> [--rig-trace-variant sphere|prism-Nmax] "
 					 "[--rig-trace-steps N] [--rig-config <plik.rig>]\n"
 					 "       %s --rig-perturb-check | --rig-config-check | "
-					 "--rig-config-template <plik.rig> | --qc-probe <plik.txt>\n"
+					 "--rig-config-template <plik.rig> | --qc-config-template <plik.qc> | "
+					 "--qc-probe <plik.txt>\n"
 					 "       %s --qc-compare <plik.csv>\n"
-					 "       %s --qc-trace <plik.csv> [--qc-variant sphere|prism-Nmax|torus-N] "
+					 "       %s --qc-sweep <plik.csv> --qc-sweep-param "
+					 "segments|crown|spring|speed|obstacle --qc-sweep-from A --qc-sweep-to B "
+					 "[--qc-sweep-steps N] [+ opcje --qc-* jako baza]\n"
+					 "       %s --qc-trace <plik.csv> [--qc-config <plik.qc>] "
+					 "[--qc-variant sphere|prism-Nmax|torus-N] "
 					 "[--qc-segments N] [--qc-crown m] [--qc-road flat|cleat|comb] [--qc-speed m/s]\n",
-					 argv[0], argv[0], argv[0], argv[0], argv[0] );
+					 argv[0], argv[0], argv[0], argv[0], argv[0], argv[0] );
 			return 2;
 		}
 	}
-	if ( ( qcTrace || qcCompare ) &&
+	if ( ( qcTrace || qcCompare || qcSweep ) &&
 		 ( telePath || q2aDir || tracePath || perturbCheck || configCheck || qcProbe ) )
 	{
-		fprintf( stderr, "BLAD: --qc-trace i --qc-compare sa osobnymi przebiegami\n" );
+		fprintf( stderr, "BLAD: --qc-trace, --qc-compare i --qc-sweep sa osobnymi przebiegami\n" );
 		return 2;
 	}
-	if ( qcTrace && qcCompare )
+	if ( ( qcTrace && qcCompare ) || ( qcTrace && qcSweep ) || ( qcCompare && qcSweep ) )
 	{
-		fprintf( stderr, "BLAD: --qc-trace i --qc-compare wykluczaja sie\n" );
+		fprintf( stderr, "BLAD: --qc-trace, --qc-compare i --qc-sweep wykluczaja sie\n" );
 		return 2;
 	}
-	if ( qcCfgTouched && qcTrace == NULL )
+	if ( ( qcCfgTouched || qcConfig ) && qcTrace == NULL && qcSweep == NULL )
 	{
 		// Ustawienie kandydata bez przebiegu, ktory go uzyje, znaczy, ze ktos
-		// mysli, ze wlasnie cos zmierzyl. --qc-compare ma WLASNA liste kandydatow.
-		fprintf( stderr, "BLAD: opcje --qc-* dzialaja tylko razem z --qc-trace\n" );
+		// mysli, ze wlasnie cos zmierzyl. --qc-compare ma WLASNA liste kandydatow;
+		// --qc-sweep bierze te opcje jako BAZE, wiec tam sa na miejscu.
+		fprintf( stderr, "BLAD: opcje --qc-* dzialaja tylko razem z --qc-trace albo --qc-sweep\n" );
 		return 2;
 	}
+	if ( qcTemplate )
+	{
+		// Szablon z KOMPLETEM kluczy i ich wartosciami kontraktowymi. Latwiej
+		// skasowac linie, ktorych sie nie zmienia, niz zgadnac nazwe klucza.
+		JozzQcConfig c = JozzQc_DefaultConfig();
+		if ( JozzQc_ConfigWriteFile( &c, qcTemplate,
+									 "szablon: wartosci kontraktowe Q3, skasuj linie ktorych nie zmieniasz" ) == 0 )
+		{
+			fprintf( stderr, "BLAD: nie moge zapisac %s\n", qcTemplate );
+			return 3;
+		}
+		printf( "szablon konstrukcji narożnika -> %s\n", qcTemplate );
+		return 0;
+	}
+	if ( qcConfig )
+	{
+		// Plik wygrywa z opcjami --qc-* i celowo jest wczytywany PO nich: plik
+		// konstrukcji jest pelna tozsamoscia przebiegu, wiec czesciowe nadpisanie
+		// go flaga dawaloby przebieg, ktorego nie opisuje zaden zapis. Ta sama
+		// sciezka co polka w oknie - i wlasnie dlatego okno moze oddac przypadek
+		// stendowi bez przepisywania czegokolwiek.
+		char err[256];
+		JozzQcConfig loaded;
+		if ( JozzQc_ConfigReadFile( &loaded, qcConfig, err, sizeof( err ) ) == 0 )
+		{
+			fprintf( stderr, "BLAD --qc-config: %s\n", err );
+			return 3;
+		}
+		qcCfg = loaded;
+		printf( "konstrukcja z pliku: %s\n", qcConfig );
+	}
+	if ( qcSweep )
+		return QcSweep( qcSweep, &qcCfg, qcSweepParam, qcSweepFrom, qcSweepTo, qcSweepSteps );
 	if ( qcCompare )
 		return QcCompare( qcCompare );
 	if ( qcTrace )
@@ -2814,10 +2854,18 @@ int main( int argc, char** argv )
 		char err[256];
 		if ( JozzRig_ConfigSelfTest( err, sizeof( err ) ) == 0 )
 		{
-			printf( "CONFIG CHECK FAILED\n  %s\n", err );
+			printf( "CONFIG CHECK FAILED (.rig)\n  %s\n", err );
 			return 1;
 		}
-		printf( "CONFIG CHECK OK\n" );
+		// Formatow konstrukcji sa DWA i oba musza byc pod ta sama bramka: `.rig`
+		// opisuje samo kolo (Q2A), `.qc` caly narożnik (Q3). Osobna bramka dla
+		// drugiego formatu znaczylaby, ze da sie zapomniec o jednej z nich.
+		if ( JozzQc_ConfigSelfTest( err, sizeof( err ) ) == 0 )
+		{
+			printf( "CONFIG CHECK FAILED (.qc)\n  %s\n", err );
+			return 1;
+		}
+		printf( "CONFIG CHECK OK  (.rig kolo Q2A + .qc narożnik Q3)\n" );
 		printf( "  kazde pole struktury jest w tabeli formatu : tak (rozmiar + mapa pokrycia)\n" );
 		printf( "  zapis -> odczyt zachowuje kazde pole       : tak (co do bitu)\n" );
 		printf( "  powtorny zapis daje ten sam tekst          : tak\n" );

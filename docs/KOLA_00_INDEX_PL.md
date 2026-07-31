@@ -39,6 +39,30 @@ otwartym; implementacja produktowa NIE rozpoczęta**
 > - Werdykt o feelu należy do Jozza i **nie został wydany** (reguła twarda 5).
 >   Otwarte: `Q3-5` (wzorzec zachowania) — dopiero po akceptacji w oknie.
 
+> **Rewizja 2026-07-31 (trzecia) — `Quarter Car Scope` staje się WARSZTATEM.**
+> Właściciel: kierunek dobry, ale okno „bardzo surowe i niewygodne, część
+> kontrolek nie działa poprawnie, zbyt mały wpływ na rig". Przebudowane.
+> - **Protokół pomiaru przeniesiony do `jozz_qc_rig.c`** — rozgrzewka, okno,
+>   3 powtórzenia i lista kandydatów uruchamiają teraz OBA frontendy. Okno ma
+>   przycisk „zmierz jak stend": rig budowany od nowa, liczby identyczne
+>   z `--qc-compare` (sprawdzone: churn 89,7 / 70,1 / 8,6 / 0,0 po obu stronach).
+> - **Konstrukcja narożnika jako plik `.qc`** — półka w oknie, `--qc-config`
+>   i `--qc-config-template` w stendzie, ten sam potrójny strażnik formatu co
+>   `.rig` (bramka „format konstrukcji" pilnuje obu).
+> - **Strojenie na żywo**: sprężyna, tłumienie, skok, tryb napędu i prędkość
+>   zadana zmieniają biegnący rig bez przebudowy. Reszta przebudowuje —
+>   i od razu wykonuje rozgrzewkę, więc obraz startuje tam, gdzie stend liczy.
+> - **Nie da się już zbudować ślepego zaułka**: N i promień korony poza zakresem
+>   budowalnym są wciskane w zakres z jawnym komunikatem, a nieudana budowa
+>   zostawia przycisk powrotu zamiast martwego okna.
+> - **Przemiatanie jednego parametru** — w oknie i w stendzie
+>   (`--qc-sweep`). Pierwszy wynik, który dało: **`F-25`**.
+> - **`F-25`** — promień korony **NIE jest kompromisem** na płaskiej płycie:
+>   0,04 → 0,19 m daje stratę **795 → 457 W (−43%)**, churn **26,9% → 0%**,
+>   przy zwężeniu bieżni z 358 do 58 mm. Obala zapis, który sam wcześniej
+>   umieściłem w `jozz_wheel_rig.h`. Cena leży w CPU (**1,7×**), nie w bieżni;
+>   a po co jest płaska bieżnia, Q3 zmierzyć nie może — nie stawia siły bocznej.
+
 > **Rewizja 2026-07-31 — instrument dostał pamięć i punkt odniesienia.**
 > Nie zmienia to statusu programu ani żadnego wyniku. Zmienia to, co da się
 > o instrumencie stwierdzić maszynowo:

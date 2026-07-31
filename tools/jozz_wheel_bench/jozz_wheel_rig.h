@@ -95,9 +95,15 @@ typedef struct
 	float inertiaTransFactor; // iTr   = f * m * R^2 wokol pozostalych osi
 	float density;			  // gestosc shape'u; masa i tak jest zamrazana
 	// Promien przekroju korony (`torus-N`). Jednoczesnie promien zaokraglenia
-	// barku opony i promien kapsuly. Bieznia PLASKA ma szerokosc wheelW-2*crownR,
-	// wiec to pole handluje: wiekszy crownR = mniejsze tetnienie promienia, ale
-	// wezszy plaski styk. Ignorowane przez pozostale warianty.
+	// barku opony i promien kapsuly. Bieznia PLASKA ma szerokosc wheelW-2*crownR.
+	//
+	// Wygladalo to na kompromis (mniejsze tetnienie za wezszy plaski styk) i tak
+	// bylo tu napisane. ZMIERZONE inaczej (F-25, przemiatanie z okna Q3): na
+	// plaskiej plycie przy 4 m/s w zakresie 0.04-0.19 m strata spada MONOTONICZNIE
+	// o 43%, churn z 26.9% do zera, a_rms o 34%. Zwezenie biezni z 358 do 58 mm
+	// nie kosztuje nic mierzalnego. Kompromis, jesli istnieje, lezy poza Q3 -
+	// ten szczebel nie stawia kolu ani sily bocznej, ani pochylenia.
+	// Ignorowane przez pozostale warianty.
 	float crownR;
 
 	// scena

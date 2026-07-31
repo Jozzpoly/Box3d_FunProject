@@ -298,6 +298,31 @@ niezbadane:
 
 ---
 
+## 12.1 Przemiatanie parametru (dodane 2026-07-31, druga sesja)
+
+Trzeci tryb obok pojedynczego przebiegu i macierzy kandydatów:
+
+```
+wheel_bench --qc-sweep <plik.csv> --qc-sweep-param segments|crown|spring|speed|obstacle
+            --qc-sweep-from A --qc-sweep-to B [--qc-sweep-steps N] [+ opcje --qc-* jako baza]
+```
+
+Ten sam protokół co §3 i §8: rozgrzewka 120, okno 600, **3 powtórzenia na punkt**,
+ten sam werdykt ważności. Różnica jest tylko taka, że zmienną jest jedno pole
+konstrukcji, a nie tożsamość kandydata. To samo jest w oknie (zakładka `Pomiar`),
+tą samą funkcją `JozzQc_MeasureCell` — sprawdzone: obie strony dają te same liczby.
+
+Punkt, którego nie da się zbudować, **nie przerywa przemiatania i nie znika**:
+trafia do tabeli z `valid=0` i powodem. „Tutaj konstrukcja się kończy" jest
+wynikiem, a nie awarią.
+
+Po co osobny tryb, skoro macierz już istnieje: macierz odpowiada na pytanie
+*który kandydat lepszy*. Przemiatanie odpowiada na *co ten parametr właściwie
+robi* — i od razu obaliło jedno założenie zapisane w kodzie (`F-25`, promień
+korony).
+
+---
+
 ## 13. Czego ta kalibracja NIE mówi
 
 `f_n` i tłumienie zmierzone na **sygnale skoku zawieszenia w układzie 2-DOF**
