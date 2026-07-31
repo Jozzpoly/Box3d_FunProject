@@ -6,7 +6,9 @@
 #include "jozz_wheel_rig.h"
 
 #include <math.h>
+#include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 const char* JozzRig_VariantName( JozzRigVariant v )
@@ -16,6 +18,641 @@ const char* JozzRig_VariantName( JozzRigVariant v )
 	if ( v == JOZZ_RIG_PRISM_MAX )
 		return "prism-Nmax";
 	return "?";
+}
+
+// ---------------------------------------------------------------- konfiguracja
+
+JozzRigConfig JozzRig_DefaultConfig( void )
+{
+	JozzRigConfig c;
+	memset( &c, 0, sizeof( c ) );
+
+	c.variant = JOZZ_RIG_SPHERE;
+	c.prismSides = 42; // nadpisywane pomiarem zdolnosci buildu tam, gdzie trzeba
+	c.wheelR = JOZZ_RIG_WHEEL_R;
+	c.wheelW = JOZZ_RIG_WHEEL_W;
+	c.massKg = JOZZ_RIG_UNSPRUNG_KG;
+	c.inertiaSpinFactor = 0.70f;
+	c.inertiaTransFactor = 0.55f;
+	c.density = 77.0f;
+
+	c.groundHalfX = 400.0f;
+	c.groundHalfY = 1.0f;
+	c.groundHalfZ = 60.0f;
+	c.friction = JOZZ_RIG_FRICTION;
+	c.gravity = JOZZ_RIG_GRAVITY;
+
+	c.startX = JOZZ_RIG_START_X;
+	c.startSpeed = JOZZ_RIG_TARGET_V;
+	c.startGap = 0.001f;
+
+	c.loadN = JOZZ_RIG_LOAD_N;
+	c.controllerEnabled = 1;
+	c.targetSpeed = JOZZ_RIG_TARGET_V;
+	c.kp = JOZZ_RIG_KP;
+	c.ki = JOZZ_RIG_KI;
+	c.fmax = JOZZ_RIG_FMAX;
+
+	c.dt = JOZZ_RIG_DT;
+	c.substeps = JOZZ_RIG_SUBSTEPS;
+	return c;
+}
+
+void JozzRig_ConfigDigest( const JozzRigConfig* c, char* out, size_t cap )
+{
+	if ( out == NULL || cap == 0 )
+		return;
+	snprintf( out, cap,
+			  "v=%s N=%d R=%.9g W=%.9g m=%.9g iS=%.9g iT=%.9g rho=%.9g "
+			  "gnd=%.9g/%.9g/%.9g mu=%.9g g=%.17g "
+			  "x0=%.17g v0=%.17g gap=%.9g "
+			  "load=%.17g ctl=%d tgt=%.17g kp=%.17g ki=%.17g fmax=%.17g "
+			  "dt=%.17g sub=%d",
+			  JozzRig_VariantName( c->variant ), c->variant == JOZZ_RIG_SPHERE ? 0 : c->prismSides,
+			  (double)c->wheelR, (double)c->wheelW, (double)c->massKg, (double)c->inertiaSpinFactor,
+			  (double)c->inertiaTransFactor, (double)c->density, (double)c->groundHalfX, (double)c->groundHalfY,
+			  (double)c->groundHalfZ, (double)c->friction, c->gravity, c->startX, c->startSpeed,
+			  (double)c->startGap, c->loadN, c->controllerEnabled, c->targetSpeed, c->kp, c->ki, c->fmax, c->dt,
+			  c->substeps );
+}
+
+// ------------------------------------------------- konfiguracja jako plik
+//
+// Powod istnienia: dopoki konstrukcja zyla wylacznie w polach okna, "ciekawy
+// przypadek" byl stanem ulotnym - Owner mogl go zobaczyc, ale nie mogl go ani
+// odlozyc, ani podac dalej. Konfiguracja zapisana jako tekst jest jednoczesnie
+// notatka, wejsciem stendu i diffem w gicie.
+//
+// Jedna TABELA pol obsluguje zapis i odczyt. To nie jest oszczednosc kodu, tylko
+// zamkniecie konkretnej dziury: przy dwoch osobnych funkcjach dolozenie pola do
+// JozzRigConfig i zapomnienie o nim po jednej ze stron daje plik, ktory CICHO
+// gubi czesc tozsamosci przebiegu - a taki plik klamie tym mocniej, im bardziej
+// wyglada na kompletny.
+
+typedef enum
+{
+	JR_F_INT,
+	JR_F_FLOAT,
+	JR_F_DOUBLE,
+	JR_F_VARIANT
+} JrFieldKind;
+
+typedef struct
+{
+	const char* key;
+	JrFieldKind kind;
+	size_t off;
+	const char* group; // niepusty zaczyna nowa sekcje w zapisie
+} JrField;
+
+#define JR_OFF( f ) offsetof( JozzRigConfig, f )
+
+static const JrField s_configFields[] = {
+	{ "variant", JR_F_VARIANT, JR_OFF( variant ), "geometria i masa" },
+	{ "prism_sides", JR_F_INT, JR_OFF( prismSides ), NULL },
+	{ "wheel_r", JR_F_FLOAT, JR_OFF( wheelR ), NULL },
+	{ "wheel_w", JR_F_FLOAT, JR_OFF( wheelW ), NULL },
+	{ "mass_kg", JR_F_FLOAT, JR_OFF( massKg ), NULL },
+	{ "inertia_spin", JR_F_FLOAT, JR_OFF( inertiaSpinFactor ), NULL },
+	{ "inertia_trans", JR_F_FLOAT, JR_OFF( inertiaTransFactor ), NULL },
+	{ "density", JR_F_FLOAT, JR_OFF( density ), NULL },
+
+	{ "ground_half_x", JR_F_FLOAT, JR_OFF( groundHalfX ), "scena" },
+	{ "ground_half_y", JR_F_FLOAT, JR_OFF( groundHalfY ), NULL },
+	{ "ground_half_z", JR_F_FLOAT, JR_OFF( groundHalfZ ), NULL },
+	{ "friction", JR_F_FLOAT, JR_OFF( friction ), NULL },
+	{ "gravity", JR_F_DOUBLE, JR_OFF( gravity ), NULL },
+
+	{ "start_x", JR_F_DOUBLE, JR_OFF( startX ), "stan poczatkowy" },
+	{ "start_speed", JR_F_DOUBLE, JR_OFF( startSpeed ), NULL },
+	{ "start_gap", JR_F_FLOAT, JR_OFF( startGap ), NULL },
+
+	{ "load_n", JR_F_DOUBLE, JR_OFF( loadN ), "obciazenie i regulator" },
+	{ "controller", JR_F_INT, JR_OFF( controllerEnabled ), NULL },
+	{ "target_speed", JR_F_DOUBLE, JR_OFF( targetSpeed ), NULL },
+	{ "kp", JR_F_DOUBLE, JR_OFF( kp ), NULL },
+	{ "ki", JR_F_DOUBLE, JR_OFF( ki ), NULL },
+	{ "fmax", JR_F_DOUBLE, JR_OFF( fmax ), NULL },
+
+	{ "dt", JR_F_DOUBLE, JR_OFF( dt ), "instrument" },
+	{ "substeps", JR_F_INT, JR_OFF( substeps ), NULL },
+};
+
+static const int s_configFieldCount = (int)( sizeof( s_configFields ) / sizeof( s_configFields[0] ) );
+
+static size_t JrFieldSize( JrFieldKind k )
+{
+	switch ( k )
+	{
+		case JR_F_INT:
+			return sizeof( int );
+		case JR_F_FLOAT:
+			return sizeof( float );
+		case JR_F_DOUBLE:
+			return sizeof( double );
+		case JR_F_VARIANT:
+			return sizeof( JozzRigVariant );
+	}
+	return 0;
+}
+
+// Liczba cyfr nie jest kosmetyka. %.9g odtwarza kazdy float, %.17g kazdy double.
+// Przy mniejszej liczbie cyfr zapis-odczyt przesuwalby konfiguracje o ostatni
+// bit, a wtedy plik z konstrukcja dawalby INNY przebieg niz ten, ktory Owner
+// zapisal - i blokada zachowania zaczelaby migac bez powodu.
+static void JrWriteValue( const JrField* f, const void* base, char* out, size_t cap )
+{
+	const char* p = (const char*)base + f->off;
+	switch ( f->kind )
+	{
+		case JR_F_INT:
+			snprintf( out, cap, "%d", *(const int*)p );
+			break;
+		case JR_F_FLOAT:
+			snprintf( out, cap, "%.9g", (double)*(const float*)p );
+			break;
+		case JR_F_DOUBLE:
+			snprintf( out, cap, "%.17g", *(const double*)p );
+			break;
+		case JR_F_VARIANT:
+			snprintf( out, cap, "%s", JozzRig_VariantName( *(const JozzRigVariant*)p ) );
+			break;
+	}
+}
+
+static int JrParseValue( const JrField* f, void* base, const char* value, char* err, size_t errCap )
+{
+	char* p = (char*)base + f->off;
+	char* end = NULL;
+	switch ( f->kind )
+	{
+		case JR_F_INT:
+		{
+			long v = strtol( value, &end, 10 );
+			if ( end == value )
+				break;
+			*(int*)p = (int)v;
+			return 1;
+		}
+		case JR_F_FLOAT:
+		{
+			double v = strtod( value, &end );
+			if ( end == value )
+				break;
+			*(float*)p = (float)v;
+			return 1;
+		}
+		case JR_F_DOUBLE:
+		{
+			double v = strtod( value, &end );
+			if ( end == value )
+				break;
+			*(double*)p = v;
+			return 1;
+		}
+		case JR_F_VARIANT:
+		{
+			int i;
+			for ( i = 0; i < JOZZ_RIG_VARIANT_COUNT; ++i )
+			{
+				if ( strcmp( value, JozzRig_VariantName( (JozzRigVariant)i ) ) == 0 )
+				{
+					*(JozzRigVariant*)p = (JozzRigVariant)i;
+					return 1;
+				}
+			}
+			snprintf( err, errCap, "nieznany wariant '%s'", value );
+			return 0;
+		}
+	}
+	snprintf( err, errCap, "pole '%s': '%s' nie jest liczba", f->key, value );
+	return 0;
+}
+
+int JozzRig_ConfigToText( const JozzRigConfig* c, char* out, size_t cap, const char* note )
+{
+	size_t used = 0;
+	int i;
+	int n = snprintf( out, cap, "format %d\n", JOZZ_RIG_CONFIG_FORMAT );
+	if ( n < 0 || (size_t)n >= cap )
+		return 0;
+	used = (size_t)n;
+
+	if ( note && note[0] )
+	{
+		// Notatka idzie w komentarzu, wiec nie da sie jej pomylic z parametrem.
+		// Znaki konca linii sa zamieniane na spacje: wielolinijkowy komentarz
+		// bez prefiksu '#' w kazdej linii zamienilby sie przy odczycie w blad.
+		const char* s = note;
+		if ( used + 2 >= cap )
+			return 0;
+		out[used++] = '#';
+		out[used++] = ' ';
+		for ( ; *s && used + 1 < cap; ++s )
+			out[used++] = ( *s == '\n' || *s == '\r' ) ? ' ' : *s;
+		if ( used + 1 >= cap )
+			return 0;
+		out[used++] = '\n';
+	}
+
+	for ( i = 0; i < s_configFieldCount; ++i )
+	{
+		char value[64];
+		JrWriteValue( &s_configFields[i], c, value, sizeof( value ) );
+		n = snprintf( out + used, cap - used, "%s%s%s%s %s\n",
+					  s_configFields[i].group ? "\n# " : "", s_configFields[i].group ? s_configFields[i].group : "",
+					  s_configFields[i].group ? "\n" : "", s_configFields[i].key, value );
+		if ( n < 0 || (size_t)n >= cap - used )
+			return 0;
+		used += (size_t)n;
+	}
+	return (int)used;
+}
+
+int JozzRig_ConfigFromText( JozzRigConfig* c, const char* text, char* err, size_t errCap )
+{
+	JozzRigConfig parsed = JozzRig_DefaultConfig();
+	const char* p = text;
+	int line = 0;
+	int sawFormat = 0;
+
+	if ( err && errCap )
+		err[0] = '\0';
+
+	while ( *p )
+	{
+		char buf[256];
+		char key[64];
+		const char* eol = strchr( p, '\n' );
+		size_t len = eol ? (size_t)( eol - p ) : strlen( p );
+		size_t k = 0;
+		const char* v;
+		int i, found = 0;
+
+		line += 1;
+
+		// Komentarz i pusta linia odpadaja PRZED limitem dlugosci i bez kopiowania.
+		// Kolejnosc jest istotna: notatka Ownera z polki potrafi miec kilkaset
+		// znakow, wiec limit nalozony wczesniej odrzucalby wlasne pliki narzedzia
+		// - zapis by sie udawal, a odczyt nie. Limit dotyczy tylko linii z danymi,
+		// gdzie 255 znakow to i tak wielokrotnie za duzo.
+		{
+			const char* s = p;
+			const char* e = p + len;
+			while ( s < e && ( *s == ' ' || *s == '\t' || *s == '\r' ) )
+				++s;
+			if ( s == e || *s == '#' )
+			{
+				p = eol ? eol + 1 : p + len;
+				continue;
+			}
+		}
+
+		if ( len >= sizeof( buf ) )
+		{
+			snprintf( err, errCap, "linia %d za dluga", line );
+			return 0;
+		}
+		memcpy( buf, p, len );
+		buf[len] = '\0';
+		p = eol ? eol + 1 : p + len;
+
+		{
+			char* s = buf;
+			while ( *s == ' ' || *s == '\t' || *s == '\r' )
+				++s;
+			memmove( buf, s, strlen( s ) + 1 );
+		}
+
+		while ( buf[k] && buf[k] != ' ' && buf[k] != '\t' )
+			++k;
+		if ( k == 0 || k >= sizeof( key ) )
+		{
+			snprintf( err, errCap, "linia %d: brak klucza", line );
+			return 0;
+		}
+		memcpy( key, buf, k );
+		key[k] = '\0';
+
+		v = buf + k;
+		while ( *v == ' ' || *v == '\t' )
+			++v;
+		{
+			// obetnij bialy ogon, zeby strtod nie dostal '\r' z pliku CRLF
+			char* tail = (char*)v + strlen( v );
+			while ( tail > v && ( tail[-1] == ' ' || tail[-1] == '\t' || tail[-1] == '\r' ) )
+				*--tail = '\0';
+		}
+		if ( *v == '\0' )
+		{
+			snprintf( err, errCap, "linia %d: klucz '%s' bez wartosci", line, key );
+			return 0;
+		}
+
+		if ( strcmp( key, "format" ) == 0 )
+		{
+			if ( atoi( v ) != JOZZ_RIG_CONFIG_FORMAT )
+			{
+				snprintf( err, errCap, "format pliku %s, obslugiwany %d", v, JOZZ_RIG_CONFIG_FORMAT );
+				return 0;
+			}
+			sawFormat = 1;
+			continue;
+		}
+
+		for ( i = 0; i < s_configFieldCount; ++i )
+		{
+			if ( strcmp( key, s_configFields[i].key ) != 0 )
+				continue;
+			if ( JrParseValue( &s_configFields[i], &parsed, v, err, errCap ) == 0 )
+				return 0;
+			found = 1;
+			break;
+		}
+		if ( found == 0 )
+		{
+			// Nieznany klucz to blad, nie ostrzezenie. Cicho zignorowana literowka
+			// daje plik, ktory OPISUJE jedna konstrukcje, a URUCHAMIA inna.
+			snprintf( err, errCap, "linia %d: nieznany klucz '%s'", line, key );
+			return 0;
+		}
+	}
+
+	if ( sawFormat == 0 )
+	{
+		snprintf( err, errCap, "brak linii 'format' - to nie jest plik konstrukcji rigu" );
+		return 0;
+	}
+	*c = parsed;
+	return 1;
+}
+
+int JozzRig_ConfigWriteFile( const JozzRigConfig* c, const char* path, const char* note )
+{
+	char text[JOZZ_RIG_CONFIG_TEXT_CAP];
+	FILE* f;
+	int n = JozzRig_ConfigToText( c, text, sizeof( text ), note );
+	if ( n <= 0 )
+		return 0;
+	f = fopen( path, "wb" );
+	if ( f == NULL )
+		return 0;
+	fwrite( text, 1, (size_t)n, f );
+	fclose( f );
+	return 1;
+}
+
+// Trzy niezalezne mechanizmy, kazdy na inna usterke. Zaden sam nie wystarcza:
+//
+//   1. STRAZ ROZMIARU lapie pole dodane do JozzRigConfig i niedopisane do tabeli.
+//   2. MAPA POKRYCIA lapie pole USUNIETE z tabeli, wpis wskazujacy zly offset i
+//      dwa wpisy celujace w to samo miejsce. Sam rozmiar tego nie widzi: usuniecie
+//      wiersza z tabeli nie zmienia struktury, a petla po tabeli nigdy nie dotknie
+//      pola, ktorego w tabeli nie ma - i test przeszedlby na zielono.
+//   3. PRZEBIEG TAM I Z POWROTEM lapie pole obecne w tabeli, ale zapisywane ze
+//      zla dokladnoscia albo pod zlym typem.
+//
+// Obie liczby ponizej to ostatnio zaudytowany uklad struktury na x64. Gdy ktoras
+// przestanie sie zgadzac: NAJPIERW dopisz pole do s_configFields, dopiero potem
+// zaktualizuj liczby. Odwrotna kolejnosc kasuje calego straznika.
+#define JOZZ_RIG_CONFIG_SIZEOF 144
+#define JOZZ_RIG_CONFIG_PADDING 12 // bajty wyrownania: 3 dziury po 4 przed double
+
+int JozzRig_ConfigSelfTest( char* err, size_t errCap )
+{
+	JozzRigConfig a = JozzRig_DefaultConfig();
+	JozzRigConfig b;
+	char textA[JOZZ_RIG_CONFIG_TEXT_CAP];
+	char textB[JOZZ_RIG_CONFIG_TEXT_CAP];
+	char e2[256];
+	unsigned char cover[JOZZ_RIG_CONFIG_SIZEOF];
+	int i, uncovered = 0;
+
+	if ( err && errCap )
+		err[0] = '\0';
+
+	if ( sizeof( JozzRigConfig ) != JOZZ_RIG_CONFIG_SIZEOF )
+	{
+		snprintf( err, errCap,
+				  "rozmiar JozzRigConfig to %d, audytowany %d - pole doszlo albo zniknelo; "
+				  "sprawdz, czy jest w s_configFields",
+				  (int)sizeof( JozzRigConfig ), JOZZ_RIG_CONFIG_SIZEOF );
+		return 0;
+	}
+
+	memset( cover, 0, sizeof( cover ) );
+	for ( i = 0; i < s_configFieldCount; ++i )
+	{
+		size_t n = JrFieldSize( s_configFields[i].kind );
+		size_t j;
+		for ( j = 0; j < n; ++j )
+		{
+			size_t at = s_configFields[i].off + j;
+			if ( at >= sizeof( cover ) )
+			{
+				snprintf( err, errCap, "pole '%s' wystaje poza strukture", s_configFields[i].key );
+				return 0;
+			}
+			if ( cover[at] )
+			{
+				snprintf( err, errCap, "pole '%s' nachodzi na inne (bajt %d)", s_configFields[i].key, (int)at );
+				return 0;
+			}
+			cover[at] = 1;
+		}
+	}
+	for ( i = 0; i < (int)sizeof( cover ); ++i )
+		uncovered += cover[i] ? 0 : 1;
+	if ( uncovered != JOZZ_RIG_CONFIG_PADDING )
+	{
+		snprintf( err, errCap,
+				  "tabela opisuje %d z %d bajtow struktury (nieopisane %d, wyrownanie %d) - "
+				  "ktores pole nie ma wpisu w s_configFields",
+				  (int)sizeof( cover ) - uncovered, (int)sizeof( cover ), uncovered, JOZZ_RIG_CONFIG_PADDING );
+		return 0;
+	}
+
+	// Kazde pole dostaje WLASNA wartosc, rozna od domyslnej i rozna od sasiadow.
+	// Gdyby dwa pola mialy te sama wartosc, zamiana ich miejscami w zapisie albo
+	// odczycie przeszlaby niezauwazona.
+	for ( i = 0; i < s_configFieldCount; ++i )
+	{
+		char* p = (char*)&a + s_configFields[i].off;
+		switch ( s_configFields[i].kind )
+		{
+			case JR_F_INT:
+				*(int*)p = 3 + i * 7;
+				break;
+			case JR_F_FLOAT:
+				*(float*)p = (float)( i + 1 ) * 1.2345678f;
+				break;
+			case JR_F_DOUBLE:
+				*(double*)p = (double)( i + 1 ) * 1.23456789012345678;
+				break;
+			case JR_F_VARIANT:
+				*(JozzRigVariant*)p = JOZZ_RIG_PRISM_MAX;
+				break;
+		}
+	}
+
+	if ( JozzRig_ConfigToText( &a, textA, sizeof( textA ), "self-test" ) <= 0 )
+	{
+		snprintf( err, errCap, "zapis do tekstu nieudany (bufor?)" );
+		return 0;
+	}
+	if ( JozzRig_ConfigFromText( &b, textA, e2, sizeof( e2 ) ) == 0 )
+	{
+		snprintf( err, errCap, "odczyt wlasnego zapisu nieudany: %s", e2 );
+		return 0;
+	}
+
+	for ( i = 0; i < s_configFieldCount; ++i )
+	{
+		const char* pa = (const char*)&a + s_configFields[i].off;
+		const char* pb = (const char*)&b + s_configFields[i].off;
+		size_t n = JrFieldSize( s_configFields[i].kind );
+		// Porownanie POLAMI, nie calej struktury: bajty wyrownania nigdy nie
+		// przechodza przez plik, wiec ich roznica bylaby falszywym alarmem.
+		if ( memcmp( pa, pb, n ) != 0 )
+		{
+			snprintf( err, errCap, "pole '%s' nie przezylo zapisu i odczytu", s_configFields[i].key );
+			return 0;
+		}
+	}
+
+	if ( JozzRig_ConfigToText( &b, textB, sizeof( textB ), "self-test" ) <= 0 || strcmp( textA, textB ) != 0 )
+	{
+		snprintf( err, errCap, "ponowny zapis daje inny tekst - format nie jest stabilny" );
+		return 0;
+	}
+
+	// Odrzucenia. Kazde z nich to konkretny sposob, w jaki plik moglby KLAMAC.
+	if ( JozzRig_ConfigFromText( &b, "format 1\nscianek 7\n", e2, sizeof( e2 ) ) != 0 )
+	{
+		snprintf( err, errCap, "nieznany klucz zostal przyjety" );
+		return 0;
+	}
+	if ( JozzRig_ConfigFromText( &b, "dt 0.01\n", e2, sizeof( e2 ) ) != 0 )
+	{
+		snprintf( err, errCap, "plik bez linii 'format' zostal przyjety" );
+		return 0;
+	}
+	if ( JozzRig_ConfigFromText( &b, "format 99\n", e2, sizeof( e2 ) ) != 0 )
+	{
+		snprintf( err, errCap, "obca wersja formatu zostala przyjeta" );
+		return 0;
+	}
+	if ( JozzRig_ConfigFromText( &b, "format 1\ndt szybko\n", e2, sizeof( e2 ) ) != 0 )
+	{
+		snprintf( err, errCap, "wartosc nieliczbowa zostala przyjeta" );
+		return 0;
+	}
+	if ( JozzRig_ConfigFromText( &b, "format 1\nvariant kwadrat\n", e2, sizeof( e2 ) ) != 0 )
+	{
+		snprintf( err, errCap, "nieznany wariant zostal przyjety" );
+		return 0;
+	}
+
+	// Plik niepelny jest LEGALNY i domyka sie domyslnymi. Bez tego kazdy zapisany
+	// przez Ownera plik przestawalby dzialac przy najblizszym nowym polu.
+	if ( JozzRig_ConfigFromText( &b, "format 1\nprism_sides 9\n", e2, sizeof( e2 ) ) == 0 )
+	{
+		snprintf( err, errCap, "plik czesciowy odrzucony: %s", e2 );
+		return 0;
+	}
+	{
+		JozzRigConfig d = JozzRig_DefaultConfig();
+		if ( b.prismSides != 9 || b.dt != d.dt || b.loadN != d.loadN )
+		{
+			snprintf( err, errCap, "plik czesciowy nie domknal sie domyslnymi" );
+			return 0;
+		}
+	}
+
+	// Dluga notatka. Polka pisze do komentarza znacznik czasu, tekst Ownera, krok,
+	// klase sesji i v_kryt - lacznie grubo ponad 255 znakow. Gdy limit dlugosci
+	// linii obejmowal takze komentarze, narzedzie zapisywalo pliki, ktorych samo
+	// nie potrafilo wczytac. Ten przypadek pilnuje, zeby to nie wrocilo.
+	{
+		char big[JOZZ_RIG_CONFIG_TEXT_CAP];
+		char note[600];
+		memset( note, 'x', sizeof( note ) - 1 );
+		note[sizeof( note ) - 1] = '\0';
+		if ( JozzRig_ConfigToText( &a, big, sizeof( big ), note ) <= 0 )
+		{
+			snprintf( err, errCap, "zapis z dluga notatka nie zmiescil sie w buforze" );
+			return 0;
+		}
+		if ( JozzRig_ConfigFromText( &b, big, e2, sizeof( e2 ) ) == 0 )
+		{
+			snprintf( err, errCap, "plik z dluga notatka zostal odrzucony: %s", e2 );
+			return 0;
+		}
+	}
+
+	// Warstwa plikowa osobno od warstwy tekstowej. Bez tego caly test dotyczylby
+	// bufora w pamieci, a Owner zapisuje na dysk - i to wlasnie ta droga (tryb
+	// binarny, konce linii, domkniecie pliku) ma najwiecej sposobow na zawiedzenie.
+	{
+		const char* tmp = "jozz_rig_config_selftest.tmp";
+		JozzRigConfig back;
+		int ok;
+		if ( JozzRig_ConfigWriteFile( &a, tmp, "self-test warstwy plikowej" ) == 0 )
+		{
+			snprintf( err, errCap, "zapis do pliku nieudany" );
+			return 0;
+		}
+		ok = JozzRig_ConfigReadFile( &back, tmp, e2, sizeof( e2 ) );
+		remove( tmp );
+		if ( ok == 0 )
+		{
+			snprintf( err, errCap, "odczyt wlasnego pliku nieudany: %s", e2 );
+			return 0;
+		}
+		for ( i = 0; i < s_configFieldCount; ++i )
+		{
+			if ( memcmp( (const char*)&a + s_configFields[i].off, (const char*)&back + s_configFields[i].off,
+						 JrFieldSize( s_configFields[i].kind ) ) != 0 )
+			{
+				snprintf( err, errCap, "pole '%s' nie przezylo drogi przez dysk", s_configFields[i].key );
+				return 0;
+			}
+		}
+	}
+	return 1;
+}
+
+int JozzRig_ConfigReadFile( JozzRigConfig* c, const char* path, char* err, size_t errCap )
+{
+	char text[JOZZ_RIG_CONFIG_TEXT_CAP];
+	size_t n;
+	FILE* f = fopen( path, "rb" );
+	if ( f == NULL )
+	{
+		snprintf( err, errCap, "nie moge otworzyc '%s'", path );
+		return 0;
+	}
+	n = fread( text, 1, sizeof( text ) - 1, f );
+	fclose( f );
+	text[n] = '\0';
+	return JozzRig_ConfigFromText( c, text, err, errCap );
+}
+
+double JozzRig_CriticalSpeed( const JozzRigConfig* c )
+{
+	if ( c->massKg <= 0.0f || c->wheelR <= 0.0f || c->loadN <= 0.0 )
+		return 0.0;
+	double aEff = c->loadN / (double)c->massKg;
+	return sqrt( aEff * (double)c->wheelR );
+}
+
+double JozzRig_FacetsPerStep( const JozzRigConfig* c, double speed )
+{
+	if ( c->variant != JOZZ_RIG_PRISM_MAX || c->prismSides <= 0 || c->wheelR <= 0.0f || c->dt <= 0.0 )
+		return 0.0;
+	// obwod / liczba scianek = dlugosc cieciwy; ile ich mija w jednym kroku
+	double chord = 2.0 * JOZZ_RIG_PI * (double)c->wheelR / (double)c->prismSides;
+	return fabs( speed ) * c->dt / chord;
 }
 
 // ---------------------------------------------------------------- kinematyka
@@ -49,6 +686,11 @@ double JozzRig_OmegaSpin( b3BodyId body )
 }
 
 JozzWheelKin JozzRig_Kinematics( b3BodyId body )
+{
+	return JozzRig_KinematicsR( body, JOZZ_RIG_WHEEL_R );
+}
+
+JozzWheelKin JozzRig_KinematicsR( b3BodyId body, float radius )
 {
 	JozzWheelKin k;
 	memset( &k, 0, sizeof( k ) );
@@ -94,9 +736,9 @@ JozzWheelKin JozzRig_Kinematics( b3BodyId body )
 
 	k.omegaSpin = JozzRig_Dot3( w, k.axleUnit );
 	b3Vec3 r;
-	r.x = -JOZZ_RIG_WHEEL_R * up.x;
-	r.y = -JOZZ_RIG_WHEEL_R * up.y;
-	r.z = -JOZZ_RIG_WHEEL_R * up.z;
+	r.x = -radius * up.x;
+	r.y = -radius * up.y;
+	r.z = -radius * up.z;
 	double rimContribution = JozzRig_Dot3( b3Cross( w, r ), k.forward );
 	k.referenceRimSpeed = -rimContribution;
 	k.referenceSlipSpeed = JozzRig_Dot3( v, k.forward ) - k.referenceRimSpeed;
@@ -149,13 +791,18 @@ int JozzRig_ProbeMaxPrismSides( void )
 // Freeze mass so geometry is the only variable. Tire-like ring inertia.
 void JozzRig_FreezeMass( b3BodyId body, float kg )
 {
+	JozzRig_FreezeMassEx( body, kg, JOZZ_RIG_WHEEL_R, 0.70f, 0.55f );
+}
+
+void JozzRig_FreezeMassEx( b3BodyId body, float kg, float radius, float spinFactor, float transFactor )
+{
 	b3MassData md = b3Body_GetMassData( body );
 	md.mass = kg;
 	md.center.x = 0.0f;
 	md.center.y = 0.0f;
 	md.center.z = 0.0f;
-	float iSpin = 0.70f * kg * JOZZ_RIG_WHEEL_R * JOZZ_RIG_WHEEL_R;
-	float iTr = 0.55f * kg * JOZZ_RIG_WHEEL_R * JOZZ_RIG_WHEEL_R;
+	float iSpin = spinFactor * kg * radius * radius;
+	float iTr = transFactor * kg * radius * radius;
 	md.inertia.cx.x = iTr;
 	md.inertia.cx.y = 0.0f;
 	md.inertia.cx.z = 0.0f;
@@ -170,9 +817,16 @@ void JozzRig_FreezeMass( b3BodyId body, float kg )
 
 int JozzRig_BuildEnvelope( b3BodyId body, JozzRigVariant v, float density, int prismSides )
 {
+	return JozzRig_BuildEnvelopeEx( body, v, density, prismSides, JOZZ_RIG_WHEEL_R, JOZZ_RIG_WHEEL_W,
+									JOZZ_RIG_FRICTION );
+}
+
+int JozzRig_BuildEnvelopeEx( b3BodyId body, JozzRigVariant v, float density, int prismSides, float radius,
+							 float width, float friction )
+{
 	b3ShapeDef sd = b3DefaultShapeDef();
 	sd.density = density;
-	sd.baseMaterial.friction = JOZZ_RIG_FRICTION;
+	sd.baseMaterial.friction = friction;
 	sd.baseMaterial.rollingResistance = 0.0f; // jawnie zero, nie odziedziczone
 	static b3Vec3 pts[4096];
 
@@ -182,13 +836,13 @@ int JozzRig_BuildEnvelope( b3BodyId body, JozzRigVariant v, float density, int p
 		s.center.x = 0.0f;
 		s.center.y = 0.0f;
 		s.center.z = 0.0f;
-		s.radius = JOZZ_RIG_WHEEL_R;
+		s.radius = radius;
 		b3CreateSphereShape( body, &sd, &s );
 		return 1;
 	}
 	if ( v == JOZZ_RIG_PRISM_MAX )
 	{
-		int n = JozzRig_MakePrismPoints( pts, 4096, prismSides, JOZZ_RIG_WHEEL_R, 0.5f * JOZZ_RIG_WHEEL_W );
+		int n = JozzRig_MakePrismPoints( pts, 4096, prismSides, radius, 0.5f * width );
 		if ( n == 0 )
 			return 0;
 		b3HullData* h = b3CreateHull( pts, n, n );
@@ -205,7 +859,7 @@ int JozzRig_BuildEnvelope( b3BodyId body, JozzRigVariant v, float density, int p
 
 double JozzRig_Downforce( const JozzRig* rig )
 {
-	return rig->loadN - (double)JOZZ_RIG_UNSPRUNG_KG * JOZZ_RIG_GRAVITY;
+	return rig->loadN - (double)rig->cfg.massKg * rig->cfg.gravity;
 }
 
 double JozzRig_Distance( const JozzRig* rig )
@@ -221,15 +875,27 @@ int JozzRig_Create( JozzRig* rig, JozzRigVariant v, int prismSides )
 int JozzRig_CreateWithRenderHooks( JozzRig* rig, JozzRigVariant v, int prismSides,
 								   const JozzRigRenderHooks* hooks )
 {
+	JozzRigConfig cfg = JozzRig_DefaultConfig();
+	cfg.variant = v;
+	cfg.prismSides = prismSides;
+	return JozzRig_CreateFromConfig( rig, &cfg, hooks );
+}
+
+int JozzRig_CreateFromConfig( JozzRig* rig, const JozzRigConfig* cfg, const JozzRigRenderHooks* hooks )
+{
 	memset( rig, 0, sizeof( *rig ) );
-	rig->variant = v;
-	rig->prismSides = prismSides;
-	rig->controllerEnabled = 1;
-	rig->targetSpeed = JOZZ_RIG_TARGET_V;
-	rig->loadN = JOZZ_RIG_LOAD_N;
+	rig->cfg = *cfg;
+	rig->variant = cfg->variant;
+	rig->prismSides = cfg->prismSides;
+	rig->controllerEnabled = cfg->controllerEnabled;
+	rig->targetSpeed = cfg->targetSpeed;
+	rig->loadN = cfg->loadN;
 
 	b3WorldDef wd = b3DefaultWorldDef();
 	wd.workerCount = 1;
+	wd.gravity.x = 0.0f;
+	wd.gravity.y = -(float)cfg->gravity;
+	wd.gravity.z = 0.0f;
 	// Haki renderera to JEDYNE pola, ktore frontend graficzny moze dolozyc.
 	if ( hooks )
 	{
@@ -241,19 +907,19 @@ int JozzRig_CreateWithRenderHooks( JozzRig* rig, JozzRigVariant v, int prismSide
 
 	b3BodyDef gd = b3DefaultBodyDef();
 	gd.position.x = 0.0f;
-	gd.position.y = -1.0f;
+	gd.position.y = -cfg->groundHalfY;
 	gd.position.z = 0.0f;
 	rig->ground = b3CreateBody( rig->world, &gd );
 	b3ShapeDef gs = b3DefaultShapeDef();
-	gs.baseMaterial.friction = JOZZ_RIG_FRICTION;
+	gs.baseMaterial.friction = cfg->friction;
 	gs.baseMaterial.rollingResistance = 0.0f;
-	b3BoxHull box = b3MakeBoxHull( 400.0f, 1.0f, 60.0f );
+	b3BoxHull box = b3MakeBoxHull( cfg->groundHalfX, cfg->groundHalfY, cfg->groundHalfZ );
 	b3CreateHullShape( rig->ground, &gs, &box.base );
 
 	b3BodyDef bd = b3DefaultBodyDef();
 	bd.type = b3_dynamicBody;
-	bd.position.x = (float)JOZZ_RIG_START_X;
-	bd.position.y = JOZZ_RIG_WHEEL_R + 0.001f;
+	bd.position.x = (float)cfg->startX;
+	bd.position.y = cfg->wheelR + cfg->startGap;
 	bd.position.z = 0.0f;
 	{
 		b3Vec3 from, to;
@@ -265,22 +931,24 @@ int JozzRig_CreateWithRenderHooks( JozzRig* rig, JozzRigVariant v, int prismSide
 		to.z = 1.0f;
 		bd.rotation = b3ComputeQuatBetweenUnitVectors( from, to );
 	}
-	bd.linearVelocity.x = (float)JOZZ_RIG_TARGET_V;
+	bd.linearVelocity.x = (float)cfg->startSpeed;
 	bd.linearVelocity.y = 0.0f;
 	bd.linearVelocity.z = 0.0f;
 	bd.angularVelocity.x = 0.0f;
 	bd.angularVelocity.y = 0.0f;
-	bd.angularVelocity.z = -(float)JOZZ_RIG_TARGET_V / JOZZ_RIG_WHEEL_R;
+	bd.angularVelocity.z = -(float)cfg->startSpeed / cfg->wheelR;
 	bd.enableSleep = false;
 	bd.allowFastRotation = true;
 	rig->body = b3CreateBody( rig->world, &bd );
-	if ( JozzRig_BuildEnvelope( rig->body, v, 77.0f, prismSides ) == 0 )
+	if ( JozzRig_BuildEnvelopeEx( rig->body, cfg->variant, cfg->density, cfg->prismSides, cfg->wheelR,
+								  cfg->wheelW, cfg->friction ) == 0 )
 	{
 		b3DestroyWorld( rig->world );
 		memset( rig, 0, sizeof( *rig ) );
 		return 0;
 	}
-	JozzRig_FreezeMass( rig->body, JOZZ_RIG_UNSPRUNG_KG );
+	JozzRig_FreezeMassEx( rig->body, cfg->massKg, cfg->wheelR, cfg->inertiaSpinFactor,
+						  cfg->inertiaTransFactor );
 	b3World_EnableContinuous( rig->world, false );
 
 	rig->startX = (double)b3Body_GetPosition( rig->body ).x;
@@ -321,14 +989,16 @@ void JozzRig_Step( JozzRig* rig, JozzRigSample* out )
 	b3Vec3 v = b3Body_GetLinearVelocity( rig->body );
 
 	// 2) regulator PI z anti-windup: calka zamarza w saturacji
+	const double dt = rig->cfg.dt;
+
 	double f = 0.0;
 	if ( rig->controllerEnabled )
 	{
 		double err = rig->targetSpeed - (double)v.x;
-		double fraw = JOZZ_RIG_KP * err + JOZZ_RIG_KI * rig->integral;
-		f = fraw > JOZZ_RIG_FMAX ? JOZZ_RIG_FMAX : ( fraw < -JOZZ_RIG_FMAX ? -JOZZ_RIG_FMAX : fraw );
-		if ( fabs( fraw ) <= JOZZ_RIG_FMAX )
-			rig->integral += err * JOZZ_RIG_DT;
+		double fraw = rig->cfg.kp * err + rig->cfg.ki * rig->integral;
+		f = fraw > rig->cfg.fmax ? rig->cfg.fmax : ( fraw < -rig->cfg.fmax ? -rig->cfg.fmax : fraw );
+		if ( fabs( fraw ) <= rig->cfg.fmax )
+			rig->integral += err * dt;
 	}
 
 	// 3) sila: naped wzdluz swiatowego +X, docisk w dol, oba do srodka masy
@@ -338,44 +1008,46 @@ void JozzRig_Step( JozzRig* rig, JozzRigSample* out )
 	force.z = 0.0f;
 	b3Body_ApplyForceToCenter( rig->body, force, true );
 
-	// 4) DOKLADNIE ten krok, ktory wykonuje stend
-	b3World_Step( rig->world, 1.0f / 60.0f, JOZZ_RIG_SUBSTEPS );
+	// 4) DOKLADNIE ten krok, ktory wykonuje stend. `dt` ma JEDNO zrodlo: wczesniej
+	// solver dostawal literal 1/60, a regulator i praca liczyly sie z makra -
+	// zmiana jednego rozjezdzala pomiar z fizyka po cichu.
+	b3World_Step( rig->world, (float)dt, rig->cfg.substeps );
 	rig->step += 1;
 	rig->workSteps += 1;
 
 	// 5) odczyt po kroku; calkowanie regula prostokata na stanie POKROKOWYM
 	b3Vec3 v2 = b3Body_GetLinearVelocity( rig->body );
 	b3Pos p = b3Body_GetPosition( rig->body );
-	JozzWheelKin k = JozzRig_Kinematics( rig->body );
+	JozzWheelKin k = JozzRig_KinematicsR( rig->body, rig->cfg.wheelR );
 
 	double pDrive = f * (double)v2.x;
 	double pDown = -downN * (double)v2.y;
-	double pGrav = -(double)JOZZ_RIG_UNSPRUNG_KG * JOZZ_RIG_GRAVITY * (double)v2.y;
-	rig->wDriveSigned += pDrive * JOZZ_RIG_DT;
+	double pGrav = -(double)rig->cfg.massKg * rig->cfg.gravity * (double)v2.y;
+	rig->wDriveSigned += pDrive * dt;
 	if ( pDrive > 0.0 )
-		rig->wDrivePos += pDrive * JOZZ_RIG_DT;
+		rig->wDrivePos += pDrive * dt;
 	else
-		rig->wDriveNeg += pDrive * JOZZ_RIG_DT;
-	rig->wDriveAbs += fabs( pDrive ) * JOZZ_RIG_DT;
-	rig->wDownforce += pDown * JOZZ_RIG_DT;
-	rig->wGravity += pGrav * JOZZ_RIG_DT;
-	rig->vyIntegral += (double)v2.y * JOZZ_RIG_DT;
+		rig->wDriveNeg += pDrive * dt;
+	rig->wDriveAbs += fabs( pDrive ) * dt;
+	rig->wDownforce += pDown * dt;
+	rig->wGravity += pGrav * dt;
+	rig->vyIntegral += (double)v2.y * dt;
 
 	double dx = (double)p.x - (double)rig->prevPos.x;
 	double dy = (double)p.y - (double)rig->prevPos.y;
 	double dz = (double)p.z - (double)rig->prevPos.z;
 	rig->pathLength += sqrt( dx * dx + dy * dy + dz * dz );
 	rig->prevPos = p;
-	rig->absSpin += fabs( k.omegaSpin ) * JOZZ_RIG_DT;
+	rig->absSpin += fabs( k.omegaSpin ) * dt;
 
-	int sat = fabs( f ) >= 0.999 * JOZZ_RIG_FMAX;
+	int sat = fabs( f ) >= 0.999 * rig->cfg.fmax;
 	if ( sat )
 		rig->satSteps += 1;
 
 	if ( out )
 	{
 		out->step = rig->workSteps;
-		out->time = rig->workSteps * JOZZ_RIG_DT;
+		out->time = rig->workSteps * dt;
 		out->distance = (double)p.x - rig->workStartX;
 		out->targetSpeed = rig->targetSpeed;
 		out->speed = (double)v2.x;
@@ -392,7 +1064,7 @@ void JozzRig_Step( JozzRig* rig, JozzRigSample* out )
 		out->keTrans = k.keTrans;
 		out->keRot = k.keRot;
 		out->keTotal = k.keTrans + k.keRot;
-		out->peGravity = (double)JOZZ_RIG_UNSPRUNG_KG * JOZZ_RIG_GRAVITY * (double)p.y;
+		out->peGravity = (double)rig->cfg.massKg * rig->cfg.gravity * (double)p.y;
 	}
 }
 
@@ -403,6 +1075,15 @@ static void MarkPerturbed( JozzRig* rig, const char* what )
 	rig->perturbed = 1;
 	rig->perturbCount += 1;
 	snprintf( rig->lastPerturbation, sizeof( rig->lastPerturbation ), "%s", what ? what : "?" );
+}
+
+// Zaburzenie, ktorego ten modul NIE wykonuje, ale ktore go dotyczy: framework
+// okna umie wpiac motor joint w cialo rigu albo wstrzelic cialo do jego swiata.
+// Bez tej funkcji taka ingerencja bylaby jedyna, ktora nie podnosi flagi - a
+// wtedy `perturbed` znaczyloby "ruszony przez rig", nie "ruszony".
+void JozzRig_MarkPerturbation( JozzRig* rig, const char* what )
+{
+	MarkPerturbed( rig, what );
 }
 
 void JozzRig_ApplyImpulse( JozzRig* rig, b3Vec3 impulse, const char* what )

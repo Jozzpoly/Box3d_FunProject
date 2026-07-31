@@ -2,6 +2,21 @@
 
 Status: **wszystkie definicje zapisane przed pierwszym wynikiem.**
 
+> **Gdzie ten kontrakt żyje w kodzie (2026-07-30).** Wszystkie liczby z tabeli
+> „Warunki" są od teraz polami `JozzRigConfig`, a ich wartości kontraktowe zwraca
+> **`JozzRig_DefaultConfig()`** (`jozz_wheel_rig.c`). Dokument pozostaje źródłem
+> *uzasadnień*; kod jest źródłem *wartości*. Rozjazd między nimi jest wykrywalny
+> maszynowo:
+>
+> - **`check_behaviour_lock.py`** porównuje przebieg domyślnej konfiguracji z
+>   wzorcem w `golden/`, bajt w bajt, 600 kroków, oba warianty. Wzorzec został
+>   wygenerowany i zweryfikowany wobec stendu zbudowanego ze źródeł z `f9576c3`.
+> - Każdy przebieg (trace, zakładka obserwacji) niesie **`JozzRig_ConfigDigest()`**,
+>   więc żadna liczba nie krąży bez opisu, z czego powstała.
+>
+> Konfiguracja **niedomyślna** to inny eksperyment i nie jest objęta tym
+> kontraktem — nawet jeśli używa tego samego rigu.
+
 ## Pytanie
 
 **Przy tej samej utrzymywanej prędkości liniowej, tym samym dystansie, tym samym

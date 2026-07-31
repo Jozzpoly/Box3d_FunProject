@@ -1590,15 +1590,39 @@ static int ExperimentQ2A( Budgets bud, const char* outDir, const char* cmdlineRa
 // Zapisuje odcisk stanu po kazdym kroku TA SAMA funkcja, ktorej uzywa okienko
 // wizualne. Gdyby kazda strona miala wlasny format, porownanie bajtowe nie
 // dowodzilo by niczego o fizyce.
-static int RigTrace( const char* path, const char* variantName, int steps )
+static int RigTrace( const char* path, const char* variantName, int steps, const char* configPath )
 {
 	JozzRigVariant v = JOZZ_RIG_SPHERE;
-	if ( variantName && strcmp( variantName, "prism-Nmax" ) == 0 )
-		v = JOZZ_RIG_PRISM_MAX;
-	else if ( variantName && strcmp( variantName, "sphere" ) != 0 )
+	JozzRigConfig cfg = JozzRig_DefaultConfig();
+
+	if ( configPath && variantName )
 	{
-		fprintf( stderr, "BLAD: nieznany wariant '%s' (sphere|prism-Nmax)\n", variantName );
+		// Dwa zrodla wariantu naraz to nie wygoda, tylko pytanie bez odpowiedzi:
+		// ktore z nich opisuje przebieg, ktory za chwile trafi do dowodu?
+		fprintf( stderr, "BLAD: --rig-config i --rig-trace-variant wykluczaja sie\n" );
 		return 2;
+	}
+	if ( configPath )
+	{
+		char err[256];
+		if ( JozzRig_ConfigReadFile( &cfg, configPath, err, sizeof( err ) ) == 0 )
+		{
+			fprintf( stderr, "BLAD: %s\n", err );
+			return 2;
+		}
+		v = cfg.variant;
+	}
+	else
+	{
+		if ( variantName && strcmp( variantName, "prism-Nmax" ) == 0 )
+			v = JOZZ_RIG_PRISM_MAX;
+		else if ( variantName && strcmp( variantName, "sphere" ) != 0 )
+		{
+			fprintf( stderr, "BLAD: nieznany wariant '%s' (sphere|prism-Nmax)\n", variantName );
+			return 2;
+		}
+		cfg.variant = v;
+		cfg.prismSides = JozzRig_ProbeMaxPrismSides();
 	}
 	if ( steps <= 0 )
 		steps = 600;
@@ -1618,14 +1642,22 @@ static int RigTrace( const char* path, const char* variantName, int steps )
 	}
 
 	JozzRig rig;
-	if ( JozzRig_Create( &rig, v, JozzRig_ProbeMaxPrismSides() ) == 0 )
+	if ( JozzRig_CreateFromConfig( &rig, &cfg, NULL ) == 0 )
 	{
 		fclose( f );
 		fprintf( stderr, "BLAD: wariant nieprzedstawialny\n" );
 		return 5;
 	}
 	fprintf( f, "# variant=%s prism_sides=%d steps=%d dt=%.17g substeps=%d\n", JozzRig_VariantName( v ),
-			 rig.prismSides, steps, JOZZ_RIG_DT, JOZZ_RIG_SUBSTEPS );
+			 rig.prismSides, steps, cfg.dt, cfg.substeps );
+	// Pelna konfiguracja w naglowku - dokladnie ta sama linia co po stronie okna.
+	// Bez niej trace z niedomyslnej konstrukcji nie mowi, z czego powstal, a taki
+	// plik jest nieodrozniamy od trace'u kontraktowego.
+	{
+		char cd[512];
+		JozzRig_ConfigDigest( &cfg, cd, sizeof( cd ) );
+		fprintf( f, "# config %s\n", cd );
+	}
 	fprintf( f, "%s", JOZZ_RIG_DIGEST_HEADER );
 	char line[512];
 	for ( int i = 0; i < steps; ++i )
@@ -1732,8 +1764,11 @@ int main( int argc, char** argv )
 	const char* q2aDir = NULL;
 	const char* tracePath = NULL;
 	const char* traceVariant = NULL;
+	const char* rigConfig = NULL;
+	const char* configTemplate = NULL;
 	int traceSteps = 600;
 	int perturbCheck = 0;
+	int configCheck = 0;
 	char cmdline[1024] = { 0 };
 	for ( int i = 0; i < argc; ++i )
 	{
@@ -1754,33 +1789,82 @@ int main( int argc, char** argv )
 			traceVariant = argv[++i];
 		else if ( strcmp( argv[i], "--rig-trace-steps" ) == 0 && i + 1 < argc )
 			traceSteps = atoi( argv[++i] );
+		else if ( strcmp( argv[i], "--rig-config" ) == 0 && i + 1 < argc )
+			rigConfig = argv[++i];
+		else if ( strcmp( argv[i], "--rig-config-template" ) == 0 && i + 1 < argc )
+			configTemplate = argv[++i];
 		else if ( strcmp( argv[i], "--rig-perturb-check" ) == 0 )
 			perturbCheck = 1;
+		else if ( strcmp( argv[i], "--rig-config-check" ) == 0 )
+			configCheck = 1;
 		else
 		{
 			fprintf( stderr,
 					 "uzycie: %s [--phase-telemetry <plik.csv>] [--q2a <katalog>] "
 					 "[--exe-sha256 <hex>]\n"
 					 "       %s --rig-trace <plik.csv> [--rig-trace-variant sphere|prism-Nmax] "
-					 "[--rig-trace-steps N]\n"
-					 "       %s --rig-perturb-check\n",
+					 "[--rig-trace-steps N] [--rig-config <plik.rig>]\n"
+					 "       %s --rig-perturb-check | --rig-config-check | "
+					 "--rig-config-template <plik.rig>\n",
 					 argv[0], argv[0], argv[0] );
 			return 2;
 		}
 	}
 	if ( ( telePath && q2aDir ) || ( tracePath && ( telePath || q2aDir ) ) ||
-		 ( perturbCheck && ( telePath || q2aDir || tracePath ) ) )
+		 ( perturbCheck && ( telePath || q2aDir || tracePath ) ) ||
+		 ( configCheck && ( telePath || q2aDir || tracePath || perturbCheck ) ) )
 	{
-		fprintf( stderr, "BLAD: --phase-telemetry, --q2a, --rig-trace i --rig-perturb-check "
-						 "wykluczaja sie (osobne przebiegi)\n" );
+		fprintf( stderr, "BLAD: --phase-telemetry, --q2a, --rig-trace, --rig-perturb-check i "
+						 "--rig-config-check wykluczaja sie (osobne przebiegi)\n" );
 		return 2;
+	}
+	if ( rigConfig && tracePath == NULL )
+	{
+		fprintf( stderr, "BLAD: --rig-config dziala tylko razem z --rig-trace\n" );
+		return 2;
+	}
+	if ( configTemplate )
+	{
+		// Szablon z KOMPLETEM kluczy i ich wartosciami kontraktowymi. Punkt
+		// wyjscia dla czlowieka i dla agenta: latwiej skasowac linie, ktorych sie
+		// nie zmienia, niz zgadnac nazwe klucza, ktorego sie nie widzialo.
+		JozzRigConfig c = JozzRig_DefaultConfig();
+		c.prismSides = JozzRig_ProbeMaxPrismSides();
+		if ( JozzRig_ConfigWriteFile( &c, configTemplate,
+									  "szablon: wartosci kontraktowe Q2A, skasuj linie ktorych nie zmieniasz" ) == 0 )
+		{
+			fprintf( stderr, "BLAD: nie moge zapisac %s\n", configTemplate );
+			return 3;
+		}
+		printf( "szablon konstrukcji -> %s\n", configTemplate );
+		return 0;
+	}
+	if ( configCheck )
+	{
+		char err[256];
+		if ( JozzRig_ConfigSelfTest( err, sizeof( err ) ) == 0 )
+		{
+			printf( "CONFIG CHECK FAILED\n  %s\n", err );
+			return 1;
+		}
+		printf( "CONFIG CHECK OK\n" );
+		printf( "  kazde pole struktury jest w tabeli formatu : tak (rozmiar + mapa pokrycia)\n" );
+		printf( "  zapis -> odczyt zachowuje kazde pole       : tak (co do bitu)\n" );
+		printf( "  powtorny zapis daje ten sam tekst          : tak\n" );
+		printf( "  plik czesciowy domyka sie domyslnymi       : tak\n" );
+		printf( "  dluga notatka w komentarzu przechodzi      : tak\n" );
+		printf( "  droga przez dysk zachowuje kazde pole      : tak\n" );
+		printf( "  zepsuty plik jest odrzucany                : tak (5 rodzajow)\n" );
+		printf( "  UWAGA: to test FORMATU. Nie mowi nic o tym, czy zapisana\n" );
+		printf( "         konstrukcja jest fizycznie sensowna.\n" );
+		return 0;
 	}
 	if ( perturbCheck )
 		return RigPerturbCheck();
 	// --rig-trace jest testem ekwiwalencji, nie eksperymentem: nie liczy zadnej
 	// sekcji, nie pisze zadnego dowodu, tylko odcisk stanu krok po kroku.
 	if ( tracePath )
-		return RigTrace( tracePath, traceVariant, traceSteps );
+		return RigTrace( tracePath, traceVariant, traceSteps, rigConfig );
 	if ( telePath )
 	{
 		// Istniejacy plik telemetrii nie moze zniknac po cichu.

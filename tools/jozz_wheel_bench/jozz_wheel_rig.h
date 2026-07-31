@@ -52,6 +52,103 @@ typedef enum
 
 const char* JozzRig_VariantName( JozzRigVariant v );
 
+// --- konfiguracja rigu -------------------------------------------------------
+// JEDNO zrodlo tozsamosci przebiegu. Kazda liczba, ktora wczesniej byla stala
+// kompilacji, jest tutaj polem - dzieki temu sweep po N albo po predkosci nie
+// wymaga preprocesora (zmierzone: bez tego trzeba bylo obejsc `#define`, zeby
+// w ogole wykonac sweep prędkosci).
+//
+// Podzial pol jest czescia kontraktu, nie kosmetyka:
+//
+//   GEOMETRIA I MASA  - zmiana wymaga przebudowy ciala
+//   SCENA             - zmiana wymaga przebudowy swiata
+//   STAN POCZATKOWY   - zmiana wymaga przebudowy, ale NIE jest zmiana konstrukcji.
+//                       Rozdzielone swiadomie: bez tego "zmien N i jedz dalej"
+//                       jest nieodroznialne od "zacznij od nowa z innym kolem".
+//   OBCIAZENIE/REGULATOR - czesc pol zmienia sie na zywo (settery ponizej)
+//   INSTRUMENT        - dt i podkroki. Zmiana tych dwoch zmienia NARZEDZIE, nie
+//                       badany obiekt, i musi byc oznaczona osobno.
+typedef struct
+{
+	// geometria i masa
+	JozzRigVariant variant;
+	int prismSides;
+	float wheelR;
+	float wheelW;
+	float massKg;
+	float inertiaSpinFactor;  // iSpin = f * m * R^2 wokol osi kola
+	float inertiaTransFactor; // iTr   = f * m * R^2 wokol pozostalych osi
+	float density;			  // gestosc shape'u; masa i tak jest zamrazana
+
+	// scena
+	float groundHalfX, groundHalfY, groundHalfZ;
+	float friction;
+	double gravity;
+
+	// stan poczatkowy
+	double startX;
+	double startSpeed; // predkosc liniowa + toczenie nominalne -v/R
+	float startGap;	   // ile nad nominalna wysokoscia srodka startuje cialo
+
+	// obciazenie i regulator
+	double loadN;
+	int controllerEnabled;
+	double targetSpeed;
+	double kp, ki, fmax;
+
+	// instrument
+	double dt;
+	int substeps;
+} JozzRigConfig;
+
+// Dokladnie dzisiejszy kontrakt Q2A. Kazda zmiana tej funkcji zmienia
+// eksperyment, nie widok - i lamie blokade zachowania.
+JozzRigConfig JozzRig_DefaultConfig( void );
+
+// Jednolinijkowy odcisk konfiguracji. Idzie do naglowka trace, zakladki
+// obserwacji i manifestu: bez niego liczba nie wie, z czego pochodzi.
+void JozzRig_ConfigDigest( const JozzRigConfig* c, char* out, size_t cap );
+
+// --- konstrukcja jako plik ---------------------------------------------------
+// Format tekstowy `klucz wartosc`, jedna para na linie, `#` to komentarz.
+// Czytelny dla czlowieka, dla gita i dla agenta - to samo wejscie obsluguje
+// okno (polka konstrukcji) i stend (--rig-config). Wersja formatu jest polem
+// `format`, wiec starszy plik nie zostanie po cichu zinterpretowany po nowemu.
+//
+// Kontrakt odczytu:
+//   * brak klucza  = wartosc domyslna (plik nie musi byc kompletny),
+//   * nieznany klucz = BLAD (literowka nie moze uchodzic za brak),
+//   * zapis->odczyt->zapis daje identyczny tekst i identyczna strukture bajtowo.
+#define JOZZ_RIG_CONFIG_FORMAT 1
+#define JOZZ_RIG_CONFIG_TEXT_CAP 2048
+
+// Zwraca liczbe zapisanych bajtow albo 0, gdy bufor jest za maly. `note` (moze
+// byc NULL) trafia do komentarza - miejsce na "po co ten przypadek istnieje".
+int JozzRig_ConfigToText( const JozzRigConfig* c, char* out, size_t cap, const char* note );
+
+// 1 = wczytano; 0 = odrzucono, opis w `err`. Konfiguracja jest podmieniana
+// dopiero po pelnym sukcesie, wiec bledny plik nie zostawia polowicznego stanu.
+int JozzRig_ConfigFromText( JozzRigConfig* c, const char* text, char* err, size_t errCap );
+
+int JozzRig_ConfigWriteFile( const JozzRigConfig* c, const char* path, const char* note );
+int JozzRig_ConfigReadFile( JozzRigConfig* c, const char* path, char* err, size_t errCap );
+
+// Sprawdza SAM format: kompletnosc tabeli pol, dokladnosc przebiegu tam i z
+// powrotem, stabilnosc powtornego zapisu i to, ze zepsuty plik jest ODRZUCANY.
+// 1 = w porzadku, 0 = opis w `err`. Wolane przez bramke, nie przez frontend.
+int JozzRig_ConfigSelfTest( char* err, size_t errCap );
+
+// Predkosc, powyzej ktorej sztywny wielokat nie utrzymuje ciaglego kontaktu:
+// obtoczenie sie wokol wierzcholka wymaga przyspieszenia dosrodkowego v^2/R,
+// a dostepne jest load/m. NIEZALEZNA od liczby scianek. Model odniesienia dla
+// TEGO rigu (swobodne cialo, sila w srodku masy), nie ogolna granica produktu.
+double JozzRig_CriticalSpeed( const JozzRigConfig* c );
+
+// Ile scianek mija punkt kontaktu miedzy dwiema aktualizacjami manifoldu.
+// b3Collide wykonuje sie RAZ na b3World_Step (src/physics_world.c), wiec to jest
+// realna rozdzielczosc kontaktu, a nie liczba podkrokow.
+double JozzRig_FacetsPerStep( const JozzRigConfig* c, double speed );
+
 // --- kinematyka --------------------------------------------------------------
 // Os obrotu kola to LOKALNE Y (FreezeMass stawia iSpin na inertia.cy). Pola
 // `reference*` licza sie z NOMINALNEGO promienia i punktu odniesienia R pod
@@ -72,6 +169,7 @@ double JozzRig_Dot3( b3Vec3 a, b3Vec3 b );
 b3Vec3 JozzRig_AxleWorld( b3BodyId body );
 double JozzRig_OmegaSpin( b3BodyId body );
 JozzWheelKin JozzRig_Kinematics( b3BodyId body );
+JozzWheelKin JozzRig_KinematicsR( b3BodyId body, float radius );
 
 // --- geometria i masa --------------------------------------------------------
 int JozzRig_MakePrismPoints( b3Vec3* out, int cap, int sides, float radius, float halfWidth );
@@ -82,12 +180,17 @@ int JozzRig_MakePrismPoints( b3Vec3* out, int cap, int sides, float radius, floa
 int JozzRig_ProbeMaxPrismSides( void );
 
 // Zamrozona masa i bezwladnosc: geometria ma byc jedyna zmienna.
+// Wariant bez `Ex` uzywa promienia i czynnikow z domyslnej konfiguracji, zeby
+// dotychczasowi wolajacy (sekcje A-G stendu) nie musieli sie zmieniac.
 void JozzRig_FreezeMass( b3BodyId body, float kg );
+void JozzRig_FreezeMassEx( b3BodyId body, float kg, float radius, float spinFactor, float transFactor );
 
 // Material JAWNY: friction = JOZZ_RIG_FRICTION, rollingResistance = 0. Nie ma
 // b3Shape_SetRollingResistance, wiec material musi byc podany przy tworzeniu
 // shape'u. Zwraca 0, gdy wariant jest nieprzedstawialny.
 int JozzRig_BuildEnvelope( b3BodyId body, JozzRigVariant v, float density, int prismSides );
+int JozzRig_BuildEnvelopeEx( b3BodyId body, JozzRigVariant v, float density, int prismSides, float radius,
+							 float width, float friction );
 
 // --- rig ---------------------------------------------------------------------
 
@@ -120,10 +223,16 @@ typedef struct
 	b3WorldId world;
 	b3BodyId ground;
 	b3BodyId body;
+
+	// Z CZEGO to zbudowano. Niezmienne przez cale zycie rigu: przebudowa tworzy
+	// nowy rig, a nie modyfikuje ten. `variant` i `prismSides` ponizej sa
+	// lustrem cfg, zeby frontendy czytajace je wprost dalej dzialaly.
+	JozzRigConfig cfg;
+
 	JozzRigVariant variant;
 	int prismSides;
 
-	// stan regulatora
+	// stan regulatora - JEDYNE pola startujace z cfg, ale zmienialne na zywo
 	int controllerEnabled;
 	double targetSpeed;
 	double loadN;
@@ -172,6 +281,10 @@ int JozzRig_Create( JozzRig* rig, JozzRigVariant v, int prismSides );
 // bit-identyczny przebieg; sprawdza to check_visual_equivalence.py.
 int JozzRig_CreateWithRenderHooks( JozzRig* rig, JozzRigVariant v, int prismSides,
 								   const JozzRigRenderHooks* hooks );
+
+// Pelna droga: rig budowany z konfiguracji. Dwie powyzsze funkcje sa jej
+// nakladkami na domyslnej konfiguracji z podmienionym wariantem i N.
+int JozzRig_CreateFromConfig( JozzRig* rig, const JozzRigConfig* cfg, const JozzRigRenderHooks* hooks );
 void JozzRig_Destroy( JozzRig* rig );
 
 // DOKLADNIE jeden krok o stalym dt. Kolejnosc operacji jest czescia kontraktu:
@@ -188,6 +301,10 @@ double JozzRig_Downforce( const JozzRig* rig );
 // --- zaburzenia (klasa sesji EXPLORATION) ------------------------------------
 // Kazde z nich ustawia `perturbed`. Nie ma cichej sciezki zmiany stanu ciala:
 // frontend nie wola b3Body_* na ciele rigu bezposrednio.
+// Ingerencja wykonana POZA tym modulem (framework okna: chwyt myszy, wstrzelone
+// cialo). Nie dotyka ciala - tylko zapisuje, ze przebieg przestal byc czysty.
+void JozzRig_MarkPerturbation( JozzRig* rig, const char* what );
+
 void JozzRig_ApplyImpulse( JozzRig* rig, b3Vec3 impulse, const char* what );
 void JozzRig_SetControllerEnabled( JozzRig* rig, int enabled );
 void JozzRig_SetTargetSpeed( JozzRig* rig, double v );
