@@ -6,13 +6,13 @@ i nie trzeba wiedzieć nic o strukturze repo.
 ## Uruchomienie
 
 ```bash
-build\bin\Debug\samples.exe --sample-name "Wheel Scope"
+build\bin\Release\samples.exe --sample-name "Wheel Scope"
 ```
 
 Jeśli plik nie istnieje:
 
 ```bash
-cmake --build build --target samples --config Debug
+cmake --build build --target samples --config Release
 ```
 
 ## Sterowanie
@@ -28,6 +28,7 @@ cmake --build build --target samples --config Debug
 | `W` | zeruj licznik pracy (definiuje okno pomiaru) |
 | `V` | kamera przestaje / zaczyna śledzić koło |
 | `G` | **zapisz obserwację** do pliku |
+| `S` | **zapisz konstrukcję** na półkę (patrz niżej) |
 | `M` | szuflada metryk (czas kroku silnika) |
 | `Tab` | schowaj / pokaż panele |
 | kółko, LPM | zoom i obrót kamery |
@@ -40,9 +41,71 @@ Zaburzenia — **zmieniają fizykę**:
 | `K` | kopniak w bok |
 | `J` | zrzut w dół |
 | `B` | impuls hamowania |
+| `Ctrl` + LPM | **chwyć koło myszą** i pociągnij |
 
 Po pierwszym zaburzeniu ekran przechodzi na `SESJA: EXPLORATION` i mówi wprost,
-że to nie jest przebieg dowodowy. `R` wraca do czystej obserwacji.
+że to nie jest przebieg dowodowy. `R` wraca do czystej obserwacji. Chwyt myszą
+liczy się tak samo jak kopniak — to sprężyna ciągnąca koło, więc podnosi tę samą
+flagę.
+
+## Półka konstrukcji — żeby ciekawy przypadek nie przepadł
+
+Panel „Konstrukcja (przebudowa)" zmienia **z czego** koło jest zbudowane:
+liczbę ścianek i prędkość startową. To nie jest zaburzenie biegnącego przebiegu
+— to nowy przebieg od zera. Przebudowa kosztuje 0.1 ms, więc suwak można ciągnąć
+swobodnie; przebudowa następuje przy puszczeniu.
+
+Gdy trafisz na coś ciekawego: wpisz nazwę w sekcji „Półka konstrukcji" i naciśnij
+`S`. Powstaje plik `wheel_scope_bench/<nazwa>.rig` — zwykły tekst, do przeczytania
+i do poprawienia w notatniku:
+
+```
+format 1
+# 2026-07-31 12:40:03 | prism zaczyna mlotkowac | zapisane w kroku 412 przy v=3.0012 | sesja=OBSERVATION | v_kryt=3.7439 v/v_kryt=0.802
+
+# geometria i masa
+variant prism-Nmax
+prism_sides 17
+wheel_r 0.514100015
+...
+
+# instrument
+dt 0.016666666666666666
+substeps 4
+```
+
+Wczytanie: przycisk „wczytaj" przy nazwie. Nic nie jest nadpisywane po cichu —
+zapis pod istniejącą nazwą dokłada `_2`, `_3`.
+
+**Ten sam plik uruchamia stend bez okna.** To jest cała różnica między „widziałem
+coś dziwnego" a zadaniem do policzenia:
+
+```bash
+tools\jozz_wheel_bench\wheel_bench.exe --rig-trace wynik.csv --rig-config wheel_scope_bench\nazwa.rig
+```
+
+Plik możesz też napisać sam od zera — wystarczy `format 1` i te klucze, które
+chcesz zmienić; reszta bierze wartości kontraktowe. Pusty szablon z kompletem
+kluczy i ich wartościami kontraktowymi:
+
+```bash
+tools\jozz_wheel_bench\wheel_bench.exe --rig-config-template szablon.rig
+```
+
+Klucz z literówką **nie jest po cichu pomijany**: wczytanie zostaje odrzucone
+z komunikatem. Plik zawierający samo `format 1` odtwarza kontrakt Q2A co do bitu.
+
+## Pasek reżimu — kiedy pomiar w ogóle ma sens
+
+Linia `rezim` mówi, czy koło jest w stanie utrzymać ciągły kontakt z podłożem:
+
+- `v/v_kryt < 1` → kontakt ciągły, jest model odniesienia;
+- `v/v_kryt > 1` → sztywne koło **odrywa się** przy obtaczaniu wokół wierzchołka;
+- `faset` > 1 → między dwiema aktualizacjami kontaktu mija cała ścianka.
+  Więcej podkroków tego **nie naprawia** (`KOLA_01` §8.1).
+
+Domyślna konfiguracja (13 m/s) jedzie 2.76× powyżej `v_kryt`. To nie jest błąd —
+to jest reżim, w którym mierzyliśmy do tej pory, i teraz widać to na ekranie.
 
 ## Co widać na ekranie
 

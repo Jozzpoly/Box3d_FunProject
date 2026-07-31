@@ -133,6 +133,15 @@ public:
 		return true;
 	}
 
+	// Let a sample show the Recording section independently of the Solver one. Defaults to the
+	// solver answer so every existing sample keeps its current panel, including the replay viewer
+	// which deliberately hides both. Wheel Scope is the case that needs them split: it owns its
+	// step, so it has no framework solver controls, but it does have a real world worth recording.
+	virtual bool HasRecordingControls() const
+	{
+		return HasSolverControls();
+	}
+
 	// The info panel normally prints frame-time/step-count/camera pivot stats
 	// up front, always expanded. A sample whose own controls are tall and
 	// tuning-dense (many sliders/tabs) can fold that block behind a closed
@@ -163,6 +172,39 @@ public:
 	// from the empty base world.
 	virtual void FocusHome();
 
+	// The world this sample actually steps and shows. Almost every sample builds into the base
+	// world and leaves this alone. A sample that owns a private world overrides it once, and every
+	// framework service below follows: picking, mouse grab, shift-click spawning, Counters,
+	// Capacity, Frame Camera, Dump Mem Stats and the shadow cascade fit.
+	//
+	// Before this existed each of those addressed m_worldId directly, so in a private-world sample
+	// they silently operated on an empty world nobody steps: clicks selected nothing, Ctrl+drag
+	// grabbed nothing, and the Counters tab reported zeros as if the scene were empty. Nothing
+	// crashed and nothing warned - the services just quietly did not apply. One override is
+	// cheaper than remembering which of them are safe.
+	virtual b3WorldId ActiveWorld() const
+	{
+		return m_worldId;
+	}
+
+	// World that recording captures. Follows ActiveWorld by default, because a sample that owns
+	// its world wants to record that world - otherwise the Record buttons arm a world the sample
+	// never puts a body in and never steps, and the saved file holds an empty scene.
+	virtual b3WorldId RecordingWorld() const
+	{
+		return ActiveWorld();
+	}
+
+	// A framework service just changed the physics of ActiveWorld: the mouse grab attached a motor
+	// joint, or a shift-click launched a body into the scene. Most samples are playgrounds and do
+	// not care. A measuring sample does: for it the difference between "watched" and "touched" is
+	// the difference between a result and an anecdote, and that distinction cannot survive if the
+	// framework can reach into the world without saying so.
+	virtual void OnWorldPerturbed( const char* what )
+	{
+		(void)what;
+	}
+
 	// Arm recording on the live world, snapshotting it as the seed so capture can begin at any
 	// step boundary. Stop writes the file named by the context and frees the buffer.
 	void StartRecording();
@@ -188,6 +230,12 @@ public:
 	virtual void MouseDown( b3Vec2 p, int button, int modifiers );
 	virtual void MouseUp( b3Vec2 p, int button );
 	virtual void MouseMove( b3Vec2 p );
+
+	// Drop the mouse grab and destroy the kinematic body and joint behind it. Normally driven by
+	// MouseUp, but a sample that rebuilds ActiveWorld while the button is still held must call it
+	// first: the joint and body live in the world about to be destroyed, and the ids left behind
+	// would later resolve against whatever reuses those slots.
+	void ReleaseMouseGrab();
 
 	void ToggleThirdPerson();
 	void DrawTextLine( const char* text, ... );

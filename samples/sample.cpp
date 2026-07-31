@@ -352,9 +352,15 @@ void Sample::StartRecording()
 		return;
 	}
 
+	b3WorldId worldId = RecordingWorld();
+	if ( B3_IS_NULL( worldId ) )
+	{
+		return;
+	}
+
 	// Snapshot the live world as the seed, so recording can begin at any step boundary.
 	m_recording = b3CreateRecording( 0 );
-	b3World_StartRecording( m_worldId, m_recording );
+	b3World_StartRecording( worldId, m_recording );
 	m_recordStartStep = m_stepCount;
 }
 
@@ -365,7 +371,13 @@ void Sample::FinishRecording()
 		return;
 	}
 
-	b3World_StopRecording( m_worldId );
+	// The world may already be gone (a sample tearing down its private world calls this after
+	// destroying it). The buffer outlives the world, so the file is still complete either way.
+	b3WorldId worldId = RecordingWorld();
+	if ( B3_IS_NON_NULL( worldId ) )
+	{
+		b3World_StopRecording( worldId );
+	}
 	b3SaveRecordingToFile( m_recording, m_context->recordingFile );
 	b3DestroyRecording( m_recording );
 	m_recording = nullptr;
@@ -522,7 +534,7 @@ b3BodyId Sample::FocusBody() const
 
 void Sample::FocusHome()
 {
-	b3AABB aabb = b3World_GetBounds( m_worldId );
+	b3AABB aabb = b3World_GetBounds( ActiveWorld() );
 	float aspect = m_camera->m_height > 0 ? (float)m_camera->m_width / (float)m_camera->m_height : 1.0f;
 	m_camera->Frame( aabb, aspect, 0.75f );
 }
@@ -891,7 +903,7 @@ void Sample::DrawMetrics()
 	if ( ImGui::BeginTabItem( "Counters" ) )
 	{
 		ImGui::BeginChild( "##counters_scroll" );
-		b3Counters s = b3World_GetCounters( m_worldId );
+		b3Counters s = b3World_GetCounters( ActiveWorld() );
 		constexpr int colorCount = sizeof( s.colorCounts ) / sizeof( s.colorCounts[0] );
 		const int overflowIndex = colorCount - 1;
 		constexpr int manifoldBucketCount = sizeof( s.manifoldCounts ) / sizeof( s.manifoldCounts[0] );
@@ -942,7 +954,7 @@ void Sample::DrawMetrics()
 		ImGui::Text( "total allocation = %d K", s.byteCount / 1024 );
 
 		ImGui::Separator();
-		b3Capacity c = b3World_GetMaxCapacity( m_worldId );
+		b3Capacity c = b3World_GetMaxCapacity( ActiveWorld() );
 		ImGui::Text( "max capacities" );
 		ImGui::BulletText( "static shapes/bodies = %d/%d", c.staticShapeCount, c.staticBodyCount );
 		ImGui::BulletText( "dynamic shapes/bodies = %d/%d", c.dynamicShapeCount, c.dynamicBodyCount );
@@ -1143,7 +1155,7 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 
 		b3QueryFilter filter = b3DefaultQueryFilter();
 		filter.name = "select";
-		b3RayResult result = b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, filter );
+		b3RayResult result = b3World_CastRayClosest( ActiveWorld(), pickRay.origin, pickRay.translation, filter );
 
 		if ( result.hit )
 		{
@@ -1161,7 +1173,7 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 
 		b3QueryFilter filter = b3DefaultQueryFilter();
 		filter.name = "grab";
-		b3RayResult result = b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, filter );
+		b3RayResult result = b3World_CastRayClosest( ActiveWorld(), pickRay.origin, pickRay.translation, filter );
 
 		b3BodyId bodyId = result.hit ? b3Shape_GetBody( result.shapeId ) : b3_nullBodyId;
 		if ( result.hit && b3Body_GetType( bodyId ) == b3_dynamicBody )
@@ -1172,7 +1184,7 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 			bodyDef.type = b3_kinematicBody;
 			bodyDef.position = m_mousePoint;
 			bodyDef.enableSleep = false;
-			m_mouseBodyId = b3CreateBody( m_worldId, &bodyDef );
+			m_mouseBodyId = b3CreateBody( ActiveWorld(), &bodyDef );
 
 			// Grabbing also selects so the body stays highlighted while dragged.
 			SetSelectedBody( bodyId );
@@ -1185,7 +1197,7 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 			jointDef.linearDampingRatio = 1.0f;
 
 			b3MassData massData = b3Body_GetMassData( bodyId );
-			float g = b3Length( b3World_GetGravity( m_worldId ) );
+			float g = b3Length( b3World_GetGravity( ActiveWorld() ) );
 			float mg = massData.mass * g;
 			jointDef.maxSpringForce = m_mouseForceScale * mg;
 
@@ -1197,11 +1209,16 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 				jointDef.maxVelocityTorque = 0.5f * lever * mg;
 			}
 
-			m_mouseJointId = b3CreateMotorJoint( m_worldId, &jointDef );
+			m_mouseJointId = b3CreateMotorJoint( ActiveWorld(), &jointDef );
 
 			b3Body_SetAwake( bodyId, true );
 
 			m_mouseFraction = result.fraction;
+
+			// A spring pulling on the body is a force the sample did not apply. Say so once, on
+			// grab, rather than every frame of the drag: what matters downstream is that this run
+			// was touched at all, not how long the mouse was held.
+			OnWorldPerturbed( "mouse grab" );
 		}
 	}
 	else if ( modifiers & MOD_SHIFT )
@@ -1217,19 +1234,21 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 			bodyDef.position = pickRay.origin + 2.0f * direction;
 			bodyDef.linearVelocity = ( 10.0f * m_launchSpeedScale ) * direction;
 			bodyDef.isBullet = true;
-			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
+			b3BodyId bodyId = b3CreateBody( ActiveWorld(), &bodyDef );
 
 			b3HullData* hull = b3CreateCylinder( 2.0f, 0.15f, 0.0f, 6 );
 			b3CreateHullShape( bodyId, &shapeDef, hull );
 			b3DestroyHull( hull );
+			OnWorldPerturbed( "launched cylinder" );
 		}
 		else if ( modifiers & MOD_ALT )
 		{
 			b3Pos position = pickRay.origin + 2.0f * direction;
 			Human human = {};
-			CreateHuman( &human, m_worldId, position, 1.0f, 1.0f, 1.0f, 0, nullptr, true );
+			CreateHuman( &human, ActiveWorld(), position, 1.0f, 1.0f, 1.0f, 0, nullptr, true );
 			Human_SetBullet( &human, true );
 			Human_SetVelocity( &human, ( 10.0f * m_launchSpeedScale ) * direction );
+			OnWorldPerturbed( "launched ragdoll" );
 		}
 		else
 		{
@@ -1238,16 +1257,17 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 			bodyDef.position = pickRay.origin + 2.0f * direction;
 			bodyDef.linearVelocity = ( 20.0f * m_launchSpeedScale ) * direction;
 			bodyDef.isBullet = true;
-			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
+			b3BodyId bodyId = b3CreateBody( ActiveWorld(), &bodyDef );
 
 			b3Sphere sphere = { b3Vec3_zero, 0.25f };
 			shapeDef.density *= 4.0f;
 			b3CreateSphereShape( bodyId, &shapeDef, &sphere );
+			OnWorldPerturbed( "launched sphere" );
 		}
 	}
 }
 
-void Sample::MouseUp( b3Vec2 p, int button )
+void Sample::ReleaseMouseGrab()
 {
 	if ( b3Joint_IsValid( m_mouseJointId ) )
 	{
@@ -1262,6 +1282,11 @@ void Sample::MouseUp( b3Vec2 p, int button )
 	m_mouseJointId = b3_nullJointId;
 	m_mouseBodyId = b3_nullBodyId;
 	m_mouseFraction = 0.0f;
+}
+
+void Sample::MouseUp( b3Vec2 p, int button )
+{
+	ReleaseMouseGrab();
 }
 
 void Sample::MouseMove( b3Vec2 p )
@@ -1341,7 +1366,7 @@ void SelectSample( SampleContext* context, int selection, bool restart )
 	context->sample = g_sampleEntries[selection].CreateFcn( context );
 
 	// Fit the shadow cascade range to the world bounds.
-	b3AABB bounds = b3World_GetBounds( context->sample->m_worldId );
+	b3AABB bounds = b3World_GetBounds( context->sample->ActiveWorld() );
 	float diagonal = b3Distance( bounds.lowerBound, bounds.upperBound );
 	SetShadowSplitFar( b3ClampFloat( diagonal, SHADOW_SPLIT_FAR, 200.0f ) );
 
@@ -1600,7 +1625,7 @@ static void DrawMenuBar( SampleContext* context )
 			}
 			if ( ImGui::MenuItem( "Dump Mem Stats" ) )
 			{
-				b3World_DumpMemoryStats( context->sample->m_worldId );
+				b3World_DumpMemoryStats( context->sample->ActiveWorld() );
 			}
 			ImGui::Separator();
 			if ( ImGui::MenuItem( "Quit", "Esc" ) )
@@ -1618,7 +1643,7 @@ static void DrawMenuBar( SampleContext* context )
 			}
 			if ( ImGui::MenuItem( "Frame Camera" ) )
 			{
-				b3AABB aabb = b3World_GetBounds( context->sample->m_worldId );
+				b3AABB aabb = b3World_GetBounds( context->sample->ActiveWorld() );
 				Camera& cam = context->camera;
 				float aspect = cam.m_height > 0 ? (float)cam.m_width / (float)cam.m_height : 1.0f;
 				cam.Frame( aabb, aspect, 0.75f );
@@ -1989,7 +2014,7 @@ static void DrawInfoPanel( SampleContext* context )
 		}
 	}
 
-	if ( context->sample->HasSolverControls() && ImGui::CollapsingHeader( "Recording", ImGuiTreeNodeFlags_DefaultOpen ) )
+	if ( context->sample->HasRecordingControls() && ImGui::CollapsingHeader( "Recording", ImGuiTreeNodeFlags_DefaultOpen ) )
 	{
 		ImGui::PushItemWidth( 9.0f * fontSize );
 		ImGui::InputText( "File##Recording", context->recordingFile, sizeof( context->recordingFile ) );
