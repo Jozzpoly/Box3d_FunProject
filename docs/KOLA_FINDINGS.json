@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "purpose": "Jedyne miejsce, w ktorym zyje AKTUALNY status kazdego findingu F-xx / P-xx. Dokumenty KOLA_*.md moga finding OPISYWAC, ale nie moga nadawac mu statusu. Sprawdzane przez tools/evidence/evidence.py check.",
-  "updated": "2026-07-29",
+  "updated": "2026-07-31",
   "statuses": {
     "ENGINE_FACT": "Wlasciwosc kodu Box3D, weryfikowalna przez odczyt zrodla. Nie wymaga transferu Q2-Q4.",
     "MATH_FACT": "Czysta matematyka badanych funkcji, bez silnika. Nie wymaga transferu.",
@@ -104,6 +104,21 @@
       "evidence": ["none"]
     },
 
+    "F-15": {
+      "status": "ENGINE_FACT",
+      "claim": "b3Collide wykonuje sie RAZ na b3World_Step, poza petla podkrokow; podkroki dzialaja wewnatrz b3Solve i przesolwowuja ten sam manifold. Rozdzielczosc kontaktu w czasie to dt, nie dt/podkroki.",
+      "scope": "Wlasciwosc kolejnosci operacji w b3World_Step. NIE mowi, jak duzy blad wnosi w konkretnym przebiegu - to wymaga pomiaru.",
+      "evidence": ["none"],
+      "code": "src/physics_world.c:1125 (b3Collide), :1133 (b3Solve)"
+    },
+    "F-16": {
+      "status": "ENGINE_FACT",
+      "claim": "contactHertz = min(world->contactHertz, 0.125*inv_h), gdzie inv_h = podkroki/dt. Przy domyslnym contactHertz=30, dt=1/60 i 4 podkrokach ograniczenie wypada dokladnie na 30 Hz; przy 2 podkrokach schodzi do 15 Hz. Liczba podkrokow zmienia TWARDOSC kontaktu, nie tylko dokladnosc solvera.",
+      "scope": "Odczyt kodu. Konsekwencja dla programu: porownanie geometrii przy roznej liczbie podkrokow jest porownaniem dwoch roznych materialow styku.",
+      "evidence": ["none"],
+      "code": "src/physics_world.c:1114, :1101; src/types.c:20"
+    },
+
     "P-01": { "status": "ENGINE_FACT", "claim": "Limit formatu hulla.", "scope": "= F-01.", "evidence": ["2026_07_27_v2#A.prism_budget"] },
     "P-02": { "status": "ENGINE_FACT", "claim": "Masa z objetosci collidera.", "scope": "= F-02.", "evidence": ["2026_07_27_v2#C.mass"] },
     "P-03": {
@@ -143,6 +158,13 @@
       "scope": "Stend ustawia grunt na 1.2 i zostawia kolo na domyslnym 0.6, wiec efektywne tarcie sceny wynosi ~0.849, a nie 1.2 jak opisuja to naglowki stendu i dokumenty. Naglowek v2.1 musi drukowac mu_wheel, mu_ground, regule mieszania i mu_effective.",
       "evidence": ["none"],
       "code": "src/physics_world.c:154"
+    },
+    "P-17": {
+      "status": "MODEL_FACT",
+      "claim": "Predkosc graniczna ciaglego styku sztywnego wielokata: v_kryt = sqrt((load/m)*R), NIEZALEZNA od liczby scianek. Dla kontraktu Q2A 4.71 m/s przy celu 13 m/s, czyli 2.76x powyzej granicy.",
+      "scope": "Model swobodnego ciala z sila przylozona w srodku masy. Rig Q2A to zalozenie SPELNIA; kolo na zawieszeniu NIE (b3WheelJoint wnosi wlasna sile pionowa o wlasnej dynamice). To granica TEGO rigu, nie granica produktu.",
+      "evidence": ["none"],
+      "code": "tools/jozz_wheel_bench/jozz_wheel_rig.c JozzRig_CriticalSpeed"
     }
   }
 }

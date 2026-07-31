@@ -830,3 +830,62 @@ wadami tego dokumentu**: opisywały silnik z jego komentarzy zamiast z jego kodu
 
 Protokół naprawy: `KOLA_05_PROTOKOL_STENDU_V21_PL.md`. **Do czasu jego
 wykonania żaden wynik §7 nie awansuje na `PRAWO` ani nie zamyka rodziny.**
+
+## 8. Rozdzielczość kontaktu i granica ciągłego styku (2026-07-31)
+
+Trzy ustalenia z sesji pracy nad Wheel Scope. Dwa pierwsze są odczytem kodu
+silnika, trzeci wyprowadzeniem. **Żadne z nich nie jest wynikiem pomiarowym**
+i żadne nie zamyka pytania o geometrię.
+
+### 8.1 F-15 — narrowphase wykonuje się RAZ na krok świata
+
+`ENGINE FACT`. W `b3World_Step` wykrywanie kontaktu (`b3Collide`) stoi **poza**
+pętlą podkroków — `src/physics_world.c:1125`. Pętla podkroków żyje wewnątrz
+`b3Solve` (`:1133`) i **przesolwowuje ten sam manifold**, którego już nie
+odświeża.
+
+Konsekwencja dla programu kół: rozdzielczość kontaktu w czasie wynosi `dt`,
+a nie `dt/podkroki`. Dla bryły fasetowanej sensowną miarą jest **liczba ścianek
+mijających punkt styku w jednym kroku**, `|v|·dt / (2πR/N)`. Gdy przekracza 1,
+między dwiema aktualizacjami manifoldu mija cała ścianka i **zwiększanie liczby
+podkroków tego nie naprawia**. Wskaźnik jest liczony w oknie na żywo
+(`JozzRig_FacetsPerStep`) i pokazywany na pasku reżimu.
+
+### 8.2 F-16 — liczba podkroków zmienia TWARDOŚĆ kontaktu, nie tylko dokładność
+
+`ENGINE FACT`. `src/physics_world.c:1114`:
+
+```c
+float contactHertz = b3MinFloat( world->contactHertz, 0.125f * context.inv_h );
+```
+
+gdzie `context.inv_h = subStepCount * inv_dt` (`:1101`), a domyślne
+`def.contactHertz = 30.0f` (`src/types.c:20`).
+
+Przy kontrakcie Q2A (`dt = 1/60`, 4 podkroki) `0.125·inv_h` daje dokładnie
+30 Hz — ograniczenie wypada **na samej granicy** wartości domyślnej. Przy
+2 podkrokach schodzi do 15 Hz, czyli kontakt staje się dwa razy bardziej
+miękki. Podkroki nie są więc czystym pokrętłem dokładności: **zmieniają model
+kontaktu**. Każde porównanie geometrii przy różnej liczbie podkroków jest z tego
+powodu porównaniem dwóch różnych materiałów styku.
+
+### 8.3 P-17 — prędkość graniczna ciągłego styku sztywnego wielokąta
+
+`MODEL FACT`. Aby wielokąt obtoczył się wokół wierzchołka bez utraty kontaktu,
+środek masy musi zostać ściągnięty po łuku o promieniu `R`, co wymaga
+przyspieszenia dośrodkowego `v²/R`. Dostępne jest `a_eff = load/m`. Stąd
+
+```
+v_kryt = sqrt( (load/m) · R )
+```
+
+**Wielkość nie zależy od liczby ścianek.** Dla kontraktu Q2A
+(`load = 1900 N`, `m = 44 kg`, `R = 0.5141 m`) wychodzi 4.71 m/s, przy celu
+13 m/s — czyli **2.76× powyżej granicy**. Domyślny przebieg badawczy odbywa się
+więc w reżimie, w którym sztywne koło z założenia nie utrzymuje ciągłego styku,
+i przez cały czas trwania programu **nic tego nie sygnalizowało**.
+
+Zakres: model swobodnego ciała z siłą przyłożoną w środku masy. Rig Q2A to
+założenie **spełnia**. Koło na zawieszeniu go **nie spełnia** — `b3WheelJoint`
+wnosi własną siłę pionową o własnej dynamice. `P-17` nie jest więc granicą
+produktu, tylko granicą **tego rigu**, i tak ma być cytowane.

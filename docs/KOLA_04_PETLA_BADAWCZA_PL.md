@@ -466,7 +466,31 @@ U-14  Ile manifoldow daje kolo na MESHU (nie na pudle) i czy kazdy
 U-15  Czy prawo opony na dzisiejszej sferze obsluguje Z-07..Z-09.  -> R4
 U-16  Czy profil wielokatny obrotowy potrafi korone rho 0.5-1.5 m
       przy barku 10-25 mm.                                        -> R3
+U-20  Sweep po LICZBIE PODKROKOW przy stalym dt. F-16 mowi, ze
+      podkroki zmieniaja twardosc kontaktu, wiec sweep mierzy
+      DWIE rzeczy naraz i nie wolno go czytac jako "dokladnosc".
+      Wymaga kontroli: powtorzyc przy contactHertz zamrozonym
+      ponizej 0.125*inv_h dla NAJMNIEJSZEJ liczby podkrokow.      -> R0.5
+U-21  Sweep po PREDKOSCI przy stalym dt, z jawnym przejsciem
+      przez v_kryt (P-17) i przez faset/krok = 1 (F-15). Dwie
+      granice, ktore moga sie mylic - trzeba je rozdzielic
+      eksperymentem, w ktorym poruszamy tylko jedna.              -> R0.5
+U-22  Sweep po LICZBIE SCIANEK N przy zamrozonej masie. Jedyny
+      sposob odroznienia "wiecej scianek = gladziej" (F-03 mowi,
+      ze falszywe) od efektu granicy fasetowania.                 -> R0.5
 ```
+
+**Uwaga do `U-20`…`U-22` (2026-07-31).** Te trzy sweepy zostały już raz
+wykonane diagnostycznie, w scratchpadowej uprzęży, której **w repo nie ma**.
+Liczby nie są cytowane nigdzie i nie stają się dowodem — nie da się ich
+zregenerować z tego drzewa, więc reguła 9 (`KOLA_00`) je wyklucza. Zachowana
+jest natomiast obserwacja jakościowa warta sprawdzenia: **podnoszenie
+`contactHertz` powyżej 30 Hz nie zmieniało wyniku ani o cyfrę, obniżanie
+zmieniało** — co jest dokładnie tym, co przewiduje `F-16`.
+
+Od 2026-07-31 każdy z tych sweepów to pętla po plikach `.rig` i wywołaniach
+`wheel_bench --rig-trace ... --rig-config ...`, więc powtórzenie ich **pod
+bramkami** jest tanie. To jest właściwa droga; stare liczby zostają porzucone.
 
 ## 6. Rejestr rodzin: odrzucone i zawieszone (produkt, nie porażka)
 

@@ -1,10 +1,25 @@
 # Koła i opony — front door
 
 Data założenia: 2026-07-25
-Branch: `jozz-scan-terrain-f0`, HEAD `959aefb`
+Branch: `jozz-scan-terrain-f0`
 Status programu: **R0.5 — kalibracja instrumentu. Stend v2 istotnie ulepszony,
 ale nadal kalibrowany; wyniki `PROVISIONAL`; geometria pozostaje pytaniem
 otwartym; implementacja produktowa NIE rozpoczęta**
+
+> **Rewizja 2026-07-31 — instrument dostał pamięć i punkt odniesienia.**
+> Nie zmienia to statusu programu ani żadnego wyniku. Zmienia to, co da się
+> o instrumencie stwierdzić maszynowo:
+> - **`KOLA_01` §8** — trzy nowe ustalenia: `F-15` (narrowphase raz na krok
+>   świata), `F-16` (liczba podkroków zmienia twardość kontaktu, nie tylko
+>   dokładność), `P-17` (`v_kryt` — kontrakt Q2A jedzie **2.76×** powyżej
+>   granicy ciągłego styku i przez cały program nic tego nie sygnalizowało);
+> - **blokada zachowania** (`golden/`) — pierwszy w tym programie zapis
+>   *zaakceptowanego zachowania*. Do 2026-07-30 istniały wyłącznie bramki
+>   spójności; żadna nie potrafiła zauważyć zmiany fizyki, bo zmieniała się
+>   po obu stronach porównania naraz;
+> - **konstrukcja jest plikiem** (`.rig`) — ten sam plik wczytuje okno i
+>   uruchamia stend (`--rig-config`), więc przypadek znaleziony ręcznie da się
+>   oddać agentowi bez przepisywania suwaków.
 
 > **Rewizja 2026-07-28 (pełny audyt zewnętrzny stendu v2, zweryfikowany wobec
 > kodu i przyjęty).** Poprzednia rewizja z 2026-07-27 była przedwczesna i
@@ -84,26 +99,24 @@ i udokumentowany w `KOLA_01`.
 ```
 tools/jozz_wheel_bench/     izolowany stend badawczy (linkuje box3d.lib, nie dotyka repo)
   wheel_bench.c             PROTOKOŁY eksperymentów A-G i Q2A, opisane w KOLA_01 (v2)
-  jozz_wheel_rig.c/.h       WSPÓLNY rig: świat, ciało, materiał, masa, regulator.
+  jozz_wheel_rig.c/.h       WSPÓLNY rig: świat, ciało, materiał, masa, regulator,
+                            JozzRigConfig i format pliku konstrukcji.
                             Ten sam plik kompilują stend i target `samples`.
   build.bat                 kompilacja MSVC, wymaga zbudowanego build/src/Release/box3d.lib
+  golden/                   WZORZEC ZACHOWANIA rigu, 600 kroków, oba warianty.
+                            Wygenerowany i zweryfikowany wobec stendu zbudowanego
+                            ze źródeł `f9576c3` — zapis zaakceptowanego zachowania,
+                            nie zdjęcie przypadkowego stanu drzewa.
   evidence/                 surowe wydruki przebiegów (nie kasować)
 ```
 
 Okno wizualne na ten sam rig (poziom `V1v`, `KOLA_04` §3):
 
 ```bash
-build\bin\Debug\samples.exe --sample-name "Wheel Scope"
+build\bin\Release\samples.exe --sample-name "Wheel Scope"
 ```
 
 Instrukcja dla właściciela: `tools/jozz_wheel_bench/WHEEL_SCOPE_OWNER_SESSION_PL.md`.
-Dowód, że okno pokazuje tę samą fizykę (600 kroków bajt w bajt):
-
-```bash
-python tools\jozz_wheel_bench\check_visual_equivalence.py
-```
-
-Stend v2 ma znane wady (`KOLA_01` §7.9). Protokół v2.1: `KOLA_05`.
 
 Uruchomienie stendu:
 
@@ -111,11 +124,74 @@ Uruchomienie stendu:
 tools/jozz_wheel_bench/build.bat && tools/jozz_wheel_bench/wheel_bench.exe
 ```
 
-Łańcuch dowodowy — **uruchamiać po każdej zmianie dokumentów lub przebiegu**:
+### Konstrukcja jako plik
+
+Okno zapisuje bieżącą konstrukcję (klawisz `S` lub panel „Półka konstrukcji")
+do `wheel_scope_bench/<nazwa>.rig` — czytelny tekst `klucz wartość`, komentarz
+z datą, krokiem i klasą sesji. **Ten sam plik uruchamia stend:**
+
+```bash
+tools/jozz_wheel_bench/wheel_bench.exe --rig-trace out.csv --rig-config plik.rig
+```
+
+Brakujący klucz = wartość domyślna; **nieznany klucz = błąd** (literówka nie może
+uchodzić za brak). Plik zawierający samo `format 1` odtwarza kontrakt Q2A co do
+bitu — sprawdzone wobec wzorca. Szablon z kompletem kluczy:
+
+```bash
+tools/jozz_wheel_bench/wheel_bench.exe --rig-config-template szablon.rig
+```
+
+### Bramki — jedno wejście
+
+```bash
+python tools/jozz_wheel_bench/check_all.py
+```
+
+Uruchamia po kolei: format konstrukcji → blokada zachowania → ekwiwalencja
+okno/stend (w tym: ten sam plik `.rig` po obu stronach) → integralność findings.
+Nie buduje: bramki same odmówią pracy, gdy binarka jest starsza od swoich źródeł.
+
+Zielone znaczy **„nic się nie zmieniło i dane są spójne"** — nie „fizyka jest
+poprawna". Czerwona blokada zachowania rozróżnia **zmianę opisu** przebiegu od
+**zmiany trajektorii** i nazywa pierwszy rozbieżny krok.
+
+Świadoma zmiana eksperymentu aktualizuje wzorzec osobno i **nigdy w jednym
+commicie z funkcją**, żeby diff wzorca dał się czytać jako zmiana eksperymentu:
+
+```bash
+python tools/jozz_wheel_bench/check_behaviour_lock.py --update
+```
+
+Sam łańcuch dowodowy (dokumenty i przebiegi) osobno:
 
 ```bash
 python tools/evidence/evidence.py check
 ```
+
+### Reguły pracy — dlaczego każda z nich istnieje
+
+1. **`check_all.py` przed sesją i po sesji.** Przed — żeby wiedzieć, od czego
+   startujesz; po — żeby wiedzieć, co zmieniłeś. Bez „przed" każdy czerwony
+   wynik jest podejrzany o to, że był tam wcześniej.
+2. **Aktualizacja wzorca (`--update`) nigdy w jednym commicie z funkcją.**
+   Diff wzorca ma się czytać jako *zmiana eksperymentu*. Wmieszany w zmianę
+   kodu przestaje cokolwiek znaczyć.
+3. **Bramka, której nie widziałeś na czerwono, nie jest bramką.** Każda nowa
+   bramka w tym katalogu została celowo zepsuta i przywrócona, a sposób psucia
+   jest opisany w jej nagłówku. Bramka bez udowodnionej porażki to deklaracja.
+4. **Zielone znaczy „nic się nie zmieniło", nie „jest dobrze".** Bramki mierzą
+   niezmienność i spójność. Poprawności fizyki nie sprawdza żadna z nich
+   i sprawdzić nie może — ten osąd należy do `GATE-A` i do Jozza.
+5. **Liczba, która nie ma pliku, z którego powstała, nie jest wynikiem.**
+   Każdy przebieg niesie `JozzRig_ConfigDigest`; każda konstrukcja da się
+   zapisać jako `.rig`. Diagnostyka z uprzęży spoza repo jest **hipotezą**,
+   nie dowodem — nawet jeśli liczby wyglądają solidnie (`KOLA_04` §5, `U-20`).
+6. **Jedna misja na sesję.** Wykryty przy okazji problem zapisuje się jako
+   pytanie w rejestrze, a nie naprawia w biegu — inaczej diff przestaje
+   odpowiadać na pytanie „co ta zmiana robi".
+7. **Katalog tymczasowy nie jest pamięcią.** Na koniec sesji każdy artefakt
+   albo trafia do repo, albo ginie jawnie. Trzeciej opcji nie ma.
 
 `extract` (surowy log → `summary.json`), `render` (→ bloki w dokumentach),
 `check` (weryfikacja: bloki == regeneracja, hash surowych logów, rejestr
