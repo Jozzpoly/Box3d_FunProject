@@ -15,3 +15,10 @@
 # zglaszal wtedy manipulacje na plikach, ktorych nikt nie tknal. Musi zostac:
 #   bajty bloba == bajty swiezego checkoutu == sha256 w manifescie
 tools/jozz_wheel_bench/evidence/run_*.txt -text
+
+# Ta sama zasada, ta sama pulapka: wzorzec zachowania jest porownywany BAJTOWO
+# z przebiegiem swiezo wygenerowanym przez wheel_bench (fopen "wb", czyli LF).
+# Bez `-text` git oddawalby przy checkoucie CRLF i blokada zachowania walilaby
+# sie na KAZDEJ linii u kazdego, kto sklonuje repo - zglaszajac zmiane fizyki
+# tam, gdzie nikt niczego nie ruszyl.
+tools/jozz_wheel_bench/golden/*.csv -text
