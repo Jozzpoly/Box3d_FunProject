@@ -141,6 +141,10 @@ int JozzQc_MaxSegments( const JozzQcConfig* c );
 // zmiana zachowujaca zamowiona geometrie przekroju; jest JAWNE, bo frontend
 // pokazuje, ze N zostalo zmienione i o ile.
 //
+// Dla kuli NIC NIE ROBI: pole nie bierze udzialu w budowie, a wciskanie go w
+// zakres kuli kasowalo liczbe - przejscie torus-64 -> sphere -> torus-N wracalo
+// z N=3. Przelaczenie wariantu tam i z powrotem ma byc odwracalne.
+//
 // Wolane WYLACZNIE ze sciezki suwaka. Plik konstrukcji i linia polecen maja byc
 // odrzucane, a nie po cichu poprawiane: opisuja inna konstrukcje niz ta, ktora
 // dalo by sie uruchomic.
@@ -162,6 +166,27 @@ int JozzQc_ConfigReadFile( JozzQcConfig* c, const char* path, char* err, size_t 
 // Sprawdza SAM format: kompletnosc tabeli pol, przebieg tam i z powrotem,
 // stabilnosc powtornego zapisu i odrzucanie zepsutego pliku. Wolane przez bramke.
 int JozzQc_ConfigSelfTest( char* err, size_t errCap );
+
+// --- grupy pol ---------------------------------------------------------------
+// Te same grupy, ktore dziela plik `.qc` na sekcje. Sluza do dwoch rzeczy naraz:
+// zapisu i PRZYWRACANIA. Powod, dla ktorego stoja tutaj, a nie w oknie: gdyby
+// frontend mial wlasna liste "co nalezy do zawieszenia", kazde nowe pole trzeba
+// by dopisac w dwoch miejscach, a pole pominiete w tej drugiej liscie byloby
+// polem, ktorego NIE DA SIE przywrocic - i nikt by tego nie zauwazyl.
+#define JOZZ_QC_GROUP_WHEEL "kolo"
+#define JOZZ_QC_GROUP_SUSPENSION "zawieszenie"
+#define JOZZ_QC_GROUP_ROAD "droga"
+#define JOZZ_QC_GROUP_DRIVE "naped"
+#define JOZZ_QC_GROUP_INSTRUMENT "instrument"
+
+// Przywraca wartosci domyslne w JEDNEJ grupie i zwraca liczbe zmienionych pol.
+// `group == NULL` znaczy WSZYSTKIE pola.
+int JozzQc_ResetGroup( JozzQcConfig* c, const char* group );
+
+// Ile pol tej grupy rozni sie od domyslnych. Okno pokazuje te liczbe przy
+// naglowku sekcji, bo "co ja wlasciwie poruszylem" jest pytaniem, ktore pada po
+// dziesieciu minutach pracy, a panel bez tego na nie nie odpowiada.
+int JozzQc_ChangedInGroup( const JozzQcConfig* c, const char* group );
 
 // --- odczyt po kroku ---------------------------------------------------------
 typedef struct
@@ -212,6 +237,13 @@ typedef struct
 	int perturbCount;
 	char lastPerturbation[96];
 
+	// Wstrzasarka. Stan RIGU, nie konstrukcji: nie idzie do `.qc` i nie da sie
+	// jej wlaczyc z linii polecen, bo przebieg z wymuszeniem nie jest przebiegiem
+	// kontraktowym. Domyslnie wylaczona, wiec kazdy pomiar headless przechodzi
+	// przez ta sama sciezke co przed jej dodaniem.
+	int shakerOn;
+	double shakerHz, shakerN;
+
 	double integral;
 } JozzQcRig;
 
@@ -259,6 +291,26 @@ void JozzQc_SetTravel( JozzQcRig* rig, float bumpTravel, float droopTravel );
 // byl wlaczony.
 void JozzQc_SetDrive( JozzQcRig* rig, JozzQcDrive mode, double targetSpeed, double constTorque );
 void JozzQc_SetDriveGains( JozzQcRig* rig, double kp, double ki, double maxTorque );
+
+// --- reka: ingerencja w biegnacy rig -----------------------------------------
+// Podstawowe proby zawieszenia, ktorych mysz nie umie wykonac powtarzalnie.
+// Kazda z nich jest ZABURZENIEM i sama sie tak oznacza (JozzQc_MarkPerturbation),
+// wiec przebieg po niej jest niewazny - dokladnie tak jak po chwycie mysza.
+// Stoja w module rigu, a nie w oknie, z tego samego powodu co protokol pomiaru:
+// jedyna implementacja tego, co wolno zrobic cialom, ma byc jedna.
+
+// Podnosi CALY narożnik o `meters` i zeruje predkosci pionowe. Podnoszone sa OBA
+// ciala, bo podniesienie samego nadwozia naciaga wiez do zderzaka wywieszenia i
+// to, co potem widac, jest odbiciem od ogranicznika, a nie upadkiem zawieszenia.
+void JozzQc_LiftCorner( JozzQcRig* rig, double meters );
+
+// Pionowy impuls w mase resorowana, w N*s. Dodatni = w gore.
+void JozzQc_KickChassis( JozzQcRig* rig, double impulseNs );
+
+// Wymuszenie sinusoidalne na masie resorowanej: sila `amplitudeN` o czestotliwosci
+// `hz`. Przemiatanie czestotliwoscia pokazuje rezonans zawieszenia wprost - a
+// hertz wiezu jest wielkoscia WYLICZANA (F-18), wiec warto go umiec zobaczyc.
+void JozzQc_SetShaker( JozzQcRig* rig, int on, double hz, double amplitudeN );
 
 // Punkty kontaktu kola do rysowania. Bez klasyfikacji - klasyfikacja nalezy do
 // eksperymentu, nie do rysowania.

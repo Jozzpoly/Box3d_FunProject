@@ -124,11 +124,52 @@ const char* PerturbationName( const char* what )
 	return what;
 }
 
-// Konstrukcja przezywajaca "R". Framework na restarcie NISZCZY sample i tworzy go
-// od nowa, wiec bez tego "R" po cichu wracaloby do domyslnego kola zamiast
-// powtorzyc to, co Owner wlasnie ustawil.
-JozzQcConfig g_lastConfig;
-bool g_haveLastConfig = false;
+// Wiersz tabeli porownan. Poza klasa, bo przezywa restart razem z warsztatem.
+struct Row
+{
+	char label[80];
+	char detail[256];
+	JozzQcConfig cfg;
+	JozzQcCell cell;
+};
+
+// STAN WARSZTATU PRZEZYWAJACY "R".
+//
+// Framework na "R" NISZCZY sample i tworzy go od nowa (samples/main.cpp:236 ->
+// SelectSample -> delete + CreateFcn). Poprzednia wersja przenosila przez ten
+// restart WYLACZNIE konfiguracje, wiec "R" kasowal tabele pomiarow, tempo,
+// ustawienia widoku, nastawy przemiatania, nazwe na polce i narzedzia reki. Z
+// perspektywy pracy wygladalo to jak reset USTAWIEN, a nie przebiegu - a "R" ma
+// byc najtanszym ruchem w tym oknie: puscic to samo jeszcze raz.
+//
+// Zapis idzie w destruktorze, bo to jedyne miejsce widzace stan koncowy
+// niezaleznie od tego, co restart wywolalo. Przywracanie jest jawnie zalezne od
+// `context->restart`: przejscie na inny sample i powrot ma dac warsztat czysty.
+struct WorkshopState
+{
+	JozzQcConfig cfg;
+
+	int dividerIndex;
+	int warmupSteps;
+	bool autoWarmup, follow, rewind, showContacts, showTrail, showTravelRuler;
+	float trailGain, plotSpan;
+
+	std::vector<Row> rows;
+	int baseRow;
+	bool baseRowPinned, showDelta, fullProtocol;
+
+	int sweepParam, sweepSteps;
+	float sweepFrom, sweepTo;
+
+	float liftH, kickNs, shakerHz, shakerN;
+	float grabForce;
+
+	char shelfName[64];
+	char shelfNote[160];
+	char tab[32];
+};
+WorkshopState g_saved;
+bool g_haveSaved = false;
 
 } // namespace
 
@@ -139,6 +180,7 @@ public:
 		: Sample( context )
 	{
 		m_candCount = JozzQc_Candidates( m_cand, JOZZ_QC_CANDIDATE_CAP );
+		m_mouseForceScale = kGrabForce;
 
 		m_cfg = JozzQc_DefaultConfig();
 		m_cfg.variant = JOZZ_RIG_TORUS;
@@ -149,8 +191,9 @@ public:
 		// to, co sie bada.
 		m_cfg.targetSpeed = 4.0;
 		m_cfg.startSpeed = 4.0;
-		if ( context->restart && g_haveLastConfig )
-			m_cfg = g_lastConfig;
+		m_openCfg = m_cfg; // konstrukcja otwarcia warsztatu, do "reset calosci"
+		if ( context->restart && g_haveSaved )
+			RestoreWorkshop();
 
 		if ( const char* v = Env( "JOZZ_QC_VARIANT" ) )
 		{
@@ -241,9 +284,83 @@ public:
 
 	~JozzQuarterCarScope() override
 	{
+		SaveWorkshop();
 		ReleaseMouseGrab();
 		FinishRecording();
 		JozzQc_Destroy( &m_rig );
+	}
+
+	// Wszystko, co Owner ustawil reka - lacznie z tabela pomiarow. Pominiecie
+	// czegokolwiek tutaj wraca jako "R skasowal mi ustawienia", wiec lista ma byc
+	// nudna i kompletna, a nie wybiorcza.
+	void SaveWorkshop()
+	{
+		g_saved.cfg = m_cfg;
+		g_saved.dividerIndex = m_dividerIndex;
+		g_saved.warmupSteps = m_warmupSteps;
+		g_saved.autoWarmup = m_autoWarmup;
+		g_saved.follow = m_follow;
+		g_saved.rewind = m_rewind;
+		g_saved.showContacts = m_showContacts;
+		g_saved.showTrail = m_showTrail;
+		g_saved.showTravelRuler = m_showTravelRuler;
+		g_saved.trailGain = m_trailGain;
+		g_saved.plotSpan = m_plotSpan;
+		g_saved.rows = m_rows;
+		g_saved.baseRow = m_baseRow;
+		g_saved.baseRowPinned = m_baseRowPinned;
+		g_saved.showDelta = m_showDelta;
+		g_saved.fullProtocol = m_fullProtocol;
+		g_saved.sweepParam = m_sweepParam;
+		g_saved.sweepSteps = m_sweepSteps;
+		g_saved.sweepFrom = m_sweepFrom;
+		g_saved.sweepTo = m_sweepTo;
+		g_saved.liftH = m_liftH;
+		g_saved.kickNs = m_kickNs;
+		g_saved.shakerHz = m_shakerHz;
+		g_saved.shakerN = m_shakerN;
+		g_saved.grabForce = m_mouseForceScale;
+		snprintf( g_saved.shelfName, sizeof( g_saved.shelfName ), "%s", m_shelfName );
+		snprintf( g_saved.shelfNote, sizeof( g_saved.shelfNote ), "%s", m_shelfNote );
+		snprintf( g_saved.tab, sizeof( g_saved.tab ), "%s", m_openTab );
+		g_haveSaved = true;
+	}
+
+	void RestoreWorkshop()
+	{
+		m_cfg = g_saved.cfg;
+		m_dividerIndex = g_saved.dividerIndex;
+		m_warmupSteps = g_saved.warmupSteps;
+		m_autoWarmup = g_saved.autoWarmup;
+		m_follow = g_saved.follow;
+		m_rewind = g_saved.rewind;
+		m_showContacts = g_saved.showContacts;
+		m_showTrail = g_saved.showTrail;
+		m_showTravelRuler = g_saved.showTravelRuler;
+		m_trailGain = g_saved.trailGain;
+		m_plotSpan = g_saved.plotSpan;
+		m_rows = g_saved.rows;
+		m_baseRow = g_saved.baseRow;
+		m_baseRowPinned = g_saved.baseRowPinned;
+		m_showDelta = g_saved.showDelta;
+		m_fullProtocol = g_saved.fullProtocol;
+		m_sweepParam = g_saved.sweepParam;
+		m_sweepParamPrev = g_saved.sweepParam;
+		m_sweepSteps = g_saved.sweepSteps;
+		m_sweepFrom = g_saved.sweepFrom;
+		m_sweepTo = g_saved.sweepTo;
+		m_liftH = g_saved.liftH;
+		m_kickNs = g_saved.kickNs;
+		m_shakerHz = g_saved.shakerHz;
+		m_shakerN = g_saved.shakerN;
+		m_mouseForceScale = g_saved.grabForce;
+		snprintf( m_shelfName, sizeof( m_shelfName ), "%s", g_saved.shelfName );
+		snprintf( m_shelfNote, sizeof( m_shelfNote ), "%s", g_saved.shelfNote );
+		// Zakladka tez wraca: po "R" panel otwarty na "Zawieszenie" ma zostac na
+		// "Zawieszeniu". Wstrzasarka NIE wraca wlaczona - zaburzenie jest tym,
+		// czego "R" ma sie pozbyc.
+		snprintf( m_forceTab, sizeof( m_forceTab ), "%s", g_saved.tab );
+		m_restored = true;
 	}
 
 	// Ten sample nie uzywa swiata klasy bazowej - wszystkie uslugi frameworku
@@ -315,10 +432,13 @@ public:
 		{
 			m_lastGood = m_cfg;
 			m_haveLastGood = true;
+			// Wstrzasarka jest stanem RIGU, a przebudowa robi rig od nowa. Bez tego
+			// kazda zmiana suwaka po cichu ja wylaczala i wygladalo to na zepsuty
+			// przelacznik, a nie na skutek przebudowy.
+			if ( m_shakerOn )
+				JozzQc_SetShaker( &m_rig, 1, (double)m_shakerHz, (double)m_shakerN );
 		}
 		m_loadedName[0] = '\0'; // kazda przebudowa uniewaznia nazwe z polki
-		g_lastConfig = m_cfg;
-		g_haveLastConfig = true;
 
 		memset( &m_last, 0, sizeof( m_last ) );
 		m_stepCount = 0;
@@ -406,7 +526,6 @@ public:
 		m_cfg.kp = m_rig.cfg.kp;
 		m_cfg.ki = m_rig.cfg.ki;
 		m_cfg.maxTorque = m_rig.cfg.maxTorque;
-		g_lastConfig = m_cfg;
 		ResetWindow();
 		m_liveTuned = true;
 	}
@@ -456,6 +575,20 @@ public:
 			m_trailHead = ( m_trailHead + 1 ) % kTrailCap;
 			if ( m_trailCount < kTrailCap )
 				m_trailCount += 1;
+
+			// PRZEWIJANIE. Plyta ma 400 m polowy dlugosci, a rig startuje na -80 i
+			// jedzie w prawo - wiec po ~2 minutach jazdy zjezdza z jej konca i leci
+			// w prozni. Zlapane przez zostawienie okna wlaczonego, nie przez test:
+			// panel dalej pokazywal liczby, tylko opisywaly spadanie. Pomiaru to nie
+			// dotyczy (720 krokow = 48 m), wiec przewijanie nalezy do OKNA i tylko do
+			// niego. Przebudowa stawia rig z powrotem na starcie razem z rozgrzewka.
+			if ( m_rewind && m_last.x > (double)m_cfg.groundHalfX - 10.0 )
+			{
+				m_rewindCount += 1;
+				Build();
+				if ( m_ok == false )
+					return; // swiat wlasnie zniknal - nie ma czego rysowac
+			}
 		}
 
 		DrawHud();
@@ -587,8 +720,14 @@ public:
 			DrawTextLine( "NIEWAZNY: %.48s", m_winLive.invalidWhy );
 		if ( m_rig.perturbed )
 			DrawTextLine( "EXPLORATION: fizyka ruszona recznie %dx", m_rig.perturbCount );
-		DrawTextLine( "1-5 kandydat  B droga  C naped  X zmierz  Z zeruj" );
+		if ( m_benchMode )
+			DrawTextLine( "STANOWISKO - narożnik stoi, naped zdjety (H = jazda)" );
+		if ( m_shakerOn )
+			DrawTextLine( "WSTRZASARKA %.2f Hz  %.0f N", m_shakerHz, m_shakerN );
+		DrawTextLine( "1-5 kandydat  B droga  C naped  X zmierz  Z zeruj okna" );
+		DrawTextLine( "H stanowisko  J podnies  K uderz  Ctrl+LPM chwyt" );
 		DrawTextLine( "P pauza  O krok  , . tempo  V kamera  S zapis  G obs." );
+		DrawTextLine( "R = ten sam przebieg od nowa, ustawienia zostaja" );
 	}
 
 	// -------------------------------------------------------------- wejscie
@@ -640,6 +779,21 @@ public:
 			case SAPP_KEYCODE_G:
 				WriteObservation();
 				return;
+			case SAPP_KEYCODE_H:
+				if ( m_benchMode )
+					LeaveBenchMode();
+				else
+					EnterBenchMode();
+				return;
+			case SAPP_KEYCODE_J:
+				// Podniesienie i uderzenie pod reka na klawiaturze, bo obie proby
+				// robi sie PATRZAC NA KOLO. Siegniecie po mysz w tym momencie
+				// kosztuje wlasnie ten stan, ktory mial byc zbadany.
+				JozzQc_LiftCorner( &m_rig, (double)m_liftH );
+				return;
+			case SAPP_KEYCODE_K:
+				JozzQc_KickChassis( &m_rig, (double)m_kickNs );
+				return;
 			default:
 				break;
 		}
@@ -672,17 +826,32 @@ public:
 		ImGui::TextUnformatted( "Q3 - warsztat narożnika: kolo, zawieszenie, droga" );
 		ImGui::TextWrapped( "Ta sama fizyka, ktora stend mierzy headless. Werdykt o feelu nalezy do "
 							"Ciebie - liczby go nie zastepuja." );
+		if ( m_restored )
+			ImGui::TextDisabled( "R: przebieg od nowa, ustawienia warsztatu przeniesione" );
+
+		// Stan przejsciowy nazwany wprost. Suwak przebudowy pisze do konstrukcji od
+		// razu, a rig powstaje dopiero przy puszczeniu - bez tego paska panel przez
+		// caly przeciag pokazywalby liczby konstrukcji, ktorej jeszcze nie ma.
+		if ( m_ok && memcmp( &m_cfg, &m_rig.cfg, sizeof( JozzQcConfig ) ) != 0 )
+			ImGui::TextColored( ImVec4( 1.0f, 0.8f, 0.3f, 1.0f ), "konstrukcja zmieniona - rig powstanie po "
+																 "puszczeniu suwaka" );
 
 		if ( ImGui::BeginTabBar( "qc_tabs" ) )
 		{
 			Tab( "Kolo", &JozzQuarterCarScope::TabWheel );
 			Tab( "Zawieszenie", &JozzQuarterCarScope::TabSuspension );
 			Tab( "Droga", &JozzQuarterCarScope::TabRoad );
+			Tab( "Reka", &JozzQuarterCarScope::TabHand );
 			Tab( "Pomiar", &JozzQuarterCarScope::TabMeasure );
 			Tab( "Polka", &JozzQuarterCarScope::TabShelf );
 			Tab( "Widok", &JozzQuarterCarScope::TabView );
 			ImGui::EndTabBar();
 		}
+		// Wymuszenie zakladki dziala DOKLADNIE RAZ. Dopoki `m_forceTab` bylo
+		// niepuste, ImGuiTabItemFlags_SetSelected leciala w kazdej klatce i zakladki
+		// nie dalo sie przelaczyc mysza - okno wygladalo na zepsute, a bylo
+		// zablokowane wlasna zmienna srodowiskowa.
+		m_forceTab[0] = '\0';
 		return true;
 	}
 
@@ -693,6 +862,7 @@ public:
 			flags |= ImGuiTabItemFlags_SetSelected;
 		if ( ImGui::BeginTabItem( name, nullptr, flags ) )
 		{
+			snprintf( m_openTab, sizeof( m_openTab ), "%s", name );
 			( this->*body )();
 			ImGui::EndTabItem();
 		}
@@ -727,7 +897,7 @@ private:
 		if ( match < 0 )
 			ImGui::TextDisabled( "konstrukcja wlasna - poza lista stendu" );
 
-		ImGui::SeparatorText( "Obwiednia (przebudowa)" );
+		GroupHeader( "Obwiednia, wymiary i masa (przebudowa)", JOZZ_QC_GROUP_WHEEL );
 		int variant = (int)m_cfg.variant;
 		for ( int i = 0; i < JOZZ_RIG_VARIANT_COUNT; ++i )
 		{
@@ -744,47 +914,35 @@ private:
 		int nMin = JozzQc_MinSegments( &m_cfg );
 		int nMax = m_cfg.variant == JOZZ_RIG_PRISM_MAX ? JozzRig_ProbeMaxPrismSides() : 128;
 
+		char segTip[320];
+		snprintf( segTip, sizeof( segTip ),
+				  "Scianki pryzmatu ALBO kapsuly pierscienia - ta sama zmienna\n"
+				  "programu kol, wiec porownywalna miedzy wariantami przy rownym N.\n"
+				  "Pryzmat konczy sie na %d (twardy limit b3CreateHull, F-01).",
+				  JozzRig_ProbeMaxPrismSides() );
 		ImGui::BeginDisabled( m_cfg.variant == JOZZ_RIG_SPHERE );
-		int seg = m_cfg.segments;
-		ImGui::SliderInt( "elementow obwodu", &seg, nMin, nMax );
-		if ( ImGui::IsItemDeactivatedAfterEdit() && seg != m_cfg.segments )
-		{
-			m_cfg.segments = seg;
-			Build();
-		}
+		IntRebuild( "elementow obwodu", &m_cfg.segments, nMin, nMax, segTip );
 		ImGui::EndDisabled();
-		if ( ImGui::IsItemHovered( ImGuiHoveredFlags_AllowWhenDisabled ) )
-			ImGui::SetTooltip( "Scianki pryzmatu ALBO kapsuly pierscienia - ta sama zmienna\n"
-							   "programu kol, wiec porownywalna miedzy wariantami przy rownym N.\n"
-							   "Pryzmat konczy sie na %d (twardy limit b3CreateHull, F-01).",
-							   JozzRig_ProbeMaxPrismSides() );
 
 		if ( m_cfg.variant == JOZZ_RIG_TORUS )
 		{
-			float crown = m_cfg.crownR;
-			// Gora zakresu to 0.45*W, nie 0.5*W: przy dokladnie polowie szerokosci
-			// dlugosc kapsuly schodzi do zera i "opona" jest pierscieniem kul.
-			ImGui::SliderFloat( "promien korony", &crown, 0.02f, 0.4995f * m_cfg.wheelW, "%.3f m" );
-			if ( ImGui::IsItemDeactivatedAfterEdit() && crown != m_cfg.crownR )
-			{
-				m_cfg.crownR = crown;
-				Build();
-			}
-			if ( ImGui::IsItemHovered() )
-				ImGui::SetTooltip( "Promien przekroju opony = promien kapsuly. Wiekszy = mniejsze\n"
-								   "tetnienie promienia i WEZSZA plaska bieznia.\n"
-								   "ZMIERZONE (F-25, przemiatanie z tego okna): na plaskiej plycie\n"
-								   "przy 4 m/s to NIE jest kompromis - w zakresie 0.04..0.19 m strata\n"
-								   "spada monotonicznie o 43%%, a churn z 27%% do zera. Zwezenie\n"
-								   "bieznia z 358 do 58 mm nie kosztuje tu NIC mierzalnego.\n"
-								   "Ale Q3 nie mierzy przyczepnosci bocznej - jesli handel istnieje,\n"
-								   "lezy poza tym szczeblem." );
+			// Gora zakresu to granica GEOMETRYCZNA: przy crownR = W/2 dlugosc
+			// kapsuly schodzi do zera i pierscien staje sie pierscieniem kul.
+			FloatRebuild( "promien korony", &m_cfg.crownR, 0.02f, 0.4995f * m_cfg.wheelW, "%.3f m",
+						  "Promien przekroju opony = promien kapsuly. Wiekszy = mniejsze\n"
+						  "tetnienie promienia i WEZSZA plaska bieznia.\n"
+						  "ZMIERZONE (F-25, przemiatanie z tego okna): na plaskiej plycie\n"
+						  "przy 4 m/s to NIE jest kompromis - w zakresie 0.04..0.19 m strata\n"
+						  "spada monotonicznie o 43%, a churn z 27% do zera. Zwezenie\n"
+						  "bieznia z 358 do 58 mm nie kosztuje tu NIC mierzalnego.\n"
+						  "Ale Q3 nie mierzy przyczepnosci bocznej - jesli handel istnieje,\n"
+						  "lezy poza tym szczeblem." );
 			ImGui::Text( "minimum kapsul dla szczelnosci: %d", nMin );
 		}
 		if ( m_fixNote[0] )
 			ImGui::TextColored( ImVec4( 1.0f, 0.8f, 0.3f, 1.0f ), "konstrukcja poprawiona: %s", m_fixNote );
 
-		ImGui::SeparatorText( "Wymiary i masa (przebudowa)" );
+		ImGui::Spacing();
 		FloatRebuild( "promien kola", &m_cfg.wheelR, 0.20f, 0.90f, "%.4f m",
 					  "Zmienia obwiednie I ramie momentu. Domyslnie 0.5141 m - to\n"
 					  "kolo stendu v2, wiec kazde porownanie z Q2A wymaga tej wartosci." );
@@ -834,7 +992,7 @@ private:
 	// ZAWIESZENIE: jedyna zakladka, w ktorej WIEKSZOSC pokretel dziala na zywo.
 	void TabSuspension()
 	{
-		ImGui::SeparatorText( "Sprezyna i tlumienie (na zywo)" );
+		GroupHeader( "Sprezyna i tlumienie (na zywo)", JOZZ_QC_GROUP_SUSPENSION );
 
 		float k = m_cfg.springNPerM;
 		// Dol zakresu to 5000 N/m: ponizej ugiecie statyczne przekracza 300 mm i
@@ -901,7 +1059,7 @@ private:
 	// DROGA I NAPED.
 	void TabRoad()
 	{
-		ImGui::SeparatorText( "Profil drogi (przebudowa, B)" );
+		GroupHeader( "Profil drogi (przebudowa, B)", JOZZ_QC_GROUP_ROAD );
 		int road = (int)m_cfg.road;
 		for ( int i = 0; i < JOZZ_QC_ROAD_COUNT; ++i )
 		{
@@ -935,7 +1093,7 @@ private:
 			}
 		}
 
-		ImGui::SeparatorText( "Naped (na zywo, C)" );
+		GroupHeader( "Naped (na zywo, C)", JOZZ_QC_GROUP_DRIVE );
 		int drive = (int)m_cfg.drive;
 		for ( int i = 0; i < JOZZ_QC_DRIVE_COUNT; ++i )
 		{
@@ -971,13 +1129,15 @@ private:
 			// Predkosc POCZATKOWA to co innego niz zadana: pomiar bench-grade
 			// buduje rig od nowa i startuje wlasnie od niej. Rozjazd tych dwoch
 			// znaczy, ze pomiar zacznie sie od transientu.
+			// Pole jest `double`, suwak potrzebuje `float`: kopia jest tu KONIECZNA,
+			// wiec zapis do pola dzieje sie na kazdej zmianie, nie na deaktywacji.
+			// Przebudowa nadal czeka na puszczenie - inaczej rig przebudowywalby sie
+			// co klatke przeciagania.
 			float v0 = (float)m_cfg.startSpeed;
-			ImGui::SliderFloat( "predkosc startowa", &v0, 0.5f, 20.0f, "%.2f m/s" );
-			if ( ImGui::IsItemDeactivatedAfterEdit() && (double)v0 != m_cfg.startSpeed )
-			{
+			if ( ImGui::SliderFloat( "predkosc startowa", &v0, 0.0f, 20.0f, "%.2f m/s" ) )
 				m_cfg.startSpeed = (double)v0;
+			if ( ImGui::IsItemDeactivatedAfterEdit() )
 				Build();
-			}
 			if ( fabs( m_cfg.startSpeed - m_cfg.targetSpeed ) > 1e-6 )
 			{
 				ImGui::SameLine();
@@ -1409,6 +1569,103 @@ private:
 		ImGui::TextWrapped( "%s", digest );
 	}
 
+	// REKA. Zakladka istnieje, bo "podnies, podrzuc, potrzas" jest podstawowa
+	// proba zawieszenia, a przez sama mysz nie da sie jej wykonac ani powtarzalnie,
+	// ani w ogole: masa resorowana byla do niedawna niechwytalna (patrz komentarz
+	// przy JQC_CHASSIS_CATEGORY), a kolo pedzace 4 m/s ucieka spod kursora.
+	// Kazde narzedzie z tej zakladki oznacza przebieg jako ruszony recznie.
+	void TabHand()
+	{
+		ImGui::SeparatorText( "Stanowisko" );
+		ImGui::TextWrapped( "Rig w trybie jazdy jedzie %.1f m/s - chwytanie i podrzucanie czegos, co "
+							"ucieka spod kursora, nie jest testem, tylko walka z regulatorem. "
+							"Stanowisko zatrzymuje narożnik na plycie i dopiero wtedy reka ma sens.",
+							m_cfg.targetSpeed );
+		if ( m_benchMode == false )
+		{
+			if ( ImGui::Button( "postaw na stanowisku (H)" ) )
+				EnterBenchMode();
+		}
+		else
+		{
+			ImGui::TextColored( ImVec4( 0.45f, 0.9f, 0.5f, 1.0f ), "STANOWISKO: narożnik stoi, naped zdjety" );
+			if ( ImGui::Button( "wroc do jazdy (H)" ) )
+				LeaveBenchMode();
+		}
+
+		ImGui::SeparatorText( "Podnies i upusc" );
+		ImGui::SliderFloat( "wysokosc", &m_liftH, 0.01f, 1.00f, "%.3f m" );
+		if ( ImGui::Button( "podnies i upusc" ) )
+			JozzQc_LiftCorner( &m_rig, (double)m_liftH );
+		ImGui::SameLine();
+		if ( ImGui::Button( "przyciagnij w dol" ) )
+			JozzQc_LiftCorner( &m_rig, -(double)m_liftH );
+		ImGui::TextWrapped( "Podnoszony jest CALY narożnik, nie samo nadwozie: podniesienie samej masy "
+							"resorowanej naciaga wiez do zderzaka wywieszenia i to, co potem widac, "
+							"jest odbiciem od ogranicznika, a nie upadkiem zawieszenia." );
+		if ( m_liftH > (float)( m_cfg.wheelR ) )
+			ImGui::TextColored( ImVec4( 1.0f, 0.8f, 0.3f, 1.0f ),
+								"wysokosc wieksza od promienia kola - to juz zrzut, nie proba skoku" );
+
+		ImGui::SeparatorText( "Uderzenie" );
+		ImGui::SliderFloat( "impuls", &m_kickNs, -1500.0f, 1500.0f, "%.0f N*s" );
+		if ( ImGui::Button( "uderz" ) )
+			JozzQc_KickChassis( &m_rig, (double)m_kickNs );
+		ImGui::SameLine();
+		ImGui::TextDisabled( "= %.2f m/s masy resorowanej", m_cfg.sprungKg > 0.0f ? m_kickNs / m_cfg.sprungKg : 0.0f );
+		if ( ImGui::IsItemHovered() )
+			ImGui::SetTooltip( "Impuls dzielony przez mase resorowana - czyli skok predkosci\n"
+							   "pionowej, ktory ten guzik zadaje. Latwiej celowac w wielkosc\n"
+							   "fizyczna niz w niutonosekundy." );
+
+		ImGui::SeparatorText( "Wstrzasarka" );
+		bool sh = m_shakerOn;
+		if ( ImGui::Checkbox( "wymuszenie sinusoidalne", &sh ) )
+		{
+			m_shakerOn = sh;
+			JozzQc_SetShaker( &m_rig, m_shakerOn ? 1 : 0, (double)m_shakerHz, (double)m_shakerN );
+		}
+		ImGui::BeginDisabled( m_shakerOn == false );
+		bool ch = false;
+		ch |= ImGui::SliderFloat( "czestotliwosc", &m_shakerHz, 0.1f, 12.0f, "%.2f Hz" );
+		ch |= ImGui::SliderFloat( "amplituda sily", &m_shakerN, 10.0f, 3000.0f, "%.0f N" );
+		if ( ch )
+			JozzQc_SetShaker( &m_rig, 1, (double)m_shakerHz, (double)m_shakerN );
+		ImGui::EndDisabled();
+		double fJoint = JozzQc_Hertz( &m_cfg );
+		ImGui::Text( "hertz wiezu %.3f Hz", fJoint );
+		if ( m_shakerOn && fJoint > 1e-6 )
+		{
+			ImGui::SameLine();
+			ImGui::TextDisabled( "  wymuszenie/wiez %.2f", (double)m_shakerHz / fJoint );
+		}
+		if ( ImGui::SmallButton( "ustaw na hertz wiezu" ) )
+		{
+			m_shakerHz = (float)fJoint;
+			JozzQc_SetShaker( &m_rig, m_shakerOn ? 1 : 0, (double)m_shakerHz, (double)m_shakerN );
+		}
+		ImGui::TextWrapped( "Przemiatanie czestotliwoscia pokazuje rezonans zawieszenia wprost. Hertz wiezu "
+							"jest tu wielkoscia WYLICZANA z masy zredukowanej (F-18), a nie zadana - warto "
+							"umiec go zobaczyc, a nie tylko przeczytac." );
+
+		ImGui::SeparatorText( "Chwyt mysza" );
+		ImGui::TextWrapped( "Ctrl + przeciagniecie chwyta kolo ALBO mase resorowana. Do niedawna nadwozia "
+							"nie dalo sie zlapac wcale: mialo zerowa maske kolizji, a ten sam predykat "
+							"decyduje o trafieniu promienia myszy. Teraz ma wlasna kategorie." );
+		ImGui::SliderFloat( "sila chwytu", &m_mouseForceScale, 1.0f, 400.0f, "x%.0f m*g" );
+		if ( ImGui::IsItemHovered() )
+			ImGui::SetTooltip( "Gorne ograniczenie sily sprezyny chwytu, w wielokrotnosciach\n"
+							   "ciezaru chwyconego ciala. Za malo = chwyt sie zsuwa,\n"
+							   "za duzo = ciala przelatuja przez siebie." );
+		ImGui::TextDisabled( "Shift+klik wystrzeliwuje kule, Shift+Ctrl walec, Shift+Alt ragdolla." );
+
+		if ( m_rig.perturbed )
+			ImGui::TextColored( ImVec4( 1.0f, 0.8f, 0.3f, 1.0f ),
+								"przebieg ruszony recznie %d x (ostatnio: %s)\n"
+								"pomiar 'jak stend' i tak buduje rig OD NOWA - jest czysty",
+								m_rig.perturbCount, m_rig.lastPerturbation );
+	}
+
 	void TabView()
 	{
 		ImGui::Text( "tempo 1:%d klatek na krok", kDividers[m_dividerIndex] );
@@ -1433,6 +1690,18 @@ private:
 									m_trailGain );
 		}
 		ImGui::Checkbox( "kamera sledzi kolo (V)", &m_follow );
+		ImGui::Checkbox( "przewijaj na start przed koncem plyty", &m_rewind );
+		if ( ImGui::IsItemHovered() )
+			ImGui::SetTooltip( "Plyta ma %.0f m od srodka, rig startuje na %.0f i jedzie w prawo -\n"
+							   "bez przewijania zjezdza z jej konca po okolo %.0f s jazdy i dalej\n"
+							   "leci w prozni, a panel nadal pokazuje liczby. Pomiaru to nie\n"
+							   "dotyczy: jeden przebieg to 720 krokow, czyli 48 m.",
+							   (double)m_cfg.groundHalfX, m_cfg.startX,
+							   m_cfg.targetSpeed > 0.1 ? ( (double)m_cfg.groundHalfX - 10.0 - m_cfg.startX ) /
+															 m_cfg.targetSpeed
+													   : 0.0 );
+		if ( m_rewindCount > 0 )
+			ImGui::TextDisabled( "przewiniete %d x", m_rewindCount );
 
 		ImGui::SeparatorText( "Przebudowa" );
 		ImGui::Checkbox( "rozgrzewka od razu po przebudowie", &m_autoWarmup );
@@ -1447,34 +1716,46 @@ private:
 		if ( ImGui::Button( "przebuduj teraz" ) )
 			Build();
 		ImGui::SameLine();
-		if ( ImGui::Button( "konstrukcja domyslna" ) )
+		if ( ImGui::Button( "konstrukcja kontraktowa" ) )
 		{
 			m_cfg = JozzQc_DefaultConfig();
 			Build();
 		}
-
-		ImGui::SeparatorText( "Instrument (zmienia NARZEDZIE, nie badany obiekt)" );
-		int sub = m_cfg.substeps;
-		ImGui::SliderInt( "podkrokow", &sub, 1, 16 );
-		if ( ImGui::IsItemDeactivatedAfterEdit() && sub != m_cfg.substeps )
-		{
-			m_cfg.substeps = sub;
-			Build();
-		}
 		if ( ImGui::IsItemHovered() )
-			ImGui::SetTooltip( "Podkroki NIE ratuja niedoprobkowanego kontaktu: b3Collide\n"
-							   "wykonuje sie RAZ na b3World_Step, wiec podkroki przesolwowuja\n"
-							   "ten sam manifold. Kontraktowa wartosc to 4." );
+			ImGui::SetTooltip( "Wszystkie pola konstrukcji na wartosci z kontraktu Q3.\n"
+							   "Widok i narzedzia reki zostaja - to osobny przycisk nizej." );
+
+		ImGui::SeparatorText( "Reset calosci" );
+		if ( ImGui::Button( "RESET WARSZTATU" ) )
+			ResetWorkshop();
+		ImGui::SameLine();
+		ImGui::TextDisabled( "(tabela pomiarow zostaje)" );
+		if ( ImGui::IsItemHovered() )
+			ImGui::SetTooltip( "Konstrukcja, widok, tempo, narzedzia reki i nastawy przemiatania\n"
+							   "wracaja do stanu otwarcia okna. Tabela pomiarow NIE - wynikow sie\n"
+							   "nie kasuje mimochodem, a ma wlasny przycisk 'wyczysc'." );
+
+		GroupHeader( "Instrument (zmienia NARZEDZIE, nie badany obiekt)", JOZZ_QC_GROUP_INSTRUMENT );
+		IntRebuild( "podkrokow", &m_cfg.substeps, 1, 16,
+					"Podkroki NIE ratuja niedoprobkowanego kontaktu: b3Collide\n"
+					"wykonuje sie RAZ na b3World_Step, wiec podkroki przesolwowuja\n"
+					"ten sam manifold. Kontraktowa wartosc to 4." );
 		float hz = (float)( m_cfg.dt > 0.0 ? 1.0 / m_cfg.dt : 60.0 );
-		ImGui::SliderFloat( "krokow na sekunde", &hz, 30.0f, 240.0f, "%.0f Hz" );
-		if ( ImGui::IsItemDeactivatedAfterEdit() && fabs( hz - 1.0 / m_cfg.dt ) > 1e-6 )
-		{
+		if ( ImGui::SliderFloat( "krokow na sekunde", &hz, 30.0f, 240.0f, "%.0f Hz" ) && hz > 0.0f )
 			m_cfg.dt = 1.0 / (double)hz;
+		if ( ImGui::IsItemDeactivatedAfterEdit() )
 			Build();
-		}
 		if ( ImGui::IsItemHovered() )
 			ImGui::SetTooltip( "Kontraktowe 60 Hz. Kazda inna wartosc daje liczby, ktorych NIE\n"
 							   "wolno zestawiac z tabela stendu - to inny przyrzad." );
+		float grav = (float)m_cfg.gravity;
+		if ( ImGui::SliderFloat( "grawitacja", &grav, 0.5f, 20.0f, "%.3f m/s2" ) )
+			m_cfg.gravity = (double)grav;
+		if ( ImGui::IsItemDeactivatedAfterEdit() )
+			Build();
+		if ( ImGui::IsItemHovered() )
+			ImGui::SetTooltip( "Wchodzi w ugiecie statyczne i w obciazenie kola, wiec zmienia\n"
+							   "PUNKT PRACY zawieszenia, a nie tylko sile ciezkosci." );
 		if ( fabs( m_cfg.dt - 1.0 / 60.0 ) > 1e-9 || m_cfg.substeps != 4 )
 			ImGui::TextColored( ImVec4( 1.0f, 0.8f, 0.3f, 1.0f ),
 								"PRZYRZAD ZMIENIONY wobec kontraktu (1/60 s, 4 podkroki)" );
@@ -1490,20 +1771,152 @@ private:
 
 	// ============================================================ mechanika
 
-	// Suwak, ktory PRZEBUDOWUJE rig przy puszczeniu. Osobna funkcja, bo ten wzorzec
-	// powtarza sie kilkanascie razy, a pomylka w nim (przebudowa co klatke) daje
-	// okno, ktore wyglada na zawieszone.
-	void FloatRebuild( const char* label, float* field, float lo, float hi, const char* fmt, const char* tip )
+	// Suwak, ktory PRZEBUDOWUJE rig przy puszczeniu.
+	//
+	// TU BYL BLAD, przez ktory szesnascie kontrolek tego okna bylo martwych i
+	// "wracalo do domyslnej" natychmiast po zmianie. Poprzednia wersja trzymala
+	// wartosc w lokalnej kopii i zatwierdzala ja przez
+	//     if ( IsItemDeactivatedAfterEdit() && v != *field ) { *field = v; }
+	// To NIE MOZE zadzialac: w klatce, w ktorej przycisk myszy zostaje puszczony,
+	// ImGui wola ClearActiveID() i pomija zapis wartosci
+	// (.fetchcontent-cache/imgui-src/imgui_widgets.cpp:3126-3129, `set_new_value`
+	// zostaje falszem). Deaktywacja zglasza sie wiec w tej samej klatce, w ktorej
+	// suwak niczego nie zapisal - `v` jest rowne `*field` i warunek zatwierdzenia
+	// nigdy nie przechodzi. Przez caly przeciag wartosc zyla tylko w lokalnej
+	// zmiennej, ktora ginela z koncem klatki.
+	//
+	// Teraz suwak pisze WPROST do pola konfiguracji, a puszczenie przebudowuje rig.
+	// Miedzy chwytem a puszczeniem konstrukcja jest zmieniona, a rig jeszcze nie -
+	// panel nazywa ten stan wprost ("czeka na przebudowe"), zamiast udawac, ze
+	// nic sie nie dzieje.
+	bool FloatRebuild( const char* label, float* field, float lo, float hi, const char* fmt, const char* tip )
 	{
-		float v = *field;
-		ImGui::SliderFloat( label, &v, lo, hi, fmt );
-		if ( ImGui::IsItemDeactivatedAfterEdit() && v != *field )
+		ImGui::SliderFloat( label, field, lo, hi, fmt );
+		bool done = ImGui::IsItemDeactivatedAfterEdit();
+		if ( tip && ImGui::IsItemHovered() )
+			ImGui::SetTooltip( "%s\n(Ctrl+klik = wpisz liczbe z klawiatury)", tip );
+		if ( done )
+			Build();
+		return done;
+	}
+
+	bool IntRebuild( const char* label, int* field, int lo, int hi, const char* tip )
+	{
+		ImGui::SliderInt( label, field, lo, hi );
+		bool done = ImGui::IsItemDeactivatedAfterEdit();
+		if ( tip && ImGui::IsItemHovered( ImGuiHoveredFlags_AllowWhenDisabled ) )
+			ImGui::SetTooltip( "%s\n(Ctrl+klik = wpisz liczbe z klawiatury)", tip );
+		if ( done )
+			Build();
+		return done;
+	}
+
+	// Naglowek sekcji z licznikiem zmian i przyciskiem przywracania. Licznik
+	// odpowiada na pytanie, ktore pada po kwadransie pracy i na ktore panel bez
+	// niego nie odpowiada: co ja wlasciwie poruszylem. Grupy pol pochodza z
+	// tabeli `.qc`, wiec nie da sie dodac pola, ktorego licznik nie widzi.
+	void GroupHeader( const char* title, const char* group )
+	{
+		int changed = JozzQc_ChangedInGroup( &m_cfg, group );
+		if ( changed > 0 )
 		{
-			*field = v;
+			char buf[96];
+			snprintf( buf, sizeof( buf ), "%s  (zmienione: %d)", title, changed );
+			ImGui::SeparatorText( buf );
+		}
+		else
+		{
+			ImGui::SeparatorText( title );
+		}
+
+		ImGui::PushID( group );
+		ImGui::BeginDisabled( changed == 0 );
+		if ( ImGui::SmallButton( "przywroc domyslne" ) )
+		{
+			JozzQc_ResetGroup( &m_cfg, group );
 			Build();
 		}
-		if ( tip && ImGui::IsItemHovered() )
-			ImGui::SetTooltip( "%s", tip );
+		ImGui::EndDisabled();
+		ImGui::PopID();
+		if ( ImGui::IsItemHovered( ImGuiHoveredFlags_AllowWhenDisabled ) )
+		{
+			if ( changed )
+				ImGui::SetTooltip( "Przywraca %d pol sekcji '%s' do wartosci kontraktowych.", changed, group );
+			else
+				ImGui::SetTooltip( "Wszystkie pola sekcji '%s' sa kontraktowe.", group );
+		}
+	}
+
+	// ---------------------------------------------------------- stanowisko
+	// Zatrzymany narożnik jest osobnym STANEM PRACY, nie ustawieniem: zmienia
+	// naped, obie predkosci i punkt startu naraz. Gdyby trzeba bylo zlozyc go z
+	// czterech suwakow, powrot do jazdy wymagalby pamietania czterech liczb -
+	// wiec zapamietuje je narzedzie.
+	void EnterBenchMode()
+	{
+		if ( m_benchMode )
+			return;
+		m_driveSave = m_cfg.drive;
+		m_targetSave = m_cfg.targetSpeed;
+		m_startSave = m_cfg.startSpeed;
+		m_startXSave = m_cfg.startX;
+
+		m_cfg.drive = JOZZ_QC_DRIVE_COAST;
+		m_cfg.targetSpeed = 0.0;
+		m_cfg.startSpeed = 0.0;
+		m_cfg.startX = 0.0; // przy -80 m narożnik stalby poza kadrem otwarcia
+		m_benchMode = true;
+		Build();
+	}
+
+	void LeaveBenchMode()
+	{
+		if ( m_benchMode == false )
+			return;
+		m_cfg.drive = m_driveSave;
+		m_cfg.targetSpeed = m_targetSave;
+		m_cfg.startSpeed = m_startSave;
+		m_cfg.startX = m_startXSave;
+		m_benchMode = false;
+		Build();
+	}
+
+	void ResetView()
+	{
+		m_dividerIndex = 0;
+		m_follow = true;
+		m_rewind = true;
+		m_showContacts = true;
+		m_showTrail = false;
+		m_showTravelRuler = true;
+		m_trailGain = 10.0f;
+		m_plotSpan = 6.0f;
+		m_autoWarmup = true;
+		m_warmupSteps = JOZZ_QC_WARMUP_STEPS;
+		m_mouseForceScale = kGrabForce;
+	}
+
+	// Jeden ruch z powrotem do stanu otwarcia okna. Tabela pomiarow zostaje
+	// swiadomie: wynikow sie nie kasuje mimochodem (reguła twarda 6), a ma wlasny
+	// przycisk.
+	void ResetWorkshop()
+	{
+		m_cfg = m_openCfg;
+		m_benchMode = false;
+		m_shakerOn = false;
+		m_liftH = 0.25f;
+		m_kickNs = 400.0f;
+		m_shakerHz = 1.5f;
+		m_shakerN = 400.0f;
+		m_sweepParam = 0;
+		m_sweepParamPrev = -1;
+		m_sweepSteps = 6;
+		ResetView();
+		Build();
+		SweepDefaults();
+		m_sweepParamPrev = m_sweepParam;
+		m_liveTuned = false;
+		snprintf( m_shelfMsg, sizeof( m_shelfMsg ), "warsztat zresetowany do stanu otwarcia okna" );
 	}
 
 	int MatchCandidate() const
@@ -1792,15 +2205,13 @@ private:
 	}
 
 	// ============================================================== stan
-	struct Row
-	{
-		char label[80];
-		char detail[256];
-		JozzQcConfig cfg;
-		JozzQcCell cell;
-	};
+	// Chwyt myszy musi udzwignac 150 kg masy resorowanej na sprezynie, a nie tylko
+	// 44 kg kola: framework skaluje ograniczenie sily ciezarem chwyconego ciala,
+	// wiec mnoznik jest tu wyzszy niz domyslny.
+	static constexpr float kGrabForce = 200.0f;
 
 	JozzQcConfig m_cfg{};
+	JozzQcConfig m_openCfg{}; // stan otwarcia okna - cel przycisku "RESET WARSZTATU"
 	JozzQcConfig m_lastGood{};
 	bool m_haveLastGood = false;
 	JozzQcRig m_rig{};
@@ -1824,6 +2235,8 @@ private:
 	bool m_autoWarmup = true;
 
 	bool m_follow = true;
+	bool m_rewind = true;
+	int m_rewindCount = 0;
 	bool m_showContacts = true;
 	// Slad nadwozia DOMYSLNIE WYLACZONY: wykres 'skok' w zakladce Pomiar pokazuje
 	// to samo ilosciowo, a przewyzszony slad przy 4 m/s ciagnie sie przez pol kadru.
@@ -1857,6 +2270,16 @@ private:
 	float m_sweepTo = 42.0f;
 	int m_sweepSteps = 6;
 
+	// reka
+	bool m_benchMode = false;
+	JozzQcDrive m_driveSave = JOZZ_QC_DRIVE_SPEED;
+	double m_targetSave = 0.0, m_startSave = 0.0, m_startXSave = 0.0;
+	float m_liftH = 0.25f;
+	float m_kickNs = 400.0f;
+	bool m_shakerOn = false;
+	float m_shakerHz = 1.5f;
+	float m_shakerN = 400.0f;
+
 	std::vector<std::string> m_shelf;
 	char m_shelfName[64] = "narożnik";
 	char m_shelfNote[160] = "";
@@ -1864,6 +2287,8 @@ private:
 	char m_loadedName[64] = "";
 	int m_obsCount = 0;
 	char m_forceTab[32] = "";
+	char m_openTab[32] = "Kolo";
+	bool m_restored = false;
 };
 
 static Sample* CreateJozzQuarterCarScope( SampleContext* context )

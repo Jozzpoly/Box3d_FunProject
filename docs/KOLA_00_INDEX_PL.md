@@ -39,6 +39,34 @@ otwartym; implementacja produktowa NIE rozpoczęta**
 > - Werdykt o feelu należy do Jozza i **nie został wydany** (reguła twarda 5).
 >   Otwarte: `Q3-5` (wzorzec zachowania) — dopiero po akceptacji w oknie.
 
+> **Rewizja 2026-08-02 — warsztat naprawiony tam, gdzie nie działał.**
+> Właściciel po realnym używaniu: „część parametrów po zmianie od razu wraca do
+> defaultu, `R` resetuje ustawienia zamiast tylko symulacji, brakuje resetowania
+> zakładek, chwytanie koła działa bardzo słabo". Trzy z czterech objawów miały
+> przyczynę w kodzie, znalezioną i zacytowaną ze źródła:
+> - **16 suwaków przebudowy było MARTWYCH.** Wzorzec
+>   `if (IsItemDeactivatedAfterEdit() && v != *field) *field = v;` nie może
+>   zadziałać: w klatce puszczenia przycisku ImGui woła `ClearActiveID()` i
+>   **pomija zapis wartości** (`imgui_widgets.cpp:3126`), więc kopia lokalna jest
+>   równa polu i warunek zatwierdzenia nigdy nie przechodzi. Suwaki piszą teraz
+>   wprost do konstrukcji; przebudowa czeka na puszczenie.
+> - **Masy resorowanej nie dało się chwycić ANI RAZU.** Miała `maskBits = 0` — to
+>   wyłącza kolizję, ale ten sam predykat (`src/shape.h:145`) decyduje o trafieniu
+>   promienia, więc `b3World_CastRayClosest` nigdy jej nie widział. Nadwozie ma
+>   własną kategorię, grunt i progi mają ją wyciętą z masek; kolizji nadal nie ma.
+> - **`R` gubił cały warsztat** poza konstrukcją (tabela pomiarów, tempo, widok,
+>   nastawy przemiatania). Restart przenosi teraz wszystko — `R` resetuje przebieg.
+> - **Przełączenie `torus-64 → sphere → torus-N` wracało z N=3**: pole nieużywane
+>   przez kulę i tak było wciskane w jej zakres. Przełączanie wariantu jest
+>   odwracalne.
+> - Dołożone: **stanowisko** (narożnik stoi, napęd zdjęty), **podnieś i upuść**,
+>   **uderzenie**, **wstrząsarka**, reset per grupa pól z licznikiem zmian, jeden
+>   `RESET WARSZTATU`, przewijanie przed końcem płyty (bez niego rig po ~2 min
+>   zjeżdżał z niej i leciał w próżni — złapane przez zostawienie okna włączonego).
+> - Zachowanie Q3 **nietknięte**: `--qc-compare` daje 30 wierszy identycznych
+>   z zarejestrowanym dowodem `run_q3_compare_2026_07_31.txt` we wszystkich
+>   kolumnach poza CPU. Cztery bramki zielone, Debug i Release zbudowane.
+
 > **Rewizja 2026-07-31 (trzecia) — `Quarter Car Scope` staje się WARSZTATEM.**
 > Właściciel: kierunek dobry, ale okno „bardzo surowe i niewygodne, część
 > kontrolek nie działa poprawnie, zbyt mały wpływ na rig". Przebudowane.

@@ -71,6 +71,26 @@ WIEZ  b3CreateWheelJoint(nadwozie, kolo)
 `KOLA_00`). Kandydaci o różnej masie to `U-23` i są otwierani dopiero po `Q3-1` —
 z powodu opisanego w §5.
 
+### 4.2 Filtr nadwozia (poprawka 2026-08-02, zachowanie niezmienione)
+
+Nadwozie ma z niczym nie kolidować, ale ma być **widoczne** i ma **dawać się
+chwycić**. To trzy różne testy i pierwotne rozwiązanie — `maskBits = 0` —
+zaspokajało dwa z nich, milcząc o trzecim:
+
+```
+rysowanie      b3World_Draw filtruje po categoryBits
+kolizja        (A.kat & B.maska) I (B.kat & A.maska)      src/shape.h:145
+promien myszy  ten SAM predykat, z domyslnym filtrem zapytania
+```
+
+Zerowa maska przewraca **drugą połowę predykatu zapytania**, więc
+`b3World_CastRayClosest` nigdy nie trafiał w masę resorowaną — `Ctrl+LPM` nie
+miał czego złapać poza kołem. Teraz nadwozie ma własną kategorię (bit 63),
+a grunt i progi mają ją wyciętą z masek; z kołem chroni je `collideConnected =
+false` więzu. Kolizji nadal nie ma i **przebieg jest bajtowo ten sam** —
+`--qc-compare` daje 30 wierszy identycznych z `evidence/run_q3_compare_2026_07_31.txt`
+we wszystkich kolumnach poza kosztem CPU.
+
 ### 4.1 Aneks: trzecia obwiednia `torus-N` (2026-07-31, decyzja właściciela)
 
 Ten punkt brzmiał pierwotnie „obwiednie: sphere | prism-N — **żadnych nowych w

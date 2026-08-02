@@ -175,9 +175,17 @@ int JozzQc_MaxSegments( const JozzQcConfig* c )
 
 int JozzQc_ClampSegments( JozzQcConfig* c )
 {
-	int lo = JozzQc_MinSegments( c );
-	int hi = JozzQc_MaxSegments( c );
-	int was = c->segments;
+	int lo, hi, was;
+	// Kula nie ma elementow obwodu, wiec nie ma czego wciskac w zakres. Wciskanie
+	// i tak sie dzialo i KASOWALO liczbe: przejscie torus-64 -> sphere -> torus-N
+	// wracalo z N=3, bo po drodze pole zostalo scisniete do zakresu kuli.
+	// Nieuzywane pole ma zostac nietkniete, zeby przelaczenie wariantu tam i z
+	// powrotem bylo operacja odwracalna.
+	if ( c->variant == JOZZ_RIG_SPHERE )
+		return 0;
+	lo = JozzQc_MinSegments( c );
+	hi = JozzQc_MaxSegments( c );
+	was = c->segments;
 	if ( hi < lo )
 		hi = lo;
 	if ( c->segments < lo )
@@ -787,6 +795,52 @@ int JozzQc_ConfigSelfTest( char* err, size_t errCap )
 	return 1;
 }
 
+// ---------------------------------------------------------------- grupy pol
+//
+// Grupa jest zapisana w tabeli pol tylko przy PIERWSZYM polu sekcji (`group`
+// niepusty zaczyna nowa sekcje w zapisie), wiec przynaleznosc trzeba przeniesc w
+// dol. Ta sama petla obsluguje przywracanie i liczenie zmian, zeby nie dalo sie
+// przywrocic pola, ktorego licznik nie widzi.
+
+static int JqcWalkGroup( JozzQcConfig* c, const JozzQcConfig* ref, const char* group, int write )
+{
+	const char* cur = NULL;
+	int hits = 0;
+	int i;
+	for ( i = 0; i < s_qcFieldCount; ++i )
+	{
+		if ( s_qcFields[i].group )
+			cur = s_qcFields[i].group;
+		if ( group && ( cur == NULL || strcmp( cur, group ) != 0 ) )
+			continue;
+
+		{
+			char* dst = (char*)c + s_qcFields[i].off;
+			const char* src = (const char*)ref + s_qcFields[i].off;
+			size_t n = JqFieldSize( s_qcFields[i].kind );
+			if ( memcmp( dst, src, n ) == 0 )
+				continue;
+			hits += 1;
+			if ( write )
+				memcpy( dst, src, n );
+		}
+	}
+	return hits;
+}
+
+int JozzQc_ResetGroup( JozzQcConfig* c, const char* group )
+{
+	JozzQcConfig d = JozzQc_DefaultConfig();
+	return JqcWalkGroup( c, &d, group, 1 );
+}
+
+int JozzQc_ChangedInGroup( const JozzQcConfig* c, const char* group )
+{
+	JozzQcConfig d = JozzQc_DefaultConfig();
+	JozzQcConfig tmp = *c;
+	return JqcWalkGroup( &tmp, &d, group, 0 );
+}
+
 // ---------------------------------------------------------------- ramki wiezu
 //
 // Te dwie funkcje sa dokladnie tym miejscem, w ktorym blad NIE wywala programu,
@@ -825,6 +879,28 @@ static double JqcTravel( const JozzQcRig* r )
 
 // ---------------------------------------------------------------- droga
 
+// Kategoria masy resorowanej. Nadwozie ma z niczym nie kolidowac, ale MA byc
+// widoczne i MA dawac sie chwycic - a to trzy rozne testy, ktore wczesniej
+// rozjezdzaly sie po cichu:
+//
+//   rysowanie      b3World_Draw filtruje po `categoryBits`
+//   kolizja        (A.kat & B.maska) I (B.kat & A.maska)   (src/shape.h:145)
+//   promien myszy  ten SAM predykat, z domyslnym filtrem zapytania
+//
+// Poprzednia wersja zerowala `maskBits` nadwozia. Kolizji faktycznie nie bylo i
+// nadwozie bylo widoczne - ale zerowa maska przewraca takze druga polowe
+// predykatu zapytania, wiec b3World_CastRayClosest NIGDY nie trafial w mase
+// resorowana. Ctrl+przeciagniecie nie mialo wiec czego zlapac poza kolem, a kolo
+// w trakcie jazdy ucieka spod kursora - stad "chwytanie dziala bardzo slabo".
+//
+// Teraz nadwozie ma WLASNA kategorie i pelna maske, a grunt i progi maja te
+// kategorie wyciete ze swoich masek. Kolizji z gruntem nadal nie ma (pierwsza
+// polowa predykatu wychodzi zerem), z kolem tez nie - bo wiez ma
+// collideConnected = false. Kolo i grunt widza sie nawzajem tak samo jak
+// wczesniej, wiec zachowanie przebiegu jest nietkniete.
+#define JQC_CHASSIS_CATEGORY ( (uint64_t)1 << 63 )
+#define JQC_WORLD_MASK ( B3_DEFAULT_MASK_BITS & ~JQC_CHASSIS_CATEGORY )
+
 static int JqcBuildRoad( JozzQcRig* r )
 {
 	const JozzQcConfig* c = &r->cfg;
@@ -832,6 +908,7 @@ static int JqcBuildRoad( JozzQcRig* r )
 		return 0;
 
 	b3ShapeDef sd = b3DefaultShapeDef();
+	sd.filter.maskBits = JQC_WORLD_MASK;
 	sd.baseMaterial.friction = c->friction;
 	sd.baseMaterial.rollingResistance = 0.0f;
 	b3BoxHull box = b3MakeBoxHull( 0.5f * c->obstacleLen, 0.5f * c->obstacleH, c->groundHalfZ );
@@ -917,6 +994,7 @@ int JozzQc_Create( JozzQcRig* rig, const JozzQcConfig* cfg, const JozzRigRenderH
 		gd.position.z = 0.0f;
 		rig->ground = b3CreateBody( rig->world, &gd );
 		b3ShapeDef gs = b3DefaultShapeDef();
+		gs.filter.maskBits = JQC_WORLD_MASK;
 		gs.baseMaterial.friction = cfg->friction;
 		gs.baseMaterial.rollingResistance = 0.0f;
 		b3BoxHull box = b3MakeBoxHull( cfg->groundHalfX, 1.0f, cfg->groundHalfZ );
@@ -973,15 +1051,12 @@ int JozzQc_Create( JozzQcRig* rig, const JozzQcConfig* cfg, const JozzRigRenderH
 	bc.enableSleep = false;
 	rig->chassis = b3CreateBody( rig->world, &bc );
 	{
-		// maskBits = 0 wystarcza, zeby nadwozie z niczym nie kolidowalo: test
-		// kolizji wymaga (A.category & B.mask) I (B.category & A.mask), wiec
-		// zerowa maska konczy sprawe. categoryBits MUSI zostac niezerowe, bo
-		// b3World_Draw filtruje ksztalty ta sama maska - przy zerowej kategorii
-		// masa resorowana byla NIEWIDOCZNA w oknie, czyli okno pokazywalo kolo
-		// wiszace w powietrzu i milczalo o tym, co Q3 wlasciwie mierzy.
-		// Zlapane na zrzucie, nie przez test.
+		// Wlasna kategoria zamiast zerowej maski - powod przy JQC_CHASSIS_CATEGORY.
+		// W skrocie: kategoria trzyma nadwozie widoczne dla b3World_Draw I dla
+		// promienia myszy, a wyciecie jej z masek gruntu i progow zalatwia brak
+		// kolizji. Zerowa maska zalatwiala kolizje i po cichu zabierala chwyt.
 		b3ShapeDef cs = b3DefaultShapeDef();
-		cs.filter.maskBits = 0;
+		cs.filter.categoryBits = JQC_CHASSIS_CATEGORY;
 		b3BoxHull cb = b3MakeBoxHull( 0.45f, 0.25f, 0.35f );
 		b3CreateHullShape( rig->chassis, &cs, &cb.base );
 	}
@@ -1137,6 +1212,61 @@ void JozzQc_SetDriveGains( JozzQcRig* rig, double kp, double ki, double maxTorqu
 	rig->integral = 0.0;
 }
 
+// ------------------------------------------------------------------------ reka
+
+void JozzQc_LiftCorner( JozzQcRig* rig, double meters )
+{
+	b3Pos pc, pw;
+	b3Vec3 vc, vw;
+	if ( B3_IS_NULL( rig->world ) || meters == 0.0 )
+		return;
+
+	pc = b3Body_GetPosition( rig->chassis );
+	pw = b3Body_GetPosition( rig->wheel );
+	pc.y += (float)meters;
+	pw.y += (float)meters;
+	b3Body_SetTransform( rig->chassis, pc, b3Body_GetRotation( rig->chassis ) );
+	b3Body_SetTransform( rig->wheel, pw, b3Body_GetRotation( rig->wheel ) );
+
+	// Predkosc pionowa zerowana, wzdluzna NIE. Podniesienie ma byc podniesieniem,
+	// a nie takze zatrzymaniem - jesli rig jedzie, prowadzenie kola nad droga i
+	// puszczenie go w wybranym miejscu jest wlasnie ta proba, ktorej sie szuka.
+	vc = b3Body_GetLinearVelocity( rig->chassis );
+	vw = b3Body_GetLinearVelocity( rig->wheel );
+	vc.y = 0.0f;
+	vw.y = 0.0f;
+	b3Body_SetLinearVelocity( rig->chassis, vc );
+	b3Body_SetLinearVelocity( rig->wheel, vw );
+
+	// Predkosc pionowa nadwozia z POPRZEDNIEGO kroku idzie do przyspieszenia w
+	// nastepnym. Bez tego skok pozycji zapisalby sie jako jedno gigantyczne
+	// a_pion, ktore nie odpowiada zadnej sile - i wykres klamalby o udarze.
+	rig->prevSprungVy = 0.0;
+
+	JozzQc_MarkPerturbation( rig, "narożnik podniesiony" );
+}
+
+void JozzQc_KickChassis( JozzQcRig* rig, double impulseNs )
+{
+	b3Vec3 j;
+	if ( B3_IS_NULL( rig->world ) || impulseNs == 0.0 )
+		return;
+	j.x = 0.0f;
+	j.y = (float)impulseNs;
+	j.z = 0.0f;
+	b3Body_ApplyLinearImpulseToCenter( rig->chassis, j, true );
+	JozzQc_MarkPerturbation( rig, impulseNs > 0.0 ? "podbicie nadwozia" : "uderzenie w nadwozie" );
+}
+
+void JozzQc_SetShaker( JozzQcRig* rig, int on, double hz, double amplitudeN )
+{
+	rig->shakerHz = hz > 0.0 ? hz : 0.0;
+	rig->shakerN = amplitudeN;
+	if ( on && rig->shakerOn == 0 )
+		JozzQc_MarkPerturbation( rig, "wstrzasarka" );
+	rig->shakerOn = on ? 1 : 0;
+}
+
 int JozzQc_ContactPoints( const JozzQcRig* rig, JozzRigContactPoint* out, int cap )
 {
 	static b3ContactData cd[256];
@@ -1237,6 +1367,19 @@ void JozzQc_Step( JozzQcRig* rig, JozzQcSample* out )
 			t.z = (float)( -tau * axle.z / len );
 			b3Body_ApplyTorque( rig->wheel, t, true );
 		}
+	}
+
+	// 3b) wstrzasarka. Zawsze WYLACZONA w przebiegu pomiarowym - nic jej nie
+	// wlacza poza reka Ownera w oknie - wiec ta galaz nie dotyka ani jednego
+	// przebiegu headless. Faza liczona z numeru kroku, nie z zegara: to samo
+	// wymuszenie ma wyjsc przy kazdym tempie odtwarzania.
+	if ( rig->shakerOn && rig->shakerN != 0.0 )
+	{
+		b3Vec3 f;
+		f.x = 0.0f;
+		f.y = (float)( rig->shakerN * sin( 2.0 * JQC_PI * rig->shakerHz * (double)rig->step * dt ) );
+		f.z = 0.0f;
+		b3Body_ApplyForceToCenter( rig->chassis, f, true );
 	}
 
 	// 4) krok
