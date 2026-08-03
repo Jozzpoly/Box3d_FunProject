@@ -10,382 +10,382 @@
   "fieldSchema": [
     {
       "path": "chassisHalfExtents",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsA",
       "type": "vec3"
     },
     {
       "path": "chassisDensity",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsA",
+      "type": "float"
     },
     {
       "path": "cgVerticalOffset",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsA",
       "type": "float"
     },
     {
       "path": "axleHalfSpacing",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsA",
       "type": "float"
     },
     {
       "path": "trackHalfWidth",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsA",
       "type": "float"
     },
     {
       "path": "restDrop",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsA",
       "type": "float"
     },
     {
       "path": "frontRigType",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsA",
       "type": "int"
     },
     {
       "path": "rearRigType",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsA",
       "type": "int"
     },
     {
       "path": "wishbone.uprightHalfHeight",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kWishboneFields",
       "type": "float"
     },
     {
       "path": "wishbone.kingpinOffset",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kWishboneFields",
       "type": "float"
     },
     {
       "path": "wishbone.casterDeg",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kWishboneFields",
+      "type": "float"
     },
     {
       "path": "wishbone.kingpinInclinationDeg",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kWishboneFields",
+      "type": "float"
     },
     {
       "path": "wishbone.upperArmLength",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kWishboneFields",
       "type": "float"
     },
     {
       "path": "wishbone.lowerArmLength",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kWishboneFields",
       "type": "float"
     },
     {
       "path": "wishbone.armHalfSpread",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kWishboneFields",
       "type": "float"
     },
     {
       "path": "wishbone.steeringArmBack",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kWishboneFields",
       "type": "float"
     },
     {
       "path": "wishbone.ackermannTrapezoid",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kWishboneFields",
       "type": "bool"
     },
     {
       "path": "wishbone.ackermannFraction",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kWishboneFields",
       "type": "float"
     },
     {
       "path": "wishbone.coiloverTopHeight",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kWishboneFields",
       "type": "float"
     },
     {
       "path": "wishbone.coiloverTopInboard",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kWishboneFields",
       "type": "float"
     },
     {
       "path": "wishbone.restArmDroopDeg",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kWishboneFields",
+      "type": "float"
     },
     {
       "path": "trailingArm.pivotOffset",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kTrailingArmFields",
       "type": "vec3"
     },
     {
       "path": "trailingArm.damperArmOffset",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kTrailingArmFields",
       "type": "vec3"
     },
     {
       "path": "trailingArm.damperChassisOffset",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kTrailingArmFields",
       "type": "vec3"
     },
     {
       "path": "trailingArm.armMass",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kTrailingArmFields",
+      "type": "float"
     },
     {
       "path": "knuckleMass",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsB",
+      "type": "float"
     },
     {
       "path": "armMass",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsB",
+      "type": "float"
     },
     {
       "path": "rackMass",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsB",
+      "type": "float"
     },
     {
       "path": "rackHalfWidth",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsB",
       "type": "float"
     },
     {
       "path": "rackServoForce",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsB",
+      "type": "float"
     },
     {
       "path": "rackServoSpeedGain",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsB",
+      "type": "float"
     },
     {
       "path": "rackServoMaxSpeed",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsB",
       "type": "float"
     },
     {
       "path": "wheelEnvelope.mode",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kWheelEnvelopeFields",
       "type": "int"
     },
     {
       "path": "wheelEnvelope.cylinderSides",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kWheelEnvelopeFields",
       "type": "int"
     },
     {
       "path": "wheelEnvelope.unionLayerCount",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kWheelEnvelopeFields",
       "type": "int"
     },
     {
       "path": "wheelEnvelope.torusSegments",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kWheelEnvelopeFields",
       "type": "int"
     },
     {
       "path": "wheelEnvelope.torusCrownRadius",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kWheelEnvelopeFields",
       "type": "float"
     },
     {
       "path": "wheelDensity",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsC",
+      "type": "float"
     },
     {
       "path": "wheelFriction",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsC",
       "type": "float"
     },
     {
       "path": "wheelRollingResistance",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsC",
       "type": "float"
     },
     {
       "path": "suspensionHertz",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsC",
+      "type": "float"
     },
     {
       "path": "suspensionDampingRatio",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsC",
       "type": "float"
     },
     {
       "path": "frontSuspensionScale",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsC",
+      "type": "float"
     },
     {
       "path": "rearSuspensionScale",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsC",
+      "type": "float"
     },
     {
       "path": "reboundTravel",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsC",
       "type": "float"
     },
     {
       "path": "compressionTravel",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsC",
       "type": "float"
     },
     {
       "path": "suspensionPreloadFront",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsC",
       "type": "float"
     },
     {
       "path": "suspensionPreloadRear",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsC",
       "type": "float"
     },
     {
       "path": "arbFrontStiffness",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsC",
+      "type": "float"
     },
     {
       "path": "arbRearStiffness",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsC",
+      "type": "float"
     },
     {
       "path": "aeroDragArea",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsC",
       "type": "float"
     },
     {
       "path": "maxDriveSpeed",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsC",
+      "type": "float"
     },
     {
       "path": "maxDriveTorque",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsC",
+      "type": "float"
     },
     {
       "path": "driveTaperStart",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsC",
       "type": "float"
     },
     {
       "path": "brakeTorque",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsC",
+      "type": "float"
     },
     {
       "path": "coastTorque",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsC",
+      "type": "float"
     },
     {
       "path": "allWheelDrive",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsC",
       "type": "bool"
     },
     {
       "path": "maxSteeringAngleDegrees",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsC",
+      "type": "float"
     },
     {
       "path": "frontToeDeg",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsC",
+      "type": "float"
     },
     {
       "path": "rearToeDeg",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsC",
+      "type": "float"
     },
     {
       "path": "steeringHertz",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsC",
+      "type": "float"
     },
     {
       "path": "steeringDampingRatio",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsC",
+      "type": "float"
     },
     {
       "path": "maxSteeringTorque",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsC",
+      "type": "float"
     },
     {
       "path": "rackFrictionBase",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsC",
+      "type": "float"
     },
     {
       "path": "rackFrictionLoadCoeff",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsC",
       "type": "float"
     },
     {
       "path": "steeringFrictionTorque",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsC",
+      "type": "float"
     },
     {
       "path": "steerInputDeadzone",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsC",
       "type": "float"
     },
     {
       "path": "rackCenteringHertz",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsC",
+      "type": "float"
     },
     {
       "path": "ackermannGeometry",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsC",
       "type": "bool"
     },
     {
       "path": "strutCasterDeg",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsC",
+      "type": "float"
     },
     {
       "path": "uprightAssist",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsC",
       "type": "bool"
     },
     {
       "path": "uprightHertz",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsC",
       "type": "float"
     },
     {
       "path": "uprightDampingRatio",
-      "source": "native-config-writer",
-      "type": "int"
+      "source": "native-JozzFieldDesc:kRootFieldsC",
+      "type": "float"
     },
     {
       "path": "bodyVisualModel",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsC",
       "type": "string"
     },
     {
       "path": "bodyVisualOffset",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsC",
       "type": "vec3"
     },
     {
       "path": "frontSuspensionVisualModel",
-      "source": "native-config-writer",
+      "source": "native-JozzFieldDesc:kRootFieldsC",
       "type": "string"
     }
   ],
@@ -682,8 +682,8 @@
   "schemaVersion": 1,
   "serializedFieldCount": 76,
   "source": {
-    "branch": "18/merge",
-    "commit": "93e1045e11ef95351130e154430097021f7837cd",
+    "branch": "agent/web-factory-receipt",
+    "commit": "8e65247cc0df78e461065f3f0d22cc6521a01dac",
     "dirty": false,
     "files": [
       {
