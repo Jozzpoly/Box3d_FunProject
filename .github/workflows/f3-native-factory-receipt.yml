@@ -1,0 +1,61 @@
+name: f3-native-factory-receipt
+
+on:
+  push:
+    branches:
+      - agent/web-factory-receipt
+    paths:
+      - .github/workflows/f3-native-factory-receipt.yml
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out native source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure standalone receipt tool
+        run: >-
+          cmake
+          -S tools/jozz_vehicle_factory_receipt
+          -B build/factory-receipt
+          -DCMAKE_BUILD_TYPE=Release
+          -G Ninja
+
+      - name: Build native receipt generator
+        run: cmake --build build/factory-receipt --target jozz_vehicle_factory_receipt
+
+      - name: Generate runtime payload
+        run: >-
+          build/factory-receipt/bin/jozz_vehicle_factory_receipt
+          build/factory-receipt/jv_m6_factory_payload.json
+
+      - name: Package exact source provenance
+        run: >-
+          python3 tools/jozz_vehicle_factory_receipt/package_receipt.py
+          build/factory-receipt/jv_m6_factory_payload.json
+          artifacts/web/jv_m6_factory_receipt.json
+
+      - name: Validate fail-closed receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/jozz_vehicle_factory_receipt/validate_receipt.py \
+            artifacts/web/jv_m6_factory_receipt.json \
+            | tee artifacts/web/F3_NATIVE_VALIDATION.txt
+
+      - name: Commit only validated artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "JV F3 Receipt Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add artifacts/web/jv_m6_factory_receipt.json \
+            artifacts/web/F3_NATIVE_VALIDATION.txt
+          git commit -m "Record validated native M6 web factory receipt"
+          git push origin HEAD:agent/web-factory-receipt
