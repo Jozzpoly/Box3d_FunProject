@@ -124,6 +124,92 @@ b3MassData b3ComputeWheelMass( const b3Wheel* wheel, float density )
 	return massData;
 }
 
+// Ray cast. Uses the ENCLOSING square-edged cylinder: the shoulder rounding is
+// ignored, so a ray can report a hit up to cornerRadius early near the corner.
+// That is deliberate - it keeps the cast conservative (never a false miss),
+// which is what mouse picking and ground probes need. The contact path does not
+// go through here; it uses the analytic manifold above.
+b3CastOutput b3RayCastWheel( const b3Wheel* wheel, const b3RayCastInput* input )
+{
+	b3CastOutput output = { 0 };
+
+	float rayLength;
+	b3Vec3 d = b3GetLengthAndNormalize( &rayLength, input->translation );
+	if ( rayLength == 0.0f )
+	{
+		return output;
+	}
+
+	b3Vec3 axis = wheel->axis;
+	b3Vec3 s = b3Sub( input->origin, wheel->center );
+	float radius = wheel->radius;
+	float halfWidth = wheel->halfWidth;
+
+	float axialOrigin = b3Dot( s, axis );
+	float axialDir = b3Dot( d, axis );
+	b3Vec3 radialOrigin = b3MulSub( s, axialOrigin, axis );
+	b3Vec3 radialDir = b3MulSub( d, axialDir, axis );
+
+	float best = FLT_MAX;
+	b3Vec3 bestNormal = b3Vec3_zero;
+
+	// Side surface: |radialOrigin + t * radialDir|^2 = radius^2
+	float qa = b3Dot( radialDir, radialDir );
+	if ( qa > B3_WHEEL_EPS )
+	{
+		float qb = 2.0f * b3Dot( radialOrigin, radialDir );
+		float qc = b3Dot( radialOrigin, radialOrigin ) - radius * radius;
+		float discriminant = qb * qb - 4.0f * qa * qc;
+		if ( discriminant >= 0.0f )
+		{
+			float root = sqrtf( discriminant );
+			float candidates[2] = { ( -qb - root ) / ( 2.0f * qa ), ( -qb + root ) / ( 2.0f * qa ) };
+			for ( int i = 0; i < 2; ++i )
+			{
+				float t = candidates[i];
+				if ( t < 0.0f || t >= best )
+				{
+					continue;
+				}
+				if ( fabsf( axialOrigin + t * axialDir ) <= halfWidth )
+				{
+					best = t;
+					bestNormal = b3Normalize( b3MulAdd( radialOrigin, t, radialDir ) );
+				}
+			}
+		}
+	}
+
+	// The two flat sides of the wheel.
+	if ( fabsf( axialDir ) > B3_WHEEL_EPS )
+	{
+		for ( int side = 0; side < 2; ++side )
+		{
+			float sign = ( side == 0 ) ? -1.0f : 1.0f;
+			float t = ( sign * halfWidth - axialOrigin ) / axialDir;
+			if ( t < 0.0f || t >= best )
+			{
+				continue;
+			}
+			b3Vec3 hit = b3MulAdd( radialOrigin, t, radialDir );
+			if ( b3Dot( hit, hit ) <= radius * radius )
+			{
+				best = t;
+				bestNormal = b3MulSV( sign, axis );
+			}
+		}
+	}
+
+	if ( best <= rayLength )
+	{
+		output.hit = true;
+		output.fraction = best / rayLength;
+		output.point = b3MulAdd( input->origin, best, d );
+		output.normal = bestNormal;
+	}
+	return output;
+}
+
 // Contact against a single outward plane expressed in the wheel's frame.
 // planeNormal points away from the other body (up, for ground). Produces the
 // two tread-edge points; their separations differ under camber, which is

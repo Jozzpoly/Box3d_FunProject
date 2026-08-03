@@ -863,6 +863,9 @@ b3CastOutput b3RayCastShape( const b3Shape* shape, b3Transform transform, const 
 		case b3_sphereShape:
 			output = b3RayCastSphere( &shape->sphere, &localInput );
 			break;
+		case b3_wheelShape: // JOZZ PATCH
+			output = b3RayCastWheel( &shape->wheel, &localInput );
+			break;
 		case b3_hullShape:
 			output = b3RayCastHull( shape->hull, &localInput );
 			break;

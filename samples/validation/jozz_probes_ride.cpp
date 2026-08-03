@@ -215,6 +215,7 @@ bool RunRideQualityDiagnosisProbe( const JozzVehiclePrimitiveDefaults& defaults 
 {
 	std::printf( "ride quality diagnosis probe (flat ground - a perfect wheel reads zero):\n" );
 	bool allFinite = true;
+	bool ok2 = true;
 
 	const RideEnvelope envelopes[] = {
 		{ "sfera", JOZZ_M6_ENVELOPE_SPHERE, 0, 0 },
@@ -310,7 +311,39 @@ bool RunRideQualityDiagnosisProbe( const JozzVehiclePrimitiveDefaults& defaults 
 		allFinite &= sample.finite;
 	}
 
-	bool ok = CheckTrue( "ride diagnosis runs stay finite", allFinite );
+	// The wheel shape is new, so the engine's ray cast had to be written for it
+	// too. Without this the shape is invisible to picking and to ground probes -
+	// silently, because the unknown-type branch just reports a miss. Cast down
+	// the middle of a front wheel and check the hit lands on the tread.
+	{
+		JozzVehicleM6Config config =
+			JozzVehicleM6DefaultConfig( defaults.wheelRadius, defaults.wheelWidth, defaults.assetSuspensionTravelHint );
+		config.wheelEnvelope.mode = JOZZ_M6_ENVELOPE_WHEEL;
+
+		b3WorldDef worldDef = b3DefaultWorldDef();
+		b3WorldId worldId = b3CreateWorld( &worldDef );
+		b3BodyId groundId = CreateM6SmokeGround( worldId, 0.8f );
+		float spawnHeight = config.restDrop + config.wheelEnvelope.radius + 0.05f;
+		JozzVehicleM6 vehicle = CreateJozzVehicleM6( worldId, groundId, config, { 0.0f, spawnHeight, 0.0f } );
+		for ( int i = 0; i < 120; ++i )
+		{
+			b3World_Step( worldId, 1.0f / 60.0f, 4 );
+		}
+
+		b3Pos wheelCenter = b3Body_GetPosition( vehicle.corners[JOZZ_M6_FRONT_LEFT].wheelId );
+		b3Pos origin = { wheelCenter.x, wheelCenter.y + 2.0f, wheelCenter.z };
+		b3WorldCastOutput hit =
+			b3Shape_RayCast( vehicle.corners[JOZZ_M6_FRONT_LEFT].wheelShapeIds[0], origin, { 0.0f, -3.0f, 0.0f } );
+		float hitDrop = (float)( origin.y - hit.point.y );
+		float expected = 2.0f - config.wheelEnvelope.radius;
+		std::printf( "  promien w kolo: trafienie %s, zjazd %.4f m (oczekiwane %.4f)\n", hit.hit ? "TAK" : "NIE",
+					 hitDrop, expected );
+		ok2 = CheckTrue( "ray cast hits the new wheel shape on its tread",
+						 hit.hit && std::fabs( hitDrop - expected ) < 0.02f );
+		b3DestroyWorld( worldId );
+	}
+
+	bool ok = CheckTrue( "ride diagnosis runs stay finite", allFinite ) && ok2;
 	std::printf( "ride quality diagnosis probe: %s\n", ok ? "ok" : "FAILED" );
 	return ok;
 }

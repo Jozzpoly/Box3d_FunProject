@@ -593,6 +593,7 @@ B3_API b3TOIOutput b3TimeOfImpact( const b3TOIInput* input );
 B3_API b3AABB b3ComputeWheelAABB( const b3Wheel* wheel, b3Transform transform );
 B3_API b3MassData b3ComputeWheelMass( const b3Wheel* wheel, float density );
 B3_API b3Vec3 b3ComputeWheelSupport( const b3Wheel* wheel, b3Vec3 direction );
+B3_API b3CastOutput b3RayCastWheel( const b3Wheel* wheel, const b3RayCastInput* input );
 
 /// Collide a wheel and a hull. The wheel is A.
 B3_API void b3CollideWheelAndHull( b3LocalManifold* manifold, int capacity, const b3Wheel* wheelA,
