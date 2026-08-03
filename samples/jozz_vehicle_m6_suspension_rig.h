@@ -184,6 +184,14 @@ struct JozzVehicleM6WheelEnvelopeDesc
 	// left. Bigger is smoother AND cheaper (a fatter shoulder seals the ring
 	// with fewer capsules) - the price is a narrower flat tread.
 	float torusCrownRadius;
+	// WHEEL only. The cross-section of the tread. `wheelCrownDrop` is how far
+	// below the middle the tread edges sit, in metres: 0 is a flat tread and
+	// behaves EXACTLY as before (the flat points collapse back to two).
+	// `wheelProfilePoints` is how many points draw that curve, 2..8. More
+	// points is a rounder tread, not a smoother one; the solver still takes at
+	// most four contacts per wheel.
+	float wheelCrownDrop;
+	int wheelProfilePoints;
 };
 
 // Minimum capsule count for a SEALED ring at these dimensions. Returns 0 when

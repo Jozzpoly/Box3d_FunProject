@@ -14,6 +14,7 @@
 #include "box3d/box3d.h"
 
 #include <assert.h>
+#include <float.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -602,30 +603,50 @@ static void* AdapterCreateDebugShape( const b3DebugShape* debugShape, void* cont
 		return us;
 	}
 
-	// JOZZ PATCH. The wheel is drawn as a tessellated cylinder. The physics uses
-	// the exact analytic shape; this is only what the eye sees, so facets here
-	// cost nothing. Hulls are cached forever (a handful of them, one per wheel
-	// size) because FindOrAddHull keys on the pointer and freeing one could hand
-	// the same address to a different hull later.
+	// JOZZ PATCH. The wheel is drawn by spinning its own cross-section, rounded
+	// corners and all, so what the eye sees is the shape the physics uses. This
+	// matters: a crowned tread that looked like a plain cylinder on screen would
+	// be a knob you cannot see yourself turning. Hulls are cached forever (a
+	// handful, one per distinct cross-section) because FindOrAddHull keys on the
+	// pointer and freeing one could hand the same address to a different hull.
 	if ( debugShape->type == b3_wheelShape )
 	{
 		enum
 		{
 			WHEEL_HULL_CACHE = 8,
-			WHEEL_HULL_SIDES = 24
+			WHEEL_HULL_SIDES = 20,	// steps around the axle
+			WHEEL_HULL_CORNER = 8,	// steps around each rounded corner
+			WHEEL_HULL_VERTICES = 200
 		};
 		static struct
 		{
-			float radius, halfWidth;
+			b3Wheel key;
 			b3HullData* hull;
 		} cache[WHEEL_HULL_CACHE];
 		static int cacheCount = 0;
 
 		const b3Wheel* wheel = debugShape->wheel;
+		b3Vec2 profile[B3_MAX_WHEEL_PROFILE_POINTS];
+		int profileCount = b3GetWheelProfile( wheel, profile );
+
 		b3HullData* hull = NULL;
 		for ( int i = 0; i < cacheCount; ++i )
 		{
-			if ( cache[i].radius == wheel->radius && cache[i].halfWidth == wheel->halfWidth )
+			const b3Wheel* key = &cache[i].key;
+			if ( key->cornerRadius != wheel->cornerRadius || key->profileCount != profileCount )
+			{
+				continue;
+			}
+			bool same = true;
+			for ( int j = 0; j < profileCount; ++j )
+			{
+				if ( key->profile[j].x != profile[j].x || key->profile[j].y != profile[j].y )
+				{
+					same = false;
+					break;
+				}
+			}
+			if ( same )
 			{
 				hull = cache[i].hull;
 				break;
@@ -636,12 +657,53 @@ static void* AdapterCreateDebugShape( const b3DebugShape* debugShape, void* cont
 			// Axis along local Y, which is how the vehicle mounts its wheels. A
 			// wheel on a different axis would still SIMULATE correctly; only this
 			// debug drawing would be turned the wrong way.
-			float width = 2.0f * wheel->halfWidth;
-			hull = b3CreateCylinder( width, wheel->radius, -wheel->halfWidth, WHEEL_HULL_SIDES );
-			cache[cacheCount].radius = wheel->radius;
-			cache[cacheCount].halfWidth = wheel->halfWidth;
-			cache[cacheCount].hull = hull;
-			cacheCount += 1;
+			static b3Vec3 points[B3_MAX_WHEEL_PROFILE_POINTS * WHEEL_HULL_CORNER * WHEEL_HULL_SIDES + 2];
+			int pointCount = 0;
+
+			float lowest = FLT_MAX;
+			float highest = -FLT_MAX;
+
+			for ( int i = 0; i < profileCount; ++i )
+			{
+				for ( int corner = 0; corner < WHEEL_HULL_CORNER; ++corner )
+				{
+					// Walk the ball that rounds this corner of the drawing.
+					float phi = 2.0f * B3_PI * (float)corner / WHEEL_HULL_CORNER;
+					float along = profile[i].x + wheel->cornerRadius * cosf( phi );
+					float away = profile[i].y + wheel->cornerRadius * sinf( phi );
+
+					lowest = along < lowest ? along : lowest;
+					highest = along > highest ? along : highest;
+					if ( away <= 0.0f )
+					{
+						continue;
+					}
+
+					for ( int side = 0; side < WHEEL_HULL_SIDES; ++side )
+					{
+						float alpha = 2.0f * B3_PI * (float)side / WHEEL_HULL_SIDES;
+						points[pointCount++] = ( b3Vec3 ){ away * cosf( alpha ), along, away * sinf( alpha ) };
+					}
+				}
+			}
+
+			// The two points where the wheel meets its own axle. Without them the
+			// hull is a hollow-looking band instead of a solid wheel.
+			points[pointCount++] = ( b3Vec3 ){ 0.0f, lowest, 0.0f };
+			points[pointCount++] = ( b3Vec3 ){ 0.0f, highest, 0.0f };
+
+			hull = b3CreateHull( points, pointCount, WHEEL_HULL_VERTICES );
+			if ( hull != NULL )
+			{
+				cache[cacheCount].key = *wheel;
+				cache[cacheCount].key.profileCount = profileCount;
+				for ( int j = 0; j < profileCount; ++j )
+				{
+					cache[cacheCount].key.profile[j] = profile[j];
+				}
+				cache[cacheCount].hull = hull;
+				cacheCount += 1;
+			}
 		}
 		if ( hull == NULL )
 		{

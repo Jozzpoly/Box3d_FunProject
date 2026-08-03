@@ -1903,12 +1903,17 @@ typedef struct b3Sphere
  * @{
  */
 
+/// JOZZ PATCH: how many cross-section points a wheel profile may carry.
+#define B3_MAX_WHEEL_PROFILE_POINTS 8
+
 /// A solid capsule can be viewed as two hemispheres connected
 /// by a rectangle.
-/// JOZZ PATCH: a wheel. Solid cylinder of (radius - cornerRadius) and
-/// (halfWidth - cornerRadius), swept by a ball of cornerRadius. Convex, and
-/// rotationally symmetric about the axis, which is the property that makes it
-/// roll without manufacturing its own bumps. See src/wheel_shape.c.
+/// JOZZ PATCH: a wheel. The solid of revolution of a convex cross-section about
+/// the axis, swept by a ball of cornerRadius. Convex, and rotationally
+/// symmetric about the axis, which is the property that makes it roll without
+/// manufacturing its own bumps. See src/wheel_shape.c.
+///
+/// Build one with b3MakeWheel (flat tread) or b3MakeWheelProfile (any tread).
 typedef struct b3Wheel
 {
 	/// Local center of the wheel.
@@ -1917,14 +1922,32 @@ typedef struct b3Wheel
 	/// Local spin axis. Must be unit length.
 	b3Vec3 axis;
 
-	/// Outer radius, tread to center.
+	/// Outer radius, tread to center. Derived from the profile; do not set by
+	/// hand. Everything outside src/wheel_shape.c uses this as the bound.
 	float radius;
 
-	/// Half the tread width, along the axis.
+	/// Half the outer width, along the axis. Derived from the profile.
 	float halfWidth;
 
-	/// Shoulder rounding. 0 = square edge, halfWidth = fully rounded shoulder.
+	/// Edge rounding. Every corner of the cross-section is swept by a ball of
+	/// this radius, so no facet of the tread ever meets the ground square on.
 	float cornerRadius;
+
+	/// The cross-section of the CORE, before the ball sweep, in the half plane
+	/// spanned by the axis and a radial direction: x = signed distance along
+	/// the axis, y = distance from the axis (>= 0). Sorted by x and concave
+	/// down - a tread that bulges in the middle and falls away at the
+	/// shoulders. A flat tread is two points at the same y.
+	///
+	/// The outer surface is this chain offset by cornerRadius in every
+	/// direction, so the shape is smooth everywhere regardless of how few
+	/// points describe it.
+	b3Vec2 profile[B3_MAX_WHEEL_PROFILE_POINTS];
+
+	/// Number of valid entries in profile. Fewer than 2 means "flat tread",
+	/// rebuilt from radius/halfWidth/cornerRadius, so a zeroed b3Wheel with
+	/// those three fields filled in still works.
+	int profileCount;
 } b3Wheel;
 
 typedef struct b3Capsule

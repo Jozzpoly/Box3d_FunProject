@@ -24,20 +24,34 @@
 //
 // THE SHAPE
 // ---------
-// A solid cylinder of radius (radius - cornerRadius) and half width
-// (halfWidth - cornerRadius), swept by a ball of cornerRadius. Convex, with an
-// analytic support function:
+// Draw the tire's cross-section as a chain of points - distance along the axle
+// across, distance from the axle up - spin that drawing about the axle, and
+// sweep the result with a ball of cornerRadius so no corner is ever sharp:
 //
-//   cornerRadius = 0          -> square-edged cylinder (slick)
-//   0 < cornerRadius < W/2    -> flat tread, rounded shoulder (road tire)
-//   cornerRadius = W/2        -> fully rounded shoulder (balloon/offroad)
+//   two points, equal height        flat tread, rounded shoulder (road tire)
+//   middle point higher             crowned tread (dirt, motorcycle)
+//   uneven heights left and right   asymmetric tread
+//   one point                       a disc with a rounded rim
+//   cornerRadius = halfWidth        balloon
+//
+// The cross-section is the shape. Change the numbers and you get a different
+// wheel, with no new shape type, no new contact code and nothing to register.
+// Whatever chain you hand in is sorted and reduced to its upper convex hull,
+// because a dent in a tread is not something a rigid contact can honour, and
+// silently filling it in beats pretending it is there.
 //
 // THE POINT OF THE CONTACT CODE
 // -----------------------------
 // The manifold is computed from the AXIS, never from vertices or facets. On a
-// plane it is exactly two points, one at each end of the tread width, and those
-// two points are the same two points after the wheel rotates. That is what the
-// sphere gets for free and what every faceted wheel loses.
+// plane the contact points sit on the cross-section points that are within
+// reach of the ground, and point number 3 is still point number 3 after the
+// wheel has turned. That is what the sphere gets for free and what every
+// faceted wheel loses.
+//
+// It is the cross-section, not the deepest single point, that decides how many
+// contacts come out: a wheel pressed harder into the ground brings more of its
+// tread within reach, so the contact patch widens with load. That is as close
+// to a real footprint as a rigid body gets.
 
 #include "core.h"
 #include "shape.h"
@@ -49,6 +63,15 @@
 
 #define B3_WHEEL_EPS 1.0e-6f
 
+// Two cross-section points closer together than this are the same point as far
+// as the solver is concerned, and are merged when the wheel is built. Contacts
+// a few millimetres apart carrying the whole weight of the car are a redundant
+// constraint: the shared normal makes the pair nearly parallel and the twist
+// and rolling terms are worked out from how far apart the points are. Measured,
+// a crowned tread whose points landed one linear slop apart put a NaN into the
+// wheel's velocity and took the suspension joint down with it.
+#define B3_WHEEL_MIN_POINT_SPACING ( 2.0f * B3_LINEAR_SLOP )
+
 // Any unit vector perpendicular to a. Used only in the degenerate case where
 // the wheel lies flat on its side and there is no radial direction.
 static b3Vec3 b3WheelPerpendicular( b3Vec3 a )
@@ -57,23 +80,293 @@ static b3Vec3 b3WheelPerpendicular( b3Vec3 a )
 	return b3Normalize( b3Cross( a, seed ) );
 }
 
+// The cross-section actually in force. A wheel that was never given one - a
+// zeroed struct with only the three size fields filled in - reads as a flat
+// tread, so hand-built wheels and anything written before the profile existed
+// keep behaving exactly as they did.
+int b3GetWheelProfile( const b3Wheel* wheel, b3Vec2* profile )
+{
+	if ( wheel->profileCount >= 1 && wheel->profileCount <= B3_MAX_WHEEL_PROFILE_POINTS )
+	{
+		for ( int i = 0; i < wheel->profileCount; ++i )
+		{
+			profile[i] = wheel->profile[i];
+		}
+		return wheel->profileCount;
+	}
+
+	float coreRadius = wheel->radius - wheel->cornerRadius;
+	float coreHalfWidth = wheel->halfWidth - wheel->cornerRadius;
+	coreRadius = coreRadius > 0.0f ? coreRadius : 0.0f;
+	coreHalfWidth = coreHalfWidth > 0.0f ? coreHalfWidth : 0.0f;
+
+	// A fully rounded shoulder leaves nothing between the two ends. Collapsing
+	// to one point here means the manifold never hands the solver two contacts
+	// at the same spot, which would double the normal impulse there.
+	if ( coreHalfWidth <= B3_WHEEL_EPS )
+	{
+		profile[0] = ( b3Vec2 ){ 0.0f, coreRadius };
+		return 1;
+	}
+
+	profile[0] = ( b3Vec2 ){ -coreHalfWidth, coreRadius };
+	profile[1] = ( b3Vec2 ){ coreHalfWidth, coreRadius };
+	return 2;
+}
+
+// Which cross-section point lies deepest in the direction described by its
+// component along the axle and its component away from the axle. The support
+// function and the manifold both go through here; if they ever disagreed the
+// manifold would report points that are not on the surface.
+static int b3WheelProfileSupport( const b3Vec2* profile, int count, float axial, float radialLength )
+{
+	int best = 0;
+	float bestValue = -FLT_MAX;
+	for ( int i = 0; i < count; ++i )
+	{
+		float value = profile[i].x * axial + profile[i].y * radialLength;
+		if ( value > bestValue )
+		{
+			bestValue = value;
+			best = i;
+		}
+	}
+	return best;
+}
+
+// Closest point of the cross-section REGION to q, in the half plane where x
+// runs along the axle and y away from it. The region is everything under the
+// chain, so the polygon is the chain plus its two feet on the axle - that
+// region is what the support function above describes, and the two must agree.
+static b3Vec2 b3ClosestPointInWheelProfile( const b3Vec2* profile, int count, b3Vec2 q )
+{
+	b3Vec2 polygon[B3_MAX_WHEEL_PROFILE_POINTS + 2];
+	int n = 0;
+	polygon[n++] = ( b3Vec2 ){ profile[0].x, 0.0f };
+	for ( int i = 0; i < count; ++i )
+	{
+		polygon[n++] = profile[i];
+	}
+	polygon[n++] = ( b3Vec2 ){ profile[count - 1].x, 0.0f };
+
+	// The chain runs left to right along the top, so the walk is clockwise and
+	// the inside is on the right of every edge.
+	bool inside = true;
+	float twiceArea = 0.0f;
+	float bestDistanceSqr = FLT_MAX;
+	b3Vec2 best = polygon[0];
+
+	for ( int i = 0; i < n; ++i )
+	{
+		b3Vec2 a = polygon[i];
+		b3Vec2 b = polygon[( i + 1 ) % n];
+		b3Vec2 edge = { b.x - a.x, b.y - a.y };
+		b3Vec2 toQ = { q.x - a.x, q.y - a.y };
+
+		twiceArea += a.x * b.y - b.x * a.y;
+		if ( edge.x * toQ.y - edge.y * toQ.x > 0.0f )
+		{
+			inside = false;
+		}
+
+		float lengthSqr = edge.x * edge.x + edge.y * edge.y;
+		float t = 0.0f;
+		if ( lengthSqr > B3_WHEEL_EPS )
+		{
+			t = b3ClampFloat( ( toQ.x * edge.x + toQ.y * edge.y ) / lengthSqr, 0.0f, 1.0f );
+		}
+		b3Vec2 point = { a.x + t * edge.x, a.y + t * edge.y };
+		float dx = q.x - point.x;
+		float dy = q.y - point.y;
+		float distanceSqr = dx * dx + dy * dy;
+		if ( distanceSqr < bestDistanceSqr )
+		{
+			bestDistanceSqr = distanceSqr;
+			best = point;
+		}
+	}
+
+	// A single cross-section point, or a chain flat on the axle, encloses no
+	// area: there is no inside to be in, only the boundary.
+	if ( inside && fabsf( twiceArea ) > B3_WHEEL_EPS )
+	{
+		return q;
+	}
+	return best;
+}
+
 // Deepest point of the wheel surface in direction d (d must be unit).
 b3Vec3 b3ComputeWheelSupport( const b3Wheel* wheel, b3Vec3 d )
 {
-	float coreRadius = wheel->radius - wheel->cornerRadius;
-	float coreHalfWidth = wheel->halfWidth - wheel->cornerRadius;
+	b3Vec2 profile[B3_MAX_WHEEL_PROFILE_POINTS];
+	int count = b3GetWheelProfile( wheel, profile );
 
 	float axial = b3Dot( d, wheel->axis );
 	b3Vec3 radial = b3MulSub( d, axial, wheel->axis );
 	float length = b3Length( radial );
 
-	b3Vec3 point = wheel->center;
+	int best = b3WheelProfileSupport( profile, count, axial, length );
+
+	b3Vec3 point = b3MulAdd( wheel->center, profile[best].x, wheel->axis );
 	if ( length > B3_WHEEL_EPS )
 	{
-		point = b3MulAdd( point, coreRadius / length, radial );
+		point = b3MulAdd( point, profile[best].y / length, radial );
 	}
-	point = b3MulAdd( point, axial >= 0.0f ? coreHalfWidth : -coreHalfWidth, wheel->axis );
 	return b3MulAdd( point, wheel->cornerRadius, d );
+}
+
+b3Wheel b3MakeWheelProfile( b3Vec3 center, b3Vec3 axis, const b3Vec2* profile, int count, float cornerRadius )
+{
+	b3Wheel wheel = { 0 };
+	wheel.center = center;
+	wheel.axis = b3Normalize( axis );
+	wheel.cornerRadius = cornerRadius > 0.0f ? cornerRadius : 0.0f;
+
+	b3Vec2 points[B3_MAX_WHEEL_PROFILE_POINTS];
+	int n = 0;
+	for ( int i = 0; i < count && n < B3_MAX_WHEEL_PROFILE_POINTS; ++i )
+	{
+		b3Vec2 point = profile[i];
+		if ( b3IsValidFloat( point.x ) == false || b3IsValidFloat( point.y ) == false )
+		{
+			continue;
+		}
+		// Behind the axle is the same place as in front of it once the drawing
+		// is spun, so a negative height is a typo, not a shape.
+		points[n].x = point.x;
+		points[n].y = point.y > 0.0f ? point.y : 0.0f;
+		n += 1;
+	}
+	if ( n == 0 )
+	{
+		points[0] = ( b3Vec2 ){ 0.0f, 0.0f };
+		n = 1;
+	}
+
+	// Sort across the tread. Insertion sort: at most eight points.
+	for ( int i = 1; i < n; ++i )
+	{
+		b3Vec2 key = points[i];
+		int j = i - 1;
+		while ( j >= 0 && points[j].x > key.x )
+		{
+			points[j + 1] = points[j];
+			j -= 1;
+		}
+		points[j + 1] = key;
+	}
+
+	// Two points at the same place across the tread are one point; keep the
+	// taller. Two contacts at one spot would double the load carried there.
+	int unique = 0;
+	for ( int i = 0; i < n; ++i )
+	{
+		if ( unique > 0 && points[i].x - points[unique - 1].x <= B3_WHEEL_EPS )
+		{
+			if ( points[i].y > points[unique - 1].y )
+			{
+				points[unique - 1].y = points[i].y;
+			}
+			continue;
+		}
+		points[unique] = points[i];
+		unique += 1;
+	}
+	n = unique;
+
+	// Upper convex hull. A point that sits below the line between its
+	// neighbours is inside the solid and can never touch anything, so keeping
+	// it would only cost a contact slot.
+	int hullCount = 0;
+	for ( int i = 0; i < n; ++i )
+	{
+		while ( hullCount >= 2 )
+		{
+			b3Vec2 o = wheel.profile[hullCount - 2];
+			b3Vec2 a = wheel.profile[hullCount - 1];
+			float cross = ( a.x - o.x ) * ( points[i].y - o.y ) - ( a.y - o.y ) * ( points[i].x - o.x );
+			if ( cross < 0.0f )
+			{
+				break;
+			}
+			hullCount -= 1;
+		}
+		wheel.profile[hullCount] = points[i];
+		hullCount += 1;
+	}
+	// A cross-section drawn finer than the solver can tell apart is thinned to
+	// its two ends and its peak. Thinning symmetrically matters as much as
+	// thinning at all: dropping points from one side would leave the car
+	// standing on a tread that is taller on the left than on the right.
+	bool tooFine = false;
+	for ( int i = 1; i < hullCount; ++i )
+	{
+		if ( wheel.profile[i].x - wheel.profile[i - 1].x < B3_WHEEL_MIN_POINT_SPACING )
+		{
+			tooFine = true;
+			break;
+		}
+	}
+	if ( tooFine && hullCount > 2 )
+	{
+		b3Vec2 first = wheel.profile[0];
+		b3Vec2 last = wheel.profile[hullCount - 1];
+		int peak = 0;
+		for ( int i = 1; i < hullCount - 1; ++i )
+		{
+			if ( wheel.profile[i].y > wheel.profile[peak].y )
+			{
+				peak = i;
+			}
+		}
+
+		hullCount = 0;
+		wheel.profile[hullCount++] = first;
+		if ( peak > 0 && wheel.profile[peak].x - first.x >= B3_WHEEL_MIN_POINT_SPACING &&
+			 last.x - wheel.profile[peak].x >= B3_WHEEL_MIN_POINT_SPACING )
+		{
+			wheel.profile[hullCount++] = wheel.profile[peak];
+		}
+		if ( last.x - first.x >= B3_WHEEL_MIN_POINT_SPACING )
+		{
+			wheel.profile[hullCount++] = last;
+		}
+		else if ( last.y > wheel.profile[0].y )
+		{
+			wheel.profile[0] = last;
+		}
+	}
+	wheel.profileCount = hullCount;
+
+	// The outer bounds. Everything outside this file - the broad phase, the
+	// query proxy, the ray cast - works off these two numbers and must never
+	// under-report, so an off-center cross-section is measured by its far side.
+	float maxRadius = 0.0f;
+	float maxHalfWidth = 0.0f;
+	for ( int i = 0; i < hullCount; ++i )
+	{
+		float height = wheel.profile[i].y;
+		float across = fabsf( wheel.profile[i].x );
+		maxRadius = height > maxRadius ? height : maxRadius;
+		maxHalfWidth = across > maxHalfWidth ? across : maxHalfWidth;
+	}
+	wheel.radius = maxRadius + wheel.cornerRadius;
+	wheel.halfWidth = maxHalfWidth + wheel.cornerRadius;
+	return wheel;
+}
+
+b3Wheel b3MakeWheel( b3Vec3 center, b3Vec3 axis, float radius, float halfWidth, float cornerRadius )
+{
+	float limit = radius < halfWidth ? radius : halfWidth;
+	cornerRadius = b3ClampFloat( cornerRadius, 0.0f, limit > 0.0f ? limit : 0.0f );
+
+	float coreRadius = radius - cornerRadius;
+	float coreHalfWidth = halfWidth - cornerRadius;
+	coreRadius = coreRadius > 0.0f ? coreRadius : 0.0f;
+	coreHalfWidth = coreHalfWidth > 0.0f ? coreHalfWidth : 0.0f;
+
+	b3Vec2 profile[2] = { { -coreHalfWidth, coreRadius }, { coreHalfWidth, coreRadius } };
+	return b3MakeWheelProfile( center, axis, profile, 2, cornerRadius );
 }
 
 b3AABB b3ComputeWheelAABB( const b3Wheel* wheel, b3Transform transform )
@@ -81,17 +374,28 @@ b3AABB b3ComputeWheelAABB( const b3Wheel* wheel, b3Transform transform )
 	b3Vec3 center = b3TransformPoint( transform, wheel->center );
 	b3Vec3 axis = b3RotateVector( transform.q, wheel->axis );
 
-	// Standard cylinder bound: the extent along i is halfWidth*|a_i| plus
-	// radius*sin(angle between the axis and i).
-	b3Vec3 extent;
+	b3Vec2 profile[B3_MAX_WHEEL_PROFILE_POINTS];
+	int count = b3GetWheelProfile( wheel, profile );
+
+	// Cylinder bound, taken over the cross-section: the extent along i is the
+	// largest of (across the tread)*|a_i| + (height)*sin(angle between axis
+	// and i), plus the sweep. A crowned tread is narrower than its own bounding
+	// cylinder and this notices.
 	float a[3] = { axis.x, axis.y, axis.z };
 	float e[3];
 	for ( int i = 0; i < 3; ++i )
 	{
 		float sine2 = 1.0f - a[i] * a[i];
-		e[i] = wheel->halfWidth * fabsf( a[i] ) + wheel->radius * sqrtf( sine2 > 0.0f ? sine2 : 0.0f );
+		float sine = sqrtf( sine2 > 0.0f ? sine2 : 0.0f );
+		float extent = 0.0f;
+		for ( int j = 0; j < count; ++j )
+		{
+			float candidate = fabsf( profile[j].x ) * fabsf( a[i] ) + profile[j].y * sine;
+			extent = candidate > extent ? candidate : extent;
+		}
+		e[i] = extent + wheel->cornerRadius;
 	}
-	extent = ( b3Vec3 ){ e[0], e[1], e[2] };
+	b3Vec3 extent = ( b3Vec3 ){ e[0], e[1], e[2] };
 
 	b3AABB aabb;
 	aabb.lowerBound = b3Sub( center, extent );
@@ -99,10 +403,12 @@ b3AABB b3ComputeWheelAABB( const b3Wheel* wheel, b3Transform transform )
 	return aabb;
 }
 
-// Mass of the equivalent solid cylinder. The rounded shoulder is ignored, which
-// overestimates the volume by at most a few percent at cornerRadius = W/2. The
-// vehicle code does not rely on this: it freezes wheel mass from a reference
-// sphere (hard rule 1 of the wheel program), so this only has to be sane.
+// Mass of the enclosing solid cylinder. The rounded shoulder and the shape of
+// the cross-section are both ignored, which overestimates the volume - by a few
+// percent for a road tread, by more for a strongly crowned one. The vehicle
+// code does not rely on this: it freezes wheel mass from a reference sphere
+// (hard rule 1 of the wheel program), so this only has to be sane. Anything
+// that does rely on it should be given a real solid-of-revolution integral.
 b3MassData b3ComputeWheelMass( const b3Wheel* wheel, float density )
 {
 	float radius = wheel->radius;
@@ -124,11 +430,12 @@ b3MassData b3ComputeWheelMass( const b3Wheel* wheel, float density )
 	return massData;
 }
 
-// Ray cast. Uses the ENCLOSING square-edged cylinder: the shoulder rounding is
-// ignored, so a ray can report a hit up to cornerRadius early near the corner.
-// That is deliberate - it keeps the cast conservative (never a false miss),
-// which is what mouse picking and ground probes need. The contact path does not
-// go through here; it uses the analytic manifold above.
+// Ray cast. Uses the ENCLOSING square-edged cylinder: neither the shoulder
+// rounding nor the cross-section is honoured, so a ray can report a hit early
+// near the shoulder of a crowned tread. That is deliberate - it keeps the cast
+// conservative (never a false miss), which is what mouse picking and ground
+// probes need. The contact path does not go through here; it uses the analytic
+// manifold above.
 b3CastOutput b3RayCastWheel( const b3Wheel* wheel, const b3RayCastInput* input )
 {
 	b3CastOutput output = { 0 };
@@ -211,13 +518,14 @@ b3CastOutput b3RayCastWheel( const b3Wheel* wheel, const b3RayCastInput* input )
 }
 
 // Contact against a single outward plane expressed in the wheel's frame.
-// planeNormal points away from the other body (up, for ground). Produces the
-// two tread-edge points; their separations differ under camber, which is
-// exactly the behaviour a real contact patch has.
+// planeNormal points away from the other body (up, for ground). Produces one
+// contact per cross-section point that is within reach of the plane; their
+// separations differ under camber and across a crowned tread, which is exactly
+// the behaviour a real contact patch has.
 //
-// The feature ids are 0 and 1 and never change while the wheel spins - that is
-// the whole reason this shape exists, because it is what keeps the solver's
-// warm start alive from step to step.
+// The feature id is the index of the cross-section point and never changes
+// while the wheel spins - that is the whole reason this shape exists, because
+// it is what keeps the solver's warm start alive from step to step.
 static void b3CollideWheelAndPlane( b3LocalManifold* manifold, int capacity, const b3Wheel* wheel, b3Vec3 planeNormal,
 									float planeOffset )
 {
@@ -227,13 +535,13 @@ static void b3CollideWheelAndPlane( b3LocalManifold* manifold, int capacity, con
 		return;
 	}
 
+	b3Vec2 profile[B3_MAX_WHEEL_PROFILE_POINTS];
+	int profileCount = b3GetWheelProfile( wheel, profile );
+
 	b3Vec3 toPlane = b3Neg( planeNormal );
 	float axial = b3Dot( toPlane, wheel->axis );
 	b3Vec3 radial = b3MulSub( toPlane, axial, wheel->axis );
 	float length = b3Length( radial );
-
-	float coreRadius = wheel->radius - wheel->cornerRadius;
-	float coreHalfWidth = wheel->halfWidth - wheel->cornerRadius;
 
 	manifold->normal = toPlane;
 
@@ -241,12 +549,15 @@ static void b3CollideWheelAndPlane( b3LocalManifold* manifold, int capacity, con
 	{
 		// Wheel lying flat on its side: the rim face meets the plane. One point
 		// is enough - this is not a driving pose.
-		b3Vec3 core = b3MulAdd( wheel->center, axial >= 0.0f ? coreHalfWidth : -coreHalfWidth, wheel->axis );
-		core = b3MulAdd( core, coreRadius, b3WheelPerpendicular( wheel->axis ) );
+		int index = b3WheelProfileSupport( profile, profileCount, axial, 0.0f );
+		b3Vec3 core = b3MulAdd( wheel->center, profile[index].x, wheel->axis );
+		core = b3MulAdd( core, profile[index].y, b3WheelPerpendicular( wheel->axis ) );
 		b3Vec3 surface = b3MulAdd( core, wheel->cornerRadius, toPlane );
 		manifold->points[0].point = surface;
 		manifold->points[0].separation = b3Dot( planeNormal, surface ) - planeOffset;
 		manifold->points[0].pair = ( b3FeaturePair ){ 0 };
+		manifold->points[0].pair.index1 = (uint8_t)index;
+		manifold->points[0].pair.index2 = (uint8_t)index;
 		manifold->points[0].triangleIndex = 0;
 		manifold->pointCount = 1;
 		return;
@@ -254,29 +565,70 @@ static void b3CollideWheelAndPlane( b3LocalManifold* manifold, int capacity, con
 
 	b3Vec3 radialDirection = b3MulSV( 1.0f / length, radial );
 
-	int count = 0;
-	for ( int side = 0; side < 2 && count < capacity; ++side )
+	// Separation of cross-section point i, worked out on paper so we never
+	// build a contact only to throw it away:
+	//
+	//   separation(i) = base - ( x(i) * axial + y(i) * length )
+	//   base          = dot( planeNormal, center ) - cornerRadius - planeOffset
+	//
+	// The subtracted term is exactly what b3WheelProfileSupport maximises, so
+	// the deepest point here and the support point are always the same point.
+	float base = b3Dot( planeNormal, wheel->center ) - wheel->cornerRadius - planeOffset;
+
+	// Which points are touching. Not "the deepest one": the tread that is
+	// within B3_SPECULATIVE_DISTANCE of the ground is the tread the solver has
+	// to answer for this step, so a wheel pressed harder into the ground brings
+	// more of its width into the patch. On a flat tread both ends are at the
+	// same separation and either both count or neither does, so the common case
+	// is still the same two points it always was.
+	int candidates[B3_MAX_WHEEL_PROFILE_POINTS];
+	int candidateCount = 0;
+	for ( int i = 0; i < profileCount; ++i )
 	{
-		float offset = ( side == 0 ) ? -coreHalfWidth : coreHalfWidth;
-		b3Vec3 core = b3MulAdd( wheel->center, coreRadius, radialDirection );
-		core = b3MulAdd( core, offset, wheel->axis );
+		float separation = base - ( profile[i].x * axial + profile[i].y * length );
+		if ( separation <= B3_SPECULATIVE_DISTANCE )
+		{
+			candidates[candidateCount] = i;
+			candidateCount += 1;
+		}
+	}
+	if ( candidateCount == 0 )
+	{
+		// Out of reach. The callers below only get here after their own range
+		// check passes, so this is the plane being handed in directly.
+		return;
+	}
+
+	// The solver has room for four points and a cross-section may have eight.
+	// Keep both edges of the band and spread the rest evenly between them: the
+	// WIDTH of the patch is what holds the car up, so the edges are the two
+	// points that must never be the ones dropped.
+	int limit = candidateCount < capacity ? candidateCount : capacity;
+	int count = 0;
+	for ( int k = 0; k < limit; ++k )
+	{
+		// Rounded, not truncated. Truncation biases every pick towards the low
+		// side, so five candidates in four slots would drop a point from one
+		// side of the tread and not the other.
+		int slot = 0;
+		if ( limit > 1 )
+		{
+			slot = (int)( ( (float)k * (float)( candidateCount - 1 ) ) / (float)( limit - 1 ) + 0.5f );
+		}
+		int index = candidates[slot];
+
+		b3Vec3 core = b3MulAdd( wheel->center, profile[index].x, wheel->axis );
+		core = b3MulAdd( core, profile[index].y, radialDirection );
 		b3Vec3 surface = b3MulAdd( core, wheel->cornerRadius, toPlane );
 
 		manifold->points[count].point = surface;
-		manifold->points[count].separation = b3Dot( planeNormal, surface ) - planeOffset;
+		manifold->points[count].separation = base - ( profile[index].x * axial + profile[index].y * length );
 		manifold->points[count].pair = ( b3FeaturePair ){ 0 };
-		// Stable id: which side of the tread this point is. Survives rotation.
-		manifold->points[count].pair.index1 = (uint8_t)side;
-		manifold->points[count].pair.index2 = (uint8_t)side;
+		// Stable id: WHICH cross-section point this is. Survives rotation.
+		manifold->points[count].pair.index1 = (uint8_t)index;
+		manifold->points[count].pair.index2 = (uint8_t)index;
 		manifold->points[count].triangleIndex = 0;
 		count += 1;
-	}
-
-	// A zero-width tread degenerates to one point; do not hand the solver two
-	// coincident points, it would double the normal impulse at that spot.
-	if ( count == 2 && coreHalfWidth <= B3_WHEEL_EPS )
-	{
-		count = 1;
 	}
 
 	manifold->pointCount = count;
@@ -288,9 +640,9 @@ static void b3CollideWheelAndPlane( b3LocalManifold* manifold, int capacity, con
 // is exactly what happened when this was missing.
 //
 // Both shapes are "core plus radius", so the problem reduces to the closest
-// points between the wheel's CORE CYLINDER and the segment, with the two radii
-// added at the end. Alternating projection converges in a few passes because
-// both cores are convex.
+// points between the wheel's CROSS-SECTION SOLID and the segment, with the two
+// radii added at the end. Alternating projection converges in a few passes
+// because both cores are convex.
 static void b3CollideWheelAndSegment( b3LocalManifold* manifold, int capacity, const b3Wheel* wheel, b3Vec3 p1,
 									  b3Vec3 p2, float radiusB )
 {
@@ -300,8 +652,8 @@ static void b3CollideWheelAndSegment( b3LocalManifold* manifold, int capacity, c
 		return;
 	}
 
-	float coreRadius = wheel->radius - wheel->cornerRadius;
-	float coreHalfWidth = wheel->halfWidth - wheel->cornerRadius;
+	b3Vec2 profile[B3_MAX_WHEEL_PROFILE_POINTS];
+	int profileCount = b3GetWheelProfile( wheel, profile );
 	b3Vec3 axis = wheel->axis;
 	b3Vec3 edge = b3Sub( p2, p1 );
 	float edgeLengthSqr = b3Dot( edge, edge );
@@ -320,16 +672,26 @@ static void b3CollideWheelAndSegment( b3LocalManifold* manifold, int capacity, c
 		}
 		onSegment = b3MulAdd( p1, t, edge );
 
-		// Closest point on the solid core cylinder to that segment point.
+		// Closest point of the cross-section solid to that segment point. Done
+		// in the flat drawing, then spun back out onto the wheel.
 		b3Vec3 delta = b3Sub( onSegment, wheel->center );
-		float axial = b3ClampFloat( b3Dot( delta, axis ), -coreHalfWidth, coreHalfWidth );
-		b3Vec3 radial = b3MulSub( delta, b3Dot( delta, axis ), axis );
+		float axial = b3Dot( delta, axis );
+		b3Vec3 radial = b3MulSub( delta, axial, axis );
 		float radialLength = b3Length( radial );
-		if ( radialLength > coreRadius )
+
+		b3Vec2 closest = b3ClosestPointInWheelProfile( profile, profileCount, ( b3Vec2 ){ axial, radialLength } );
+
+		onCore = b3MulAdd( wheel->center, closest.x, axis );
+		if ( radialLength > B3_WHEEL_EPS )
 		{
-			radial = b3MulSV( coreRadius / radialLength, radial );
+			onCore = b3MulAdd( onCore, closest.y / radialLength, radial );
 		}
-		onCore = b3MulAdd( b3MulAdd( wheel->center, 1.0f, radial ), axial, axis );
+		else if ( closest.y > B3_WHEEL_EPS )
+		{
+			// The segment point sits on the axle, so every radial direction is
+			// equally close. Pick one rather than collapsing onto the axle.
+			onCore = b3MulAdd( onCore, closest.y, b3WheelPerpendicular( axis ) );
+		}
 	}
 
 	b3Vec3 separationVector = b3Sub( onSegment, onCore );

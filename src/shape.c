@@ -370,8 +370,12 @@ b3ShapeId b3CreateWheelShape( b3BodyId bodyId, const b3ShapeDef* def, const b3Wh
 		return b3CreateShape( bodyId, def, &sphere, b3_sphereShape, b3Transform_identity, b3Vec3_one, false );
 	}
 
-	b3Wheel normalized = *wheel;
-	normalized.axis = b3Normalize( wheel->axis );
+	// Rebuild through the maker so the stored cross-section is always sorted,
+	// hulled and consistent with radius/halfWidth, whether the caller used
+	// b3MakeWheel, b3MakeWheelProfile or filled the struct by hand.
+	b3Vec2 profile[B3_MAX_WHEEL_PROFILE_POINTS];
+	int count = b3GetWheelProfile( wheel, profile );
+	b3Wheel normalized = b3MakeWheelProfile( wheel->center, wheel->axis, profile, count, wheel->cornerRadius );
 	return b3CreateShape( bodyId, def, &normalized, b3_wheelShape, b3Transform_identity, b3Vec3_one, false );
 }
 

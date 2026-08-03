@@ -394,6 +394,10 @@ JozzVehicleM6Config JozzVehicleM6DefaultConfig( float wheelRadius, float wheelWi
 	// losing its flat tread. 0.914 * (width/2) is the bench's 0.20 m at the
 	// current 0.4375 m wheel.
 	config.wheelEnvelope.torusCrownRadius = 0.914f * 0.5f * wheelWidth;
+	// Flat tread by default: a crown narrows the contact patch, and how the car
+	// should drive is the owner's call, not a default I get to change quietly.
+	config.wheelEnvelope.wheelCrownDrop = 0.0f;
+	config.wheelEnvelope.wheelProfilePoints = 5;
 	config.wheelDensity = 80.0f;
 	config.wheelFriction = 1.25f;
 	config.wheelRollingResistance = 0.02f;

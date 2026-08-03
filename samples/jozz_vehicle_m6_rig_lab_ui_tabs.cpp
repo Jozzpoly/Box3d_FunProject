@@ -391,6 +391,31 @@ void JozzVehicleM6RigLab::DrawSuspensionTab()
 							"szarpać jak przy oponie, bo styk ma prawdziwą szerokość - tego jeszcze nie mierzyłem." );
 				float halfWidth = 0.5f * m_config.wheelEnvelope.width;
 				edited |= ImGui::SliderFloat( "Promień barku", &m_editEnvelopeCrownRadius, 0.0f, halfWidth, "%.3f m" );
+
+				float maxDrop = 0.25f * m_config.wheelEnvelope.radius;
+				edited |= ImGui::SliderFloat( "Wysklepienie bieżni", &m_editWheelCrownDrop, 0.0f, maxDrop, "%.3f m" );
+				HelpMarker( "O ile środek bieżni jest wyżej niż jej brzegi.\n\n"
+							"0 = bieżnia płaska: koło stoi na ziemi obydwoma brzegami, dwa punkty styku, najszersza "
+							"stopa. Tak jest DOMYŚLNIE i tak zmierzone są liczby wyżej.\n\n"
+							"Więcej = opona wypukła jak w motocyklu albo w terenówce: na płaskim dotyka tylko "
+							"środkiem, więc stopa jest węższa, ale przy przechyle koło przetacza się na bok bieżni "
+							"zamiast wchodzić na ostry brzeg.\n\n"
+							"Im mocniej koło jest dociśnięte do ziemi, tym więcej punktów bieżni dotyka - stopa "
+							"rośnie z obciążeniem, jak w prawdziwej oponie.\n\n"
+							"Zmierzone w TYM aucie (trzęsienie nadwozia m/s2 | punktów styku na koło):\n"
+							"  prosto 58 km/h:  0mm 0,023|2,00   3mm 0,024|2,94   10mm 0,034|2,16   30mm 0,022|1,00\n"
+							"  ZAKRĘT 43 km/h:  0mm 0,603|2,00   3mm 0,447|2,43   10mm 0,459|1,53   30mm 0,468|1,00\n"
+							"Czyli: na prostej wysklepienie nic nie daje, ale w zakręcie 3 mm zbija szarpanie o 26%, "
+							"bo koło dostaje WIĘCEJ punktów styku, nie mniej. Przy 30 mm zostaje jeden punkt - to "
+							"znowu kulka.\n\n"
+							"Domyślnie 0. Jak ma jeździć auto, to Twoja decyzja, nie moja." );
+
+				edited |= ImGui::SliderInt( "Punkty przekroju", &m_editWheelProfilePoints, 2, B3_MAX_WHEEL_PROFILE_POINTS );
+				HelpMarker( "Iloma punktami narysowany jest łuk bieżni. Więcej = gładszy przekrój, NIE gładsza "
+							"jazda. Przy zerowym wysklepieniu ta liczba nic nie zmienia: punkty leżą w jednej "
+							"linii i silnik wyrzuca zbędne.\n\n"
+							"Solver i tak bierze najwyżej cztery punkty styku na koło - reszta przekroju kształtuje "
+							"bryłę, nie liczbę kontaktów." );
 			}
 			if ( m_editEnvelopeMode == JOZZ_M6_ENVELOPE_PHASED_UNION )
 			{

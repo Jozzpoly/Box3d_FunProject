@@ -590,6 +590,24 @@ B3_API b3TOIOutput b3TimeOfImpact( const b3TOIInput* input );
  */
 
 /// JOZZ PATCH: wheel geometry and contact. See src/wheel_shape.c.
+
+/// A wheel with a flat tread: a cylinder with rounded shoulders.
+/// cornerRadius 0 is a square edge, cornerRadius == halfWidth is fully rounded.
+B3_API b3Wheel b3MakeWheel( b3Vec3 center, b3Vec3 axis, float radius, float halfWidth, float cornerRadius );
+
+/// A wheel with any tread you like. profile is the cross-section of the CORE:
+/// x = distance along the axis, y = distance from the axis. Order does not
+/// matter and neither does convexity - the points are sorted and reduced to
+/// their upper convex hull, because a dent in a tread is not a shape a rigid
+/// contact can honour. At most B3_MAX_WHEEL_PROFILE_POINTS survive.
+/// radius and halfWidth come out of the profile; you do not set them.
+B3_API b3Wheel b3MakeWheelProfile( b3Vec3 center, b3Vec3 axis, const b3Vec2* profile, int count, float cornerRadius );
+
+/// The cross-section actually in force, after sorting and hulling. Returns the
+/// point count. Pass a buffer of B3_MAX_WHEEL_PROFILE_POINTS. Use this to draw
+/// the wheel or to show the owner what the numbers built.
+B3_API int b3GetWheelProfile( const b3Wheel* wheel, b3Vec2* profile );
+
 B3_API b3AABB b3ComputeWheelAABB( const b3Wheel* wheel, b3Transform transform );
 B3_API b3MassData b3ComputeWheelMass( const b3Wheel* wheel, float density );
 B3_API b3Vec3 b3ComputeWheelSupport( const b3Wheel* wheel, b3Vec3 direction );

@@ -326,7 +326,9 @@ const WheelEnvelopeField kWheelEnvelopeFields[] = {
 	// sanitizer then raises the segment count to a sealed ring, so an old
 	// preset switched to torus by hand still builds a wheel without holes.
 	{ .key = "torusSegments", .type = JozzFieldType::Int, .lastInObject = false, .intMember = &JozzVehicleM6WheelEnvelopeDesc::torusSegments },
-	{ .key = "torusCrownRadius", .type = JozzFieldType::Float, .lastInObject = true, .floatMember = &JozzVehicleM6WheelEnvelopeDesc::torusCrownRadius },
+	{ .key = "torusCrownRadius", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6WheelEnvelopeDesc::torusCrownRadius },
+	{ .key = "wheelCrownDrop", .type = JozzFieldType::Float, .lastInObject = false, .floatMember = &JozzVehicleM6WheelEnvelopeDesc::wheelCrownDrop },
+	{ .key = "wheelProfilePoints", .type = JozzFieldType::Int, .lastInObject = true, .intMember = &JozzVehicleM6WheelEnvelopeDesc::wheelProfilePoints },
 };
 
 template <typename T, size_t N>

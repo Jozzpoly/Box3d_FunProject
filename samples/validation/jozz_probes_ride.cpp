@@ -44,6 +44,7 @@ struct RideEnvelope
 	int mode;
 	int torusSegments;
 	int cylinderSides; // 0 = leave the configured default
+	float crownDrop;   // WHEEL only: how far the tread edges sit below the middle, m
 };
 
 struct RideSample
@@ -120,6 +121,7 @@ RideSample MeasureRide( const JozzVehiclePrimitiveDefaults& defaults, const Ride
 	{
 		config.wheelEnvelope.cylinderSides = envelope.cylinderSides;
 	}
+	config.wheelEnvelope.wheelCrownDrop = envelope.crownDrop;
 
 	b3WorldDef worldDef = b3DefaultWorldDef();
 	b3WorldId worldId = b3CreateWorld( &worldDef );
@@ -307,6 +309,37 @@ bool RunRideQualityDiagnosisProbe( const JozzVehiclePrimitiveDefaults& defaults 
 		char label[40];
 		std::snprintf( label, sizeof( label ), "%s /mesh", envelope.name );
 		std::printf( row, label, 16.0f, sample.meanSpeed, sample.accelRms, sample.accelMax, sample.travelRms,
+					 sample.pointsPerWheel, sample.freshPercent );
+		allFinite &= sample.finite;
+	}
+
+	// The tread's cross-section. Zero drop is a flat tread and MUST reproduce the
+	// plain row above to the last digit - that is the guard that says a knob at
+	// its default changes nothing. Above zero the tread bulges in the middle:
+	// fewer contact points on a flat plate, and the question is what that costs.
+	std::printf( "  --- przekroj biezni: wysklepienie (v_zad 16 m/s, plyta) ---\n" );
+	const RideEnvelope crownEnvelopes[] = {
+		{ "KOLO plaskie 0mm", JOZZ_M6_ENVELOPE_WHEEL, 0, 0, 0.000f },
+		{ "KOLO wyskl. 3mm", JOZZ_M6_ENVELOPE_WHEEL, 0, 0, 0.003f },
+		{ "KOLO wyskl. 10mm", JOZZ_M6_ENVELOPE_WHEEL, 0, 0, 0.010f },
+		{ "KOLO wyskl. 30mm", JOZZ_M6_ENVELOPE_WHEEL, 0, 0, 0.030f },
+	};
+	for ( const RideEnvelope& envelope : crownEnvelopes )
+	{
+		RideSample sample = MeasureRide( defaults, envelope, 16.0f, 0.0f, 4 );
+		std::printf( row, envelope.name, 16.0f, sample.meanSpeed, sample.accelRms, sample.accelMax, sample.travelRms,
+					 sample.pointsPerWheel, sample.freshPercent );
+		allFinite &= sample.finite;
+	}
+
+	// Same cross-sections, this time turning. A crowned tread is meant to earn
+	// its keep in a corner, where the wheel leans and a flat tread would be
+	// riding on the edge of its shoulder.
+	std::printf( "  --- przekroj biezni: w zakrecie (v_zad 12 m/s, skret 0,35) ---\n" );
+	for ( const RideEnvelope& envelope : crownEnvelopes )
+	{
+		RideSample sample = MeasureRide( defaults, envelope, 12.0f, 0.35f, 4 );
+		std::printf( row, envelope.name, 12.0f, sample.meanSpeed, sample.accelRms, sample.accelMax, sample.travelRms,
 					 sample.pointsPerWheel, sample.freshPercent );
 		allFinite &= sample.finite;
 	}

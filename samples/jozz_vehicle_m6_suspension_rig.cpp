@@ -155,12 +155,31 @@ int CreateJozzVehicleM6WheelEnvelope( b3BodyId wheelBodyId, const b3ShapeDef* sh
 		b3MassData sphereMass = b3Body_GetMassData( wheelBodyId );
 		b3DestroyShape( referenceId, false );
 
-		b3Wheel wheel;
-		wheel.center = b3Vec3_zero;
-		wheel.axis = { 0.0f, 1.0f, 0.0f }; // the wheel body spins about its local Y
-		wheel.radius = desc->radius;
-		wheel.halfWidth = 0.5f * desc->width;
-		wheel.cornerRadius = b3ClampFloat( desc->torusCrownRadius, 0.0f, 0.5f * desc->width );
+		b3Vec3 axle = { 0.0f, 1.0f, 0.0f }; // the wheel body spins about its local Y
+		float halfWidth = 0.5f * desc->width;
+		float cornerRadius = b3ClampFloat( desc->torusCrownRadius, 0.0f, halfWidth );
+
+		// The tread, drawn as a cross-section. The flat part runs between the
+		// two shoulders; the crown lifts its middle. A parabola, because that
+		// is what a circular crown looks like over a width this small and it
+		// needs no radius the owner would have to guess at.
+		float coreRadius = desc->radius - cornerRadius;
+		float coreHalfWidth = halfWidth - cornerRadius;
+		float drop = b3ClampFloat( desc->wheelCrownDrop, 0.0f, 0.5f * coreRadius );
+		int points = b3ClampInt( desc->wheelProfilePoints, 2, B3_MAX_WHEEL_PROFILE_POINTS );
+
+		b3Vec2 profile[B3_MAX_WHEEL_PROFILE_POINTS];
+		for ( int i = 0; i < points; ++i )
+		{
+			float t = ( points == 1 ) ? 0.0f : ( 2.0f * (float)i / (float)( points - 1 ) - 1.0f );
+			profile[i].x = coreHalfWidth * t;
+			profile[i].y = coreRadius - drop * t * t;
+		}
+
+		// Zero drop makes every point the same height, the maker throws the
+		// middle ones away as unreachable, and what is left is bit for bit the
+		// flat tread that was measured before this knob existed.
+		b3Wheel wheel = b3MakeWheelProfile( b3Vec3_zero, axle, profile, points, cornerRadius );
 		outShapeIds[0] = b3CreateWheelShape( wheelBodyId, shapeDef, &wheel );
 
 		b3Body_SetMassData( wheelBodyId, sphereMass );
