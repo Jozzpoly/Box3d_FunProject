@@ -814,8 +814,22 @@ ROZSTRZYGNIETE 2026-07-27
   O-4  naprawa przyrzadu NIE jest decyzja wlasciciela - to obowiazek agenta
   O-5  etap badawczy bez wyboru zwyciezcy; hybryda i jeden backend otwarte
 
+ROZSTRZYGNIETE 2026-08-03
+  O-6  KIERUNEK: wlasny kolider kola W RDZENIU box3d (droga "C").
+       Wlasciciel: "opcja C jest opcja o ktorej zdecydowalem bardzo dawno
+       ze sie jej trzymamy, pozwolilem edytowac box3d, zastanawialem sie
+       czemu ignorujesz to". Zgoda byla udzielona 2026-07-24 i zapisana
+       doslownie w naglowku KOLA_03. BLAD BYL MOJ: zamienilem udzielona
+       zgode na wymyslone przez siebie pytanie D-CORE-01, wpisalem do
+       KOLA_00 zdanie "nic nie rusza src/ przed D-CORE-01" i przez
+       dziesiec dni egzekwowalem wlasna bramke, badajac rodziny obwiedni
+       skladane ze stockowych ksztaltow. To ten sam wzorzec, co
+       feedback-listen-literally-when-repeated.
+  D-CORE-01  ROZSTRZYGNIETE. Domyka sie wlasnym warunkiem wyjatku z
+       KOLA_03 par. 8 (C1: zdolnosc dowiedzenie nieosiagalna inaczej).
+       Dowod: F-31 + F-36.
+
 OTWARTE
-  D-CORE-01  prymat utrzymywalnosci upstreamu (KOLA_03 §8)
   D-CORE-02  Zero-Delta-Off jako warunek konieczny
   D-CORE-03  aktualizacja do upstream/main teraz  <- starzeje sie
 ```

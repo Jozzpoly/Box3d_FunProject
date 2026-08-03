@@ -2,7 +2,16 @@
 
 Data: 2026-07-25 | Podstawa: decyzja właściciela z 2026-07-24 („możemy modyfikować
 Box3D dowolnie, ale fork musi dać się aktualizować")
-Status: **PROPOZYCJA TECHNICZNA DO ZATWIERDZENIA** (`D-CORE-01`)
+Status: **OBOWIĄZUJE** od 2026-08-03 (`D-CORE-01` rozstrzygnięte, `O-6`).
+
+> Ten dokument stał dziesięć dni jako „propozycja do zatwierdzenia", mimo że
+> zgoda właściciela z 2026-07-24 (cytat dwie linijki wyżej) była już udzielona.
+> Nikt na nic nie czekał poza mną. `D-CORE-01` domyka się **własnym warunkiem
+> wyjątku z §8**: „gdy zdolność jest dowiedzenie nieosiągalna inaczej
+> (warunek C1), utrzymywalność ustępuje". `F-31` (sztywna bryła nie daje
+> odcisku) i `F-36` (żadna bryła poza sferą nie potrafi się toczyć) są tym
+> dowodem — zdolności nie da się uzyskać ze słownika kształtów stockowego
+> Box3D. Patch klasy `X` idzie za jawną zgodą właściciela, która jest.
 
 Właściciel jawnie odmówił podawania arbitralnych liczb („10 patchy, 2 invasive").
 Miał rację — to była zła prośba z mojej strony. Poniżej polityka techniczna,

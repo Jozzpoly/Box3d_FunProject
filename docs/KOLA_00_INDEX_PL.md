@@ -477,5 +477,15 @@ Nie zakładamy osobnych plików CSV, dopóki liczba wpisów nie przekroczy czyte
 
 ## Otwarte decyzje właściciela
 
-Zapisane w `KOLA_04` §8. Nic w tym programie nie rusza `src/` przed decyzją
-`D-CORE-01`.
+Zapisane w `KOLA_04` §8.
+
+> **SPROSTOWANIE 2026-08-03.** Stało tu zdanie: „Nic w tym programie nie rusza
+> `src/` przed decyzją `D-CORE-01`". **To była moja bramka, nie decyzja
+> właściciela, i była błędna.** Właściciel dał zgodę na modyfikowanie Box3D
+> **2026-07-24** — jest zapisana dosłownie w nagłówku `KOLA_03`: „możemy
+> modyfikować Box3D dowolnie, ale fork musi dać się aktualizować". Zamieniłem
+> tę zgodę na wymyślone przez siebie pytanie (`D-CORE-01`), po czym przez
+> dziesięć dni czekałem na odpowiedź na własne pytanie i prowadziłem program
+> tak, jakby rdzeń był zamknięty. Właściciel 2026-08-03: „opcja C jest opcją
+> o której zdecydowałem bardzo dawno że się jej trzymamy (…) zastanawiałem się
+> czemu ignorujesz to". Kierunek: `O-6`.
