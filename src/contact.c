@@ -551,6 +551,12 @@ static bool b3ComputeConvexManifold( b3World* world, int workerIndex, b3Contact*
 		}
 	}
 
+	if ( geomManifold.pointCount > B3_MAX_MANIFOLD_POINTS )
+	{
+		B3_ASSERT( false );
+		geomManifold.pointCount = B3_MAX_MANIFOLD_POINTS;
+	}
+
 	if ( geomManifold.pointCount == 0 )
 	{
 		if ( contact->manifoldCount > 0 )

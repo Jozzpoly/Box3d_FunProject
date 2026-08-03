@@ -603,7 +603,8 @@ static void b3CollideWheelAndPlane( b3LocalManifold* manifold, int capacity, con
 	// Keep both edges of the band and spread the rest evenly between them: the
 	// WIDTH of the patch is what holds the car up, so the edges are the two
 	// points that must never be the ones dropped.
-	int limit = candidateCount < capacity ? candidateCount : capacity;
+	int manifoldCapacity = b3MinInt( capacity, B3_MAX_MANIFOLD_POINTS );
+	int limit = b3MinInt( candidateCount, manifoldCapacity );
 	int count = 0;
 	for ( int k = 0; k < limit; ++k )
 	{
