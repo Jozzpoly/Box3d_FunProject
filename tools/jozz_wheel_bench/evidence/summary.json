@@ -500,6 +500,17 @@
       },
       "tables": {}
     },
+    "q3_crown_profile_2026_08_03": {
+      "source_file": "run_q3_crown_profile_2026_08_03.txt",
+      "source_sha256": "b19213f725ba9a57ba58f5b81986a264254d9b69f98adc5ceb130c1e5118bbe1",
+      "source_bytes": 1888,
+      "provenance": {
+        "baza": "torus-N N=64 droga flat v_zad 4.00 k 13500 N/m zeta 0.350",
+        "kazdy punkt": "3 przebiegi z przesunietym startem, okno 600 po 120 rozgrzewki",
+        "build": "Release /O2, wheel_bench.exe"
+      },
+      "tables": {}
+    },
     "q3_crown_sweep_2026_07_31": {
       "source_file": "run_q3_crown_sweep_2026_07_31.txt",
       "source_sha256": "9d350f2c44a9f72608bc4b41b375d03dd08206b0d6afe19e0841b50258bed25a",

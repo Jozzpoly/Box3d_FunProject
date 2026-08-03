@@ -1,0 +1,29 @@
+=== Q3 - profil poprzeczny korony, przemiatanie dwoma osiami (2026-08-03) ===
+baza: torus-N N=64, R 0.5141, W 0.4375, crown_r 0.05, droga flat, v 4 m/s
+kazdy punkt: 3 przebiegi z przesunietym startem, okno 600 po 120 rozgrzewki
+build: Release /O2, wheel_bench.exe
+
+
+=== Q3 PRZEMIATANIE: rows od 1 do 9, 5 punktow ===
+baza: torus-N N=64 droga flat v_zad 4.00 k 13500 N/m zeta 0.350
+kazdy punkt to 3 przebiegi z przesunietym startem; +- to POLOWA ROZRZUTU
+
+punkt           shape  tetn_mm        moment Nm strata_W      a_rms m/s2   w powietrzu   churn% ms/krok
+rzedow=1           64    6.046     99.61+-0.00    775.0    0.075+-0.000    0.0+-0.0 %     25.5   0.072
+rzedow=3          192    6.046    101.31+-0.06    788.2    0.081+-0.000    0.0+-0.0 %     25.2   0.263
+rzedow=5          320    6.046    103.31+-0.00    803.8    0.080+-0.000    0.0+-0.0 %     27.0   0.578
+rzedow=7          448    6.046    102.43+-0.00    796.9    0.077+-0.000    0.0+-0.0 %     24.8   0.902
+rzedow=9          576    6.046    102.37+-0.00    796.5    0.082+-0.000    0.0+-0.0 %     27.4   1.286
+
+
+=== Q3 PRZEMIATANIE: drop od 0 do 0.16, 5 punktow ===
+baza: torus-N N=64 droga flat v_zad 4.00 k 13500 N/m zeta 0.350
+kazdy punkt to 3 przebiegi z przesunietym startem; +- to POLOWA ROZRZUTU
+
+punkt           shape  tetn_mm        moment Nm strata_W      a_rms m/s2   w powietrzu   churn% ms/krok
+zwis=0            320    6.046    102.66+-0.00    798.8    0.097+-0.000    0.0+-0.0 %     27.1   0.507
+zwis=0.04         320    6.046    101.50+-0.00    789.7    0.077+-0.000    0.0+-0.0 %     24.6   0.507
+zwis=0.08         320    6.046    103.31+-0.00    803.8    0.080+-0.000    0.0+-0.0 %     27.0   0.515
+zwis=0.12         320    6.046    102.82+-0.00    800.0    0.077+-0.000    0.0+-0.0 %     27.0   0.506
+zwis=0.16         320    6.046    102.85+-0.00    800.3    0.081+-0.000    0.0+-0.0 %     26.8   0.551
+

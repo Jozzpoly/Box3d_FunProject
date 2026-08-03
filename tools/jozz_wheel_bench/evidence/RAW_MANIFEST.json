@@ -30,6 +30,12 @@
       "sha256": "148a948f4fb55e693624cba6461c8777d80bfec49e186dae73f660779ba0d632",
       "bytes": 4293,
       "mode": "raw-only"
+    },
+    "q3_crown_profile_2026_08_03": {
+      "file": "run_q3_crown_profile_2026_08_03.txt",
+      "sha256": "b19213f725ba9a57ba58f5b81986a264254d9b69f98adc5ceb130c1e5118bbe1",
+      "bytes": 1888,
+      "mode": "raw-only"
     }
   }
 }

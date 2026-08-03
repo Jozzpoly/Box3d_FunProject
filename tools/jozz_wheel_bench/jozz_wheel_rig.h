@@ -106,6 +106,31 @@ typedef struct
 	// Ignorowane przez pozostale warianty.
 	float crownR;
 
+	// PROFIL POPRZECZNY korony.
+	//
+	// Do tej wersji bieznia `torus-N` byla ZAWSZE plaska, a `crownR` sluzyl naraz
+	// za promien barku i za jedyne pokretlo ksztaltu przekroju - czyli caly zakres
+	// opon, od twardej drogowej po miekka terenowa, mial do dyspozycji jedna
+	// liczbe, i to taka, ktora zwezala bieznie za kazdym razem, gdy chcialo sie
+	// zaokraglic bark. Prawdziwa opona ma te dwie rzeczy rozdzielone: bieznia jest
+	// WYSKLEPIONA (promien korony), a bark zaokraglony osobnym, o rzad mniejszym
+	// promieniem.
+	//
+	//   crownRows  ile rzedow kapsul lezy obok siebie w poprzek biezni
+	//   crownDrop  o ile promien barku jest MNIEJSZY od promienia srodka biezni
+	//
+	// Rzedy sa cena wysklepienia: pojedyncza kapsula o osi rownoleglej do osi kola
+	// daje w przekroju odcinek PROSTY, wiec luku nie da sie z niej zlozyc. Kolo ma
+	// przez to prismSides*crownRows ksztaltow i tyle samo razy drozszy kontakt -
+	// dlatego liczba rzedow jest jawnym polem konstrukcji, a nie wewnetrzna
+	// gestoscia siatki dobrana przez kod.
+	//
+	// Przy crownRows == 1 zwis nie ma sie na czym odlozyc i geometria jest
+	// DOKLADNIE ta sprzed tej zmiany. To warunek, nie zbieg okolicznosci: blokada
+	// zachowania i cala dotychczasowa tabela Q3 opisuja tamta bryle.
+	int crownRows;
+	float crownDrop;
+
 	// scena
 	float groundHalfX, groundHalfY, groundHalfZ;
 	float friction;
@@ -233,7 +258,47 @@ int JozzRig_MinTorusSegments( const JozzRigConfig* c );
 // Tetnienie promienia obwiedni w METRACH: R_nominalne - R_najmniejsze.
 // Jedyna liczba porownywalna MIEDZY wariantami wprost, bo nie zalezy od tego,
 // czy obwiednia jest z hulla, czy z kapsul. sphere = 0.
+//
+// Liczone na rzedzie o NAJWIEKSZYM promieniu, czyli tam, gdzie kolo naprawde
+// dotyka plaskiej plyty. Przy jednym rzedzie to dokladnie dawny wzor.
 double JozzRig_EnvelopeRipple( const JozzRigConfig* c );
+
+// --- profil poprzeczny (`torus-N`) -------------------------------------------
+// Ile kapsul ma cale kolo przy TEJ konstrukcji - do policzenia ceny PRZED
+// budowa. Poza torusem 1.
+int JozzRig_ShapeCount( const JozzRigConfig* c );
+
+#define JOZZ_RIG_CROWN_ROWS_MAX 9
+
+// Jeden rzad kapsul: gdzie lezy jego os i jaki ma promien. JEDNO zrodlo tej
+// geometrii dla budowy, dla rysunku przekroju i dla liczby odchylki - inaczej
+// rysunek bylby drugim, niezaleznym twierdzeniem o tym, co zbudowano.
+typedef struct
+{
+	double ringR;	// promien, na ktorym lezy os kapsul tego rzedu
+	double yCenter; // srodek rzedu wzdluz osi kola
+	double halfLen; // polowa dlugosci osi kapsuly
+	double capR;	// promien kapsuly
+} JozzRigTorusRow;
+
+// Zwraca liczbe wypelnionych rzedow albo 0, gdy konstrukcja jest bez sensu.
+int JozzRig_TorusRows( const JozzRigConfig* c, JozzRigTorusRow* out, int cap );
+
+// Promien wysklepienia korony wyliczony ze zwisu barku - liczba, ktora podaje
+// katalog opon. Zadaje sie ZWIS, bo zwis ma skonczony zakres i zero znaczy
+// "bieznia plaska", podczas gdy promien plaskiej korony to nieskonczonosc.
+double JozzRig_CrownRadius( const JozzRigConfig* c );
+
+// Promien obwiedni w odleglosci `y` od srodka biezni: ZAMOWIONY (gesty luk) i
+// ZBUDOWANY (te rzedy, ktore naprawde powstana). Ta sama funkcja liczy oba,
+// wiec ich roznica jest skutkiem WYLACZNIE liczby rzedow.
+double JozzRig_ProfileTarget( const JozzRigConfig* c, double y );
+double JozzRig_ProfileBuilt( const JozzRigConfig* c, double y );
+
+// Najwieksza odchylka zbudowanej obwiedni od zamowionego profilu, w metrach.
+// To jest miara jakosci REPREZENTACJI: mowi, ile ksztaltu opony gubi sie na
+// tym, ze przekroj sklada sie z odcinkow, a nie z luku.
+double JozzRig_ProfileError( const JozzRigConfig* c );
 
 // --- rig ---------------------------------------------------------------------
 

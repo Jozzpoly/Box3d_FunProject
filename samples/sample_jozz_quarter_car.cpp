@@ -164,6 +164,10 @@ struct WorkshopState
 	float liftH, kickNs, shakerHz, shakerN;
 	float grabForce;
 
+	JozzQcConfig openCfg, baseCfg;
+	char baseName[64];
+	float sizeSection, sizeAspect, sizeRim;
+
 	char shelfName[64];
 	char shelfNote[160];
 	char tab[32];
@@ -191,7 +195,6 @@ public:
 		// to, co sie bada.
 		m_cfg.targetSpeed = 4.0;
 		m_cfg.startSpeed = 4.0;
-		m_openCfg = m_cfg; // konstrukcja otwarcia warsztatu, do "reset calosci"
 		if ( context->restart && g_haveSaved )
 			RestoreWorkshop();
 
@@ -231,6 +234,15 @@ public:
 			{
 				snprintf( m_shelfMsg, sizeof( m_shelfMsg ), "BLAD JOZZ_QC_CONFIG: %s", err );
 			}
+		}
+
+		// Punkt otwarcia ustala sie PO zmiennych srodowiskowych i po pliku
+		// konstrukcji: warsztat otwarty z `JOZZ_QC_CONFIG` ma na "RESET WARSZTATU"
+		// wrocic do tego pliku, a nie do konstrukcji zaszytej w kodzie.
+		if ( m_restored == false )
+		{
+			m_openCfg = m_cfg;
+			SetBaseline( fromEnv.empty() ? "konstrukcja otwarcia" : fromEnv.c_str() );
 		}
 
 		Build();
@@ -320,6 +332,12 @@ public:
 		g_saved.shakerHz = m_shakerHz;
 		g_saved.shakerN = m_shakerN;
 		g_saved.grabForce = m_mouseForceScale;
+		g_saved.openCfg = m_openCfg;
+		g_saved.baseCfg = m_baseCfg;
+		g_saved.sizeSection = m_sizeSection;
+		g_saved.sizeAspect = m_sizeAspect;
+		g_saved.sizeRim = m_sizeRim;
+		snprintf( g_saved.baseName, sizeof( g_saved.baseName ), "%s", m_baseName );
 		snprintf( g_saved.shelfName, sizeof( g_saved.shelfName ), "%s", m_shelfName );
 		snprintf( g_saved.shelfNote, sizeof( g_saved.shelfNote ), "%s", m_shelfNote );
 		snprintf( g_saved.tab, sizeof( g_saved.tab ), "%s", m_openTab );
@@ -354,6 +372,14 @@ public:
 		m_shakerHz = g_saved.shakerHz;
 		m_shakerN = g_saved.shakerN;
 		m_mouseForceScale = g_saved.grabForce;
+		// Punkt otwarcia i punkt odniesienia sa czescia warsztatu tak samo jak
+		// tabela: bez nich "R" zerowal licznik zmian i przestawial cel "cofnij".
+		m_openCfg = g_saved.openCfg;
+		m_baseCfg = g_saved.baseCfg;
+		m_sizeSection = g_saved.sizeSection;
+		m_sizeAspect = g_saved.sizeAspect;
+		m_sizeRim = g_saved.sizeRim;
+		snprintf( m_baseName, sizeof( m_baseName ), "%s", g_saved.baseName );
 		snprintf( m_shelfName, sizeof( m_shelfName ), "%s", g_saved.shelfName );
 		snprintf( m_shelfNote, sizeof( m_shelfNote ), "%s", g_saved.shelfNote );
 		// Zakladka tez wraca: po "R" panel otwarty na "Zawieszenie" ma zostac na
@@ -493,6 +519,27 @@ public:
 			}
 			if ( m_cfg.crownR < 0.01f )
 				m_cfg.crownR = 0.01f;
+
+			// Rzedy i zwis. Zwis wiekszy niz polowa plaskiej biezni oznaczalby bark
+			// SCHOWANY pod srodkiem korony - profil, ktorego zaden luk nie opisuje.
+			if ( m_cfg.crownRows < 1 )
+				m_cfg.crownRows = 1;
+			if ( m_cfg.crownRows > JOZZ_RIG_CROWN_ROWS_MAX )
+				m_cfg.crownRows = JOZZ_RIG_CROWN_ROWS_MAX;
+			if ( m_cfg.crownDrop < 0.0f )
+				m_cfg.crownDrop = 0.0f;
+			{
+				float maxDrop = 0.5f * m_cfg.wheelW - m_cfg.crownR;
+				if ( maxDrop < 0.0f )
+					maxDrop = 0.0f;
+				if ( m_cfg.crownDrop > maxDrop )
+				{
+					size_t used = strlen( m_fixNote );
+					snprintf( m_fixNote + used, sizeof( m_fixNote ) - used, "%swysklepienie obcięte z %.3f na %.3f m",
+							  used ? "; " : "", (double)m_cfg.crownDrop, (double)maxDrop );
+					m_cfg.crownDrop = maxDrop;
+				}
+			}
 		}
 		int was = m_cfg.segments;
 		if ( JozzQc_ClampSegments( &m_cfg ) )
@@ -897,6 +944,8 @@ private:
 		if ( match < 0 )
 			ImGui::TextDisabled( "konstrukcja wlasna - poza lista stendu" );
 
+		TyreSizeBlock();
+
 		GroupHeader( "Obwiednia, wymiary i masa (przebudowa)", JOZZ_QC_GROUP_WHEEL );
 		int variant = (int)m_cfg.variant;
 		for ( int i = 0; i < JOZZ_RIG_VARIANT_COUNT; ++i )
@@ -938,6 +987,43 @@ private:
 						  "Ale Q3 nie mierzy przyczepnosci bocznej - jesli handel istnieje,\n"
 						  "lezy poza tym szczeblem." );
 			ImGui::Text( "minimum kapsul dla szczelnosci: %d", nMin );
+
+			// WYSKLEPIENIE. Do tej wersji bieznia byla zawsze plaska i `crownR` byl
+			// jedynym pokretlem ksztaltu przekroju - czyli twarda drogowa, miekka
+			// terenowa i motocyklowa mialy do dyspozycji te sama jedna liczbe.
+			IntRebuild( "rzedow w poprzek", &m_cfg.crownRows, 1, JOZZ_RIG_CROWN_ROWS_MAX,
+						"Ile kapsul lezy OBOK SIEBIE w poprzek biezni. Pojedyncza kapsula\n"
+						"daje w przekroju odcinek PROSTY, wiec bez rzedow bieznia jest\n"
+						"zawsze plaska i wysklepienia nie ma na czym odlozyc.\n"
+						"CENA jest wprost proporcjonalna: ksztaltow = N * rzedow, i tyle\n"
+						"samo razy drozszy kontakt. Dlatego jest to jawne pole konstrukcji,\n"
+						"a nie gestosc siatki dobrana przez kod.\n"
+						"1 = bryla sprzed tej zmiany, co do bitu." );
+
+			float maxDrop = 0.5f * m_cfg.wheelW - m_cfg.crownR;
+			if ( maxDrop < 0.0f )
+				maxDrop = 0.0f;
+			ImGui::BeginDisabled( m_cfg.crownRows < 2 );
+			FloatRebuild( "wysklepienie korony", &m_cfg.crownDrop, 0.0f, maxDrop > 0.0f ? maxDrop : 0.001f,
+						  "%.4f m",
+						  "O ile promien BARKU jest mniejszy od promienia srodka biezni.\n"
+						  "0 = bieznia plaska. Gorna granica to polowa plaskiej biezni,\n"
+						  "czyli korona w pelni okragla - przekroj motocyklowy.\n"
+						  "Opona drogowa ma tu kilka milimetrow, terenowa kilkanascie.\n"
+						  "Podawany jest ZWIS, a nie promien wysklepienia, bo zwis ma\n"
+						  "skonczony zakres, a promien plaskiej korony to nieskonczonosc." );
+			ImGui::EndDisabled();
+			if ( m_cfg.crownRows < 2 )
+				ImGui::TextDisabled( "wysklepienie potrzebuje co najmniej 2 rzedow" );
+			// Bez tego zdania nowe pokretlo wyglada na zepsute: Owner przesuwa je,
+			// patrzy w tabele i nie widzi ROZNICY - bo jej tam nie ma i nie moze byc.
+			if ( m_cfg.crownRows > 1 )
+				ImGui::TextColored( ImVec4( 0.65f, 0.75f, 0.95f, 1.0f ),
+									"F-26: na PLASKIEJ plycie te dwa pokretla nic nie zmienia\n"
+									"w liczbach (3.6%% rozrzutu bez kierunku, przy 23x koszcie CPU).\n"
+									"Plyta dotyka wylacznie wierzcholka korony, a obwiednia jest\n"
+									"SZTYWNA. Profil poprzeczny odezwie sie dopiero przy terenie\n"
+									"zmiennym w poprzek albo przy oponie, ktora sie ugina." );
 		}
 		if ( m_fixNote[0] )
 			ImGui::TextColored( ImVec4( 1.0f, 0.8f, 0.3f, 1.0f ), "konstrukcja poprawiona: %s", m_fixNote );
@@ -965,15 +1051,30 @@ private:
 			ImGui::TreePop();
 		}
 
+		if ( m_cfg.variant == JOZZ_RIG_TORUS )
+			DrawCrossSection( w );
+
 		ImGui::SeparatorText( "Co z tego wyszlo" );
 		double ripple = JozzRig_EnvelopeRipple( &w );
 		ImGui::Text( "tetnienie promienia  %.3f mm", 1000.0 * ripple );
 		if ( ImGui::IsItemHovered() )
-			ImGui::SetTooltip( "R nominalne minus R najmniejsze. Jedyna liczba porownywalna\n"
-							   "miedzy pryzmatem a pierscieniem kapsul wprost.\n"
+			ImGui::SetTooltip( "R nominalne minus R najmniejsze, WZDLUZ TOCZENIA. Jedyna liczba\n"
+							   "porownywalna miedzy pryzmatem a pierscieniem kapsul wprost.\n"
 							   "UWAGA (F-22): pomiar pokazal, ze to NIE ona rzadzi jakoscia\n"
 							   "toczenia - rzadza ostre krawedzie." );
-		ImGui::Text( "ksztaltow w ciele    %d", m_rig.shapeCount );
+		// Liczba ksztaltow ZAMOWIONYCH obok ZBUDOWANYCH: miedzy puszczeniem suwaka
+		// a przebudowa te dwie liczby sie roznia, a cena CPU jest w tym programie
+		// realnym argumentem - warto ja zobaczyc, zanim sie ja zaplaci.
+		int wantShapes = JozzRig_ShapeCount( &w );
+		if ( wantShapes != m_rig.shapeCount )
+			ImGui::Text( "ksztaltow w ciele    %d  ->  %d po przebudowie", m_rig.shapeCount, wantShapes );
+		else
+			ImGui::Text( "ksztaltow w ciele    %d", m_rig.shapeCount );
+		if ( wantShapes > 200 )
+			ImGui::TextColored( ImVec4( 1.0f, 0.8f, 0.3f, 1.0f ),
+								"%d ksztaltow - kontakt kosztuje tu kilkanascie razy tyle,\n"
+								"co pryzmat. To jest wynik, a nie usterka: cena wysklepienia.",
+								wantShapes );
 		if ( m_cfg.variant == JOZZ_RIG_TORUS )
 			ImGui::Text( "plaska bieznia       %.1f mm", 1000.0 * ( m_cfg.wheelW - 2.0f * m_cfg.crownR ) );
 		double facets = JozzRig_FacetsPerStep( &w, m_cfg.targetSpeed );
@@ -987,6 +1088,250 @@ private:
 		double vcrit = JozzRig_CriticalSpeed( &w );
 		if ( m_cfg.variant != JOZZ_RIG_SPHERE && vcrit > 1e-9 )
 			ImGui::Text( "v_kryt (obtoczenie)  %.2f m/s   v/v_kryt %.2f", vcrit, m_cfg.targetSpeed / vcrit );
+	}
+
+	// ---------------------------------------------------------- rozmiar opony
+	//
+	// Kolo opisuje sie w tym warsztacie dwiema liczbami w metrach, a w kazdym innym
+	// miejscu swiata - oznaczeniem `205/55R16`. Roznica nie jest kosmetyczna:
+	// "zbuduj mi opone terenowa" jest wykonalne w drugim jezyku i wymaga kalkulatora
+	// w pierwszym. Trzy pola i cztery przyciski zalatwiaja caly zakres, ktory ten
+	// program ma badac.
+	//
+	// Presety NIE sa listą "dobrych" opon - sa trzema swiatami, ktore maja wazyc
+	// tyle samo: twardy drift, zwykla jazda i duza miekka terenowa. Czwarty wpis to
+	// kolo stendu v2, czyli TOZSAMOSC, ktorej wymaga kazde porownanie z Q2A.
+	struct TyreSize
+	{
+		const char* label;
+		float sectionMm;
+		float aspectPct;
+		float rimIn;
+		const char* why;
+	};
+
+	void ApplyTyreSize( float sectionMm, float aspectPct, float rimIn, const char* name )
+	{
+		float w = 0.001f * sectionMm;
+		float r = 0.5f * rimIn * 0.0254f + 0.001f * sectionMm * aspectPct * 0.01f;
+		// Promien barku i wysklepienie skaluja sie RAZEM z szerokoscia, a nie tylko
+		// przycinaja do nowego zakresu. Powod jest praktyczny i zlapany na wlasnej
+		// probie: przy samym przycinaniu przejscie z kola stendu (W 437 mm) na
+		// 225/55R17 scinalo zwis z 18 mm na 0.1 mm i wychodzila korona o promieniu
+		// 25 m, czyli plyta. Rozmiar ma zmieniac ROZMIAR, a charakter przekroju
+		// zostawiac tam, gdzie go ustawiono.
+		if ( m_cfg.wheelW > 1e-6f )
+		{
+			float k = w / m_cfg.wheelW;
+			m_cfg.crownR *= k;
+			m_cfg.crownDrop *= k;
+		}
+		m_cfg.wheelW = w;
+		m_cfg.wheelR = r;
+		SetBaseline( name );
+		Build();
+	}
+
+	void TyreSizeBlock()
+	{
+		static const TyreSize kSizes[] = {
+			{ "stend v2", 437.5f, 0.0f, 0.0f, "Kolo, na ktorym stoi CALA dotychczasowa tabela.\n"
+											  "R 0.5141 / W 0.4375 - kazde porownanie z Q2A wymaga tych liczb." },
+			{ "235/40R18 drift", 235.0f, 40.0f, 18.0f, "Twarda, niska, szeroka. Maly zwis boku, duza obrecz." },
+			{ "225/55R17 droga", 225.0f, 55.0f, 17.0f, "Zwykla jazda. Punkt odniesienia dla 'normalnego' feelu." },
+			{ "35x12.5R15 offroad", 317.5f, 80.0f, 15.0f, "Duza miekka terenowa: 889 mm srednicy na 15-calowej\n"
+														  "obreczy. Trzeci swiat, wazny tyle samo co dwa poprzednie." },
+		};
+
+		if ( ImGui::TreeNodeEx( "Rozmiar opony", ImGuiTreeNodeFlags_DefaultOpen ) )
+		{
+			for ( int i = 0; i < (int)( sizeof( kSizes ) / sizeof( kSizes[0] ) ); ++i )
+			{
+				if ( i > 0 && ( i % 2 ) != 0 )
+					ImGui::SameLine();
+				if ( ImGui::Button( kSizes[i].label ) )
+				{
+					if ( kSizes[i].rimIn <= 0.0f )
+					{
+						// Kolo stendu nie jest rozmiarem katalogowym - jest zestawem
+						// liczb z kontraktu i wraca DOKLADNIE, razem z korona. Inaczej
+						// przycisk oddawalby wymiar zarejestrowanego kandydata, ale
+						// nie jego ksztalt - a tabela nazwalaby to i tak `torus-64`.
+						JozzQcConfig d = JozzQc_DefaultConfig();
+						m_cfg.wheelR = d.wheelR;
+						m_cfg.wheelW = d.wheelW;
+						m_cfg.crownR = d.crownR;
+						m_cfg.crownRows = d.crownRows;
+						m_cfg.crownDrop = d.crownDrop;
+						SetBaseline( kSizes[i].label );
+						Build();
+					}
+					else
+					{
+						m_sizeSection = kSizes[i].sectionMm;
+						m_sizeAspect = kSizes[i].aspectPct;
+						m_sizeRim = kSizes[i].rimIn;
+						ApplyTyreSize( m_sizeSection, m_sizeAspect, m_sizeRim, kSizes[i].label );
+					}
+				}
+				if ( ImGui::IsItemHovered() )
+					ImGui::SetTooltip( "%s", kSizes[i].why );
+			}
+
+			// Trzy pola bez etykiet, rozdzielone `/` i `R` - czyta sie jak oznaczenie na
+			// boku opony. Etykiety obok kazdego pola nie mieszcza sie w panelu i
+			// wypychaly trzecie poza krawedz (sprawdzone na ekranie, nie policzone).
+			ImGui::PushItemWidth( 58.0f );
+			ImGui::InputFloat( "##sekcja", &m_sizeSection, 0.0f, 0.0f, "%.0f" );
+			ImGui::SameLine( 0.0f, 4.0f );
+			ImGui::TextUnformatted( "/" );
+			ImGui::SameLine( 0.0f, 4.0f );
+			ImGui::InputFloat( "##profil", &m_sizeAspect, 0.0f, 0.0f, "%.0f" );
+			ImGui::SameLine( 0.0f, 4.0f );
+			ImGui::TextUnformatted( "R" );
+			ImGui::SameLine( 0.0f, 4.0f );
+			ImGui::InputFloat( "##obrecz", &m_sizeRim, 0.0f, 0.0f, "%.0f" );
+			ImGui::PopItemWidth();
+			ImGui::TextDisabled( "szerokosc przekroju [mm] / profil [%%] / obrecz [cal]" );
+
+			float wantW = 0.001f * m_sizeSection;
+			float wantR = 0.5f * m_sizeRim * 0.0254f + 0.001f * m_sizeSection * m_sizeAspect * 0.01f;
+			ImGui::Text( "%.0f/%.0fR%.0f  ->  R %.4f m   W %.4f m   srednica %.0f mm", (double)m_sizeSection,
+						 (double)m_sizeAspect, (double)m_sizeRim, (double)wantR, (double)wantW,
+						 2000.0 * (double)wantR );
+			if ( ImGui::Button( "zastosuj rozmiar" ) )
+			{
+				char name[64];
+				snprintf( name, sizeof( name ), "%.0f/%.0fR%.0f", (double)m_sizeSection, (double)m_sizeAspect,
+						  (double)m_sizeRim );
+				ApplyTyreSize( m_sizeSection, m_sizeAspect, m_sizeRim, name );
+			}
+			ImGui::SameLine();
+			// Odczyt WSTECZNY. Nie zgadujemy obreczy - bierzemy te z pola obok i
+			// mowimy, jaki profil z niej wychodzi dla kola, ktore stoi w rigu.
+			float sidewall = m_cfg.wheelR - 0.5f * m_sizeRim * 0.0254f;
+			float aspectNow = m_cfg.wheelW > 1e-6f ? 100.0f * sidewall / m_cfg.wheelW : 0.0f;
+			if ( sidewall > 0.0f )
+				ImGui::TextDisabled( "w rigu: %.0f/%.0fR%.0f", 1000.0 * (double)m_cfg.wheelW, (double)aspectNow,
+									 (double)m_sizeRim );
+			else
+				ImGui::TextDisabled( "w rigu: R %.4f - obrecz %.0f\" sie nie miesci", (double)m_cfg.wheelR,
+									 (double)m_sizeRim );
+			ImGui::TreePop();
+		}
+	}
+
+	// ------------------------------------------------------- przekroj opony
+	//
+	// Po co rysunek, skoro sa liczby: pytanie brzmi "na ile ta reprezentacja JEST
+	// opona", a na to nie odpowiada zadna pojedyncza liczba. Rysowane sa trzy rzeczy
+	// naraz - profil ZAMOWIONY (gesty luk), obwiednia ZBUDOWANA (te kapsuly, ktore
+	// naprawde powstana) i osie rzedow, czyli to, skad bierze sie schodek miedzy
+	// nimi. Wszystkie trzy pochodza z jozz_wheel_rig, wiec rysunek nie jest drugim,
+	// niezaleznym twierdzeniem o tym, co zbudowano.
+	//
+	// Skala pionowa jest DOPASOWANA i podana wprost. Bez przewyzszenia wysklepienie
+	// rzedu 5 mm na promieniu 514 mm jest cienkie na ulamek piksela; bez podanej
+	// liczby rysunek klamalby o proporcjach opony (ta sama zasada co przy sladzie
+	// nadwozia).
+	void DrawCrossSection( const JozzRigConfig& w )
+	{
+		ImGui::SeparatorText( "Przekroj opony" );
+
+		constexpr int kSamples = 161;
+		double want[kSamples], built[kSamples];
+		float halfW = 0.4995f * m_cfg.wheelW;
+		double lo = 1e30, hi = -1e30;
+		int valid = 0;
+		for ( int i = 0; i < kSamples; ++i )
+		{
+			double y = -halfW + 2.0 * halfW * (double)i / (double)( kSamples - 1 );
+			want[i] = JozzRig_ProfileTarget( &w, y );
+			built[i] = JozzRig_ProfileBuilt( &w, y );
+			if ( want[i] <= 0.0 || built[i] <= 0.0 )
+				continue;
+			valid += 1;
+			lo = std::min( lo, std::min( want[i], built[i] ) );
+			hi = std::max( hi, std::max( want[i], built[i] ) );
+		}
+		if ( valid < 2 || hi <= lo )
+		{
+			ImGui::TextDisabled( "ta konstrukcja nie ma przekroju do pokazania" );
+			return;
+		}
+
+		float pad = 10.0f;
+		ImVec2 size( ImGui::GetContentRegionAvail().x, 150.0f );
+		if ( size.x < 120.0f )
+			size.x = 120.0f;
+		ImVec2 p0 = ImGui::GetCursorScreenPos();
+		ImGui::InvisibleButton( "##przekroj", size );
+		ImDrawList* dl = ImGui::GetWindowDrawList();
+		dl->AddRectFilled( p0, ImVec2( p0.x + size.x, p0.y + size.y ), IM_COL32( 24, 26, 30, 255 ), 3.0f );
+		dl->AddRect( p0, ImVec2( p0.x + size.x, p0.y + size.y ), IM_COL32( 70, 74, 82, 255 ), 3.0f );
+
+		double span = hi - lo;
+		if ( span < 1e-6 )
+			span = 1e-6;
+		lo -= 0.15 * span;
+		hi += 0.15 * span;
+		float mx = ( size.x - 2.0f * pad ) / ( 2.0f * halfW );
+		float my = (float)( ( size.y - 2.0f * pad ) / ( hi - lo ) );
+		auto px = [&]( double y ) { return p0.x + pad + (float)( ( y + halfW ) * mx ); };
+		auto py = [&]( double r ) { return p0.y + size.y - pad - (float)( ( r - lo ) * my ); };
+
+		// os symetrii
+		dl->AddLine( ImVec2( px( 0.0 ), p0.y + pad ), ImVec2( px( 0.0 ), p0.y + size.y - pad ),
+					 IM_COL32( 60, 64, 72, 255 ) );
+
+		// osie rzedow - zrodlo schodka
+		JozzRigTorusRow rows[JOZZ_RIG_CROWN_ROWS_MAX];
+		int m = JozzRig_TorusRows( &w, rows, JOZZ_RIG_CROWN_ROWS_MAX );
+		for ( int j = 0; j < m; ++j )
+		{
+			ImVec2 a( px( rows[j].yCenter - rows[j].halfLen ), py( rows[j].ringR ) );
+			ImVec2 b( px( rows[j].yCenter + rows[j].halfLen ), py( rows[j].ringR ) );
+			dl->AddLine( a, b, IM_COL32( 120, 130, 150, 255 ), 2.0f );
+			dl->AddCircleFilled( ImVec2( px( rows[j].yCenter ), py( rows[j].ringR ) ), 2.5f,
+								 IM_COL32( 150, 160, 180, 255 ) );
+		}
+
+		for ( int i = 1; i < kSamples; ++i )
+		{
+			if ( want[i - 1] > 0.0 && want[i] > 0.0 )
+				dl->AddLine( ImVec2( px( -halfW + 2.0 * halfW * ( i - 1 ) / ( kSamples - 1 ) ), py( want[i - 1] ) ),
+							 ImVec2( px( -halfW + 2.0 * halfW * i / ( kSamples - 1 ) ), py( want[i] ) ),
+							 IM_COL32( 230, 190, 90, 255 ), 2.0f );
+			if ( built[i - 1] > 0.0 && built[i] > 0.0 )
+				dl->AddLine( ImVec2( px( -halfW + 2.0 * halfW * ( i - 1 ) / ( kSamples - 1 ) ), py( built[i - 1] ) ),
+							 ImVec2( px( -halfW + 2.0 * halfW * i / ( kSamples - 1 ) ), py( built[i] ) ),
+							 IM_COL32( 110, 220, 130, 255 ), 2.0f );
+		}
+
+		double exaggeration = (double)my / (double)mx;
+		dl->AddText( ImVec2( p0.x + 6.0f, p0.y + 4.0f ), IM_COL32( 150, 155, 165, 255 ), "zolty = zamowiony" );
+		dl->AddText( ImVec2( p0.x + 6.0f, p0.y + 18.0f ), IM_COL32( 150, 155, 165, 255 ), "zielony = zbudowany" );
+		{
+			char scale[64];
+			snprintf( scale, sizeof( scale ), "pion x%.0f", exaggeration );
+			dl->AddText( ImVec2( p0.x + size.x - 80.0f, p0.y + 4.0f ), IM_COL32( 230, 200, 120, 255 ), scale );
+		}
+
+		ImGui::TextWrapped( "Skala PIONOWA przewyzszona x%.0f - inaczej wysklepienie rzedu milimetrow bylo by "
+							"cienkie na ulamek piksela. Proporcje opony czytaj z liczb, nie z rysunku.",
+							exaggeration );
+		double err = JozzRig_ProfileError( &w );
+		double crownRadius = JozzRig_CrownRadius( &w );
+		ImGui::Text( "odchylka od profilu  %.2f mm", 1000.0 * err );
+		if ( ImGui::IsItemHovered() )
+			ImGui::SetTooltip( "Najwieksza roznica miedzy obwiednia ZBUDOWANA a zamowionym lukiem.\n"
+							   "To jest miara jakosci REPREZENTACJI: ile ksztaltu opony gubi sie\n"
+							   "na tym, ze przekroj sklada sie z odcinkow, a nie z luku.\n"
+							   "Rosnie ze zwisem, maleje z liczba rzedow." );
+		if ( crownRadius > 0.0 )
+			ImGui::Text( "promien wysklepienia %.2f m", crownRadius );
+		else
+			ImGui::TextDisabled( "promien wysklepienia - bieznia plaska" );
 	}
 
 	// ZAWIESZENIE: jedyna zakladka, w ktorej WIEKSZOSC pokretel dziala na zywo.
@@ -1195,8 +1540,17 @@ private:
 		if ( m_winSteps > 0 )
 		{
 			ImGui::Text( "moment  %8.2f Nm      strata   %8.1f W", m_winLive.driveTorqueMean, m_winLive.lossPower );
-			ImGui::Text( "a_rms   %8.3f m/s2    skok rms %8.1f mm", m_winLive.sprungAccelRms,
-						 1000.0 * m_winLive.travelRms );
+			ImGui::Text( "a_rms   %8.3f m/s2    skok dyn %8.2f mm", m_winLive.sprungAccelRms,
+						 1000.0 * m_winLive.travelDynRms );
+			if ( ImGui::IsItemHovered() )
+				ImGui::SetTooltip( "Skok DYNAMICZNY: odchylenie od sredniej okna, czyli ile zawieszenie\n"
+								   "naprawde pracuje. Kolumna 'skok rms' liczy od zera wiezu, wiec\n"
+								   "zawiera w sobie ugiecie statyczne (%.1f mm) i przy kazdym\n"
+								   "kandydacie wychodzila niemal ta sama.\n"
+								   "skok rms %.1f mm, srednia %.1f mm, zakres %.1f .. %.1f mm",
+								   1000.0 * JozzQc_StaticSag( &m_cfg ), 1000.0 * m_winLive.travelRms,
+								   1000.0 * m_winLive.travelMean, 1000.0 * m_winLive.travelMin,
+								   1000.0 * m_winLive.travelMax );
 			ImGui::Text( "powietrze %6.1f %%      churn    %8.1f %%", 100.0 * m_winLive.airborneFraction,
 						 m_winLive.contactChurnPct );
 			ImGui::Text( "poslizg %8.4f        v srednie %7.3f m/s", m_winLive.slipRatioMean, m_winLive.speedMean );
@@ -1245,7 +1599,8 @@ private:
 	{
 		if ( ImGui::TreeNode( "Przemiataj jeden parametr" ) )
 		{
-			static const char* names[] = { "elementow obwodu", "promien korony", "sztywnosc", "predkosc zadana",
+			static const char* names[] = { "elementow obwodu", "promien korony",  "rzedow w poprzek",
+										   "wysklepienie korony", "sztywnosc", "predkosc zadana",
 										   "wysokosc progu" };
 			ImGui::Combo( "parametr", &m_sweepParam, names, (int)( sizeof( names ) / sizeof( names[0] ) ) );
 			if ( m_sweepParam != m_sweepParamPrev )
@@ -1280,10 +1635,18 @@ private:
 				m_sweepTo = 0.4995f * m_cfg.wheelW;
 				break;
 			case 2:
+				m_sweepFrom = 1.0f;
+				m_sweepTo = (float)JOZZ_RIG_CROWN_ROWS_MAX;
+				break;
+			case 3:
+				m_sweepFrom = 0.0f;
+				m_sweepTo = std::max( 0.001f, 0.5f * m_cfg.wheelW - m_cfg.crownR );
+				break;
+			case 4:
 				m_sweepFrom = 6000.0f;
 				m_sweepTo = 30000.0f;
 				break;
-			case 3:
+			case 5:
 				m_sweepFrom = 1.0f;
 				m_sweepTo = 8.0f;
 				break;
@@ -1314,10 +1677,18 @@ private:
 					snprintf( tag, sizeof( tag ), "crown=%.3f", (double)v );
 					break;
 				case 2:
+					m_cfg.crownRows = (int)( v + 0.5f );
+					snprintf( tag, sizeof( tag ), "rzedow=%d", m_cfg.crownRows );
+					break;
+				case 3:
+					m_cfg.crownDrop = v;
+					snprintf( tag, sizeof( tag ), "zwis=%.0fmm", 1000.0 * (double)v );
+					break;
+				case 4:
 					m_cfg.springNPerM = v;
 					snprintf( tag, sizeof( tag ), "k=%.0f", (double)v );
 					break;
-				case 3:
+				case 5:
 					m_cfg.targetSpeed = (double)v;
 					m_cfg.startSpeed = (double)v;
 					snprintf( tag, sizeof( tag ), "v=%.2f", (double)v );
@@ -1331,8 +1702,15 @@ private:
 			// da sie zbudowac, ma dac SASIEDNIA budowalna konstrukcje z jawna
 			// etykieta, a nie przerwac przemiatanie w polowie.
 			NormalizeConstruction();
+			// Etykieta MUSI opisywac konstrukcje po normalizacji, a nie zamowiona:
+			// inaczej dwa punkty scisniete do tej samej granicy staja w tabeli pod
+			// dwiema roznymi nazwami i wygladaja jak dwa rozne pomiary.
 			if ( m_sweepParam == 0 )
 				snprintf( tag, sizeof( tag ), "N=%d", m_cfg.segments );
+			else if ( m_sweepParam == 2 )
+				snprintf( tag, sizeof( tag ), "rzedow=%d", m_cfg.crownRows );
+			else if ( m_sweepParam == 3 )
+				snprintf( tag, sizeof( tag ), "zwis=%.0fmm", 1000.0 * (double)m_cfg.crownDrop );
 			MeasureNow( tag );
 		}
 		m_cfg = save;
@@ -1369,14 +1747,16 @@ private:
 		float tableH = rowH * ( 3.2f + (float)std::min<size_t>( m_rows.size(), 10 ) );
 		ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit |
 								ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY;
-		if ( ImGui::BeginTable( "qc_rows", 8, flags, ImVec2( 0.0f, tableH ) ) )
+		if ( ImGui::BeginTable( "qc_rows", 10, flags, ImVec2( 0.0f, tableH ) ) )
 		{
 			ImGui::TableSetupScrollFreeze( 2, 1 );
 			ImGui::TableSetupColumn( "" );
 			ImGui::TableSetupColumn( "konstrukcja" );
+			ImGui::TableSetupColumn( "ksz" );
 			ImGui::TableSetupColumn( "tetn" );
 			ImGui::TableSetupColumn( "strata W" );
 			ImGui::TableSetupColumn( "a_rms" );
+			ImGui::TableSetupColumn( "skok dyn" );
 			ImGui::TableSetupColumn( "air" );
 			ImGui::TableSetupColumn( "churn" );
 			ImGui::TableSetupColumn( "ms" );
@@ -1412,10 +1792,19 @@ private:
 									   r.cell.invalid ? r.cell.why : "przebieg wazny" );
 
 				ImGui::TableNextColumn();
+				ImGui::Text( "%d", r.cell.shapes );
+				ImGui::TableNextColumn();
 				ImGui::Text( "%.3f", 1000.0 * r.cell.ripple );
 
 				DeltaCell( r.cell.loss, base.cell.loss, i == m_baseRow, "%.1f", true );
 				DeltaCell( r.cell.accel, base.cell.accel, i == m_baseRow, "%.3f", true );
+
+				ImGui::TableNextColumn();
+				ImGui::Text( "%.2f", 1000.0 * r.cell.travelDyn );
+				if ( ImGui::IsItemHovered() )
+					ImGui::SetTooltip( "Skok dynamiczny w mm - odchylenie od sredniej okna.\n"
+									   "Kolumna 'skok rms' z tabeli stendu zawiera ugiecie statyczne\n"
+									   "i przez to nie rozroznia kandydatow." );
 
 				ImGui::TableNextColumn();
 				if ( r.cell.invalid )
@@ -1719,6 +2108,7 @@ private:
 		if ( ImGui::Button( "konstrukcja kontraktowa" ) )
 		{
 			m_cfg = JozzQc_DefaultConfig();
+			SetBaseline( "konstrukcja kontraktowa" );
 			Build();
 		}
 		if ( ImGui::IsItemHovered() )
@@ -1811,13 +2201,20 @@ private:
 		return done;
 	}
 
-	// Naglowek sekcji z licznikiem zmian i przyciskiem przywracania. Licznik
-	// odpowiada na pytanie, ktore pada po kwadransie pracy i na ktore panel bez
-	// niego nie odpowiada: co ja wlasciwie poruszylem. Grupy pol pochodza z
-	// tabeli `.qc`, wiec nie da sie dodac pola, ktorego licznik nie widzi.
+	// Naglowek sekcji z licznikiem zmian i przyciskiem cofania. Licznik odpowiada
+	// na pytanie, ktore pada po kwadransie pracy i na ktore panel bez niego nie
+	// odpowiada: co ja wlasciwie poruszylem. Grupy pol pochodza z tabeli `.qc`,
+	// wiec nie da sie dodac pola, ktorego licznik nie widzi.
+	//
+	// PUNKTEM ODNIESIENIA jest `m_baseCfg`, czyli ostatnia SWIADOMIE wybrana cala
+	// konstrukcja, a nie konstrukcja kontraktowa. Dopoki bylo odwrotnie, przycisk
+	// robil cos zupelnie innego, niz obiecywal: warsztat otwiera sie na `torus-64`,
+	// a kontraktowa jest `sphere`, wiec "cofnij moje zmiany w kole" zamienialo
+	// badane kolo w KULE, a licznik na swiezo otwartym oknie od razu pokazywal
+	// dwa zmienione pola. Zlapane realna interakcja, nie testem.
 	void GroupHeader( const char* title, const char* group )
 	{
-		int changed = JozzQc_ChangedInGroup( &m_cfg, group );
+		int changed = JozzQc_ChangedInGroup( &m_cfg, &m_baseCfg, group );
 		if ( changed > 0 )
 		{
 			char buf[96];
@@ -1831,9 +2228,9 @@ private:
 
 		ImGui::PushID( group );
 		ImGui::BeginDisabled( changed == 0 );
-		if ( ImGui::SmallButton( "przywroc domyslne" ) )
+		if ( ImGui::SmallButton( "cofnij zmiany" ) )
 		{
-			JozzQc_ResetGroup( &m_cfg, group );
+			JozzQc_ResetGroup( &m_cfg, &m_baseCfg, group );
 			Build();
 		}
 		ImGui::EndDisabled();
@@ -1841,10 +2238,22 @@ private:
 		if ( ImGui::IsItemHovered( ImGuiHoveredFlags_AllowWhenDisabled ) )
 		{
 			if ( changed )
-				ImGui::SetTooltip( "Przywraca %d pol sekcji '%s' do wartosci kontraktowych.", changed, group );
+				ImGui::SetTooltip( "Cofa %d pol sekcji '%s' do punktu odniesienia: %s.\n"
+								   "Punkt odniesienia przesuwa sie przy wczytaniu z polki,\n"
+								   "przy wyborze rozmiaru opony, przy 'konstrukcji kontraktowej'\n"
+								   "i przy RESECIE WARSZTATU - czyli przy kazdym wyborze CALEJ\n"
+								   "konstrukcji, a nie przy pojedynczym suwaku.",
+								   changed, group, m_baseName );
 			else
-				ImGui::SetTooltip( "Wszystkie pola sekcji '%s' sa kontraktowe.", group );
+				ImGui::SetTooltip( "Sekcja '%s' jest zgodna z punktem odniesienia: %s.", group, m_baseName );
 		}
+	}
+
+	// Ustawia biezaca konstrukcje jako punkt, do ktorego cofaja przyciski sekcji.
+	void SetBaseline( const char* why )
+	{
+		m_baseCfg = m_cfg;
+		snprintf( m_baseName, sizeof( m_baseName ), "%s", why );
 	}
 
 	// ---------------------------------------------------------- stanowisko
@@ -1902,6 +2311,7 @@ private:
 	void ResetWorkshop()
 	{
 		m_cfg = m_openCfg;
+		SetBaseline( "konstrukcja otwarcia" );
 		m_benchMode = false;
 		m_shakerOn = false;
 		m_liftH = 0.25f;
@@ -1919,8 +2329,20 @@ private:
 		snprintf( m_shelfMsg, sizeof( m_shelfMsg ), "warsztat zresetowany do stanu otwarcia okna" );
 	}
 
+	// Kandydat stendu to nie sam wariant i N - to KONKRETNE kolo o wymiarach z
+	// kontraktu. Dopoki sprawdzalo sie tylko te dwa pola, opona 35x12.5 z
+	// wysklepiona korona i 64 kapsulami trafiala do tabeli pod etykieta `torus-64`,
+	// czyli pod nazwa zarejestrowanego kandydata, ktorym nie byla. Od chwili, gdy
+	// da sie zbudowac dowolny rozmiar, ta pomylka jest droga do porownania dwoch
+	// roznych kol jako jednego.
 	int MatchCandidate() const
 	{
+		JozzQcConfig d = JozzQc_DefaultConfig();
+		if ( m_cfg.wheelR != d.wheelR || m_cfg.wheelW != d.wheelW )
+			return -1;
+		if ( m_cfg.variant == JOZZ_RIG_TORUS &&
+			 ( m_cfg.crownR != d.crownR || m_cfg.crownRows != d.crownRows || m_cfg.crownDrop != d.crownDrop ) )
+			return -1;
 		for ( int i = 0; i < m_candCount; ++i )
 			if ( m_cand[i].variant == m_cfg.variant &&
 				 ( m_cfg.variant == JOZZ_RIG_SPHERE || m_cand[i].segments == m_cfg.segments ) )
@@ -1984,6 +2406,7 @@ private:
 			r.cell.accel = one.win.sprungAccelRms;
 			r.cell.airborne = one.win.airborneFraction;
 			r.cell.travelRms = one.win.travelRms;
+			r.cell.travelDyn = one.win.travelDynRms;
 			r.cell.churn = one.win.contactChurnPct;
 			r.cell.slip = one.win.slipRatioMean;
 			r.cell.speed = one.win.speedMean;
@@ -2002,12 +2425,19 @@ private:
 		int match = MatchCandidate();
 		snprintf( r.label, sizeof( r.label ), "%s%s%s%s", match >= 0 ? m_cand[match].label : "wlasna",
 				  extra ? " " : "", extra ? extra : "", m_fullProtocol ? "" : " (szybki)" );
+		char crown[96];
+		crown[0] = '\0';
+		if ( m_cfg.variant == JOZZ_RIG_TORUS )
+			snprintf( crown, sizeof( crown ), "  korona %.0f mm x %d rzed(ow), zwis %.1f mm",
+					  1000.0 * (double)m_cfg.crownR, m_cfg.crownRows, 1000.0 * (double)m_cfg.crownDrop );
 		snprintf( r.detail, sizeof( r.detail ),
-				  "%s N=%d  droga %s  v %.2f m/s  k %.0f N/m  zeta %.2f\n"
+				  "%s N=%d  R %.4f m  W %.4f m%s\n"
+				  "droga %s  v %.2f m/s  k %.0f N/m  zeta %.2f\n"
 				  "%d przebieg(ow), okno %d krokow, ksztaltow %d",
 				  JozzRig_VariantName( m_cfg.variant ), m_cfg.variant == JOZZ_RIG_SPHERE ? 0 : m_cfg.segments,
-				  JozzQc_RoadName( m_cfg.road ), m_cfg.targetSpeed, (double)m_cfg.springNPerM, (double)m_cfg.zeta,
-				  r.cell.repeats, window, r.cell.shapes );
+				  (double)m_cfg.wheelR, (double)m_cfg.wheelW, crown, JozzQc_RoadName( m_cfg.road ),
+				  m_cfg.targetSpeed, (double)m_cfg.springNPerM, (double)m_cfg.zeta, r.cell.repeats, window,
+				  r.cell.shapes );
 		m_rows.push_back( r );
 		snprintf( m_rowsMsg, sizeof( m_rowsMsg ), "wiersz dodany: %s", r.label );
 
@@ -2051,17 +2481,22 @@ private:
 		// sie odroznic od bench-grade po samym pliku, bez pamiecia o kliknietym
 		// przelaczniku.
 		fprintf( f, "# Q3 - pomiary z okna warsztatu (Quarter Car Scope)\n" );
-		fprintf( f, "candidate,repeats,segments,shapes,ripple_mm,road,target_v,drive_torque_nm,torque_spread,"
-					"loss_power_w,sprung_accel_rms,accel_spread,airborne_frac,airborne_spread,travel_rms,"
-					"churn_pct,slip_mean,speed_mean,ms_per_step,valid,why\n" );
+		// Geometria kola idzie do pliku WPROST, a nie tylko przez etykiete: od chwili,
+		// gdy da sie zbudowac dowolny rozmiar i dowolne wysklepienie, "wlasna" w
+		// kolumnie `candidate` przestaje cokolwiek znaczyc.
+		fprintf( f, "candidate,repeats,segments,shapes,ripple_mm,wheel_r,wheel_w,crown_r,crown_rows,crown_drop,"
+					"road,target_v,drive_torque_nm,torque_spread,loss_power_w,sprung_accel_rms,accel_spread,"
+					"airborne_frac,airborne_spread,travel_rms,travel_dyn_rms,churn_pct,slip_mean,speed_mean,"
+					"ms_per_step,valid,why\n" );
 		for ( const Row& r : m_rows )
-			fprintf( f, "%s,%d,%d,%d,%.6f,%s,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,"
-						"%.17g,%.17g,%d,%s\n",
+			fprintf( f, "%s,%d,%d,%d,%.6f,%.9g,%.9g,%.9g,%d,%.9g,%s,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,"
+						"%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%d,%s\n",
 					 r.label, r.cell.repeats, r.cfg.variant == JOZZ_RIG_SPHERE ? 0 : r.cfg.segments, r.cell.shapes,
-					 1000.0 * r.cell.ripple, JozzQc_RoadName( r.cfg.road ), r.cfg.targetSpeed, r.cell.torque,
-					 r.cell.torqueSpread, r.cell.loss, r.cell.accel, r.cell.accelSpread, r.cell.airborne,
-					 r.cell.airborneSpread, r.cell.travelRms, r.cell.churn, r.cell.slip, r.cell.speed,
-					 r.cell.msPerStep, r.cell.invalid ? 0 : 1, r.cell.why );
+					 1000.0 * r.cell.ripple, (double)r.cfg.wheelR, (double)r.cfg.wheelW, (double)r.cfg.crownR,
+					 r.cfg.crownRows, (double)r.cfg.crownDrop, JozzQc_RoadName( r.cfg.road ), r.cfg.targetSpeed,
+					 r.cell.torque, r.cell.torqueSpread, r.cell.loss, r.cell.accel, r.cell.accelSpread,
+					 r.cell.airborne, r.cell.airborneSpread, r.cell.travelRms, r.cell.travelDyn, r.cell.churn,
+					 r.cell.slip, r.cell.speed, r.cell.msPerStep, r.cell.invalid ? 0 : 1, r.cell.why );
 		fclose( f );
 		snprintf( m_rowsMsg, sizeof( m_rowsMsg ), "zapisano %s", path.string().c_str() );
 	}
@@ -2168,6 +2603,7 @@ private:
 			return;
 		}
 		m_cfg = loaded;
+		SetBaseline( stem.c_str() );
 		Build();
 		m_liveTuned = false;
 		snprintf( m_shelfMsg, sizeof( m_shelfMsg ), "wczytano: %s%s", stem.c_str(), m_ok ? "" : "  (nie powstal)" );
@@ -2212,6 +2648,8 @@ private:
 
 	JozzQcConfig m_cfg{};
 	JozzQcConfig m_openCfg{}; // stan otwarcia okna - cel przycisku "RESET WARSZTATU"
+	JozzQcConfig m_baseCfg{}; // punkt odniesienia licznikow i przyciskow "cofnij zmiany"
+	char m_baseName[64] = "konstrukcja otwarcia";
 	JozzQcConfig m_lastGood{};
 	bool m_haveLastGood = false;
 	JozzQcRig m_rig{};
@@ -2264,6 +2702,13 @@ private:
 	bool m_fullProtocol = true;
 	double m_measureMs = 0.0;
 	char m_rowsMsg[256] = "";
+	// Pola kalkulatora rozmiaru. NIE sa czescia konstrukcji - konstrukcja ma R i W
+	// w metrach. Rozmiar katalogowy jest DROGA do tych dwoch liczb i tyle; gdyby
+	// wszedl do `.qc`, plik konstrukcji mialby dwa zrodla tej samej geometrii.
+	float m_sizeSection = 225.0f;
+	float m_sizeAspect = 55.0f;
+	float m_sizeRim = 17.0f;
+
 	int m_sweepParam = 0;
 	int m_sweepParamPrev = -1;
 	float m_sweepFrom = 3.0f;

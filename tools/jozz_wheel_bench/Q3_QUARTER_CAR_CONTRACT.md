@@ -122,6 +122,57 @@ się jak grzechotka (`JozzRig_MinTorusSegments`).
 Wyniki: `F-21` (torus wygrywa), `F-22` (wygrywa **mimo większego** tętnienia
 promienia), `F-23` (cena: 13× CPU).
 
+### 4.3 Profil poprzeczny korony (2026-08-03, rozszerzenie `torus-N`)
+
+Pierwsza wersja `torus-N` miała bieżnię **zawsze płaską**, a `crownR` służył
+naraz za promień barku i za jedyne pokrętło kształtu przekroju — cały zakres
+opon, od twardej drogowej po miękką terenową, miał do dyspozycji jedną liczbę,
+i to taką, która zwężała bieżnię przy każdej próbie zaokrąglenia barku.
+
+Dwa nowe pola konstrukcji (`crown_rows`, `crown_drop` w `.qc` i `.rig`):
+
+```
+crownRows  ile rzedow kapsul lezy obok siebie w poprzek biezni  (1..9)
+crownDrop  o ile promien BARKU jest mniejszy od promienia srodka biezni
+
+  a       = W/2 - crownR            polowa plaskiej biezni
+  pasmo j = [-a + 2a*j/M, -a + 2a*(j+1)/M]
+  os rzedu j lezy na promieniu (wheelR - crownR) - sag(srodek pasma)
+  sag(y)  = Rc - sqrt(Rc^2 - y^2),  Rc = (a^2 + drop^2) / (2*drop)
+```
+
+Trzy rzeczy, które trzymają ten dodatek w ryzach:
+
+1. **`crownRows == 1` daje DOKŁADNIE bryłę sprzed zmiany**, bit w bit: przy
+   jednym paśmie środek pasma wypada na `y = 0`, zwis wynosi zero, a kolejność
+   tworzenia kształtów jest ta sama. Sprawdzone: `--qc-compare` daje 30 wierszy
+   identycznych z `evidence/run_q3_compare_2026_07_31.txt` we wszystkich
+   kolumnach poza kosztem CPU, a blokada zachowania Q2A jest zielona.
+2. **Odcisk konfiguracji milczy o koronie, dopóki jej nie ma** — `rows=`/`drop=`
+   dopisują się dopiero przy `crownRows > 1`. Bez tego wzorzec zachowania
+   zapalałby się na czerwono dla `sphere` i `prism`, gdzie nic się nie zmieniło.
+3. **Cena jest wprost proporcjonalna i jawna**: kształtów = `N * rzedy`. To jest
+   wynik, a nie usterka — łuku nie da się złożyć z kapsuł o osi równoległej do
+   osi koła, bo każda daje w przekroju odcinek prosty.
+
+Nowa liczba w oknie: **odchyłka od profilu** — największa różnica między
+obwiednią zbudowaną a zamówionym łukiem. Jest to miara jakości REPREZENTACJI,
+odpowiadająca na pytanie „na ile ta bryła jest oponą", którego nie rozstrzyga
+żadna z dotychczasowych metryk. Rośnie ze zwisem, maleje z liczbą rzędów.
+
+Stend: `--qc-rows M`, `--qc-drop m`, `--qc-sweep-param rows|drop`.
+
+### 4.4 Skok dynamiczny (2026-08-03, nowa kolumna obok starej)
+
+`travel_rms` jest liczony od zera więzu, więc zawiera w sobie ugięcie statyczne —
+przy 13 500 N/m i 150 kg to 111 mm, na tle których praca zawieszenia rzędu kilku
+milimetrów po prostu ginie. Kolumna „skok rms" pokazywała przez to niemal tę samą
+liczbę dla KAŻDEGO kandydata, czyli nie mierzyła niczego, co się porównuje.
+
+Zostaje niezmieniona, bo opisuje ją cała dotychczasowa tabela. Obok stoi
+`travel_dyn_rms` — odchylenie od średniej okna, czyli ile zawieszenie naprawdę
+pracuje.
+
 ## 5. Zawieszenie podawane FIZYCZNIE, nie w hercach
 
 ```

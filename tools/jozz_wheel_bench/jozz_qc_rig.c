@@ -70,6 +70,8 @@ JozzQcConfig JozzQc_DefaultConfig( void )
 	c.wheelR = w.wheelR;
 	c.wheelW = w.wheelW;
 	c.crownR = w.crownR;
+	c.crownRows = w.crownRows;
+	c.crownDrop = w.crownDrop;
 	c.unsprungKg = w.massKg;
 	c.inertiaSpin = w.inertiaSpinFactor;
 	c.inertiaTrans = w.inertiaTransFactor;
@@ -142,6 +144,8 @@ JozzRigConfig JozzQc_WheelConfig( const JozzQcConfig* c )
 	w.wheelR = c->wheelR;
 	w.wheelW = c->wheelW;
 	w.crownR = c->crownR;
+	w.crownRows = c->crownRows;
+	w.crownDrop = c->crownDrop;
 	w.massKg = c->unsprungKg;
 	w.inertiaSpinFactor = c->inertiaSpin;
 	w.inertiaTransFactor = c->inertiaTrans;
@@ -222,10 +226,18 @@ void JozzQc_ConfigDigest( const JozzQcConfig* c, char* out, size_t cap )
 {
 	if ( out == NULL || cap == 0 )
 		return;
-	char crown[48];
+	// `rows=`/`drop=` dopisuja sie dopiero przy wiecej niz jednym rzedzie - patrz
+	// JozzRig_ConfigDigest, ten sam powod: odcisk konstrukcji sprzed wysklepienia
+	// ma zostac ten sam co do znaku.
+	char crown[96];
 	crown[0] = '\0';
 	if ( c->variant == JOZZ_RIG_TORUS )
-		snprintf( crown, sizeof( crown ), " crown=%.9g", (double)c->crownR );
+	{
+		int used = snprintf( crown, sizeof( crown ), " crown=%.9g", (double)c->crownR );
+		if ( c->crownRows > 1 && used > 0 && (size_t)used < sizeof( crown ) )
+			snprintf( crown + used, sizeof( crown ) - (size_t)used, " rows=%d drop=%.9g", c->crownRows,
+					  (double)c->crownDrop );
+	}
 	snprintf( out, cap,
 			  "v=%s N=%d R=%.9g W=%.9g%s mu=%.9g mus=%.9g ms=%.9g iS=%.9g iT=%.9g "
 			  "k=%.9g zeta=%.9g hz=%.9g bump=%.9g droop=%.9g mount=%.9g "
@@ -275,6 +287,8 @@ static const JqField s_qcFields[] = {
 	{ "wheel_r", JQ_F_FLOAT, JQ_OFF( wheelR ), NULL },
 	{ "wheel_w", JQ_F_FLOAT, JQ_OFF( wheelW ), NULL },
 	{ "crown_r", JQ_F_FLOAT, JQ_OFF( crownR ), NULL },
+	{ "crown_rows", JQ_F_INT, JQ_OFF( crownRows ), NULL },
+	{ "crown_drop", JQ_F_FLOAT, JQ_OFF( crownDrop ), NULL },
 	{ "unsprung_kg", JQ_F_FLOAT, JQ_OFF( unsprungKg ), NULL },
 	{ "inertia_spin", JQ_F_FLOAT, JQ_OFF( inertiaSpin ), NULL },
 	{ "inertia_trans", JQ_F_FLOAT, JQ_OFF( inertiaTrans ), NULL },
@@ -613,7 +627,7 @@ int JozzQc_ConfigReadFile( JozzQcConfig* c, const char* path, char* err, size_t 
 //
 // Gdy ktoras liczba przestanie sie zgadzac: NAJPIERW dopisz pole do s_qcFields,
 // dopiero potem zaktualizuj liczbe. Odwrotna kolejnosc kasuje calego straznika.
-#define JOZZ_QC_CONFIG_SIZEOF 176
+#define JOZZ_QC_CONFIG_SIZEOF 184
 #define JOZZ_QC_CONFIG_PADDING 8 // jedna dziura 4 B przed pierwszym double + ogon
 
 int JozzQc_ConfigSelfTest( char* err, size_t errCap )
@@ -828,17 +842,17 @@ static int JqcWalkGroup( JozzQcConfig* c, const JozzQcConfig* ref, const char* g
 	return hits;
 }
 
-int JozzQc_ResetGroup( JozzQcConfig* c, const char* group )
+int JozzQc_ResetGroup( JozzQcConfig* c, const JozzQcConfig* ref, const char* group )
 {
 	JozzQcConfig d = JozzQc_DefaultConfig();
-	return JqcWalkGroup( c, &d, group, 1 );
+	return JqcWalkGroup( c, ref ? ref : &d, group, 1 );
 }
 
-int JozzQc_ChangedInGroup( const JozzQcConfig* c, const char* group )
+int JozzQc_ChangedInGroup( const JozzQcConfig* c, const JozzQcConfig* ref, const char* group )
 {
 	JozzQcConfig d = JozzQc_DefaultConfig();
 	JozzQcConfig tmp = *c;
-	return JqcWalkGroup( &tmp, &d, group, 0 );
+	return JqcWalkGroup( &tmp, ref ? ref : &d, group, 0 );
 }
 
 // ---------------------------------------------------------------- ramki wiezu
@@ -1447,6 +1461,7 @@ void JozzQc_WindowAdd( JozzQcWindow* w, const JozzQcSample* s )
 	w->sprungAccelRms += s->sprungAccelY * s->sprungAccelY;
 	w->airborneFraction += s->airborne ? 1.0 : 0.0;
 	w->travelRms += s->travel * s->travel;
+	w->travelMean += s->travel;
 	if ( s->travel < w->travelMin )
 		w->travelMin = s->travel;
 	if ( s->travel > w->travelMax )
@@ -1470,6 +1485,16 @@ void JozzQc_WindowEnd( JozzQcWindow* w, const JozzQcRig* rig )
 	w->driveTorqueMean /= n;
 	w->sprungAccelRms = sqrt( w->sprungAccelRms / n );
 	w->airborneFraction /= n;
+	// Skok DYNAMICZNY liczony przed nadpisaniem sumy kwadratow. Odchylenie od
+	// SREDNIEJ okna, a nie od wyliczonego punktu statycznego: przy zmienionej
+	// grawitacji albo napietym ograniczniku srednia jest tym, wokol czego
+	// zawieszenie naprawde pracuje, a punkt statyczny bywa wtedy fikcja.
+	{
+		double mean = w->travelMean / n;
+		double var = w->travelRms / n - mean * mean;
+		w->travelDynRms = var > 0.0 ? sqrt( var ) : 0.0;
+		w->travelMean = mean;
+	}
 	w->travelRms = sqrt( w->travelRms / n );
 	w->loadedPointsAvg = sumLoaded / n;
 	w->contactChurnPct = ( sumLoaded > 0.0 ) ? 100.0 * sumFresh / sumLoaded : 0.0;
@@ -1595,6 +1620,7 @@ JozzQcCell JozzQc_MeasureCell( const JozzQcConfig* base, int warmup, int windowS
 		JqcAccumulate( r.win.airborneFraction, &c.airborne, &bLo, &bHi, i == 0 );
 		c.loss += r.win.lossPower;
 		c.travelRms += r.win.travelRms;
+		c.travelDyn += r.win.travelDynRms;
 		c.churn += r.win.contactChurnPct;
 		c.slip += r.win.slipRatioMean;
 		c.speed += r.win.speedMean;
@@ -1609,7 +1635,7 @@ JozzQcCell JozzQc_MeasureCell( const JozzQcConfig* base, int warmup, int windowS
 
 	n = (double)c.repeats;
 	c.torque /= n, c.accel /= n, c.airborne /= n;
-	c.loss /= n, c.travelRms /= n, c.churn /= n, c.slip /= n, c.speed /= n, c.msPerStep /= n;
+	c.loss /= n, c.travelRms /= n, c.travelDyn /= n, c.churn /= n, c.slip /= n, c.speed /= n, c.msPerStep /= n;
 	c.torqueSpread = 0.5 * ( tHi - tLo );
 	c.accelSpread = 0.5 * ( aHi - aLo );
 	c.airborneSpread = 0.5 * ( bHi - bLo );

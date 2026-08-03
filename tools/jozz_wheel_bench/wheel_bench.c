@@ -2416,13 +2416,16 @@ typedef enum
 {
 	QC_SWEEP_SEGMENTS = 0,
 	QC_SWEEP_CROWN,
+	QC_SWEEP_ROWS,
+	QC_SWEEP_DROP,
 	QC_SWEEP_SPRING,
 	QC_SWEEP_SPEED,
 	QC_SWEEP_OBSTACLE,
 	QC_SWEEP_COUNT
 } QcSweepParam;
 
-static const char* s_qcSweepNames[QC_SWEEP_COUNT] = { "segments", "crown", "spring", "speed", "obstacle" };
+static const char* s_qcSweepNames[QC_SWEEP_COUNT] = { "segments", "crown", "rows",	  "drop",
+													  "spring",	  "speed", "obstacle" };
 
 static int QcParseSweepParam( const char* name, QcSweepParam* out )
 {
@@ -2446,6 +2449,14 @@ static void QcSweepApply( JozzQcConfig* c, QcSweepParam p, double v, char* tag, 
 		case QC_SWEEP_CROWN:
 			c->crownR = (float)v;
 			snprintf( tag, tagCap, "crown=%.4g", v );
+			break;
+		case QC_SWEEP_ROWS:
+			c->crownRows = (int)( v + 0.5 );
+			snprintf( tag, tagCap, "rzedow=%d", c->crownRows );
+			break;
+		case QC_SWEEP_DROP:
+			c->crownDrop = (float)v;
+			snprintf( tag, tagCap, "zwis=%.4g", v );
 			break;
 		case QC_SWEEP_SPRING:
 			c->springNPerM = (float)v;
@@ -2492,9 +2503,12 @@ static int QcSweep( const char* csvPath, const JozzQcConfig* base, QcSweepParam 
 	fprintf( f, "# build %s %s rig=%s qc=%s\n", BENCH_GIT_SHA, BENCH_GIT_DIRTY, BENCH_RIG_SHA256, BENCH_QC_SHA256 );
 	fprintf( f, "# warmup=%d window=%d repeats=%d\n", JOZZ_QC_WARMUP_STEPS, JOZZ_QC_WINDOW_STEPS, JOZZ_QC_REPEATS );
 	fprintf( f, "# baza %s\n", baseDigest );
+	// `travel_dyn_rms` stoi OBOK `travel_rms`, a nie zamiast niego: tamta kolumna
+	// jest w zarejestrowanych przebiegach i ma dalej znaczyc to samo. Nowa mowi to,
+	// co tamta mowic mialaby - ile zawieszenie NAPRAWDE pracuje.
 	fprintf( f, "point,value,segments,shapes,ripple_mm,road,target_v,drive_torque_nm,torque_spread,loss_power_w,"
-				"sprung_accel_rms,accel_spread,airborne_frac,airborne_spread,travel_rms,churn_pct,slip_mean,"
-				"speed_mean,ms_per_step,valid,why\n" );
+				"sprung_accel_rms,accel_spread,airborne_frac,airborne_spread,travel_rms,travel_dyn_rms,churn_pct,"
+				"slip_mean,speed_mean,ms_per_step,valid,why\n" );
 
 	printf( "\n=== Q3 PRZEMIATANIE: %s od %.6g do %.6g, %d punktow ===\n", s_qcSweepNames[param], from, to,
 			steps );
@@ -2519,7 +2533,7 @@ static int QcSweep( const char* csvPath, const JozzQcConfig* base, QcSweepParam 
 			// Punkt niebudowalny NIE przerywa przemiatania i NIE jest po cichu
 			// pomijany: "tutaj konstrukcja sie konczy" jest wynikiem.
 			printf( "%-14s   NIEZBUDOWANY: %s\n", tag, c.err );
-			fprintf( f, "%d,%.17g,%d,0,0,%s,%.17g,,,,,,,,,,,,,0,%s\n", i, v, cfg.segments,
+			fprintf( f, "%d,%.17g,%d,0,0,%s,%.17g,,,,,,,,,,,,,,0,%s\n", i, v, cfg.segments,
 					 JozzQc_RoadName( cfg.road ), cfg.targetSpeed, c.err );
 			continue;
 		}
@@ -2527,10 +2541,10 @@ static int QcSweep( const char* csvPath, const JozzQcConfig* base, QcSweepParam 
 				1000.0 * c.ripple, c.torque, c.torqueSpread, c.loss, c.accel, c.accelSpread, 100.0 * c.airborne,
 				100.0 * c.airborneSpread, c.churn, c.msPerStep, c.invalid ? "  NIEWAZNY" : "" );
 		fprintf( f, "%d,%.17g,%d,%d,%.6f,%s,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,"
-					"%.17g,%.17g,%d,%s\n",
+					"%.17g,%.17g,%.17g,%d,%s\n",
 				 i, v, cfg.segments, c.shapes, 1000.0 * c.ripple, JozzQc_RoadName( cfg.road ), cfg.targetSpeed,
 				 c.torque, c.torqueSpread, c.loss, c.accel, c.accelSpread, c.airborne, c.airborneSpread,
-				 c.travelRms, c.churn, c.slip, c.speed, c.msPerStep, c.invalid ? 0 : 1, c.why );
+				 c.travelRms, c.travelDyn, c.churn, c.slip, c.speed, c.msPerStep, c.invalid ? 0 : 1, c.why );
 		fflush( stdout );
 	}
 	fclose( f );
@@ -2573,7 +2587,7 @@ static int QcCompare( const char* csvPath )
 	fprintf( f, "# warmup=%d window=%d repeats=%d\n", JOZZ_QC_WARMUP_STEPS, JOZZ_QC_WINDOW_STEPS,
 			 JOZZ_QC_REPEATS );
 	fprintf( f, "candidate,segments,shapes,ripple_mm,road,target_v,drive_torque_nm,torque_spread,loss_power_w,"
-				"sprung_accel_rms,accel_spread,airborne_frac,airborne_spread,travel_rms,churn_pct,"
+				"sprung_accel_rms,accel_spread,airborne_frac,airborne_spread,travel_rms,travel_dyn_rms,churn_pct,"
 				"slip_mean,speed_mean,ms_per_step,valid,why\n" );
 
 	printf( "\n=== Q3 QUARTER CAR - porownanie kandydatow ===\n" );
@@ -2603,7 +2617,7 @@ static int QcCompare( const char* csvPath )
 				if ( !c.built )
 				{
 					printf( "%-12s   NIEZBUDOWANY: %s\n", cand[ci].label, c.err );
-					fprintf( f, "%s,%d,0,0,%s,%.17g,,,,,,,,,,,,,0,%s\n", cand[ci].label, cand[ci].segments,
+					fprintf( f, "%s,%d,0,0,%s,%.17g,,,,,,,,,,,,,,0,%s\n", cand[ci].label, cand[ci].segments,
 							 JozzQc_RoadName( (JozzQcRoad)ri ), speeds[si], c.err );
 					continue;
 				}
@@ -2612,11 +2626,11 @@ static int QcCompare( const char* csvPath )
 						c.loss, c.accel, c.accelSpread, 100.0 * c.airborne, 100.0 * c.airborneSpread, c.churn,
 						c.msPerStep, c.invalid ? "  NIEWAZNY" : "" );
 				fprintf( f, "%s,%d,%d,%.6f,%s,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,"
-							"%.17g,%.17g,%.17g,%d,%s\n",
+							"%.17g,%.17g,%.17g,%.17g,%d,%s\n",
 						 cand[ci].label, cand[ci].segments, c.shapes, 1000.0 * c.ripple,
 						 JozzQc_RoadName( (JozzQcRoad)ri ), speeds[si], c.torque, c.torqueSpread, c.loss,
-						 c.accel, c.accelSpread, c.airborne, c.airborneSpread, c.travelRms, c.churn, c.slip,
-						 c.speed, c.msPerStep, c.invalid ? 0 : 1, c.why );
+						 c.accel, c.accelSpread, c.airborne, c.airborneSpread, c.travelRms, c.travelDyn, c.churn,
+						 c.slip, c.speed, c.msPerStep, c.invalid ? 0 : 1, c.why );
 				fflush( stdout );
 			}
 			printf( "\n" );
@@ -2709,6 +2723,10 @@ int main( int argc, char** argv )
 			qcCfg.segments = atoi( argv[++i] ), qcCfgTouched = 1;
 		else if ( strcmp( argv[i], "--qc-crown" ) == 0 && i + 1 < argc )
 			qcCfg.crownR = (float)atof( argv[++i] ), qcCfgTouched = 1;
+		else if ( strcmp( argv[i], "--qc-rows" ) == 0 && i + 1 < argc )
+			qcCfg.crownRows = atoi( argv[++i] ), qcCfgTouched = 1;
+		else if ( strcmp( argv[i], "--qc-drop" ) == 0 && i + 1 < argc )
+			qcCfg.crownDrop = (float)atof( argv[++i] ), qcCfgTouched = 1;
 		else if ( strcmp( argv[i], "--qc-speed" ) == 0 && i + 1 < argc )
 		{
 			qcCfg.targetSpeed = atof( argv[++i] );
@@ -2723,7 +2741,8 @@ int main( int argc, char** argv )
 		{
 			if ( QcParseSweepParam( argv[++i], &qcSweepParam ) == 0 )
 			{
-				fprintf( stderr, "BLAD: nieznany parametr '%s' (segments|crown|spring|speed|obstacle)\n",
+				fprintf( stderr,
+						 "BLAD: nieznany parametr '%s' (segments|crown|rows|drop|spring|speed|obstacle)\n",
 						 argv[i] );
 				return 2;
 			}
@@ -2748,11 +2767,12 @@ int main( int argc, char** argv )
 					 "--qc-probe <plik.txt>\n"
 					 "       %s --qc-compare <plik.csv>\n"
 					 "       %s --qc-sweep <plik.csv> --qc-sweep-param "
-					 "segments|crown|spring|speed|obstacle --qc-sweep-from A --qc-sweep-to B "
+					 "segments|crown|rows|drop|spring|speed|obstacle --qc-sweep-from A --qc-sweep-to B "
 					 "[--qc-sweep-steps N] [+ opcje --qc-* jako baza]\n"
 					 "       %s --qc-trace <plik.csv> [--qc-config <plik.qc>] "
 					 "[--qc-variant sphere|prism-Nmax|torus-N] "
-					 "[--qc-segments N] [--qc-crown m] [--qc-road flat|cleat|comb] [--qc-speed m/s]\n",
+					 "[--qc-segments N] [--qc-crown m] [--qc-rows M] [--qc-drop m] "
+					 "[--qc-road flat|cleat|comb] [--qc-speed m/s]\n",
 					 argv[0], argv[0], argv[0], argv[0], argv[0], argv[0] );
 			return 2;
 		}

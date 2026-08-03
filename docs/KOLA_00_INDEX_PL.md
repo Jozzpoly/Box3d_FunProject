@@ -39,6 +39,49 @@ otwartym; implementacja produktowa NIE rozpoczęta**
 > - Werdykt o feelu należy do Jozza i **nie został wydany** (reguła twarda 5).
 >   Otwarte: `Q3-5` (wzorzec zachowania) — dopiero po akceptacji w oknie.
 
+> **Rewizja 2026-08-03 — torus dostaje drugi wymiar kształtu, warsztat mówi
+> językiem opon.** Właściciel: „torus staje się naprawdę ciekawy, ale nadal mam
+> zbyt mały wpływ na jego kształt i nie jestem w stanie zbudować oraz
+> scharakteryzować nim szerokiego zakresu różnych opon".
+> - **Bieżnia `torus-N` przestała być zawsze płaska.** Dwa nowe pola konstrukcji:
+>   `crown_rows` (ile rzędów kapsuł leży w poprzek bieżni, 1..9) i `crown_drop`
+>   (o ile bark siedzi niżej niż środek korony). Osie rzędów leżą na łuku
+>   kołowym — to ten sam „crown radius", którym opisuje się oponę, tylko podany
+>   od strony zwisu, bo zwis ma skończony zakres, a promień płaskiej korony to
+>   nieskończoność. Kontrakt Q3 §4.3.
+> - **`crown_rows == 1` daje DOKŁADNIE bryłę sprzed zmiany**, bit w bit — to jest
+>   warunek, nie zbieg okoliczności. Dowód: `--qc-compare` 30 wierszy identycznych
+>   z `run_q3_compare_2026_07_31.txt` poza kolumną CPU; cztery bramki zielone.
+> - **Rozmiar opony w języku dziedziny**: `235/40R18` zamiast dwóch liczb
+>   w metrach, z presetami trzech światów (drift, droga, duża miękka terenowa)
+>   i odczytem wstecznym „co siedzi w rigu". Promień barku i zwis skalują się
+>   RAZEM z szerokością — rozmiar ma zmieniać rozmiar, a nie charakter przekroju.
+> - **Rysunek przekroju** w panelu: profil ZAMÓWIONY (gęsty łuk), obwiednia
+>   ZBUDOWANA i osie rzędów, czyli źródło schodka między nimi. Wszystkie trzy
+>   liczone tą samą funkcją z `jozz_wheel_rig`, więc rysunek nie jest drugim,
+>   niezależnym twierdzeniem o tym, co zbudowano. Skala pionowa dopasowana
+>   i podana wprost.
+> - Nowa liczba: **odchyłka od profilu** — miara jakości REPREZENTACJI, na którą
+>   nie odpowiadała żadna dotychczasowa metryka.
+> - **`F-26` — i to jest najważniejszy wynik tej rewizji: Q3 na płaskiej płycie
+>   NIE WIDZI profilu poprzecznego.** Przemiatanie rzędów 1→9 zmienia stratę
+>   o 3,6% bez monotoniczności, przy koszcie CPU rosnącym **23×**; przemiatanie
+>   zwisu 0→0,16 m to samo. Tętnienie promienia nie drgnęło w żadnym z 10 punktów,
+>   bo mierzy się je wzdłuż toczenia. Powód nie jest usterką: droga Q3 to płyta
+>   i progi jednorodne w poprzek, a obwiednia jest SZTYWNA — płaska płyta dotyka
+>   wyłącznie wierzchołka korony. Wysklepienie jest więc **ceną płaconą z góry za
+>   możliwość badania wginania**, a nie ulepszeniem toczenia na płycie. Kto szuka
+>   mniejszej straty na płaskim, ma sięgać po `crown_r` (`F-25`), nie po rzędy.
+> - **`skok rms` nie rozróżniał kandydatów** — liczony od zera więzu, zawierał
+>   111 mm ugięcia statycznego. Dołożona składowa DYNAMICZNA (§4.4).
+> - **„przywróć domyślne" zamieniało torusa w KULĘ**: przycisk sekcji cofał do
+>   konstrukcji KONTRAKTOWEJ (`sphere`), a warsztat otwiera się na `torus-64`.
+>   Licznik na świeżo otwartym oknie od razu pokazywał dwa zmienione pola.
+>   Punktem odniesienia jest teraz ostatnia świadomie wybrana cała konstrukcja.
+> - **Kandydat stendu wymaga też WYMIARÓW**: opona 35×12.5 z 64 kapsułami
+>   trafiała do tabeli pod etykietą `torus-64`, czyli pod nazwą zarejestrowanego
+>   kandydata, którym nie była.
+
 > **Rewizja 2026-08-02 — warsztat naprawiony tam, gdzie nie działał.**
 > Właściciel po realnym używaniu: „część parametrów po zmianie od razu wraca do
 > defaultu, `R` resetuje ustawienia zamiast tylko symulacji, brakuje resetowania

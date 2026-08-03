@@ -65,6 +65,10 @@ typedef struct
 	JozzRigVariant variant;
 	int segments; // scianki pryzmatu ALBO kapsuly pierscienia
 	float wheelR, wheelW, crownR;
+	// Profil poprzeczny korony - opis w jozz_wheel_rig.h. Przy crownRows == 1
+	// bryla jest ta sama co przed dolozeniem tych pol.
+	int crownRows;
+	float crownDrop;
 	float unsprungKg, inertiaSpin, inertiaTrans, density, friction;
 
 	// NADWOZIE I ZAWIESZENIE
@@ -179,14 +183,19 @@ int JozzQc_ConfigSelfTest( char* err, size_t errCap );
 #define JOZZ_QC_GROUP_DRIVE "naped"
 #define JOZZ_QC_GROUP_INSTRUMENT "instrument"
 
-// Przywraca wartosci domyslne w JEDNEJ grupie i zwraca liczbe zmienionych pol.
-// `group == NULL` znaczy WSZYSTKIE pola.
-int JozzQc_ResetGroup( JozzQcConfig* c, const char* group );
+// Przywraca w JEDNEJ grupie wartosci z `ref` i zwraca liczbe zmienionych pol.
+// `group == NULL` znaczy WSZYSTKIE pola, `ref == NULL` - konstrukcje kontraktowa.
+//
+// Referencja jest ARGUMENTEM, a nie zaszyta w srodku, bo te dwie rzeczy sa rozne:
+// warsztat otwiera sie na `torus-64`, a konstrukcja kontraktowa to `sphere`.
+// Dopoki przycisk sekcji przywracal kontraktowa, "cofnij moje zmiany w kole"
+// zamienialo badane kolo w KULE - zlapane realna interakcja, nie testem.
+int JozzQc_ResetGroup( JozzQcConfig* c, const JozzQcConfig* ref, const char* group );
 
-// Ile pol tej grupy rozni sie od domyslnych. Okno pokazuje te liczbe przy
-// naglowku sekcji, bo "co ja wlasciwie poruszylem" jest pytaniem, ktore pada po
-// dziesieciu minutach pracy, a panel bez tego na nie nie odpowiada.
-int JozzQc_ChangedInGroup( const JozzQcConfig* c, const char* group );
+// Ile pol tej grupy rozni sie od `ref` (NULL = kontraktowa). Okno pokazuje te
+// liczbe przy naglowku sekcji, bo "co ja wlasciwie poruszylem" jest pytaniem,
+// ktore pada po dziesieciu minutach pracy, a panel bez tego na nie nie odpowiada.
+int JozzQc_ChangedInGroup( const JozzQcConfig* c, const JozzQcConfig* ref, const char* group );
 
 // --- odczyt po kroku ---------------------------------------------------------
 typedef struct
@@ -325,7 +334,13 @@ typedef struct
 	double lossPower;
 	double sprungAccelRms;
 	double airborneFraction;
-	double travelRms, travelMin, travelMax;
+	// `travelRms` jest liczony od ZERA wiezu, wiec zawiera w sobie ugiecie
+	// statyczne - przy 13500 N/m i 150 kg to 111 mm, na tle ktorych praca
+	// zawieszenia rzedu kilku milimetrow po prostu ginie. Kolumna "skok rms"
+	// pokazywala przez to niemal te sama liczbe dla KAZDEGO kandydata. Zostaje
+	// niezmieniona, bo opisuje ja cala dotychczasowa tabela; obok stoi skladowa
+	// DYNAMICZNA, czyli odchylenie od sredniej okna - i to ona rozroznia kola.
+	double travelRms, travelDynRms, travelMean, travelMin, travelMax;
 	int limitHits;
 	double contactChurnPct;
 	double loadedPointsAvg;
@@ -393,7 +408,7 @@ typedef struct
 	double loss;
 	double accel, accelSpread;
 	double airborne, airborneSpread;
-	double travelRms;
+	double travelRms, travelDyn;
 	double churn;
 	double slip;
 	double speed;

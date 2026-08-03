@@ -42,6 +42,11 @@ JozzRigConfig JozzRig_DefaultConfig( void )
 	// po stronie GLADKOSCI, bo dzisiejszy kontakt to Coulomb - szerokosc plaskiego
 	// styku nie wplywa na tarcie, dopoki nie ma prawa opony (W3).
 	c.crownR = 0.20f;
+	// Jeden rzad i plaska bieznia: DOKLADNIE bryla, na ktorej stoi cala
+	// dotychczasowa tabela Q3 i blokada zachowania. Wysklepienie jest rozszerzeniem,
+	// wiec musi byc wylaczone tam, gdzie nikt o nie nie poprosil.
+	c.crownRows = 1;
+	c.crownDrop = 0.0f;
 
 	c.groundHalfX = 400.0f;
 	c.groundHalfY = 1.0f;
@@ -73,10 +78,18 @@ void JozzRig_ConfigDigest( const JozzRigConfig* c, char* out, size_t cap )
 	// kosmetyka: odcisk konfiguracji idzie do naglowka wzorca zachowania, wiec
 	// bezwarunkowe dopisanie pola oznaczaloby czerwona blokade na sphere i prism
 	// - czyli sygnal "eksperyment sie zmienil" tam, gdzie nie zmienilo sie nic.
-	char crown[64];
+	// Z tego samego powodu `rows=`/`drop=` dopisuja sie dopiero przy wiecej niz
+	// jednym rzedzie: konstrukcja z jednym rzedem to bryla sprzed wysklepienia i
+	// jej odcisk ma zostac ten sam co do znaku.
+	char crown[96];
 	crown[0] = '\0';
 	if ( c->variant == JOZZ_RIG_TORUS )
-		snprintf( crown, sizeof( crown ), " crown=%.9g", (double)c->crownR );
+	{
+		int used = snprintf( crown, sizeof( crown ), " crown=%.9g", (double)c->crownR );
+		if ( c->crownRows > 1 && used > 0 && (size_t)used < sizeof( crown ) )
+			snprintf( crown + used, sizeof( crown ) - (size_t)used, " rows=%d drop=%.9g", c->crownRows,
+					  (double)c->crownDrop );
+	}
 	snprintf( out, cap,
 			  "v=%s N=%d R=%.9g W=%.9g m=%.9g iS=%.9g iT=%.9g rho=%.9g "
 			  "gnd=%.9g/%.9g/%.9g mu=%.9g g=%.17g "
@@ -132,6 +145,8 @@ static const JrField s_configFields[] = {
 	{ "inertia_trans", JR_F_FLOAT, JR_OFF( inertiaTransFactor ), NULL },
 	{ "density", JR_F_FLOAT, JR_OFF( density ), NULL },
 	{ "crown_r", JR_F_FLOAT, JR_OFF( crownR ), NULL },
+	{ "crown_rows", JR_F_INT, JR_OFF( crownRows ), NULL },
+	{ "crown_drop", JR_F_FLOAT, JR_OFF( crownDrop ), NULL },
 
 	{ "ground_half_x", JR_F_FLOAT, JR_OFF( groundHalfX ), "scena" },
 	{ "ground_half_y", JR_F_FLOAT, JR_OFF( groundHalfY ), NULL },
@@ -431,7 +446,7 @@ int JozzRig_ConfigWriteFile( const JozzRigConfig* c, const char* path, const cha
 // Obie liczby ponizej to ostatnio zaudytowany uklad struktury na x64. Gdy ktoras
 // przestanie sie zgadzac: NAJPIERW dopisz pole do s_configFields, dopiero potem
 // zaktualizuj liczby. Odwrotna kolejnosc kasuje calego straznika.
-#define JOZZ_RIG_CONFIG_SIZEOF 152
+#define JOZZ_RIG_CONFIG_SIZEOF 160
 #define JOZZ_RIG_CONFIG_PADDING 16 // bajty wyrownania: 4 dziury po 4 przed double
 
 int JozzRig_ConfigSelfTest( char* err, size_t errCap )
@@ -893,6 +908,8 @@ typedef struct
 	double ringR;
 	double halfLen;
 	double crownR;
+	double drop; // zwis barku wzgledem srodka biezni; 0 = bieznia plaska
+	int rows;
 	int n;
 	int valid; // 0 = wymiary same w sobie bez sensu (nie mylic ze szczelnoscia)
 } JrTorusGeom;
@@ -905,9 +922,88 @@ static JrTorusGeom JrTorus( const JozzRigConfig* c )
 	g.ringR = (double)c->wheelR - g.crownR;
 	g.halfLen = 0.5 * (double)c->wheelW - g.crownR;
 	g.n = c->prismSides;
+	// Zero i wartosci ujemne znacza "jeden rzad": konfiguracja wyzerowana
+	// pamiecia ma dawac bryle sprzed tej zmiany, a nie zero ksztaltow.
+	g.rows = c->crownRows > 1 ? c->crownRows : 1;
+	if ( g.rows > JOZZ_RIG_CROWN_ROWS_MAX )
+		g.rows = JOZZ_RIG_CROWN_ROWS_MAX;
+	g.drop = g.rows > 1 && c->crownDrop > 0.0f ? (double)c->crownDrop : 0.0;
+	if ( g.drop > g.halfLen )
+		g.drop = g.halfLen; // zwis rowny polowie biezni = korona w pelni okragla
 	g.valid = ( g.crownR > 0.0 && g.ringR > 0.0 && g.halfLen >= 0.0 && g.n >= 3 );
 	return g;
 }
+
+// Zwis profilu w odleglosci `y` od srodka biezni. Luk kolowy przechodzacy przez
+// (0, 0) i (+-a, drop), czyli dokladnie ten "crown radius", ktorym opisuje sie
+// opone - tylko podany od strony, ktora ma skonczony zakres.
+static double JrCrownSag( double a, double drop, double y )
+{
+	double rc;
+	if ( drop <= 0.0 || a <= 0.0 )
+		return 0.0;
+	if ( y < 0.0 )
+		y = -y;
+	if ( y > a )
+		y = a;
+	rc = ( a * a + drop * drop ) / ( 2.0 * drop );
+	return rc - sqrt( rc * rc - y * y );
+}
+
+// Rzedy dla ZADANEJ ich liczby. Podzial jest na `m` rownych pasm biezni, a os
+// kapsuly kazdego pasma siedzi na promieniu profilu w SRODKU pasma - czyli
+// schodek lezy w poprzek luku, a nie pod nim ani nad nim.
+//
+// Przy m == 1 wychodzi yCenter = 0 i halfLen = calej polowie biezni, czyli
+// dokladnie jedna kapsula od bark do barku. To jest ta sama kapsula, ktora
+// powstawala przed dolozeniem rzedow.
+static int JrMakeRows( const JrTorusGeom* g, int m, JozzRigTorusRow* out )
+{
+	double hl;
+	int j;
+	if ( m < 1 || g->valid == 0 )
+		return 0;
+	hl = g->halfLen / (double)m;
+	for ( j = 0; j < m; ++j )
+	{
+		double yc = -g->halfLen + hl * ( 2.0 * (double)j + 1.0 );
+		out[j].capR = g->crownR;
+		out[j].halfLen = hl;
+		out[j].yCenter = yc;
+		out[j].ringR = g->ringR - JrCrownSag( g->halfLen, g->drop, yc );
+	}
+	return m;
+}
+
+// Obwiednia w miejscu `y`: kazdy rzad daje w tym przekroju okrag o promieniu
+// zaleznym od odleglosci od jego osi, a obwiednia to MAKSIMUM po rzedach.
+// Ta sama funkcja liczy profil zbudowany (rzedy realne) i zamowiony (gesty
+// podzial tego samego luku) - dzieki temu ich roznica nie moze byc artefaktem
+// dwoch roznych wzorow.
+static double JrRowsEnvelope( const JozzRigTorusRow* rows, int m, double y )
+{
+	double best = 0.0;
+	int j;
+	for ( j = 0; j < m; ++j )
+	{
+		double d = y - rows[j].yCenter;
+		double over = ( d < 0.0 ? -d : d ) - rows[j].halfLen;
+		double h;
+		if ( over <= 0.0 )
+			h = rows[j].capR;
+		else if ( over < rows[j].capR )
+			h = sqrt( rows[j].capR * rows[j].capR - over * over );
+		else
+			continue;
+		if ( rows[j].ringR + h > best )
+			best = rows[j].ringR + h;
+	}
+	return best;
+}
+
+// Gestosc "profilu zamowionego". Nie jest to liczba rzedow, ktore powstana -
+// jest to luk, ktory rzedy MAJA przyblizyc.
+#define JR_PROFILE_DENSE 96
 
 int JozzRig_MinTorusSegments( const JozzRigConfig* c )
 {
@@ -923,6 +1019,82 @@ int JozzRig_MinTorusSegments( const JozzRigConfig* c )
 	return n < 3 ? 3 : n;
 }
 
+int JozzRig_TorusRows( const JozzRigConfig* c, JozzRigTorusRow* out, int cap )
+{
+	JrTorusGeom g;
+	if ( c->variant != JOZZ_RIG_TORUS || out == NULL )
+		return 0;
+	g = JrTorus( c );
+	if ( !g.valid || g.rows > cap )
+		return 0;
+	return JrMakeRows( &g, g.rows, out );
+}
+
+double JozzRig_CrownRadius( const JozzRigConfig* c )
+{
+	JrTorusGeom g = JrTorus( c );
+	if ( !g.valid || g.drop <= 0.0 )
+		return 0.0;
+	return ( g.halfLen * g.halfLen + g.drop * g.drop ) / ( 2.0 * g.drop );
+}
+
+int JozzRig_ShapeCount( const JozzRigConfig* c )
+{
+	if ( c->variant != JOZZ_RIG_TORUS )
+		return 1;
+	{
+		JrTorusGeom g = JrTorus( c );
+		return g.valid ? g.n * g.rows : 0;
+	}
+}
+
+double JozzRig_ProfileTarget( const JozzRigConfig* c, double y )
+{
+	JozzRigTorusRow rows[JR_PROFILE_DENSE];
+	JrTorusGeom g = JrTorus( c );
+	int m;
+	if ( !g.valid )
+		return 0.0;
+	m = JrMakeRows( &g, JR_PROFILE_DENSE, rows );
+	return JrRowsEnvelope( rows, m, y );
+}
+
+double JozzRig_ProfileBuilt( const JozzRigConfig* c, double y )
+{
+	JozzRigTorusRow rows[JOZZ_RIG_CROWN_ROWS_MAX];
+	int m = JozzRig_TorusRows( c, rows, JOZZ_RIG_CROWN_ROWS_MAX );
+	if ( m <= 0 )
+		return 0.0;
+	return JrRowsEnvelope( rows, m, y );
+}
+
+double JozzRig_ProfileError( const JozzRigConfig* c )
+{
+	JozzRigTorusRow built[JOZZ_RIG_CROWN_ROWS_MAX];
+	JozzRigTorusRow want[JR_PROFILE_DENSE];
+	JrTorusGeom g = JrTorus( c );
+	double worst = 0.0;
+	int mb, mw, i;
+	if ( c->variant != JOZZ_RIG_TORUS || !g.valid )
+		return 0.0;
+	mb = JrMakeRows( &g, g.rows, built );
+	mw = JrMakeRows( &g, JR_PROFILE_DENSE, want );
+	if ( mb <= 0 || mw <= 0 )
+		return 0.0;
+	// Probkujemy CALA polowke przekroju, razem z barkiem: najwieksza odchylka
+	// zwykle nie siedzi na srodku biezni, tylko przy ostatnim pasmie.
+	for ( i = 0; i <= 200; ++i )
+	{
+		double y = ( g.halfLen + g.crownR ) * (double)i / 200.0;
+		double d = JrRowsEnvelope( want, mw, y ) - JrRowsEnvelope( built, mb, y );
+		if ( d < 0.0 )
+			d = -d;
+		if ( d > worst )
+			worst = d;
+	}
+	return worst;
+}
+
 double JozzRig_EnvelopeRipple( const JozzRigConfig* c )
 {
 	if ( c->variant == JOZZ_RIG_SPHERE )
@@ -936,35 +1108,61 @@ double JozzRig_EnvelopeRipple( const JozzRigConfig* c )
 	JrTorusGeom g = JrTorus( c );
 	if ( !g.valid )
 		return 0.0;
-	double s = g.ringR * sin( theta );
-	if ( s > g.crownR )
-		return -1.0; // obwiednia NIESZCZELNA - nie ma czego mierzyc
-	// Najdalszy punkt obwiedni na dwusiecznej miedzy dwiema kapsulami.
-	double rMin = g.ringR * cos( theta ) + sqrt( g.crownR * g.crownR - s * s );
-	return (double)c->wheelR - rMin;
+	// Mierzone na rzedzie o NAJWIEKSZYM promieniu, bo to on dotyka plyty. Przy
+	// jednym rzedzie jest to `ringR`, czyli dawny wzor co do bitu.
+	{
+		JozzRigTorusRow rows[JOZZ_RIG_CROWN_ROWS_MAX];
+		int m = JrMakeRows( &g, g.rows, rows );
+		double rMax = 0.0, s, rMin;
+		int j;
+		for ( j = 0; j < m; ++j )
+			if ( rows[j].ringR > rMax )
+				rMax = rows[j].ringR;
+		s = rMax * sin( theta );
+		if ( s > g.crownR )
+			return -1.0; // obwiednia NIESZCZELNA - nie ma czego mierzyc
+		// Najdalszy punkt obwiedni na dwusiecznej miedzy dwiema kapsulami.
+		rMin = rMax * cos( theta ) + sqrt( g.crownR * g.crownR - s * s );
+		return ( rMax + g.crownR ) - rMin;
+	}
 }
 
 static int JrBuildTorus( b3BodyId body, const b3ShapeDef* sd, const JozzRigConfig* c )
 {
+	JozzRigTorusRow rows[JOZZ_RIG_CROWN_ROWS_MAX];
 	JrTorusGeom g = JrTorus( c );
+	int m, i, j;
 	if ( !g.valid )
 		return 0;
 	if ( c->prismSides < JozzRig_MinTorusSegments( c ) )
 		return 0; // dziurawa obwiednia; patrz naglowek JozzRig_MinTorusSegments
+	m = JrMakeRows( &g, g.rows, rows );
+	if ( m <= 0 )
+		return 0;
+	for ( j = 0; j < m; ++j )
+		if ( rows[j].ringR <= 0.0 || rows[j].halfLen <= 0.0 )
+			return 0; // rzad zapadl sie pod os albo ma zerowa dlugosc
 
-	for ( int i = 0; i < g.n; ++i )
+	// Kolejnosc petli jest czescia kontraktu: przy jednym rzedzie ciag ksztaltow
+	// jest CO DO KOLEJNOSCI ten sam co przed dolozeniem rzedow, a kolejnosc
+	// ksztaltow wchodzi do rozwiazywania kontaktow.
+	for ( i = 0; i < g.n; ++i )
 	{
 		double a = 2.0 * JOZZ_RIG_PI * (double)i / (double)g.n;
-		b3Capsule cap;
-		cap.radius = (float)g.crownR;
-		cap.center1.x = (float)( g.ringR * cos( a ) );
-		cap.center1.y = (float)( -g.halfLen );
-		cap.center1.z = (float)( g.ringR * sin( a ) );
-		cap.center2.x = cap.center1.x;
-		cap.center2.y = (float)( +g.halfLen );
-		cap.center2.z = cap.center1.z;
-		if ( B3_IS_NULL( b3CreateCapsuleShape( body, sd, &cap ) ) )
-			return 0;
+		double ca = cos( a ), sa = sin( a );
+		for ( j = 0; j < m; ++j )
+		{
+			b3Capsule cap;
+			cap.radius = (float)rows[j].capR;
+			cap.center1.x = (float)( rows[j].ringR * ca );
+			cap.center1.y = (float)( rows[j].yCenter - rows[j].halfLen );
+			cap.center1.z = (float)( rows[j].ringR * sa );
+			cap.center2.x = cap.center1.x;
+			cap.center2.y = (float)( rows[j].yCenter + rows[j].halfLen );
+			cap.center2.z = cap.center1.z;
+			if ( B3_IS_NULL( b3CreateCapsuleShape( body, sd, &cap ) ) )
+				return 0;
+		}
 	}
 	return 1;
 }

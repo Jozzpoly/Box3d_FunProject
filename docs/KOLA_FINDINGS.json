@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "purpose": "Jedyne miejsce, w ktorym zyje AKTUALNY status kazdego findingu F-xx / P-xx. Dokumenty KOLA_*.md moga finding OPISYWAC, ale nie moga nadawac mu statusu. Sprawdzane przez tools/evidence/evidence.py check.",
-  "updated": "2026-07-31",
+  "updated": "2026-08-03",
   "statuses": {
     "ENGINE_FACT": "Wlasciwosc kodu Box3D, weryfikowalna przez odczyt zrodla. Nie wymaga transferu Q2-Q4.",
     "MATH_FACT": "Czysta matematyka badanych funkcji, bez silnika. Nie wymaga transferu.",
@@ -365,6 +365,15 @@
         "none"
       ],
       "code": "tools/jozz_wheel_bench/jozz_wheel_rig.c JozzRig_CriticalSpeed"
+    },
+    "F-26": {
+      "status": "BENCH_PRELIMINARY",
+      "claim": "Q3 na plaskiej plycie NIE WIDZI profilu poprzecznego korony. Przemiatanie liczby rzedow 1->9 (torus-64, crown_r 0.05, zwis 0.08 m, 4.0 m/s) daje strate 775.0 / 788.2 / 803.8 / 796.9 / 796.5 W i a_rms 0.075 / 0.081 / 0.080 / 0.077 / 0.082 - czyli rozrzut 3.6% i 9% bez monotonicznosci, przy koszcie CPU rosnacym LINIOWO 0.052 -> 1.196 ms/krok (23x). Przemiatanie zwisu 0 -> 0.16 m przy 5 rzedach: strata 798.8 / 789.7 / 803.8 / 800.0 / 800.3 W, a_rms 0.097 / 0.077 / 0.080 / 0.077 / 0.081 - to samo. Tetnienie promienia 6.046 mm nie zmienia sie w ZADNYM punkcie obu przemiatan, bo mierzy sie je wzdluz toczenia, a profil poprzeczny go nie dotyka.",
+      "scope": "To NIE jest wynik przeciwko wysklepieniu - to wynik o GRANICY TEGO SZCZEBLA. Droga Q3 jest plyta i progami jednorodnymi w poprzek, a obwiednia jest SZTYWNA, wiec plaska plyta dotyka wylacznie wierzcholka korony i ksztalt przekroju nie ma jak sie odezwac. Zeby profil poprzeczny cokolwiek znaczyl, potrzebny jest teren zmienny w poprzek ALBO opona, ktora sie ugina - czyli dokladnie nastepny szczebel. Praktyczny wniosek dla warsztatu: rzedy sa CENA placona z gory za mozliwosc badania wginania, a nie ulepszeniem toczenia na plycie; kto szuka mniejszej straty na plaskim, ma siegac po crown_r (F-25), nie po rzedy. Rozrzut miedzy 3 powtorzeniami zerowy we wszystkich 10 punktach. Surowy przebieg: evidence/run_q3_crown_profile_2026_08_03.txt (raw-only).",
+      "evidence": [
+        "none"
+      ],
+      "code": "tools/jozz_wheel_bench/jozz_wheel_rig.c JrMakeRows / JrBuildTorus"
     }
   }
 }
