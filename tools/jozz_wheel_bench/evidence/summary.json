@@ -493,8 +493,8 @@
     },
     "core_kolider_kola_2026_08_03": {
       "source_file": "run_core_kolider_kola_2026_08_03.txt",
-      "source_sha256": "400d25aed7bad44e2677ec8fb7b5ded358416370eb9f4f2b4f49033ffae10c49",
-      "source_bytes": 7412,
+      "source_sha256": "362bfdba72a854ffb672032e328c1bc7a6022b6d6b2e928bf336b70af454d745",
+      "source_bytes": 8499,
       "provenance": {
         "RUN": "NOWY KSZTALT W SILNIKU - kolider kola (b3_wheelShape)",
         "DATA": "2026-08-03",

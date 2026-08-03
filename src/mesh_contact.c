@@ -628,6 +628,11 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 				b3CollideSphereAndTriangle( manifold, pointCapacity, &shapeB->sphere, vertices );
 				break;
 
+			case b3_wheelShape: // JOZZ PATCH: analytic wheel, see src/wheel_shape.c
+				b3CollideWheelAndTriangle( manifold, pointCapacity, &shapeB->wheel, vertices[0], vertices[1],
+										   vertices[2] );
+				break;
+
 			default:
 				B3_ASSERT( false );
 				return false;
@@ -1175,6 +1180,10 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 	else if ( shapeB->type == b3_hullShape )
 	{
 		radiusB = shapeB->hull->innerRadius;
+	}
+	else if ( shapeB->type == b3_wheelShape ) // JOZZ PATCH: the rolling radius
+	{
+		radiusB = shapeB->wheel.radius;
 	}
 
 	contact->rollingResistance = materialB->rollingResistance * radiusB;

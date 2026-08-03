@@ -88,8 +88,24 @@ void SampleWheelContacts( b3BodyId wheelId, int* loadedOut, int* freshOut )
 
 // One run: build the car on the given envelope, hold targetSpeed, then measure
 // over a window. steerHold != 0 turns the measurement window into a corner.
+// Flat ground made of TRIANGLES instead of a box. The product map is a mesh and
+// the mesh contact path in the engine is a different one, so "smooth on a box"
+// does not imply "smooth on the map" - it has to be measured, not assumed.
+b3BodyId CreateFlatMeshGround( b3WorldId worldId, b3MeshData** meshOut )
+{
+	b3World_EnableContinuous( worldId, false ); // same as the box ground: vehicle worlds run without CCD
+	*meshOut = b3CreateGridMesh( 400, 400, 1.0f, 0, true );
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	shapeDef.baseMaterial.friction = 0.8f;
+	shapeDef.filter.categoryBits = JOZZ_M6_TERRAIN_CATEGORY; // same tagging as the box ground
+	b3CreateMeshShape( groundId, &shapeDef, *meshOut, b3Vec3_one );
+	return groundId;
+}
+
 RideSample MeasureRide( const JozzVehiclePrimitiveDefaults& defaults, const RideEnvelope& envelope, float targetSpeed,
-						float steerHold, int subStepCount )
+						float steerHold, int subStepCount, bool meshGround = false )
 {
 	RideSample out = {};
 
@@ -107,7 +123,8 @@ RideSample MeasureRide( const JozzVehiclePrimitiveDefaults& defaults, const Ride
 
 	b3WorldDef worldDef = b3DefaultWorldDef();
 	b3WorldId worldId = b3CreateWorld( &worldDef );
-	b3BodyId groundId = CreateM6SmokeGround( worldId, 0.8f );
+	b3MeshData* mesh = nullptr;
+	b3BodyId groundId = meshGround ? CreateFlatMeshGround( worldId, &mesh ) : CreateM6SmokeGround( worldId, 0.8f );
 	float spawnHeight = config.restDrop + config.wheelEnvelope.radius + 0.05f;
 	JozzVehicleM6 vehicle = CreateJozzVehicleM6( worldId, groundId, config, { 0.0f, spawnHeight, 0.0f } );
 
@@ -181,6 +198,10 @@ RideSample MeasureRide( const JozzVehiclePrimitiveDefaults& defaults, const Ride
 	out.finite = IsM6VehicleStateValid( vehicle );
 
 	b3DestroyWorld( worldId );
+	if ( mesh != nullptr )
+	{
+		b3DestroyMesh( mesh );
+	}
 	return out;
 }
 
@@ -266,6 +287,24 @@ bool RunRideQualityDiagnosisProbe( const JozzVehiclePrimitiveDefaults& defaults 
 		RideSample sample = MeasureRide( defaults, envelope, 16.0f, 0.0f, 4 );
 		char label[40];
 		std::snprintf( label, sizeof( label ), "walec %d scianek", sides );
+		std::printf( row, label, 16.0f, sample.meanSpeed, sample.accelRms, sample.accelMax, sample.travelRms,
+					 sample.pointsPerWheel, sample.freshPercent );
+		allFinite &= sample.finite;
+	}
+
+	// The map is a mesh, not a box, and the engine reaches triangles through a
+	// different contact path. Same measurement, triangle ground.
+	std::printf( "  --- grunt z TROJKATOW (v_zad 16 m/s, prosto) ---\n" );
+	const RideEnvelope meshEnvelopes[] = {
+		{ "sfera", JOZZ_M6_ENVELOPE_SPHERE, 0, 0 },
+		{ "opona-64", JOZZ_M6_ENVELOPE_TORUS, 64, 0 },
+		{ "KOLO (nowy ksztalt)", JOZZ_M6_ENVELOPE_WHEEL, 0, 0 },
+	};
+	for ( const RideEnvelope& envelope : meshEnvelopes )
+	{
+		RideSample sample = MeasureRide( defaults, envelope, 16.0f, 0.0f, 4, true );
+		char label[40];
+		std::snprintf( label, sizeof( label ), "%s /mesh", envelope.name );
 		std::printf( row, label, 16.0f, sample.meanSpeed, sample.accelRms, sample.accelMax, sample.travelRms,
 					 sample.pointsPerWheel, sample.freshPercent );
 		allFinite &= sample.finite;

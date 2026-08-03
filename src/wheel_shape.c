@@ -263,6 +263,18 @@ void b3CollideWheelAndTriangle( b3LocalManifold* manifold, int capacity, const b
 
 	b3CollideWheelAndPlane( manifold, capacity, wheelA, normal, offset );
 
+	// SIGN. The hull path wants the normal pointing from the wheel to the other
+	// shape; the TRIANGLE path wants the opposite - b3CollideSphereAndTriangle
+	// builds it as normalize(sphereCenter - closestPointOnTriangle), i.e. from
+	// the triangle towards the convex shape. Getting this backwards drives the
+	// wheel into the ground: measured, the car stood still and shook at
+	// 26.5 m/s2 instead of rolling.
+	manifold->normal = normal;
+	manifold->triangleNormal = normal;
+	// The wheel always meets the triangle's face: its surface is smooth, so the
+	// deepest point can never be a vertex or an edge of the wheel.
+	manifold->feature = b3_featureTriangleFace;
+
 	// Drop points that fall outside the triangle. Without this a wheel spanning
 	// several triangles would collect phantom contacts from the neighbours'
 	// planes. Barycentric test on the point projected onto the triangle plane.

@@ -132,7 +132,9 @@ void b3InitializeContactRegisters( void )
 		b3AddType( b3_hullShape, b3_sphereShape );
 		b3AddType( b3_hullShape, b3_capsuleShape );
 		b3AddType( b3_hullShape, b3_hullShape );
-		b3AddType( b3_wheelShape, b3_hullShape ); // JOZZ PATCH
+		b3AddType( b3_wheelShape, b3_hullShape );  // JOZZ PATCH
+		b3AddType( b3_meshShape, b3_wheelShape );  // JOZZ PATCH: terrain
+		b3AddType( b3_heightShape, b3_wheelShape ); // JOZZ PATCH: height field
 		b3AddType( b3_meshShape, b3_sphereShape );
 		b3AddType( b3_meshShape, b3_capsuleShape );
 		b3AddType( b3_meshShape, b3_hullShape );
@@ -232,7 +234,8 @@ void b3CreateContact( b3World* world, b3Shape* shapeA, b3Shape* shapeB, int chil
 	}
 
 	// todo impose these restrictions to make life easier
-	B3_ASSERT( shapeB->type == b3_sphereShape || shapeB->type == b3_capsuleShape || shapeB->type == b3_hullShape );
+	B3_ASSERT( shapeB->type == b3_sphereShape || shapeB->type == b3_capsuleShape || shapeB->type == b3_hullShape ||
+			   shapeB->type == b3_wheelShape ); // JOZZ PATCH: the wheel is a convex B shape too
 	// B3_ASSERT( bodyB->type != b3_staticBody );
 
 	// Is either body static?
