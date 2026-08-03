@@ -2964,6 +2964,7 @@ typedef struct b3DebugShape
 		const b3HullData* hull;			  ///< Convex hull shape.
 		const b3Mesh* mesh;				  ///< Mesh shape with scale.
 		const b3Sphere* sphere;			  ///< Sphere shape.
+		const b3Wheel* wheel;			  ///< JOZZ PATCH: wheel shape.
 	};
 } b3DebugShape;
 

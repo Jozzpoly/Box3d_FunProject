@@ -602,6 +602,71 @@ static void* AdapterCreateDebugShape( const b3DebugShape* debugShape, void* cont
 		return us;
 	}
 
+	// JOZZ PATCH. The wheel is drawn as a tessellated cylinder. The physics uses
+	// the exact analytic shape; this is only what the eye sees, so facets here
+	// cost nothing. Hulls are cached forever (a handful of them, one per wheel
+	// size) because FindOrAddHull keys on the pointer and freeing one could hand
+	// the same address to a different hull later.
+	if ( debugShape->type == b3_wheelShape )
+	{
+		enum
+		{
+			WHEEL_HULL_CACHE = 8,
+			WHEEL_HULL_SIDES = 24
+		};
+		static struct
+		{
+			float radius, halfWidth;
+			b3HullData* hull;
+		} cache[WHEEL_HULL_CACHE];
+		static int cacheCount = 0;
+
+		const b3Wheel* wheel = debugShape->wheel;
+		b3HullData* hull = NULL;
+		for ( int i = 0; i < cacheCount; ++i )
+		{
+			if ( cache[i].radius == wheel->radius && cache[i].halfWidth == wheel->halfWidth )
+			{
+				hull = cache[i].hull;
+				break;
+			}
+		}
+		if ( hull == NULL && cacheCount < WHEEL_HULL_CACHE )
+		{
+			// Axis along local Y, which is how the vehicle mounts its wheels. A
+			// wheel on a different axis would still SIMULATE correctly; only this
+			// debug drawing would be turned the wrong way.
+			float width = 2.0f * wheel->halfWidth;
+			hull = b3CreateCylinder( width, wheel->radius, -wheel->halfWidth, WHEEL_HULL_SIDES );
+			cache[cacheCount].radius = wheel->radius;
+			cache[cacheCount].halfWidth = wheel->halfWidth;
+			cache[cacheCount].hull = hull;
+			cacheCount += 1;
+		}
+		if ( hull == NULL )
+		{
+			return NULL;
+		}
+
+		MeshHandle handle = FindOrAddHull( hull );
+		if ( !IsMeshHandleValid( handle ) )
+		{
+			return NULL;
+		}
+		int index = AllocDebugShape();
+		if ( index < 0 )
+		{
+			ReleaseMeshReference( handle );
+			return NULL;
+		}
+		DebugShape* us = &s_adapter.pool[index];
+		us->kind = Box3DUS_Hull;
+		PopulateCommonFields( us, debugShape );
+		us->geom.handle = handle;
+		us->geom.scale = b3Vec3_one;
+		return us;
+	}
+
 	if ( debugShape->type == b3_meshShape )
 	{
 		const b3Mesh* mesh = debugShape->mesh;
