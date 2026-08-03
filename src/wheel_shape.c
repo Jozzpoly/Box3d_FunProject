@@ -282,6 +282,102 @@ static void b3CollideWheelAndPlane( b3LocalManifold* manifold, int capacity, con
 	manifold->pointCount = count;
 }
 
+// Contact against a segment with radius: covers both the capsule and (with a
+// zero-length segment) the sphere. The bumpers on the map are capsules, and a
+// wheel that has no capsule pair registered drives straight THROUGH them - that
+// is exactly what happened when this was missing.
+//
+// Both shapes are "core plus radius", so the problem reduces to the closest
+// points between the wheel's CORE CYLINDER and the segment, with the two radii
+// added at the end. Alternating projection converges in a few passes because
+// both cores are convex.
+static void b3CollideWheelAndSegment( b3LocalManifold* manifold, int capacity, const b3Wheel* wheel, b3Vec3 p1,
+									  b3Vec3 p2, float radiusB )
+{
+	manifold->pointCount = 0;
+	if ( capacity <= 0 )
+	{
+		return;
+	}
+
+	float coreRadius = wheel->radius - wheel->cornerRadius;
+	float coreHalfWidth = wheel->halfWidth - wheel->cornerRadius;
+	b3Vec3 axis = wheel->axis;
+	b3Vec3 edge = b3Sub( p2, p1 );
+	float edgeLengthSqr = b3Dot( edge, edge );
+
+	b3Vec3 onCore = wheel->center;
+	b3Vec3 onSegment = p1;
+
+	for ( int iteration = 0; iteration < 4; ++iteration )
+	{
+		// Closest point on the segment to the current core point.
+		float t = 0.0f;
+		if ( edgeLengthSqr > B3_WHEEL_EPS )
+		{
+			t = b3Dot( b3Sub( onCore, p1 ), edge ) / edgeLengthSqr;
+			t = b3ClampFloat( t, 0.0f, 1.0f );
+		}
+		onSegment = b3MulAdd( p1, t, edge );
+
+		// Closest point on the solid core cylinder to that segment point.
+		b3Vec3 delta = b3Sub( onSegment, wheel->center );
+		float axial = b3ClampFloat( b3Dot( delta, axis ), -coreHalfWidth, coreHalfWidth );
+		b3Vec3 radial = b3MulSub( delta, b3Dot( delta, axis ), axis );
+		float radialLength = b3Length( radial );
+		if ( radialLength > coreRadius )
+		{
+			radial = b3MulSV( coreRadius / radialLength, radial );
+		}
+		onCore = b3MulAdd( b3MulAdd( wheel->center, 1.0f, radial ), axial, axis );
+	}
+
+	b3Vec3 separationVector = b3Sub( onSegment, onCore );
+	float distance = b3Length( separationVector );
+	b3Vec3 normal;
+	if ( distance > B3_WHEEL_EPS )
+	{
+		normal = b3MulSV( 1.0f / distance, separationVector );
+	}
+	else
+	{
+		// Cores overlap: push out radially, which is the only direction that
+		// makes sense for a wheel and never points along the axle.
+		b3Vec3 radial = b3MulSub( b3Sub( onSegment, wheel->center ), b3Dot( b3Sub( onSegment, wheel->center ), axis ),
+								  axis );
+		float radialLength = b3Length( radial );
+		normal = radialLength > B3_WHEEL_EPS ? b3MulSV( 1.0f / radialLength, radial ) : b3WheelPerpendicular( axis );
+	}
+
+	float separation = distance - ( wheel->cornerRadius + radiusB );
+	if ( separation > B3_SPECULATIVE_DISTANCE )
+	{
+		return;
+	}
+
+	manifold->normal = normal;
+	manifold->points[0].point = b3MulAdd( onCore, wheel->cornerRadius, normal );
+	manifold->points[0].separation = separation;
+	manifold->points[0].pair = ( b3FeaturePair ){ 0 };
+	manifold->points[0].triangleIndex = 0;
+	manifold->pointCount = 1;
+}
+
+void b3CollideWheelAndCapsule( b3LocalManifold* manifold, int capacity, const b3Wheel* wheelA, const b3Capsule* capsuleB,
+							   b3Transform transformBtoA )
+{
+	b3Vec3 p1 = b3TransformPoint( transformBtoA, capsuleB->center1 );
+	b3Vec3 p2 = b3TransformPoint( transformBtoA, capsuleB->center2 );
+	b3CollideWheelAndSegment( manifold, capacity, wheelA, p1, p2, capsuleB->radius );
+}
+
+void b3CollideWheelAndSphere( b3LocalManifold* manifold, int capacity, const b3Wheel* wheelA, const b3Sphere* sphereB,
+							  b3Transform transformBtoA )
+{
+	b3Vec3 center = b3TransformPoint( transformBtoA, sphereB->center );
+	b3CollideWheelAndSegment( manifold, capacity, wheelA, center, center, sphereB->radius );
+}
+
 void b3CollideWheelAndHull( b3LocalManifold* manifold, int capacity, const b3Wheel* wheelA, const b3HullData* hullB,
 							b3Transform transformBtoA )
 {

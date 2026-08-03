@@ -599,6 +599,14 @@ B3_API b3CastOutput b3RayCastWheel( const b3Wheel* wheel, const b3RayCastInput* 
 B3_API void b3CollideWheelAndHull( b3LocalManifold* manifold, int capacity, const b3Wheel* wheelA,
 								   const b3HullData* hullB, b3Transform transformBtoA );
 
+/// Collide a wheel and a capsule. The wheel is A.
+B3_API void b3CollideWheelAndCapsule( b3LocalManifold* manifold, int capacity, const b3Wheel* wheelA,
+									  const b3Capsule* capsuleB, b3Transform transformBtoA );
+
+/// Collide a wheel and a sphere. The wheel is A.
+B3_API void b3CollideWheelAndSphere( b3LocalManifold* manifold, int capacity, const b3Wheel* wheelA,
+									 const b3Sphere* sphereB, b3Transform transformBtoA );
+
 /// Collide a wheel and a triangle. The wheel is A.
 B3_API void b3CollideWheelAndTriangle( b3LocalManifold* manifold, int capacity, const b3Wheel* wheelA, b3Vec3 v1,
 									   b3Vec3 v2, b3Vec3 v3 );

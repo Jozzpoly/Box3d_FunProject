@@ -132,7 +132,9 @@ void b3InitializeContactRegisters( void )
 		b3AddType( b3_hullShape, b3_sphereShape );
 		b3AddType( b3_hullShape, b3_capsuleShape );
 		b3AddType( b3_hullShape, b3_hullShape );
-		b3AddType( b3_wheelShape, b3_hullShape );  // JOZZ PATCH
+		b3AddType( b3_wheelShape, b3_hullShape );	// JOZZ PATCH
+		b3AddType( b3_wheelShape, b3_capsuleShape ); // JOZZ PATCH: bumpers are capsules
+		b3AddType( b3_wheelShape, b3_sphereShape );  // JOZZ PATCH
 		b3AddType( b3_meshShape, b3_wheelShape );  // JOZZ PATCH: terrain
 		b3AddType( b3_heightShape, b3_wheelShape ); // JOZZ PATCH: height field
 		b3AddType( b3_meshShape, b3_sphereShape );
@@ -512,8 +514,19 @@ static bool b3ComputeConvexManifold( b3World* world, int workerIndex, b3Contact*
 	else if ( typeA == b3_wheelShape )
 	{
 		// JOZZ PATCH. Analytic wheel contact - see src/wheel_shape.c.
-		B3_ASSERT( typeB == b3_hullShape );
-		b3CollideWheelAndHull( &geomManifold, pointCapacity, &shapeA->wheel, shapeB->hull, transformBtoA );
+		if ( typeB == b3_capsuleShape )
+		{
+			b3CollideWheelAndCapsule( &geomManifold, pointCapacity, &shapeA->wheel, &shapeB->capsule, transformBtoA );
+		}
+		else if ( typeB == b3_sphereShape )
+		{
+			b3CollideWheelAndSphere( &geomManifold, pointCapacity, &shapeA->wheel, &shapeB->sphere, transformBtoA );
+		}
+		else
+		{
+			B3_ASSERT( typeB == b3_hullShape );
+			b3CollideWheelAndHull( &geomManifold, pointCapacity, &shapeA->wheel, shapeB->hull, transformBtoA );
+		}
 	}
 	else
 	{
