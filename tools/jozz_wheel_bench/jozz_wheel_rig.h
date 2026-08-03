@@ -17,6 +17,7 @@
 #include "box3d/box3d.h"
 
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -128,6 +129,14 @@ typedef struct
 	// Przy crownRows == 1 zwis nie ma sie na czym odlozyc i geometria jest
 	// DOKLADNIE ta sprzed tej zmiany. To warunek, nie zbieg okolicznosci: blokada
 	// zachowania i cala dotychczasowa tabela Q3 opisuja tamta bryle.
+	//
+	// UWAGA, zmierzone: przy zwisie 0 rzedy nie zmieniaja NICZEGO w bryle - wszystkie
+	// leza na jednym promieniu, wiec ich unia to ta sama kapsula co przy jednym
+	// rzedzie, tylko `crownRows` razy drozsza. Sam suwak rzedow bez zwisu jest
+	// zatem czystym wydatkiem; sprawdza to odcisk JozzRig_EnvelopeSignature.
+	//
+	// Zakres 1..JOZZ_RIG_CROWN_ROWS_MAX i zwis 0..halfLen sa TWARDE: poza nimi
+	// konstrukcja jest nieprzedstawialna, a nie po cichu przycieta.
 	int crownRows;
 	float crownDrop;
 
@@ -180,6 +189,14 @@ int JozzRig_ConfigToText( const JozzRigConfig* c, char* out, size_t cap, const c
 // 1 = wczytano; 0 = odrzucono, opis w `err`. Konfiguracja jest podmieniana
 // dopiero po pelnym sukcesie, wiec bledny plik nie zostawia polowicznego stanu.
 int JozzRig_ConfigFromText( JozzRigConfig* c, const char* text, char* err, size_t errCap );
+
+// Zakresy profilu poprzecznego, ktorych tabela pol nie wyrazi (zaleza od W i
+// crownR). 1 = w porzadku. Uzywane przez OBIE sciezki wejscia i przez stend.
+int JozzRig_ValidateCrown( const JozzRigConfig* c, char* err, size_t errCap );
+
+// Pomija znacznik kolejnosci bajtow UTF-8, ktory Notatnik i PowerShell dopisuja
+// przy zapisie. Wspolne dla `.rig` i `.qc`.
+const char* JrSkipBom( const char* s );
 
 int JozzRig_ConfigWriteFile( const JozzRigConfig* c, const char* path, const char* note );
 int JozzRig_ConfigReadFile( JozzRigConfig* c, const char* path, char* err, size_t errCap );
@@ -299,6 +316,16 @@ double JozzRig_ProfileBuilt( const JozzRigConfig* c, double y );
 // To jest miara jakosci REPREZENTACJI: mowi, ile ksztaltu opony gubi sie na
 // tym, ze przekroj sklada sie z odcinkow, a nie z luku.
 double JozzRig_ProfileError( const JozzRigConfig* c );
+
+// Odcisk POWIERZCHNI obwiedni. Dwie konstrukcje o tym samym odcisku sa dla drogi
+// nieodroznialne, choc moga miec rozna liczbe ksztaltow i rozny koszt.
+//
+// Istnieje, bo jego brak kosztowal bledny wniosek: przemiatanie po liczbie
+// rzedow wykonane przy zwisie 0 przemiatalo TE SAMA bryle (unia rzedow lezacych
+// na jednym promieniu = jedna kapsula) i wygladalo jak pomiar ksztaltu. Stend
+// drukuje ten odcisk przy kazdym punkcie i oznacza punkty o tej samej bryle.
+// Zwraca 0 dla konstrukcji niebudowalnej.
+uint64_t JozzRig_EnvelopeSignature( const JozzRigConfig* c );
 
 // --- rig ---------------------------------------------------------------------
 

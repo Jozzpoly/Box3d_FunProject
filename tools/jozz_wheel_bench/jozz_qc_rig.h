@@ -94,6 +94,20 @@ typedef struct
 	JozzQcRoad road;
 	float obstacleH, obstacleLen, combSpacing;
 
+	// SZEROKOSC progu i jego przesuniecie w bok. Do tej wersji kazdy prog byl
+	// pudlem o polowie szerokosci rownej polowie plyty, czyli droga Q3 byla
+	// JEDNORODNA W POPRZEK - i to jest powod, dla ktorego profil poprzeczny opony
+	// nie dawal sie na tym stanowisku zmierzyc. Nie fizyka, tylko stanowisko:
+	// sztywna obwiednia na przeszkodzie rozciagnietej przez cala szerokosc dotyka
+	// wylacznie wierzcholkiem korony, wiec ksztalt biezni nie ma gdzie zadzialac.
+	//
+	// obstacleHalfZ <= 0 znaczy "cala szerokosc plyty", czyli dokladnie dotychczasowa
+	// droga. Ponizej polowy szerokosci opony prog staje sie KAMIENIEM pod czescia
+	// biezni - pierwszy przypadek Q3, w ktorym wysklepienie i szerokosc kola maja
+	// prawo cokolwiek zmienic.
+	float obstacleHalfZ;
+	float obstacleZ;
+
 	// PROTOKOL
 	JozzQcDrive drive;
 	double targetSpeed;
@@ -415,6 +429,15 @@ typedef struct
 	double msPerStep;
 	int shapes;
 	double ripple;
+	// Ile punktow kontaktu NAPRAWDE niesie obciazenie. Stoi obok `shapes`, bo to
+	// sa dwie rozne liczby i mylenie ich kosztowalo wniosek: kolo o piecu rzedach
+	// przy zwisie 0 ma pieciokrotnie wiecej ksztaltow i TE SAMA obwiednie, a
+	// zmienia sie tylko liczba punktow, ktorymi solver ja opisuje.
+	double points;
+	// Tozsamosc OBWIEDNI (JozzRig_EnvelopeSignature) i najwieksza odchylka
+	// zbudowanego przekroju od zamowionego luku, w metrach.
+	uint64_t envelope;
+	double profileErr;
 	int repeats;
 	int invalid;
 	int built;

@@ -136,10 +136,22 @@ crownRows  ile rzedow kapsul lezy obok siebie w poprzek biezni  (1..9)
 crownDrop  o ile promien BARKU jest mniejszy od promienia srodka biezni
 
   a       = W/2 - crownR            polowa plaskiej biezni
-  pasmo j = [-a + 2a*j/M, -a + 2a*(j+1)/M]
-  os rzedu j lezy na promieniu (wheelR - crownR) - sag(srodek pasma)
   sag(y)  = Rc - sqrt(Rc^2 - y^2),  Rc = (a^2 + drop^2) / (2*drop)
+
+  granice pasm sa ROWNE PO ZWISIE, nie po szerokosci:
+      krawedz(t) = sqrt(2*Rc*s - s^2),  s = drop*|t|,  t = -1 + 2j/M
+  os rzedu j lezy na promieniu (wheelR - crownR) - sag(srodek pasma) + lift
+  lift    = najmniejszy sag wsrod rzedow  (patrz punkt 4 nizej)
 ```
+
+Podział równy po **zwisie**, a nie po szerokości, jest poprawką z 2026-08-03 i
+jest ZMIERZONY: błąd schodka bierze się z tego, o ile promień zmienia się wewnątrz
+jednego pasma, a łuk korony jest przy barku kilkanaście razy bardziej stromy niż
+na środku bieżni. Równe pasma po szerokości marnowały rozdzielczość tam, gdzie
+profil jest płaski. Przy 9 rzędach i zwisie 80 mm odchyłka spadła **18,1 → 9,0 mm
+przy identycznym koszcie CPU**, a przebieg fizyczny przestał skakać: strata idzie
+teraz monotonicznie 973,8 → 916,9 → 879,3 → 869,9 W zamiast 788,9 → 895,6 → 845,5
+→ 878,5 W.
 
 Trzy rzeczy, które trzymają ten dodatek w ryzach:
 
@@ -155,12 +167,49 @@ Trzy rzeczy, które trzymają ten dodatek w ryzach:
    wynik, a nie usterka — łuku nie da się złożyć z kapsuł o osi równoległej do
    osi koła, bo każda daje w przekroju odcinek prosty.
 
+4. **Szczyt jest normalizowany do zamówionego promienia.** Przy PARZYSTEJ liczbie
+   rzędów żadne pasmo nie leży na środku bieżni, więc najwyższy pasek siedzi już
+   na zwisie `sag(a/M)` i koło wychodziło **cicho mniejsze** niż `wheelR` — przy
+   dwóch rzędach i zwisie 20 mm o 4,9 mm, czyli 1% promienia. Przemiatanie po
+   liczbie rzędów mieszało wtedy wierność profilu z rozmiarem opony. Przy `M`
+   nieparzystym i przy `M = 1` przesunięcie wychodzi dokładnie 0.0.
+5. **Zakres jest twardy, nie przycinany.** `crown_rows` poza `1..9` albo zwis
+   większy niż połowa bieżni to konstrukcja **nieprzedstawialna**, odrzucana
+   z konkretnym komunikatem. Wcześniej była po cichu przycinana, a odcisk
+   konfiguracji drukował dalej wartość ZAMÓWIONĄ — plik `.qc` z `crown_rows 20`
+   budował dziewięć rzędów i podpisywał przebieg jako dwadzieścia.
+
 Nowa liczba w oknie: **odchyłka od profilu** — największa różnica między
 obwiednią zbudowaną a zamówionym łukiem. Jest to miara jakości REPREZENTACJI,
 odpowiadająca na pytanie „na ile ta bryła jest oponą", którego nie rozstrzyga
 żadna z dotychczasowych metryk. Rośnie ze zwisem, maleje z liczbą rzędów.
+Próbki leżą w ŚRODKACH przedziałów: na samej krawędzi barku obwiednia jest
+nieciągła i próbka postawiona dokładnie tam porównywała „krawędź" z „pustką",
+dając odchyłkę 464 mm na kole o promieniu 514 mm.
 
 Stend: `--qc-rows M`, `--qc-drop m`, `--qc-sweep-param rows|drop`.
+
+### 4.3.1 Odcisk obwiedni — dlaczego przemiatanie musi mówić, czy zmieniło kształt
+
+`JozzRig_EnvelopeSignature` liczy odcisk **powierzchni** obwiedni (nie listy
+kapsuł, nie konfiguracji). Dwie konstrukcje o równym odcisku są dla drogi
+nieodróżnialne, choć mogą mieć różną liczbę kształtów i różny koszt.
+
+Powód istnienia jest zmierzony i kosztował jeden błędny wniosek (`F-26`,
+wycofane): przemiatanie po liczbie rzędów wykonane przy **zwisie 0** przemiatało
+tę samą bryłę — wszystkie rzędy leżą wtedy na jednym promieniu, więc ich unia to
+dokładnie ta sama kapsuła co przy jednym rzędzie. Tabela pokazywała pięć coraz
+droższych punktów o różnych liczbach i wyglądała jak pomiar kształtu.
+
+Stend drukuje odcisk przy każdym punkcie, oznacza `= TA SAMA BRYLA` i po tabeli
+pisze, ile RÓŻNYCH brył naprawdę przez nią przeszło. Ta sama kolumna stoi
+w tabeli okna.
+
+**`F-27`, konsekwencja dla całego programu:** przy identycznej obwiedni sama
+liczba kształtów przesuwa stratę o **5,3%** (775,0 → 816,1 W, monotonicznie
+z liczbą nośnych punktów kontaktu 2,84 → 18,55). To jest podłoga szumu każdego
+porównania między konstrukcjami o istotnie różnej liczbie punktów kontaktu —
+a takie właśnie będzie porównanie opony sztywnej z odkształcalną.
 
 ### 4.4 Skok dynamiczny (2026-08-03, nowa kolumna obok starej)
 
@@ -214,11 +263,34 @@ podkroku, więc **liczba podkroków zmienia także zawieszenie** (`U-25`).
 flat    plaska plyta                      KONTROLA
 cleat   pojedynczy prog, wysokosc h       odpowiedz na pojedynczy udar
 comb    grzebien progow, rozstaw s        wymuszenie okresowe
+
+obstacle_half_z   polowa szerokosci progu; 0 = CALA szerokosc plyty
+obstacle_z        srodek progu w poprzek
 ```
 
 Bez wymuszenia Q3 na płaskiej płycie mierzy **fasety wielokąta**, a nie transfer
 udaru — czyli odpowiada na pytanie Q1/Q2, nie na swoje. Płaski przebieg zostaje
 jako kontrola i jako punkt odniesienia dla `Q2→Q3`.
+
+### 6.1 Przekrój drogi (2026-08-03, `F-28`)
+
+Do tej wersji każdy próg był pudłem o połowie szerokości równej połowie płyty,
+czyli droga Q3 była **jednorodna w poprzek**. To, a nie fizyka, było powodem,
+dla którego profil poprzeczny opony nie dawał się na tym stanowisku zmierzyć:
+sztywna obwiednia na przeszkodzie rozciągniętej przez całą szerokość dotyka
+wyłącznie wierzchołkiem korony.
+
+`obstacle_half_z <= 0` znaczy „cała szerokość", czyli **dokładnie dotychczasowa
+droga** — cały zarejestrowany materiał Q3 zostaje ważny, a odcisk konfiguracji
+milczy o tych polach, dopóki próg jest pełnej szerokości.
+
+Zmierzone (`F-28`): ta sama bryła (`torus-64`, 5 rzędów, zwis 0,08 m), grzebień
+kamieni 30 mm o połowie szerokości 40 mm przesuwanych w bok z 0 na 0,20 m —
+`a_rms` **1,548 → 0,079 m/s²**. Zmienia się wyłącznie położenie kamienia pod
+bieżnią.
+
+Stend: `--qc-obstacle-h`, `--qc-obstacle-half-z`, `--qc-obstacle-z`,
+`--qc-sweep-param stone_w|stone_z`.
 
 Każdy przebieg w wersji `PUDŁO` i `MESH` (`KOLA_05` §1.2, linia „grunt").
 

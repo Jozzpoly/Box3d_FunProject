@@ -1,0 +1,81 @@
+=== Q3 - co naprawde widzi to stanowisko: liczba ksztaltow vs ksztalt (2026-08-03) ===
+baza: torus-N N=64, R 0.5141, W 0.4375, crown_r 0.05, v 4 m/s
+kazdy punkt: 3 przebiegi z przesunietym startem, okno 600 po 120 rozgrzewki
+build: Release /O2, wheel_bench.exe
+kolumna `bryla` to odcisk POWIERZCHNI obwiedni - rowny odcisk = ta sama bryla
+
+=== Q3 PRZEMIATANIE: rows od 1 do 9, 5 punktow ===
+baza: torus-N N=64 droga flat v_zad 4.00 k 13500 N/m zeta 0.350
+kazdy punkt to 3 przebiegi z przesunietym startem; +- to POLOWA ROZRZUTU
+
+punkt              bryla  shape    pkt profil_mm  tetn_mm        moment Nm strata_W      a_rms m/s2   w powietrzu   churn% ms/krok
+rzedow=1        5f587854     64   2.84     0.000    6.046     99.61+-0.00    775.0    0.075+-0.000    0.0+-0.0 %     25.5   0.050
+rzedow=3        5f587854    192   6.51     0.000    6.046    102.50+-0.00    797.6    0.089+-0.000    0.0+-0.0 %     28.0   0.208  = TA SAMA BRYLA
+rzedow=5        5f587854    320  10.95     0.000    6.046    102.66+-0.00    798.8    0.097+-0.000    0.0+-0.0 %     27.1   0.417  = TA SAMA BRYLA
+rzedow=7        5f587854    448  14.79     0.000    6.046    103.16+-0.00    802.7    0.096+-0.000    0.0+-0.0 %     28.5   0.703  = TA SAMA BRYLA
+rzedow=9        5f587854    576  18.55     0.000    6.046    104.89+-0.00    816.1    0.082+-0.000    0.0+-0.0 %     28.3   1.176  = TA SAMA BRYLA
+
+roznych bryl w tym przemiataniu: 1 na 5 punktow
+UWAGA: ten parametr NIE ZMIENIL obwiedni. Rozrzut ponizej jest podloga szumu
+przyrzadu przy zmianie liczby ksztaltow, a nie skutkiem ksztaltu.
+
+
+=== Q3 PRZEMIATANIE: drop od 0 do 0.16, 5 punktow ===
+baza: torus-N N=64 droga comb v_zad 4.00 k 13500 N/m zeta 0.350
+prog WASKI: polowa szerokosci 0.04 m, srodek w z 0.15 (kolo ma polowe 0.2188 m)
+kazdy punkt to 3 przebiegi z przesunietym startem; +- to POLOWA ROZRZUTU
+
+punkt              bryla  shape    pkt profil_mm  tetn_mm        moment Nm strata_W      a_rms m/s2   w powietrzu   churn% ms/krok
+zwis=0          5f587854    320   9.46     0.000    6.046    128.18+-0.00    997.0    1.541+-0.000    0.0+-0.0 %     32.6   0.439
+zwis=0.04       bd0277c4    320   2.59     8.519    6.046    118.71+-0.00    923.5    0.956+-0.000    0.0+-0.0 %     29.6   0.394
+zwis=0.08       1ee68a41    320   2.51    17.416    6.046    117.86+-0.00    916.9    1.112+-0.000    0.0+-0.0 %     30.0   0.361
+zwis=0.12       32db3157    320   2.50    27.024    6.046    120.43+-0.00    936.9    1.312+-0.000    0.0+-0.0 %     30.2   0.355
+zwis=0.16       3f51284a    320   2.42    39.309    6.046    124.48+-0.01    968.3    1.489+-0.001    0.0+-0.0 %     28.6   0.360
+
+roznych bryl w tym przemiataniu: 5 na 5 punktow
+
+
+=== Q3 PRZEMIATANIE: stone_z od 0 do 0.2, 5 punktow ===
+baza: torus-N N=64 droga comb v_zad 4.00 k 13500 N/m zeta 0.350
+prog WASKI: polowa szerokosci 0.04 m, srodek w z 0 (kolo ma polowe 0.2188 m)
+kazdy punkt to 3 przebiegi z przesunietym startem; +- to POLOWA ROZRZUTU
+
+punkt              bryla  shape    pkt profil_mm  tetn_mm        moment Nm strata_W      a_rms m/s2   w powietrzu   churn% ms/krok
+kam_z=0         1ee68a41    320   2.51    17.416    6.046    125.21+-0.00    974.0    1.548+-0.000    0.3+-0.0 %     30.9   0.352
+kam_z=0.05      1ee68a41    320   2.52    17.416    6.046    125.72+-0.00    977.9    1.548+-0.000    0.3+-0.0 %     31.3   0.355
+kam_z=0.1       1ee68a41    320   2.47    17.416    6.046    124.55+-0.00    968.8    1.553+-0.000    0.2+-0.0 %     29.4   0.347
+kam_z=0.15      1ee68a41    320   2.51    17.416    6.046    117.86+-0.00    916.9    1.112+-0.000    0.0+-0.0 %     30.0   0.370
+kam_z=0.2       1ee68a41    320   2.70    17.416    6.046    101.46+-0.00    789.4    0.079+-0.000    0.0+-0.0 %     25.6   0.344
+
+
+=== Q3 PRZEMIATANIE: rows od 1 do 9, 5 punktow ===
+baza: torus-N N=64 droga comb v_zad 4.00 k 13500 N/m zeta 0.350
+prog WASKI: polowa szerokosci 0.04 m, srodek w z 0.15 (kolo ma polowe 0.2188 m)
+kazdy punkt to 3 przebiegi z przesunietym startem; +- to POLOWA ROZRZUTU
+
+punkt              bryla  shape    pkt profil_mm  tetn_mm        moment Nm strata_W      a_rms m/s2   w powietrzu   churn% ms/krok
+rzedow=1        5f587854     64   2.64     0.000    6.046    124.81+-0.00    970.8    1.544+-0.000    0.0+-0.0 %     30.6   0.053
+rzedow=3         a77763b    192   2.42    30.627    6.046    125.18+-0.00    973.8    1.529+-0.000    0.0+-0.0 %     30.4   0.183
+rzedow=5        1ee68a41    320   2.51    17.416    6.046    117.86+-0.00    916.9    1.112+-0.000    0.0+-0.0 %     30.0   0.374
+rzedow=7        3d483bdf    448   2.71    11.982    6.046    113.03+-0.39    879.3    0.563+-0.007    0.2+-0.1 %     30.0   0.609
+rzedow=9        188f4ecd    576   2.50     8.972    6.046    111.82+-0.07    869.9    0.675+-0.000    0.0+-0.0 %     28.9   0.880
+
+roznych bryl w tym przemiataniu: 5 na 5 punktow
+
+
+--- KONTROLA: to samo przemiatanie zwisu przy 2.5x mniejszym promieniu barku ---
+--- (sprawdzenie, czy niemonotonicznosc bierze sie z zaokraglenia barku)     ---
+
+=== Q3 PRZEMIATANIE: drop od 0 do 0.16, 5 punktow ===
+baza: torus-N N=96 droga comb v_zad 4.00 k 13500 N/m zeta 0.350
+prog WASKI: polowa szerokosci 0.04 m, srodek w z 0.15 (kolo ma polowe 0.2188 m)
+kazdy punkt to 3 przebiegi z przesunietym startem; +- to POLOWA ROZRZUTU
+
+punkt              bryla  shape    pkt profil_mm  tetn_mm        moment Nm strata_W      a_rms m/s2   w powietrzu   churn% ms/krok
+zwis=0          979669b1    480  13.17     0.000    8.490    136.82+-0.01   1064.1    1.491+-0.000    0.0+-0.0 %     44.4   0.563
+zwis=0.04       6b9a9765    480   3.05     8.507    8.490    120.65+-0.49    938.5    0.912+-0.006    0.3+-0.1 %     28.2   0.519
+zwis=0.08       6dcad9b0    480   2.89    17.296    8.490    119.80+-0.22    931.9    1.224+-0.001    0.7+-0.1 %     32.0   0.468
+zwis=0.12           554d    480   2.88    26.632    8.490    120.29+-0.34    935.7    1.439+-0.000    0.2+-0.0 %     30.8   0.468
+zwis=0.16       b24ccb79    480   2.92    37.003    8.490    121.50+-0.00    945.1    1.541+-0.000    0.0+-0.0 %     34.5   0.453
+
+roznych bryl w tym przemiataniu: 5 na 5 punktow

@@ -39,6 +39,44 @@ otwartym; implementacja produktowa NIE rozpoczęta**
 > - Werdykt o feelu należy do Jozza i **nie został wydany** (reguła twarda 5).
 >   Otwarte: `Q3-5` (wzorzec zachowania) — dopiero po akceptacji w oknie.
 
+> **Rewizja 2026-08-03 (b) — krytyczna walidacja własnej pracy z tego samego dnia.
+> Wynik `F-26` okazał się artefaktem stanowiska i został WYCOFANY.** Właściciel:
+> „przeanalizuj krytycznie całość ostatnich zmian i potraktuj je jak coś, co
+> trzeba jeszcze uczciwie zwalidować, a nie bronić tylko dlatego, że już działa".
+> - **`F-26` stało na przemiataniu, które nie zmieniało bryły.** Przemiatanie po
+>   `crown_rows` ustawia wyłącznie liczbę rzędów, a zwis został wtedy domyślny,
+>   czyli **zerowy** — przy zwisie 0 wszystkie rzędy leżą na jednym promieniu,
+>   więc ich unia to dokładnie ta sama kapsuła co przy jednym rzędzie. Mierzono
+>   pięć razy tę samą oponę o rosnącym koszcie CPU. Opis findingu podawał przy
+>   tym „zwis 0.08 m", którego żaden z tych przebiegów nie miał — liczba wzięta
+>   z kontekstu pracy zamiast z nagłówka przebiegu.
+> - **Maszynowy strażnik zamiast dobrych chęci**: stend liczy teraz odcisk
+>   POWIERZCHNI obwiedni (`JozzRig_EnvelopeSignature`), drukuje go przy każdym
+>   punkcie przemiatania, oznacza punkty `= TA SAMA BRYLA` i pisze wprost, gdy
+>   parametr nie zmienił kształtu. Ta sama kolumna stoi w tabeli okna.
+> - **`F-27`: sama LICZBA KSZTAŁTÓW przesuwa wynik o 5,3%** przy identycznej
+>   obwiedni (strata 775,0 → 816,1 W monotonicznie z liczbą nośnych punktów
+>   kontaktu 2,84 → 18,55). To jest podłoga szumu każdego porównania opony
+>   sztywnej z odkształcalną — ta druga z definicji ma więcej punktów kontaktu.
+> - **`F-28`: Q3 WIDZI profil poprzeczny**, gdy droga przestaje być jednorodna
+>   w poprzek. Nowe pola `obstacle_half_z` i `obstacle_z` (0 = próg na całą
+>   szerokość, czyli dotychczasowa droga). Ta sama bryła, kamień przesuwany
+>   0 → 0,20 m: **a_rms 1,548 → 0,079 m/s²**.
+> - **`F-29`: pasma korony równe po ZWISIE**, nie po szerokości — odchyłka od
+>   profilu 18,1 → 9,0 mm przy identycznym koszcie. I ostrzeżenie: zwis przy
+>   stałej liczbie rzędów **nie jest** monotonicznym pokrętłem miękkości, bo
+>   głębsza korona ROZSZERZA środkowy płaskowyż. Sprawdzone przy dwóch promieniach
+>   barku.
+> - **`F-30`: rozdzielczość poprzeczna kosztuje kwadratowo.** Czasza kapsuły
+>   o promieniu `crownR` trzyma się w granicy `h` od pełnego promienia aż do
+>   `sqrt(2·crownR·h)` w bok. Rozróżnienie przeszkody 30 mm wymaga `crownR` rzędu
+>   10 mm, a szczelność żąda wtedy 159 kapsuł — **1431 kształtów na koło**.
+> - Naprawione przy okazji: parzysta liczba rzędów po cichu **zmniejszała promień
+>   koła** (przy zwisie 20 mm o 4,9 mm, czyli 1%); `crown_rows` i `crown_drop`
+>   poza zakresem były po cichu przycinane, a odcisk konfiguracji podawał dalej
+>   wartość ZAMÓWIONĄ; odchyłka od profilu potrafiła pokazać 464 mm, bo próbka
+>   stawiana dokładnie na krawędzi barku porównywała „krawędź" z „pustką".
+
 > **Rewizja 2026-08-03 — torus dostaje drugi wymiar kształtu, warsztat mówi
 > językiem opon.** Właściciel: „torus staje się naprawdę ciekawy, ale nadal mam
 > zbyt mały wpływ na jego kształt i nie jestem w stanie zbudować oraz
@@ -63,15 +101,9 @@ otwartym; implementacja produktowa NIE rozpoczęta**
 >   i podana wprost.
 > - Nowa liczba: **odchyłka od profilu** — miara jakości REPREZENTACJI, na którą
 >   nie odpowiadała żadna dotychczasowa metryka.
-> - **`F-26` — i to jest najważniejszy wynik tej rewizji: Q3 na płaskiej płycie
->   NIE WIDZI profilu poprzecznego.** Przemiatanie rzędów 1→9 zmienia stratę
->   o 3,6% bez monotoniczności, przy koszcie CPU rosnącym **23×**; przemiatanie
->   zwisu 0→0,16 m to samo. Tętnienie promienia nie drgnęło w żadnym z 10 punktów,
->   bo mierzy się je wzdłuż toczenia. Powód nie jest usterką: droga Q3 to płyta
->   i progi jednorodne w poprzek, a obwiednia jest SZTYWNA — płaska płyta dotyka
->   wyłącznie wierzchołka korony. Wysklepienie jest więc **ceną płaconą z góry za
->   możliwość badania wginania**, a nie ulepszeniem toczenia na płycie. Kto szuka
->   mniejszej straty na płaskim, ma sięgać po `crown_r` (`F-25`), nie po rzędy.
+> - **`F-26` — WYCOFANE tego samego dnia, patrz rewizja poniżej.** Brzmiało: „Q3
+>   na płaskiej płycie NIE WIDZI profilu poprzecznego". Przemiatanie, na którym
+>   stało, nie zmieniało bryły.
 > - **`skok rms` nie rozróżniał kandydatów** — liczony od zera więzu, zawierał
 >   111 mm ugięcia statycznego. Dołożona składowa DYNAMICZNA (§4.4).
 > - **„przywróć domyślne" zamieniało torusa w KULĘ**: przycisk sekcji cofał do

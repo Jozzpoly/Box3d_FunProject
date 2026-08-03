@@ -367,13 +367,53 @@
       "code": "tools/jozz_wheel_bench/jozz_wheel_rig.c JozzRig_CriticalSpeed"
     },
     "F-26": {
-      "status": "BENCH_PRELIMINARY",
-      "claim": "Q3 na plaskiej plycie NIE WIDZI profilu poprzecznego korony. Przemiatanie liczby rzedow 1->9 (torus-64, crown_r 0.05, zwis 0.08 m, 4.0 m/s) daje strate 775.0 / 788.2 / 803.8 / 796.9 / 796.5 W i a_rms 0.075 / 0.081 / 0.080 / 0.077 / 0.082 - czyli rozrzut 3.6% i 9% bez monotonicznosci, przy koszcie CPU rosnacym LINIOWO 0.052 -> 1.196 ms/krok (23x). Przemiatanie zwisu 0 -> 0.16 m przy 5 rzedach: strata 798.8 / 789.7 / 803.8 / 800.0 / 800.3 W, a_rms 0.097 / 0.077 / 0.080 / 0.077 / 0.081 - to samo. Tetnienie promienia 6.046 mm nie zmienia sie w ZADNYM punkcie obu przemiatan, bo mierzy sie je wzdluz toczenia, a profil poprzeczny go nie dotyka.",
-      "scope": "To NIE jest wynik przeciwko wysklepieniu - to wynik o GRANICY TEGO SZCZEBLA. Droga Q3 jest plyta i progami jednorodnymi w poprzek, a obwiednia jest SZTYWNA, wiec plaska plyta dotyka wylacznie wierzcholka korony i ksztalt przekroju nie ma jak sie odezwac. Zeby profil poprzeczny cokolwiek znaczyl, potrzebny jest teren zmienny w poprzek ALBO opona, ktora sie ugina - czyli dokladnie nastepny szczebel. Praktyczny wniosek dla warsztatu: rzedy sa CENA placona z gory za mozliwosc badania wginania, a nie ulepszeniem toczenia na plycie; kto szuka mniejszej straty na plaskim, ma siegac po crown_r (F-25), nie po rzedy. Rozrzut miedzy 3 powtorzeniami zerowy we wszystkich 10 punktach. Surowy przebieg: evidence/run_q3_crown_profile_2026_08_03.txt (raw-only).",
+      "status": "SUPERSEDED",
+      "claim": "WYCOFANE 2026-08-03, zastapione przez F-27 i F-28. Twierdzenie brzmialo: \"Q3 na plaskiej plycie NIE WIDZI profilu poprzecznego korony\". Bylo oparte na przemiataniu liczby rzedow 1->9, ktore NIE ZMIENIALO BRYLY: przemiatanie ustawia wylacznie `crown_rows`, a zwis zostal wtedy domyslny, czyli ZEROWY - przy zwisie 0 wszystkie rzedy leza na jednym promieniu, wiec ich unia to dokladnie ta sama kapsula co przy jednym rzedzie. Mierzono piec razy te sama opone o rosnacym koszcie CPU. Opis findingu podawal przy tym \"zwis 0.08 m\", ktorego zaden z tych przebiegow nie mial - liczba zostala wziete z kontekstu pracy, a nie z naglowka przebiegu. Druga polowa (przemiatanie zwisu) byla prawdziwym przemiataniem ksztaltu, ale na drodze JEDNORODNEJ W POPRZEK, gdzie zaden profil poprzeczny nie ma jak zadzialac.",
+      "scope": "Zostaje w rejestrze, bo wynikow negatywnych sie nie kasuje, a ten jest podwojnie pouczajacy: pokazuje, jak przemiatanie parametru moze wygladac jak pomiar ksztaltu, nie zmieniajac ksztaltu, i jak liczba wzieta z pamieci zamiast z naglowka przebiegu wchodzi do rejestru. Oba bledy maja teraz maszynowego straznika: stend liczy odcisk POWIERZCHNI obwiedni (JozzRig_EnvelopeSignature), drukuje go przy kazdym punkcie i pisze wprost \"ten parametr NIE ZMIENIL obwiedni\", gdy wszystkie punkty maja rowny odcisk. NIE CYTOWAC.",
       "evidence": [
         "none"
       ],
-      "code": "tools/jozz_wheel_bench/jozz_wheel_rig.c JrMakeRows / JrBuildTorus"
+      "code": "tools/jozz_wheel_bench/jozz_wheel_rig.c JrMakeRows / JrBuildTorus",
+      "superseded_by": [
+        "F-27",
+        "F-28"
+      ]
+    },
+    "F-27": {
+      "status": "BENCH_PRELIMINARY",
+      "claim": "Sama LICZBA KSZTALTOW przesuwa wynik Q3, przy IDENTYCZNEJ obwiedni. torus-64, crown_r 0.05, zwis 0, plaska plyta, 4 m/s, rzedy 1/3/5/7/9: wszystkie piec punktow ma ten sam odcisk obwiedni (5f587854) i to samo tetnienie 6.046 mm, a mimo to strata idzie MONOTONICZNIE 775.0 / 797.6 / 798.8 / 802.7 / 816.1 W (+5.3%) razem ze srednia liczba punktow kontaktu niosacych obciazenie 2.84 / 6.51 / 10.95 / 14.79 / 18.55. Koszt CPU 0.050 -> 1.176 ms/krok (24x). Rozrzut miedzy 3 powtorzeniami zerowy w kazdym punkcie.",
+      "scope": "To jest PODLOGA SZUMU przyrzadu dla kazdego porownania miedzy kolami zlozonymi z roznej liczby ksztaltow - a takie wlasnie beda porownania opony sztywnej z odksztalcalna, bo ta druga z definicji ma wiecej elementow w kontakcie. Roznica ponizej ~5% miedzy konstrukcjami o istotnie roznej liczbie punktow kontaktu nie jest wynikiem o ksztalcie. Mechanizm (redundantne wiezy kontaktu w solverze) jest PRAWDOPODOBNY, nie dowiedziony. Surowy przebieg: evidence/run_q3_ksztalt_vs_liczba_2026_08_03.txt (raw-only).",
+      "evidence": [
+        "none"
+      ],
+      "code": "tools/jozz_wheel_bench/wheel_bench.c QcSweep / jozz_wheel_rig.c JozzRig_EnvelopeSignature"
+    },
+    "F-28": {
+      "status": "BENCH_PRELIMINARY",
+      "claim": "Q3 WIDZI profil poprzeczny opony, gdy droga przestaje byc jednorodna w poprzek. Ta sama bryla (odcisk 1ee68a41: torus-64, crown_r 0.05, 5 rzedow, zwis 0.08 m), grzebien waskich kamieni 30 mm o polowie szerokosci 40 mm, przesuwanych w bok z 0 na 0.20 m: a_rms 1.548 / 1.548 / 1.553 / 1.112 / 0.079 m/s2 i strata 974.0 / 977.9 / 968.8 / 916.9 / 789.4 W. Zmienia sie WYLACZNIE polozenie kamienia pod bieznia. Przy progu na cala szerokosc plyty (dotychczasowa droga Q3) profil poprzeczny nie ma jak zadzialac - i to bylo prawdziwa przyczyna wyniku wycofanego jako F-26.",
+      "scope": "Nowe pola konstrukcji `obstacle_half_z` i `obstacle_z` w grupie `droga`; wartosc 0 znaczy \"prog przez cala szerokosc\", czyli dokladnie droga sprzed tej zmiany - dlatego caly zarejestrowany material Q3 zostaje wazny. To pierwsza konfiguracja Q3, w ktorej szerokosc kola i ksztalt przekroju sa mierzalne, wiec jest to warunek wstepny badania wtulania sie opony w teren. NIE mowi nic o feelu i nic o oponie odksztalcalnej. Surowy przebieg: evidence/run_q3_ksztalt_vs_liczba_2026_08_03.txt (raw-only).",
+      "evidence": [
+        "none"
+      ],
+      "code": "tools/jozz_wheel_bench/jozz_qc_rig.c JqcBuildRoad"
+    },
+    "F-29": {
+      "status": "BENCH_PRELIMINARY",
+      "claim": "Podzial pasm korony ROWNY PO ZWISIE bije podzial rowny po szerokosci przy tym samym koszcie: przy 9 rzedach i zwisie 0.08 m odchylka zbudowanego przekroju od zamowionego luku spada 18.1 -> 9.0 mm, a przebieg fizyczny przestaje skakac (strata przy 3/5/7/9 rzedach: 973.8 / 916.9 / 879.3 / 869.9 W monotonicznie, zamiast 788.9 / 895.6 / 845.5 / 878.5 W). Jednoczesnie ZWIS przy stalej liczbie rzedow NIE jest monotonicznym pokretlem miekkosci: na kamieniu lezacym tuz za srodkiem biezni (z 0.15 m) a_rms idzie 1.541 / 0.956 / 1.112 / 1.312 / 1.489 m/s2 dla zwisu 0 / 0.04 / 0.08 / 0.12 / 0.16 m. Kontrola przy 2.5x mniejszym promieniu barku (crown_r 0.02, N=96) daje ten sam ksztalt krzywej: 1.491 / 0.912 / 1.224 / 1.439 / 1.541.",
+      "scope": "Mechanizm niemonotonicznosci jest POLICZALNY, nie zmierzony osobno: przy pasmach rownych po zwisie pasmo SRODKOWE rozszerza sie razem ze zwisem (przy zwisie 0.04 m siega do 77 mm od srodka biezni, przy 0.16 m juz do 99 mm), wiec glebsza korona przysuwa plaski plaskowyz blizej kamienia zamiast go od niego odsuwac. Pokretlem, ktore ZWEZA plaskowyz, jest liczba rzedow, nie zwis. Praktyczny wniosek: zwis ustawia KSZTALT przekroju, rzedy ustawiaja jego ROZDZIELCZOSC, i te dwa pokretla nie sa zamienne. Surowy przebieg: evidence/run_q3_ksztalt_vs_liczba_2026_08_03.txt (raw-only).",
+      "evidence": [
+        "none"
+      ],
+      "code": "tools/jozz_wheel_bench/jozz_wheel_rig.c JrBandEdge / JrMakeRows"
+    },
+    "F-30": {
+      "status": "DESIGN_INFERENCE",
+      "claim": "Rozdzielczosc POPRZECZNA obwiedni `torus-N` jest ograniczona przez promien barku, nie przez liczbe rzedow. Czasza kapsuly o promieniu crownR trzyma sie w granicy h od pelnego promienia az do sqrt(2*crownR*h) w bok: dla crownR 50 mm i h 30 mm to 55 mm, dla crownR 20 mm - 35 mm. Zeby rozroznic w poprzek przeszkode o wysokosci h, promien barku musi byc znaczaco mniejszy niz h. Szczelnosc pierscienia wymaga wtedy N >= pi/asin(crownR/ringR): przy crownR 10 mm stend podaje minimum 159 kapsul, czyli z 9 rzedami 1431 ksztaltow na jedno kolo.",
+      "scope": "To jest liczba, ktora nalezy znac PRZED przejsciem do opony odksztalcalnej: sztywna obwiednia z kapsul kupuje rozdzielczosc poprzeczna kwadratowo drogo. Wyprowadzenie jest czysto geometryczne (czasza kulista i warunek zachodzenia sasiednich kapsul, JozzRig_MinTorusSegments) - NIE zostalo zmierzone jako dominujacy mechanizm w zadnym przebiegu i nie mowi nic o tym, ile rozdzielczosci poprzecznej naprawde potrzeba.",
+      "evidence": [
+        "none"
+      ],
+      "code": "tools/jozz_wheel_bench/jozz_wheel_rig.c JozzRig_MinTorusSegments / JrRowsEnvelope"
     }
   }
 }

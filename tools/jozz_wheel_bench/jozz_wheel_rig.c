@@ -300,10 +300,54 @@ int JozzRig_ConfigToText( const JozzRigConfig* c, char* out, size_t cap, const c
 	return (int)used;
 }
 
+// Znacznik kolejnosci bajtow z poczatku pliku. Notatnik i PowerShell dopisuja go
+// przy kazdym zapisie w UTF-8, a bez tego pominiecia pierwszy klucz przestawal
+// byc rozpoznawalny i plik odbijal sie komunikatem "nieznany klucz 'format'" -
+// czyli nazwa klucza, ktory na ekranie wyglada dokladnie poprawnie. Format ma byc
+// edytowalny reka, wiec musi znosic to, co robi zwykly edytor.
+const char* JrSkipBom( const char* s )
+{
+	if ( s && (unsigned char)s[0] == 0xEF && (unsigned char)s[1] == 0xBB && (unsigned char)s[2] == 0xBF )
+		return s + 3;
+	return s;
+}
+
+// Zakresy, ktorych tabela pol nie wyrazi, bo zaleza od INNYCH pol. Sprawdzane
+// przy BUDOWIE, nie przy parsowaniu - dokladnie tam, gdzie juz stoi odrzucenie
+// nieszczelnego pierscienia. Plik wolno wczytac, ale nie wolno po cichu
+// uruchomic czegos innego, niz opisuje: wczesniej `crown_rows 20` budowalo
+// dziewiec rzedow i podpisywalo przebieg jako dwadziescia.
+//
+// Format sprawdza samokontrola formatu; TO sprawdza, czy konstrukcja istnieje.
+int JozzRig_ValidateCrown( const JozzRigConfig* c, char* err, size_t errCap )
+{
+	if ( c->crownRows < 1 || c->crownRows > JOZZ_RIG_CROWN_ROWS_MAX )
+	{
+		snprintf( err, errCap, "crown_rows %d poza zakresem 1..%d", c->crownRows, JOZZ_RIG_CROWN_ROWS_MAX );
+		return 0;
+	}
+	if ( c->crownDrop < 0.0f )
+	{
+		snprintf( err, errCap, "crown_drop %.6g jest ujemny", (double)c->crownDrop );
+		return 0;
+	}
+	if ( c->variant == JOZZ_RIG_TORUS && c->crownRows > 1 && c->crownDrop > 0.0f )
+	{
+		double a = 0.5 * (double)c->wheelW - (double)c->crownR;
+		if ( (double)c->crownDrop > a * ( 1.0 + 1e-5 ) + 1e-9 )
+		{
+			snprintf( err, errCap, "crown_drop %.6g przekracza polowe biezni %.6g - luk przestaje byc profilem",
+					  (double)c->crownDrop, a );
+			return 0;
+		}
+	}
+	return 1;
+}
+
 int JozzRig_ConfigFromText( JozzRigConfig* c, const char* text, char* err, size_t errCap )
 {
 	JozzRigConfig parsed = JozzRig_DefaultConfig();
-	const char* p = text;
+	const char* p = JrSkipBom( text );
 	int line = 0;
 	int sawFormat = 0;
 
@@ -925,12 +969,23 @@ static JrTorusGeom JrTorus( const JozzRigConfig* c )
 	// Zero i wartosci ujemne znacza "jeden rzad": konfiguracja wyzerowana
 	// pamiecia ma dawac bryle sprzed tej zmiany, a nie zero ksztaltow.
 	g.rows = c->crownRows > 1 ? c->crownRows : 1;
-	if ( g.rows > JOZZ_RIG_CROWN_ROWS_MAX )
-		g.rows = JOZZ_RIG_CROWN_ROWS_MAX;
 	g.drop = g.rows > 1 && c->crownDrop > 0.0f ? (double)c->crownDrop : 0.0;
-	if ( g.drop > g.halfLen )
-		g.drop = g.halfLen; // zwis rowny polowie biezni = korona w pelni okragla
-	g.valid = ( g.crownR > 0.0 && g.ringR > 0.0 && g.halfLen >= 0.0 && g.n >= 3 );
+	// Poza zakresem konstrukcja jest NIEPRZEDSTAWIALNA, a nie po cichu przycieta.
+	// Wczesniej byla przycinana, a odcisk konfiguracji drukowal dalej wartosc
+	// ZAMOWIONA - plik `.qc` z `crown_rows 20` budowal dziewiec rzedow i podpisywal
+	// sie jako dwadziescia. Przyrzad, ktory sam sobie poprawia wejscie i nie mowi
+	// o tym w swoim odcisku, klamie w rejestrze przebiegow.
+	//
+	// Zwis wiekszy od polowy biezni nie ma sensu geometrycznie: luk przestaje byc
+	// funkcja y. Epsilon jest po to, ze suwak okna wylicza granice w `float`.
+	if ( g.rows > JOZZ_RIG_CROWN_ROWS_MAX || g.drop > g.halfLen * ( 1.0 + 1e-5 ) + 1e-9 )
+		g.valid = 0;
+	else
+	{
+		if ( g.drop > g.halfLen )
+			g.drop = g.halfLen;
+		g.valid = ( g.crownR > 0.0 && g.ringR > 0.0 && g.halfLen >= 0.0 && g.n >= 3 );
+	}
 	return g;
 }
 
@@ -957,21 +1012,63 @@ static double JrCrownSag( double a, double drop, double y )
 // Przy m == 1 wychodzi yCenter = 0 i halfLen = calej polowie biezni, czyli
 // dokladnie jedna kapsula od bark do barku. To jest ta sama kapsula, ktora
 // powstawala przed dolozeniem rzedow.
+//
+// SZCZYT jest normalizowany do zamowionego promienia. Powod jest zmierzony:
+// przy PARZYSTEJ liczbie rzedow zaden rzad nie lezy na srodku biezni, wiec
+// najwyzszy pasek siedzi juz na zwisie sag(a/m) i kolo wychodzilo CICHO mniejsze
+// niz `wheelR` - przy m=2, a=0.169 i zwisie 20 mm bylo to 4.9 mm, czyli 1% na
+// promieniu. Przemiatanie po liczbie rzedow mieszalo wtedy dwie rzeczy: wiernosc
+// profilu i rozmiar opony. `wheelR` znaczy promien zewnetrzny i ma nim zostac,
+// a zwis jest liczony OD SZCZYTU, ktory naprawde powstal.
+//
+// Przy nieparzystym m i przy m == 1 przesuniecie wychodzi dokladnie 0.0, wiec
+// dotychczasowa bryla jest nietknieta co do bitu.
+// Granica pasma nr t (t w [-1,1]). Pasma sa rowne po ZWISIE, a nie po szerokosci.
+//
+// Powod jest zmierzony. Blad schodka bierze sie z tego, o ile promien zmienia sie
+// W OBREBIE jednego pasma, a luk korony jest przy barku kilkanascie razy bardziej
+// stromy niz na srodku biezni: przy zwisie 80 mm nachylenie rosnie od zera na
+// srodku do 0.95 przy barku. Rowne pasma po szerokosci marnowaly wiec rozdzielczosc
+// tam, gdzie profil jest plaski, i oszczedzaly ja tam, gdzie sie lamie - dziewiec
+// rzedow gubilo 18.1 mm profilu, czyli tyle, ile ma polowa badanego kamienia.
+//
+// Odwrocenie zwisu: sag(y) = Rc - sqrt(Rc^2 - y^2) = s  =>  y = sqrt(2*Rc*s - s^2).
+// Przy t = 1 wychodzi dokladnie halfLen, wiec bieznia konczy sie tam, gdzie ma.
+// Przy zwisie 0 luk jest plaski i podzial wraca do rownego po szerokosci - to jest
+// ta sama bryla co przed dolozeniem profilu poprzecznego.
+static double JrBandEdge( const JrTorusGeom* g, double t )
+{
+	double s, rc, y;
+	if ( g->drop <= 0.0 )
+		return g->halfLen * t;
+	s = g->drop * ( t < 0.0 ? -t : t );
+	rc = ( g->halfLen * g->halfLen + g->drop * g->drop ) / ( 2.0 * g->drop );
+	y = 2.0 * rc * s - s * s;
+	y = y > 0.0 ? sqrt( y ) : 0.0;
+	return t < 0.0 ? -y : y;
+}
+
 static int JrMakeRows( const JrTorusGeom* g, int m, JozzRigTorusRow* out )
 {
-	double hl;
+	double lift = 0.0;
 	int j;
 	if ( m < 1 || g->valid == 0 )
 		return 0;
-	hl = g->halfLen / (double)m;
 	for ( j = 0; j < m; ++j )
 	{
-		double yc = -g->halfLen + hl * ( 2.0 * (double)j + 1.0 );
+		double lo = JrBandEdge( g, -1.0 + 2.0 * (double)j / (double)m );
+		double hi = JrBandEdge( g, -1.0 + 2.0 * (double)( j + 1 ) / (double)m );
+		double yc = 0.5 * ( lo + hi );
+		double sag = JrCrownSag( g->halfLen, g->drop, yc );
 		out[j].capR = g->crownR;
-		out[j].halfLen = hl;
+		out[j].halfLen = 0.5 * ( hi - lo );
 		out[j].yCenter = yc;
-		out[j].ringR = g->ringR - JrCrownSag( g->halfLen, g->drop, yc );
+		out[j].ringR = -sag;
+		if ( j == 0 || sag < lift )
+			lift = sag;
 	}
+	for ( j = 0; j < m; ++j )
+		out[j].ringR += g->ringR + lift;
 	return m;
 }
 
@@ -1083,9 +1180,17 @@ double JozzRig_ProfileError( const JozzRigConfig* c )
 		return 0.0;
 	// Probkujemy CALA polowke przekroju, razem z barkiem: najwieksza odchylka
 	// zwykle nie siedzi na srodku biezni, tylko przy ostatnim pasmie.
-	for ( i = 0; i <= 200; ++i )
+	//
+	// Probki leza w SRODKACH przedzialow, nie na ich koncach. Powod jest zmierzony:
+	// na samej krawedzi barku obwiednia jest NIECIAGLA - o wlos wewnatrz ma jeszcze
+	// promien osi, o wlos na zewnatrz nie ma materialu i funkcja daje zero. Probka
+	// postawiona dokladnie na krawedzi porownywala "krawedz" z "pustka" i dawala
+	// odchylke 464 mm na kole o promieniu 514 mm. Ta sama pomylka rozjezdzala
+	// odcisk obwiedni: rzedy 1/5/7 i 3/9 dostawaly rozne odciski przy IDENTYCZNEJ
+	// bryle, wiec straznik "ta sama bryla" sam siebie oslepial.
+	for ( i = 0; i < 200; ++i )
 	{
-		double y = ( g.halfLen + g.crownR ) * (double)i / 200.0;
+		double y = ( g.halfLen + g.crownR ) * ( (double)i + 0.5 ) / 200.0;
 		double d = JrRowsEnvelope( want, mw, y ) - JrRowsEnvelope( built, mb, y );
 		if ( d < 0.0 )
 			d = -d;
@@ -1093,6 +1198,66 @@ double JozzRig_ProfileError( const JozzRigConfig* c )
 			worst = d;
 	}
 	return worst;
+}
+
+// --- odcisk OBWIEDNI ---------------------------------------------------------
+// Powod istnienia jest zmierzony i kosztowal jeden bledny wniosek. Przemiatanie
+// po liczbie rzedow zostalo wykonane przy zwisie 0 - a przy zwisie 0 wszystkie
+// rzedy leza na tym samym promieniu, wiec ich UNIA to dokladnie ta sama kapsula
+// co przy jednym rzedzie. Tabela pokazywala pieciokrotnie drozsze punkty o
+// roznych liczbach i wygladala jak pomiar ksztaltu, a byla pomiarem NICZEGO.
+//
+// Odcisk liczy sie z POWIERZCHNI, nie z listy kapsul: dwie rozne konstrukcje o
+// tej samej obwiedni maja ten sam odcisk, bo droga ich nie odroznia. Kwant 1 nm
+// jest po to, ze rownowazne wzory daja wynik rozny o ulp, a ulp nie jest
+// ksztaltem.
+#define JR_SIGNATURE_SAMPLES 64
+
+static void JrHashU64( uint64_t* h, uint64_t v )
+{
+	int i;
+	for ( i = 0; i < 8; ++i )
+	{
+		*h ^= ( v >> ( 8 * i ) ) & 0xffu;
+		*h *= 1099511628211ull;
+	}
+}
+
+static void JrHashLen( uint64_t* h, double v )
+{
+	double q = v * 1e9;
+	JrHashU64( h, (uint64_t)(int64_t)( q < 0.0 ? q - 0.5 : q + 0.5 ) );
+}
+
+uint64_t JozzRig_EnvelopeSignature( const JozzRigConfig* c )
+{
+	uint64_t h = 1469598103934665603ull;
+	JrHashU64( &h, (uint64_t)(int)c->variant );
+	JrHashLen( &h, (double)c->wheelR );
+	JrHashLen( &h, (double)c->wheelW );
+	if ( c->variant == JOZZ_RIG_SPHERE )
+		return h;
+	JrHashU64( &h, (uint64_t)c->prismSides );
+	if ( c->variant != JOZZ_RIG_TORUS )
+		return h;
+	{
+		JozzRigTorusRow rows[JOZZ_RIG_CROWN_ROWS_MAX];
+		JrTorusGeom g = JrTorus( c );
+		int m, i;
+		if ( !g.valid )
+			return 0;
+		m = JrMakeRows( &g, g.rows, rows );
+		if ( m <= 0 )
+			return 0;
+		// Srodki przedzialow, nie konce - na krawedzi barku obwiednia jest nieciagla
+		// i probka postawiona dokladnie tam rozroznia bryly, ktore sa identyczne.
+		for ( i = 0; i < JR_SIGNATURE_SAMPLES; ++i )
+		{
+			double y = ( g.halfLen + g.crownR ) * ( (double)i + 0.5 ) / (double)JR_SIGNATURE_SAMPLES;
+			JrHashLen( &h, JrRowsEnvelope( rows, m, y ) );
+		}
+	}
+	return h;
 }
 
 double JozzRig_EnvelopeRipple( const JozzRigConfig* c )

@@ -2421,11 +2421,21 @@ typedef enum
 	QC_SWEEP_SPRING,
 	QC_SWEEP_SPEED,
 	QC_SWEEP_OBSTACLE,
+	QC_SWEEP_STONE_W,
+	QC_SWEEP_STONE_Z,
 	QC_SWEEP_COUNT
 } QcSweepParam;
 
-static const char* s_qcSweepNames[QC_SWEEP_COUNT] = { "segments", "crown", "rows",	  "drop",
-													  "spring",	  "speed", "obstacle" };
+static const char* s_qcSweepNames[QC_SWEEP_COUNT] = { "segments", "crown",	  "rows",	 "drop",   "spring",
+													  "speed",	  "obstacle", "stone_w", "stone_z" };
+
+// Ktore parametry zmieniaja BRYLE kola. Tylko dla nich powtorzony odcisk
+// obwiedni jest ostrzezeniem - przy przemiataniu sprezyny czy predkosci ta sama
+// bryla jest oczywista i nie ma o czym mowic.
+static int QcSweepTouchesShape( QcSweepParam p )
+{
+	return p == QC_SWEEP_SEGMENTS || p == QC_SWEEP_CROWN || p == QC_SWEEP_ROWS || p == QC_SWEEP_DROP;
+}
 
 static int QcParseSweepParam( const char* name, QcSweepParam* out )
 {
@@ -2467,6 +2477,14 @@ static void QcSweepApply( JozzQcConfig* c, QcSweepParam p, double v, char* tag, 
 			c->startSpeed = v;
 			snprintf( tag, tagCap, "v=%.4g", v );
 			break;
+		case QC_SWEEP_STONE_W:
+			c->obstacleHalfZ = (float)v;
+			snprintf( tag, tagCap, "kam_pol=%.4g", v );
+			break;
+		case QC_SWEEP_STONE_Z:
+			c->obstacleZ = (float)v;
+			snprintf( tag, tagCap, "kam_z=%.4g", v );
+			break;
 		default:
 			c->obstacleH = (float)v;
 			snprintf( tag, tagCap, "prog=%.4g", v );
@@ -2506,7 +2524,11 @@ static int QcSweep( const char* csvPath, const JozzQcConfig* base, QcSweepParam 
 	// `travel_dyn_rms` stoi OBOK `travel_rms`, a nie zamiast niego: tamta kolumna
 	// jest w zarejestrowanych przebiegach i ma dalej znaczyc to samo. Nowa mowi to,
 	// co tamta mowic mialaby - ile zawieszenie NAPRAWDE pracuje.
-	fprintf( f, "point,value,segments,shapes,ripple_mm,road,target_v,drive_torque_nm,torque_spread,loss_power_w,"
+	// `envelope` to odcisk POWIERZCHNI kola. Stoi w tabeli, bo jego brak kosztowal
+	// bledny wniosek: przemiatanie po liczbie rzedow przy zwisie 0 przemiatalo TE
+	// SAMA bryle i wygladalo jak pomiar ksztaltu.
+	fprintf( f, "point,value,segments,shapes,envelope,profile_err_mm,loaded_points,ripple_mm,road,target_v,"
+				"drive_torque_nm,torque_spread,loss_power_w,"
 				"sprung_accel_rms,accel_spread,airborne_frac,airborne_spread,travel_rms,travel_dyn_rms,churn_pct,"
 				"slip_mean,speed_mean,ms_per_step,valid,why\n" );
 
@@ -2515,10 +2537,14 @@ static int QcSweep( const char* csvPath, const JozzQcConfig* base, QcSweepParam 
 	printf( "baza: %s N=%d droga %s v_zad %.2f k %.0f N/m zeta %.3f\n", JozzRig_VariantName( base->variant ),
 			base->variant == JOZZ_RIG_SPHERE ? 0 : base->segments, JozzQc_RoadName( base->road ),
 			base->targetSpeed, (double)base->springNPerM, (double)base->zeta );
+	if ( base->obstacleHalfZ > 0.0f || base->obstacleZ != 0.0f )
+		printf( "prog WASKI: polowa szerokosci %.4g m, srodek w z %.4g (kolo ma polowe %.4g m)\n",
+				(double)base->obstacleHalfZ, (double)base->obstacleZ, 0.5 * (double)base->wheelW );
 	printf( "kazdy punkt to %d przebiegi z przesunietym startem; +- to POLOWA ROZRZUTU\n\n", JOZZ_QC_REPEATS );
-	printf( "%-14s %6s %8s %16s %8s %15s %13s %8s %7s\n", "punkt", "shape", "tetn_mm", "moment Nm", "strata_W",
-			"a_rms m/s2", "w powietrzu", "churn%", "ms/krok" );
+	printf( "%-14s %9s %6s %6s %9s %8s %16s %8s %15s %13s %8s %7s\n", "punkt", "bryla", "shape", "pkt",
+			"profil_mm", "tetn_mm", "moment Nm", "strata_W", "a_rms m/s2", "w powietrzu", "churn%", "ms/krok" );
 
+	uint64_t* sigs = (uint64_t*)calloc( (size_t)steps, sizeof( uint64_t ) );
 	for ( int i = 0; i < steps; ++i )
 	{
 		double t = (double)i / (double)( steps - 1 );
@@ -2533,21 +2559,59 @@ static int QcSweep( const char* csvPath, const JozzQcConfig* base, QcSweepParam 
 			// Punkt niebudowalny NIE przerywa przemiatania i NIE jest po cichu
 			// pomijany: "tutaj konstrukcja sie konczy" jest wynikiem.
 			printf( "%-14s   NIEZBUDOWANY: %s\n", tag, c.err );
-			fprintf( f, "%d,%.17g,%d,0,0,%s,%.17g,,,,,,,,,,,,,,0,%s\n", i, v, cfg.segments,
-					 JozzQc_RoadName( cfg.road ), cfg.targetSpeed, c.err );
+			fprintf( f, "%d,%.17g,%d,0,%016llx,,,0,%s,%.17g,,,,,,,,,,,,,,0,%s\n", i, v, cfg.segments,
+					 (unsigned long long)c.envelope, JozzQc_RoadName( cfg.road ), cfg.targetSpeed, c.err );
 			continue;
 		}
-		printf( "%-14s %6d %8.3f %9.2f+-%-4.2f %8.1f %8.3f+-%-5.3f %6.1f+-%-4.1f%% %8.1f %7.3f%s\n", tag, c.shapes,
-				1000.0 * c.ripple, c.torque, c.torqueSpread, c.loss, c.accel, c.accelSpread, 100.0 * c.airborne,
-				100.0 * c.airborneSpread, c.churn, c.msPerStep, c.invalid ? "  NIEWAZNY" : "" );
-		fprintf( f, "%d,%.17g,%d,%d,%.6f,%s,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,"
-					"%.17g,%.17g,%.17g,%d,%s\n",
-				 i, v, cfg.segments, c.shapes, 1000.0 * c.ripple, JozzQc_RoadName( cfg.road ), cfg.targetSpeed,
-				 c.torque, c.torqueSpread, c.loss, c.accel, c.accelSpread, c.airborne, c.airborneSpread,
-				 c.travelRms, c.travelDyn, c.churn, c.slip, c.speed, c.msPerStep, c.invalid ? 0 : 1, c.why );
+		if ( sigs )
+			sigs[i] = c.envelope;
+		{
+			// Powtorzony odcisk przy parametrze KSZTALTU znaczy, ze punkt kosztowal
+			// czas i nie zmienil bryly. To ma byc widac w wierszu, a nie w domysle.
+			const char* same = "";
+			if ( QcSweepTouchesShape( param ) && i > 0 && sigs && sigs[i] == sigs[i - 1] )
+				same = "  = TA SAMA BRYLA";
+			printf( "%-14s %9llx %6d %6.2f %9.3f %8.3f %9.2f+-%-4.2f %8.1f %8.3f+-%-5.3f %6.1f+-%-4.1f%% %8.1f "
+					"%7.3f%s%s\n",
+					tag, (unsigned long long)( c.envelope & 0xffffffffull ), c.shapes, c.points,
+					1000.0 * c.profileErr, 1000.0 * c.ripple, c.torque, c.torqueSpread, c.loss, c.accel,
+					c.accelSpread, 100.0 * c.airborne, 100.0 * c.airborneSpread, c.churn, c.msPerStep, same,
+					c.invalid ? "  NIEWAZNY" : "" );
+		}
+		fprintf( f,
+				 "%d,%.17g,%d,%d,%016llx,%.6f,%.17g,%.6f,%s,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,"
+				 "%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%d,%s\n",
+				 i, v, cfg.segments, c.shapes, (unsigned long long)c.envelope, 1000.0 * c.profileErr, c.points,
+				 1000.0 * c.ripple, JozzQc_RoadName( cfg.road ), cfg.targetSpeed, c.torque, c.torqueSpread,
+				 c.loss, c.accel, c.accelSpread, c.airborne, c.airborneSpread, c.travelRms, c.travelDyn, c.churn,
+				 c.slip, c.speed, c.msPerStep, c.invalid ? 0 : 1, c.why );
 		fflush( stdout );
 	}
 	fclose( f );
+
+	// Ile ROZNYCH bryl naprawde przeszlo przez to przemiatanie. Bez tej linii
+	// tabela z pieciu punktow o rosnacym koszcie CPU wyglada jak pomiar ksztaltu
+	// nawet wtedy, gdy ksztalt ani drgnal - dokladnie tak powstal bledny wniosek
+	// z przemiatania liczby rzedow przy zwisie 0.
+	if ( sigs && QcSweepTouchesShape( param ) )
+	{
+		int distinct = 0;
+		for ( int i = 0; i < steps; ++i )
+		{
+			int seen = 0;
+			if ( sigs[i] == 0 )
+				continue;
+			for ( int j = 0; j < i; ++j )
+				if ( sigs[j] == sigs[i] )
+					seen = 1;
+			distinct += seen ? 0 : 1;
+		}
+		printf( "\nroznych bryl w tym przemiataniu: %d na %d punktow\n", distinct, steps );
+		if ( distinct <= 1 )
+			printf( "UWAGA: ten parametr NIE ZMIENIL obwiedni. Rozrzut ponizej jest podloga szumu\n"
+					"przyrzadu przy zmianie liczby ksztaltow, a nie skutkiem ksztaltu.\n" );
+	}
+	free( sigs );
 	printf( "\ntabela -> %s\n", csvPath );
 	printf( "Czego to NIE mowi: nic o feelu (V3, wylacznie Jozz) i nic o pelnym pojezdzie (Q4).\n" );
 	return 0;
@@ -2727,6 +2791,12 @@ int main( int argc, char** argv )
 			qcCfg.crownRows = atoi( argv[++i] ), qcCfgTouched = 1;
 		else if ( strcmp( argv[i], "--qc-drop" ) == 0 && i + 1 < argc )
 			qcCfg.crownDrop = (float)atof( argv[++i] ), qcCfgTouched = 1;
+		else if ( strcmp( argv[i], "--qc-obstacle-h" ) == 0 && i + 1 < argc )
+			qcCfg.obstacleH = (float)atof( argv[++i] ), qcCfgTouched = 1;
+		else if ( strcmp( argv[i], "--qc-obstacle-half-z" ) == 0 && i + 1 < argc )
+			qcCfg.obstacleHalfZ = (float)atof( argv[++i] ), qcCfgTouched = 1;
+		else if ( strcmp( argv[i], "--qc-obstacle-z" ) == 0 && i + 1 < argc )
+			qcCfg.obstacleZ = (float)atof( argv[++i] ), qcCfgTouched = 1;
 		else if ( strcmp( argv[i], "--qc-speed" ) == 0 && i + 1 < argc )
 		{
 			qcCfg.targetSpeed = atof( argv[++i] );
@@ -2742,7 +2812,7 @@ int main( int argc, char** argv )
 			if ( QcParseSweepParam( argv[++i], &qcSweepParam ) == 0 )
 			{
 				fprintf( stderr,
-						 "BLAD: nieznany parametr '%s' (segments|crown|rows|drop|spring|speed|obstacle)\n",
+						 "BLAD: nieznany parametr '%s' (segments|crown|rows|drop|spring|speed|obstacle|stone_w|stone_z)\n",
 						 argv[i] );
 				return 2;
 			}
@@ -2767,12 +2837,13 @@ int main( int argc, char** argv )
 					 "--qc-probe <plik.txt>\n"
 					 "       %s --qc-compare <plik.csv>\n"
 					 "       %s --qc-sweep <plik.csv> --qc-sweep-param "
-					 "segments|crown|rows|drop|spring|speed|obstacle --qc-sweep-from A --qc-sweep-to B "
+					 "segments|crown|rows|drop|spring|speed|obstacle|stone_w|stone_z --qc-sweep-from A --qc-sweep-to B "
 					 "[--qc-sweep-steps N] [+ opcje --qc-* jako baza]\n"
 					 "       %s --qc-trace <plik.csv> [--qc-config <plik.qc>] "
 					 "[--qc-variant sphere|prism-Nmax|torus-N] "
 					 "[--qc-segments N] [--qc-crown m] [--qc-rows M] [--qc-drop m] "
-					 "[--qc-road flat|cleat|comb] [--qc-speed m/s]\n",
+					 "[--qc-road flat|cleat|comb] [--qc-obstacle-h m] "
+					 "[--qc-obstacle-half-z m] [--qc-obstacle-z m] [--qc-speed m/s]\n",
 					 argv[0], argv[0], argv[0], argv[0], argv[0], argv[0] );
 			return 2;
 		}

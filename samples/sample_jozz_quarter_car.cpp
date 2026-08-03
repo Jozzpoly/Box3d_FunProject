@@ -1015,15 +1015,34 @@ private:
 			ImGui::EndDisabled();
 			if ( m_cfg.crownRows < 2 )
 				ImGui::TextDisabled( "wysklepienie potrzebuje co najmniej 2 rzedow" );
+			else if ( maxDrop < 0.02f )
+				ImGui::TextColored( ImVec4( 0.95f, 0.65f, 0.25f, 1.0f ),
+									"na zwis zostalo tylko %.0f mm - promien korony zjadl plaska bieznie.\n"
+									"Zmniejsz `promien korony`, zeby wysklepienie mialo sie na czym odlozyc.",
+									1000.0 * (double)maxDrop );
+			// Parzysta liczba rzedow nie ma pasma na SRODKU biezni, wiec szczyt trzeba
+			// podniesc sztucznie, zeby kolo zachowalo zamowiony promien - i ten sam
+			// zabieg przesuwa cala reszte profilu. Zmierzone: przy tej samej gestosci
+			// nieparzysta liczba rzedow daje mniej wiecej dwa razy mniejsza odchylke.
+			else if ( m_cfg.crownRows % 2 == 0 )
+				ImGui::TextDisabled( "nieparzysta liczba rzedow trafia pasmem w SRODEK biezni i daje\n"
+									 "okolo dwa razy mniejsza odchylke od profilu przy tym samym koszcie" );
 			// Bez tego zdania nowe pokretlo wyglada na zepsute: Owner przesuwa je,
-			// patrzy w tabele i nie widzi ROZNICY - bo jej tam nie ma i nie moze byc.
-			if ( m_cfg.crownRows > 1 )
-				ImGui::TextColored( ImVec4( 0.65f, 0.75f, 0.95f, 1.0f ),
-									"F-26: na PLASKIEJ plycie te dwa pokretla nic nie zmienia\n"
-									"w liczbach (3.6%% rozrzutu bez kierunku, przy 23x koszcie CPU).\n"
-									"Plyta dotyka wylacznie wierzcholka korony, a obwiednia jest\n"
-									"SZTYWNA. Profil poprzeczny odezwie sie dopiero przy terenie\n"
-									"zmiennym w poprzek albo przy oponie, ktora sie ugina." );
+			// patrzy w tabele i nie widzi ROZNICY. Roznicy nie ma, dopoki DROGA jest
+			// jednorodna w poprzek - i to jest wlasciwosc stanowiska, nie opony.
+			if ( m_cfg.crownRows > 1 && m_cfg.obstacleHalfZ <= 0.0f )
+				ImGui::TextColored( ImVec4( 0.95f, 0.65f, 0.25f, 1.0f ),
+									"F-27: przy progu na CALA szerokosc te dwa pokretla nie zmienia\n"
+									"liczb - droga dotyka wylacznie wierzcholka korony. Zwez prog\n"
+									"(zakladka Droga -> polowa szerokosci) i profil zacznie dzialac:\n"
+									"zmierzone -49%% a_rms przy koronie 0..160 mm na kamieniu 30 mm." );
+			if ( m_cfg.crownRows > 1 && m_cfg.crownDrop <= 0.0f )
+				ImGui::TextColored( ImVec4( 0.95f, 0.65f, 0.25f, 1.0f ),
+									"F-26: przy zwisie 0 rzedy nie zmieniaja BRYLY - wszystkie leza\n"
+									"na jednym promieniu, wiec ich unia to ta sama kapsula co przy\n"
+									"jednym rzedzie, tylko %dx drozsza. Sam suwak rzedow bez zwisu\n"
+									"jest czystym wydatkiem.",
+									m_cfg.crownRows );
 		}
 		if ( m_fixNote[0] )
 			ImGui::TextColored( ImVec4( 1.0f, 0.8f, 0.3f, 1.0f ), "konstrukcja poprawiona: %s", m_fixNote );
@@ -1436,6 +1455,40 @@ private:
 				double fRoad = m_cfg.targetSpeed / (double)m_cfg.combSpacing;
 				ImGui::Text( "wymuszenie %.2f Hz   hertz wiezu %.2f Hz", fRoad, JozzQc_Hertz( &m_cfg ) );
 			}
+
+			// PRZEKROJ DROGI. Do tej wersji kazdy prog byl pudlem przez cala szerokosc
+			// plyty, wiec droga Q3 byla jednorodna w poprzek i profil poprzeczny opony
+			// nie mial na czym zadzialac - sztywna obwiednia dotyka takiej przeszkody
+			// wylacznie wierzcholkiem korony. To NIE byla wlasciwosc fizyki, tylko
+			// stanowiska: po zwezeniu progu wysklepienie zmienia a_rms o polowe.
+			//
+			// Zakresy sa zwiazane z SZEROKOSCIA KOLA, a nie z plyta. Przy stalym
+			// zakresie 0..0.6 m cale interesujace pasmo (kamien wezszy od opony)
+			// siedzialo na kilku pikselach suwaka i trafienie w 50 mm bylo loteria -
+			// zlapane przy pierwszej probie ustawienia kamienia reka.
+			ImGui::SeparatorText( "Przekroj drogi" );
+			float halfW = 0.5f * m_cfg.wheelW;
+			FloatRebuild( "polowa szerokosci progu", &m_cfg.obstacleHalfZ, 0.0f, halfW, "%.3f m",
+						  "0 = prog przez CALA szerokosc plyty, czyli droga sprzed dolozenia\n"
+						  "tego pola. Ponizej polowy szerokosci opony prog staje sie KAMIENIEM\n"
+						  "pod czescia biezni - pierwszy przypadek Q3, w ktorym wysklepienie,\n"
+						  "szerokosc kola i liczba rzedow maja prawo cokolwiek zmienic." );
+			FloatRebuild( "przesuniecie progu w bok", &m_cfg.obstacleZ, -1.5f * halfW, 1.5f * halfW, "%.3f m",
+						  "Gdzie pod oponą lezy kamien. Zmierzone: przy koronie 80 mm\n"
+						  "przesuniecie z 0 na 0.20 m zbija a_rms z 1.55 na 0.08 m/s2 -\n"
+						  "opona przestaje go zauwazac, bo bark siedzi nizej niz srodek." );
+			{
+				float half = halfW;
+				if ( m_cfg.obstacleHalfZ <= 0.0f )
+					ImGui::TextDisabled( "prog na cala szerokosc plyty - profil poprzeczny opony jest tu bez znaczenia" );
+				else if ( std::fabs( m_cfg.obstacleZ ) - m_cfg.obstacleHalfZ > half )
+					ImGui::TextColored( ImVec4( 0.95f, 0.65f, 0.25f, 1.0f ),
+										"kamien lezy CALKIEM POZA oponą (polowa szerokosci kola %.3f m)", (double)half );
+				else
+					ImGui::Text( "kamien pod oponą: z od %.3f do %.3f m (bark opony na %.3f m)",
+								 (double)( m_cfg.obstacleZ - m_cfg.obstacleHalfZ ),
+								 (double)( m_cfg.obstacleZ + m_cfg.obstacleHalfZ ), (double)half );
+			}
 		}
 
 		GroupHeader( "Naped (na zywo, C)", JOZZ_QC_GROUP_DRIVE );
@@ -1599,9 +1652,9 @@ private:
 	{
 		if ( ImGui::TreeNode( "Przemiataj jeden parametr" ) )
 		{
-			static const char* names[] = { "elementow obwodu", "promien korony",  "rzedow w poprzek",
-										   "wysklepienie korony", "sztywnosc", "predkosc zadana",
-										   "wysokosc progu" };
+			static const char* names[] = { "elementow obwodu",	  "promien korony", "rzedow w poprzek",
+										   "wysklepienie korony", "sztywnosc",		"predkosc zadana",
+										   "wysokosc progu",	  "szerokosc progu", "prog w bok" };
 			ImGui::Combo( "parametr", &m_sweepParam, names, (int)( sizeof( names ) / sizeof( names[0] ) ) );
 			if ( m_sweepParam != m_sweepParamPrev )
 			{
@@ -1650,6 +1703,16 @@ private:
 				m_sweepFrom = 1.0f;
 				m_sweepTo = 8.0f;
 				break;
+			case 7:
+				m_sweepFrom = 0.02f;
+				m_sweepTo = 0.5f * m_cfg.wheelW;
+				break;
+			case 8:
+				// Od srodka biezni do barku: to jest ta os, na ktorej wysklepienie
+				// przestaje byc ozdoba.
+				m_sweepFrom = 0.0f;
+				m_sweepTo = 0.5f * m_cfg.wheelW;
+				break;
 			default:
 				m_sweepFrom = 0.005f;
 				m_sweepTo = 0.050f;
@@ -1692,6 +1755,14 @@ private:
 					m_cfg.targetSpeed = (double)v;
 					m_cfg.startSpeed = (double)v;
 					snprintf( tag, sizeof( tag ), "v=%.2f", (double)v );
+					break;
+				case 7:
+					m_cfg.obstacleHalfZ = v;
+					snprintf( tag, sizeof( tag ), "kam_pol=%.0fmm", 1000.0 * (double)v );
+					break;
+				case 8:
+					m_cfg.obstacleZ = v;
+					snprintf( tag, sizeof( tag ), "kam_z=%.0fmm", 1000.0 * (double)v );
 					break;
 				default:
 					m_cfg.obstacleH = v;
@@ -1747,12 +1818,14 @@ private:
 		float tableH = rowH * ( 3.2f + (float)std::min<size_t>( m_rows.size(), 10 ) );
 		ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit |
 								ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY;
-		if ( ImGui::BeginTable( "qc_rows", 10, flags, ImVec2( 0.0f, tableH ) ) )
+		if ( ImGui::BeginTable( "qc_rows", 12, flags, ImVec2( 0.0f, tableH ) ) )
 		{
 			ImGui::TableSetupScrollFreeze( 2, 1 );
 			ImGui::TableSetupColumn( "" );
 			ImGui::TableSetupColumn( "konstrukcja" );
+			ImGui::TableSetupColumn( "bryla" );
 			ImGui::TableSetupColumn( "ksz" );
+			ImGui::TableSetupColumn( "pkt" );
 			ImGui::TableSetupColumn( "tetn" );
 			ImGui::TableSetupColumn( "strata W" );
 			ImGui::TableSetupColumn( "a_rms" );
@@ -1791,8 +1864,39 @@ private:
 					ImGui::SetTooltip( "%s\nklikniecie PRZYWRACA te konstrukcje\n%s", r.detail,
 									   r.cell.invalid ? r.cell.why : "przebieg wazny" );
 
+				// TOZSAMOSC BRYLY. Dwa wiersze o tym samym odcisku maja te sama
+				// obwiednie - roznica miedzy nimi NIE jest skutkiem ksztaltu, tylko
+				// tego, iloma ksztaltami i iloma punktami kontaktu solver ja opisuje.
+				// Bez tej kolumny piec wierszy o rosnacym koszcie CPU wyglada jak
+				// pomiar ksztaltu nawet wtedy, gdy ksztalt ani drgnal - i dokladnie
+				// tak powstal bledny wniosek z przemiatania liczby rzedow.
+				ImGui::TableNextColumn();
+				{
+					bool sameAsBase = ( i != m_baseRow && r.cell.envelope != 0 &&
+										r.cell.envelope == base.cell.envelope );
+					if ( sameAsBase )
+						ImGui::TextColored( ImVec4( 0.95f, 0.75f, 0.35f, 1.0f ), "%05x =",
+											(unsigned)( r.cell.envelope & 0xfffffull ) );
+					else
+						ImGui::Text( "%05x", (unsigned)( r.cell.envelope & 0xfffffull ) );
+					if ( ImGui::IsItemHovered() )
+						ImGui::SetTooltip( "Odcisk POWIERZCHNI obwiedni. Odchylka od zamowionego\n"
+										   "profilu: %.2f mm.\n"
+										   "%s",
+										   1000.0 * r.cell.profileErr,
+										   sameAsBase ? "= znaczy TA SAMA BRYLA co baza: roznica liczb\n"
+														"jest podloga szumu przyrzadu, nie skutkiem ksztaltu."
+													  : "Inna bryla niz baza." );
+				}
+
 				ImGui::TableNextColumn();
 				ImGui::Text( "%d", r.cell.shapes );
+				ImGui::TableNextColumn();
+				ImGui::Text( "%.1f", r.cell.points );
+				if ( ImGui::IsItemHovered() )
+					ImGui::SetTooltip( "Srednia liczba punktow kontaktu NIOSACYCH obciazenie.\n"
+									   "To nie to samo co liczba ksztaltow: przy tej samej obwiedni\n"
+									   "wiecej punktow zmienia zmierzona strate o kilka procent." );
 				ImGui::TableNextColumn();
 				ImGui::Text( "%.3f", 1000.0 * r.cell.ripple );
 
@@ -2399,6 +2503,16 @@ private:
 			r.cell.built = one.built;
 			r.cell.shapes = one.shapes;
 			r.cell.ripple = one.ripple;
+			{
+				// Opis GEOMETRII musi wypelnic takze szybka sciezka. W protokole
+				// pelnym robi to JozzQc_MeasureCell; gdyby tutaj tego zabraklo,
+				// wiersz "szybki" trafialby do tabeli z zerowym odciskiem bryly i
+				// wygladal na konstrukcje nieporownywalna z niczym.
+				JozzRigConfig w = JozzQc_WheelConfig( &m_cfg );
+				r.cell.envelope = JozzRig_EnvelopeSignature( &w );
+				r.cell.profileErr = JozzRig_ProfileError( &w );
+				r.cell.points = one.win.loadedPointsAvg;
+			}
 			r.cell.repeats = 1;
 			r.cell.msPerStep = one.msPerStep;
 			r.cell.torque = one.win.driveTorqueMean;
@@ -2484,19 +2598,29 @@ private:
 		// Geometria kola idzie do pliku WPROST, a nie tylko przez etykiete: od chwili,
 		// gdy da sie zbudowac dowolny rozmiar i dowolne wysklepienie, "wlasna" w
 		// kolumnie `candidate` przestaje cokolwiek znaczyc.
-		fprintf( f, "candidate,repeats,segments,shapes,ripple_mm,wheel_r,wheel_w,crown_r,crown_rows,crown_drop,"
-					"road,target_v,drive_torque_nm,torque_spread,loss_power_w,sprung_accel_rms,accel_spread,"
+		// `envelope` to odcisk POWIERZCHNI: dwa wiersze o rownym odcisku maja te sama
+		// obwiednie, wiec roznica miedzy nimi nie pochodzi od ksztaltu. Bez tej
+		// kolumny plik nie odroznia "inna opona" od "ta sama opona, wiecej kapsul".
+		fprintf( f, "candidate,repeats,segments,shapes,envelope,profile_err_mm,loaded_points,ripple_mm,"
+					"wheel_r,wheel_w,crown_r,crown_rows,crown_drop,"
+					"road,obstacle_h,obstacle_half_z,obstacle_z,"
+					"target_v,drive_torque_nm,torque_spread,loss_power_w,sprung_accel_rms,accel_spread,"
 					"airborne_frac,airborne_spread,travel_rms,travel_dyn_rms,churn_pct,slip_mean,speed_mean,"
 					"ms_per_step,valid,why\n" );
 		for ( const Row& r : m_rows )
-			fprintf( f, "%s,%d,%d,%d,%.6f,%.9g,%.9g,%.9g,%d,%.9g,%s,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,"
-						"%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%d,%s\n",
+			fprintf( f,
+					 "%s,%d,%d,%d,%016llx,%.6f,%.17g,%.6f,%.9g,%.9g,%.9g,%d,%.9g,%s,%.9g,%.9g,%.9g,"
+					 "%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,"
+					 "%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%d,%s\n",
 					 r.label, r.cell.repeats, r.cfg.variant == JOZZ_RIG_SPHERE ? 0 : r.cfg.segments, r.cell.shapes,
+					 (unsigned long long)r.cell.envelope, 1000.0 * r.cell.profileErr, r.cell.points,
 					 1000.0 * r.cell.ripple, (double)r.cfg.wheelR, (double)r.cfg.wheelW, (double)r.cfg.crownR,
-					 r.cfg.crownRows, (double)r.cfg.crownDrop, JozzQc_RoadName( r.cfg.road ), r.cfg.targetSpeed,
-					 r.cell.torque, r.cell.torqueSpread, r.cell.loss, r.cell.accel, r.cell.accelSpread,
-					 r.cell.airborne, r.cell.airborneSpread, r.cell.travelRms, r.cell.travelDyn, r.cell.churn,
-					 r.cell.slip, r.cell.speed, r.cell.msPerStep, r.cell.invalid ? 0 : 1, r.cell.why );
+					 r.cfg.crownRows, (double)r.cfg.crownDrop, JozzQc_RoadName( r.cfg.road ),
+					 (double)r.cfg.obstacleH, (double)r.cfg.obstacleHalfZ, (double)r.cfg.obstacleZ,
+					 r.cfg.targetSpeed, r.cell.torque, r.cell.torqueSpread, r.cell.loss, r.cell.accel,
+					 r.cell.accelSpread, r.cell.airborne, r.cell.airborneSpread, r.cell.travelRms, r.cell.travelDyn,
+					 r.cell.churn, r.cell.slip, r.cell.speed, r.cell.msPerStep, r.cell.invalid ? 0 : 1,
+					 r.cell.why );
 		fclose( f );
 		snprintf( m_rowsMsg, sizeof( m_rowsMsg ), "zapisano %s", path.string().c_str() );
 	}

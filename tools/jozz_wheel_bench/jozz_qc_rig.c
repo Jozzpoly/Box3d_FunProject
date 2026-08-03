@@ -106,6 +106,9 @@ JozzQcConfig JozzQc_DefaultConfig( void )
 	c.obstacleH = 0.02f;
 	c.obstacleLen = 0.06f;
 	c.combSpacing = 1.5f;
+	// 0 = prog przez CALA szerokosc plyty, czyli droga sprzed dolozenia tych pol.
+	c.obstacleHalfZ = 0.0f;
+	c.obstacleZ = 0.0f;
 
 	// Protokol: STALA PREDKOSC, mierzony moment (kontrakt par. 3).
 	//
@@ -238,10 +241,18 @@ void JozzQc_ConfigDigest( const JozzQcConfig* c, char* out, size_t cap )
 			snprintf( crown + used, sizeof( crown ) - (size_t)used, " rows=%d drop=%.9g", c->crownRows,
 					  (double)c->crownDrop );
 	}
+	// Szerokosc i przesuniecie progu wchodza do odcisku TYLKO wtedy, gdy prog
+	// przestaje byc pelnej szerokosci - dzieki temu odciski zarejestrowanych
+	// przebiegow sprzed dolozenia tych pol zostaja znak w znak te same.
+	char stone[96];
+	stone[0] = '\0';
+	if ( c->obstacleHalfZ > 0.0f || c->obstacleZ != 0.0f )
+		snprintf( stone, sizeof( stone ), " zhalf=%.9g zoff=%.9g", (double)c->obstacleHalfZ,
+				  (double)c->obstacleZ );
 	snprintf( out, cap,
 			  "v=%s N=%d R=%.9g W=%.9g%s mu=%.9g mus=%.9g ms=%.9g iS=%.9g iT=%.9g "
 			  "k=%.9g zeta=%.9g hz=%.9g bump=%.9g droop=%.9g mount=%.9g "
-			  "road=%s h=%.9g len=%.9g s=%.9g "
+			  "road=%s h=%.9g len=%.9g s=%.9g%s "
 			  "drive=%s tgt=%.17g kp=%.17g ki=%.17g taumax=%.17g tau=%.17g "
 			  "x0=%.17g v0=%.17g g=%.17g dt=%.17g sub=%d",
 			  JozzRig_VariantName( c->variant ), c->variant == JOZZ_RIG_SPHERE ? 0 : c->segments,
@@ -249,7 +260,7 @@ void JozzQc_ConfigDigest( const JozzQcConfig* c, char* out, size_t cap )
 			  (double)c->sprungKg, (double)c->inertiaSpin, (double)c->inertiaTrans, (double)c->springNPerM,
 			  (double)c->zeta, JozzQc_Hertz( c ), (double)c->bumpTravel, (double)c->droopTravel,
 			  (double)c->mountH, JozzQc_RoadName( c->road ), (double)c->obstacleH, (double)c->obstacleLen,
-			  (double)c->combSpacing, JozzQc_DriveName( c->drive ), c->targetSpeed, c->kp, c->ki, c->maxTorque,
+			  (double)c->combSpacing, stone, JozzQc_DriveName( c->drive ), c->targetSpeed, c->kp, c->ki, c->maxTorque,
 			  c->constTorque, c->startX, c->startSpeed, c->gravity, c->dt, c->substeps );
 }
 
@@ -308,6 +319,8 @@ static const JqField s_qcFields[] = {
 	{ "obstacle_h", JQ_F_FLOAT, JQ_OFF( obstacleH ), NULL },
 	{ "obstacle_len", JQ_F_FLOAT, JQ_OFF( obstacleLen ), NULL },
 	{ "comb_spacing", JQ_F_FLOAT, JQ_OFF( combSpacing ), NULL },
+	{ "obstacle_half_z", JQ_F_FLOAT, JQ_OFF( obstacleHalfZ ), NULL },
+	{ "obstacle_z", JQ_F_FLOAT, JQ_OFF( obstacleZ ), NULL },
 
 	{ "drive", JQ_F_DRIVE, JQ_OFF( drive ), "naped" },
 	{ "target_speed", JQ_F_DOUBLE, JQ_OFF( targetSpeed ), NULL },
@@ -477,7 +490,7 @@ int JozzQc_ConfigToText( const JozzQcConfig* c, char* out, size_t cap, const cha
 int JozzQc_ConfigFromText( JozzQcConfig* c, const char* text, char* err, size_t errCap )
 {
 	JozzQcConfig parsed = JozzQc_DefaultConfig();
-	const char* p = text;
+	const char* p = JrSkipBom( text ); // patrz jozz_wheel_rig.c - Notatnik dopisuje BOM
 	int line = 0;
 	int sawFormat = 0;
 
@@ -627,7 +640,7 @@ int JozzQc_ConfigReadFile( JozzQcConfig* c, const char* path, char* err, size_t 
 //
 // Gdy ktoras liczba przestanie sie zgadzac: NAJPIERW dopisz pole do s_qcFields,
 // dopiero potem zaktualizuj liczbe. Odwrotna kolejnosc kasuje calego straznika.
-#define JOZZ_QC_CONFIG_SIZEOF 184
+#define JOZZ_QC_CONFIG_SIZEOF 192
 #define JOZZ_QC_CONFIG_PADDING 8 // jedna dziura 4 B przed pierwszym double + ogon
 
 int JozzQc_ConfigSelfTest( char* err, size_t errCap )
@@ -925,7 +938,8 @@ static int JqcBuildRoad( JozzQcRig* r )
 	sd.filter.maskBits = JQC_WORLD_MASK;
 	sd.baseMaterial.friction = c->friction;
 	sd.baseMaterial.rollingResistance = 0.0f;
-	b3BoxHull box = b3MakeBoxHull( 0.5f * c->obstacleLen, 0.5f * c->obstacleH, c->groundHalfZ );
+	float halfZ = c->obstacleHalfZ > 0.0f ? c->obstacleHalfZ : c->groundHalfZ;
+	b3BoxHull box = b3MakeBoxHull( 0.5f * c->obstacleLen, 0.5f * c->obstacleH, halfZ );
 
 	// Progi stoja NA plycie, ktorej gorna powierzchnia jest na y = 0. Kazdy jest
 	// osobnym cialem statycznym - prosciej niz jeden kadlub z N ksztaltami i tak
@@ -954,7 +968,7 @@ static int JqcBuildRoad( JozzQcRig* r )
 		b3BodyDef bd = b3DefaultBodyDef();
 		bd.position.x = (float)x;
 		bd.position.y = 0.5f * c->obstacleH;
-		bd.position.z = 0.0f;
+		bd.position.z = c->obstacleZ;
 		b3BodyId b = b3CreateBody( r->world, &bd );
 		b3CreateHullShape( b, &sd, &box.base );
 		++n;
@@ -975,6 +989,8 @@ int JozzQc_Create( JozzQcRig* rig, const JozzQcConfig* cfg, const JozzRigRenderH
 	rig->cfg = *cfg;
 
 	JozzRigConfig wcfg = JozzQc_WheelConfig( cfg );
+	if ( JozzRig_ValidateCrown( &wcfg, err, errCap ) == 0 )
+		return 0;
 	if ( cfg->variant == JOZZ_RIG_TORUS )
 	{
 		int nMin = JozzRig_MinTorusSegments( &wcfg );
@@ -1601,6 +1617,13 @@ JozzQcCell JozzQc_MeasureCell( const JozzQcConfig* base, int warmup, int windowS
 	int i;
 
 	memset( &c, 0, sizeof( c ) );
+	{
+		// Tozsamosc bryly nie zalezy od przebiegu, wiec liczy sie ja raz i PRZED
+		// pomiarem: dzieki temu punkt niebudowalny tez ma opis geometrii.
+		JozzRigConfig w = JozzQc_WheelConfig( base );
+		c.envelope = JozzRig_EnvelopeSignature( &w );
+		c.profileErr = JozzRig_ProfileError( &w );
+	}
 	for ( i = 0; i < JOZZ_QC_REPEATS; ++i )
 	{
 		JozzQcConfig cfg = *base;
@@ -1622,6 +1645,7 @@ JozzQcCell JozzQc_MeasureCell( const JozzQcConfig* base, int warmup, int windowS
 		c.travelRms += r.win.travelRms;
 		c.travelDyn += r.win.travelDynRms;
 		c.churn += r.win.contactChurnPct;
+		c.points += r.win.loadedPointsAvg;
 		c.slip += r.win.slipRatioMean;
 		c.speed += r.win.speedMean;
 		c.msPerStep += r.msPerStep;
@@ -1636,6 +1660,7 @@ JozzQcCell JozzQc_MeasureCell( const JozzQcConfig* base, int warmup, int windowS
 	n = (double)c.repeats;
 	c.torque /= n, c.accel /= n, c.airborne /= n;
 	c.loss /= n, c.travelRms /= n, c.travelDyn /= n, c.churn /= n, c.slip /= n, c.speed /= n, c.msPerStep /= n;
+	c.points /= n;
 	c.torqueSpread = 0.5 * ( tHi - tLo );
 	c.accelSpread = 0.5 * ( aHi - aLo );
 	c.airborneSpread = 0.5 * ( bHi - bLo );
