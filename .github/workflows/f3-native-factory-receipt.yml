@@ -1,5 +1,6 @@
 name: f3-native-factory-receipt
 
+# Re-run only when this gate changes; current revision validates JozzFieldDesc types.
 on:
   pull_request:
     branches:
