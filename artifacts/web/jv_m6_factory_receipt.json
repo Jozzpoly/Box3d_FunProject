@@ -1,0 +1,752 @@
+{
+  "derivedFields": [
+    "rackTravel",
+    "steeringDeadPointDegrees",
+    "wheelRadius",
+    "wheelWidth",
+    "terrainCategoryBitsHex",
+    "minimumTorusSegments"
+  ],
+  "fieldSchema": [
+    {
+      "path": "chassisHalfExtents",
+      "source": "native-config-writer",
+      "type": "vec3"
+    },
+    {
+      "path": "chassisDensity",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "cgVerticalOffset",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "axleHalfSpacing",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "trackHalfWidth",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "restDrop",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "frontRigType",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "rearRigType",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "wishbone.uprightHalfHeight",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "wishbone.kingpinOffset",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "wishbone.casterDeg",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "wishbone.kingpinInclinationDeg",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "wishbone.upperArmLength",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "wishbone.lowerArmLength",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "wishbone.armHalfSpread",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "wishbone.steeringArmBack",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "wishbone.ackermannTrapezoid",
+      "source": "native-config-writer",
+      "type": "bool"
+    },
+    {
+      "path": "wishbone.ackermannFraction",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "wishbone.coiloverTopHeight",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "wishbone.coiloverTopInboard",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "wishbone.restArmDroopDeg",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "trailingArm.pivotOffset",
+      "source": "native-config-writer",
+      "type": "vec3"
+    },
+    {
+      "path": "trailingArm.damperArmOffset",
+      "source": "native-config-writer",
+      "type": "vec3"
+    },
+    {
+      "path": "trailingArm.damperChassisOffset",
+      "source": "native-config-writer",
+      "type": "vec3"
+    },
+    {
+      "path": "trailingArm.armMass",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "knuckleMass",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "armMass",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "rackMass",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "rackHalfWidth",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "rackServoForce",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "rackServoSpeedGain",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "rackServoMaxSpeed",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "wheelEnvelope.mode",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "wheelEnvelope.cylinderSides",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "wheelEnvelope.unionLayerCount",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "wheelEnvelope.torusSegments",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "wheelEnvelope.torusCrownRadius",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "wheelDensity",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "wheelFriction",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "wheelRollingResistance",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "suspensionHertz",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "suspensionDampingRatio",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "frontSuspensionScale",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "rearSuspensionScale",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "reboundTravel",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "compressionTravel",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "suspensionPreloadFront",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "suspensionPreloadRear",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "arbFrontStiffness",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "arbRearStiffness",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "aeroDragArea",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "maxDriveSpeed",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "maxDriveTorque",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "driveTaperStart",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "brakeTorque",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "coastTorque",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "allWheelDrive",
+      "source": "native-config-writer",
+      "type": "bool"
+    },
+    {
+      "path": "maxSteeringAngleDegrees",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "frontToeDeg",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "rearToeDeg",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "steeringHertz",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "steeringDampingRatio",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "maxSteeringTorque",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "rackFrictionBase",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "rackFrictionLoadCoeff",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "steeringFrictionTorque",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "steerInputDeadzone",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "rackCenteringHertz",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "ackermannGeometry",
+      "source": "native-config-writer",
+      "type": "bool"
+    },
+    {
+      "path": "strutCasterDeg",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "uprightAssist",
+      "source": "native-config-writer",
+      "type": "bool"
+    },
+    {
+      "path": "uprightHertz",
+      "source": "native-config-writer",
+      "type": "float"
+    },
+    {
+      "path": "uprightDampingRatio",
+      "source": "native-config-writer",
+      "type": "int"
+    },
+    {
+      "path": "bodyVisualModel",
+      "source": "native-config-writer",
+      "type": "string"
+    },
+    {
+      "path": "bodyVisualOffset",
+      "source": "native-config-writer",
+      "type": "vec3"
+    },
+    {
+      "path": "frontSuspensionVisualModel",
+      "source": "native-config-writer",
+      "type": "string"
+    }
+  ],
+  "format": "jv-web-factory-receipt",
+  "payload": {
+    "assetResolution": {
+      "assetSuspensionTravelHint": 0.699999988,
+      "metadataLoadedFromRuntimeReport": true,
+      "metadataSourcePath": "assets/reports/asset_audit_latest.json",
+      "metadataStatus": "loaded runtime asset audit report",
+      "metersPerBlockbenchUnit": 0.349999994,
+      "trailingArmContractLoaded": true,
+      "trailingArmFallbackUsed": false,
+      "trailingArmStatus": "trailing arm import: jozz.one_sided_wheel_mount.v0, pivot {0.45, 0.39, 0.00} m, damper rest 0.69 m, yaw correction -21 deg",
+      "travelHintFallbackUsed": false,
+      "wheelDimensionsFallbackUsed": false,
+      "wheelRadius": 0.514062464,
+      "wheelWidth": 0.4375
+    },
+    "derived": {
+      "minimumTorusSegments": 0,
+      "rackTravel": 0.0752846599,
+      "steeringDeadPointDegrees": 57.5,
+      "terrainCategoryBitsHex": "0x2",
+      "wheelRadius": 0.514062464,
+      "wheelWidth": 0.4375
+    },
+    "factoryComposition": [
+      "LoadJozzVehicleAuditMetadata",
+      "GetJozzVehicleM3ADefaults",
+      "JozzVehicleM6DefaultConfig",
+      "LoadJozzVehicleM7TrailingArmGeometry",
+      "frontRigType=DOUBLE_WISHBONE",
+      "rearRigType=DOUBLE_WISHBONE"
+    ],
+    "factoryConfig": {
+      "ackermannGeometry": true,
+      "aeroDragArea": 0.9,
+      "allWheelDrive": true,
+      "arbFrontStiffness": 16000,
+      "arbRearStiffness": 10000,
+      "armMass": 5,
+      "axleHalfSpacing": 1.25,
+      "bodyVisualModel": "rama_rurowa",
+      "bodyVisualOffset": [
+        0,
+        0,
+        0
+      ],
+      "brakeTorque": 650,
+      "cgVerticalOffset": 0.15,
+      "chassisDensity": 200,
+      "chassisHalfExtents": [
+        1.55,
+        0.35,
+        0.55
+      ],
+      "coastTorque": 8,
+      "compressionTravel": 0.42,
+      "driveTaperStart": 0.6,
+      "frontRigType": 1,
+      "frontSuspensionScale": 1,
+      "frontSuspensionVisualModel": "rig_kierowniczy",
+      "frontToeDeg": 0,
+      "knuckleMass": 28,
+      "maxDriveSpeed": 40,
+      "maxDriveTorque": 320,
+      "maxSteeringAngleDegrees": 32,
+      "maxSteeringTorque": 700,
+      "rackCenteringHertz": 0,
+      "rackFrictionBase": 40,
+      "rackFrictionLoadCoeff": 0.1,
+      "rackHalfWidth": 0.45,
+      "rackMass": 5,
+      "rackServoForce": 12000,
+      "rackServoMaxSpeed": 1.2,
+      "rackServoSpeedGain": 12,
+      "rearRigType": 1,
+      "rearSuspensionScale": 1,
+      "rearToeDeg": 0,
+      "reboundTravel": 0.28,
+      "restDrop": 0.55,
+      "steerInputDeadzone": 0.02,
+      "steeringDampingRatio": 1,
+      "steeringFrictionTorque": 40,
+      "steeringHertz": 14,
+      "strutCasterDeg": 0,
+      "suspensionDampingRatio": 0.7,
+      "suspensionHertz": 6,
+      "suspensionPreloadFront": 0.07,
+      "suspensionPreloadRear": 0.07,
+      "trackHalfWidth": 1.05,
+      "trailingArm": {
+        "armMass": 14,
+        "damperArmOffset": [
+          0.153534,
+          -0.164062,
+          0.0578246
+        ],
+        "damperChassisOffset": [
+          0.404307,
+          0.470312,
+          0.152272
+        ],
+        "pivotOffset": [
+          0.449969,
+          0.39375,
+          0
+        ]
+      },
+      "uprightAssist": false,
+      "uprightDampingRatio": 1,
+      "uprightHertz": 0.4,
+      "wheelDensity": 80,
+      "wheelEnvelope": {
+        "cylinderSides": 32,
+        "mode": 3,
+        "torusCrownRadius": 0.199937,
+        "torusSegments": 64,
+        "unionLayerCount": 4
+      },
+      "wheelFriction": 1.25,
+      "wheelRollingResistance": 0.02,
+      "wishbone": {
+        "ackermannFraction": 0.6,
+        "ackermannTrapezoid": true,
+        "armHalfSpread": 0.24,
+        "casterDeg": 5,
+        "coiloverTopHeight": 0.42,
+        "coiloverTopInboard": 0.12,
+        "kingpinInclinationDeg": 7,
+        "kingpinOffset": 0.14,
+        "lowerArmLength": 0.46,
+        "restArmDroopDeg": 15,
+        "steeringArmBack": 0.17,
+        "upperArmLength": 0.34,
+        "uprightHalfHeight": 0.18
+      }
+    },
+    "features": {
+      "activeFrontRigType": 1,
+      "activeRearRigType": 1,
+      "activeWheelEnvelopeMode": 3,
+      "rackCenteringAssistEnabled": false,
+      "supportedRigTypes": [
+        0,
+        1,
+        2
+      ],
+      "supportedWheelEnvelopeModes": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "uprightAssistEnabled": false
+    },
+    "fieldSource": "SaveJozzVehicleM6Config/JozzFieldDesc",
+    "format": "jv-web-factory-payload",
+    "runtimeOnly": {
+      "filterGroupIndex": -19
+    },
+    "sanitizedConfig": {
+      "ackermannGeometry": true,
+      "aeroDragArea": 0.9,
+      "allWheelDrive": true,
+      "arbFrontStiffness": 16000,
+      "arbRearStiffness": 10000,
+      "armMass": 5,
+      "axleHalfSpacing": 1.25,
+      "bodyVisualModel": "rama_rurowa",
+      "bodyVisualOffset": [
+        0,
+        0,
+        0
+      ],
+      "brakeTorque": 650,
+      "cgVerticalOffset": 0.15,
+      "chassisDensity": 200,
+      "chassisHalfExtents": [
+        1.55,
+        0.35,
+        0.55
+      ],
+      "coastTorque": 8,
+      "compressionTravel": 0.42,
+      "driveTaperStart": 0.6,
+      "frontRigType": 1,
+      "frontSuspensionScale": 1,
+      "frontSuspensionVisualModel": "rig_kierowniczy",
+      "frontToeDeg": 0,
+      "knuckleMass": 28,
+      "maxDriveSpeed": 40,
+      "maxDriveTorque": 320,
+      "maxSteeringAngleDegrees": 32,
+      "maxSteeringTorque": 700,
+      "rackCenteringHertz": 0,
+      "rackFrictionBase": 40,
+      "rackFrictionLoadCoeff": 0.1,
+      "rackHalfWidth": 0.45,
+      "rackMass": 5,
+      "rackServoForce": 12000,
+      "rackServoMaxSpeed": 1.2,
+      "rackServoSpeedGain": 12,
+      "rearRigType": 1,
+      "rearSuspensionScale": 1,
+      "rearToeDeg": 0,
+      "reboundTravel": 0.28,
+      "restDrop": 0.55,
+      "steerInputDeadzone": 0.02,
+      "steeringDampingRatio": 1,
+      "steeringFrictionTorque": 40,
+      "steeringHertz": 14,
+      "strutCasterDeg": 0,
+      "suspensionDampingRatio": 0.7,
+      "suspensionHertz": 6,
+      "suspensionPreloadFront": 0.07,
+      "suspensionPreloadRear": 0.07,
+      "trackHalfWidth": 1.05,
+      "trailingArm": {
+        "armMass": 14,
+        "damperArmOffset": [
+          0.153534,
+          -0.164062,
+          0.0578246
+        ],
+        "damperChassisOffset": [
+          0.404307,
+          0.470312,
+          0.152272
+        ],
+        "pivotOffset": [
+          0.449969,
+          0.39375,
+          0
+        ]
+      },
+      "uprightAssist": false,
+      "uprightDampingRatio": 1,
+      "uprightHertz": 0.4,
+      "wheelDensity": 80,
+      "wheelEnvelope": {
+        "cylinderSides": 32,
+        "mode": 3,
+        "torusCrownRadius": 0.199937,
+        "torusSegments": 64,
+        "unionLayerCount": 4
+      },
+      "wheelFriction": 1.25,
+      "wheelRollingResistance": 0.02,
+      "wishbone": {
+        "ackermannFraction": 0.6,
+        "ackermannTrapezoid": true,
+        "armHalfSpread": 0.24,
+        "casterDeg": 5,
+        "coiloverTopHeight": 0.42,
+        "coiloverTopInboard": 0.12,
+        "kingpinInclinationDeg": 7,
+        "kingpinOffset": 0.14,
+        "lowerArmLength": 0.46,
+        "restArmDroopDeg": 15,
+        "steeringArmBack": 0.17,
+        "upperArmLength": 0.34,
+        "uprightHalfHeight": 0.18
+      }
+    },
+    "sanitizerChanged": false,
+    "schemaVersion": 1,
+    "solverProfile": {
+      "contactDampingRatio": 10,
+      "contactHertz": 30,
+      "contactSpeed": 3,
+      "enableContinuous": false,
+      "fixedDt": 0.016666666666666666,
+      "gravity": [
+        0,
+        -10,
+        0
+      ],
+      "substeps": 4,
+      "workerCount": 0
+    }
+  },
+  "payloadReceipt": {
+    "bytes": 6297,
+    "canonicalSha256": "8a7cbdb1acec32cd2543b2e90d3a740094ab2a90cfc9fe4ff6ee42330dfa0b9a",
+    "rawSha256": "ecbe1f5613326330e65ee60cdb89a65099b2f48dabc745c681b1365a4221be84"
+  },
+  "runtimeOnlyFields": [
+    "filterGroupIndex"
+  ],
+  "schemaVersion": 1,
+  "serializedFieldCount": 76,
+  "source": {
+    "branch": "agent/web-factory-receipt",
+    "commit": "0ce379818993b2bed58facec5c55467bfed675d7",
+    "dirty": false,
+    "files": [
+      {
+        "bytes": 25008,
+        "gitBlob": "4525eddf5a494a6d9388fff32409d5f879b51c55",
+        "path": "samples/jozz_vehicle_m6_config_io.cpp",
+        "sha256": "5e8d0b18553206b158d973b9fad8f54fe5d1875445dc1ac51401c33d9f8c321a"
+      },
+      {
+        "bytes": 67355,
+        "gitBlob": "1665ea79573aa1e56fb9dec774e6a66aa010187e",
+        "path": "samples/jozz_vehicle_m6_suspension_rig.cpp",
+        "sha256": "fe0a420f17c3c79f7366d15e583ebd447a60b33f082936ff11f43913dcfc6e87"
+      },
+      {
+        "bytes": 31028,
+        "gitBlob": "6498f8043deac901b31159f3d229a7eb992a1837",
+        "path": "samples/jozz_vehicle_m6_suspension_rig.h",
+        "sha256": "2fdad3d317e7408ce8116d06fb7cbc5fc01d940a3ceb0d2bb0535817f1886f54"
+      },
+      {
+        "bytes": 1755,
+        "gitBlob": "81083ea639119149d96d477278170c1964051095",
+        "path": "samples/jozz_vehicle_asset_dimensions.cpp",
+        "sha256": "59728636603b0934422e5778b17f70e2a899865bb8c93b4f2e91b86f135b654c"
+      },
+      {
+        "bytes": 5519,
+        "gitBlob": "231cd8e23162981632b64feca8a0ee7e3eb61603",
+        "path": "samples/jozz_vehicle_asset_metadata.cpp",
+        "sha256": "5dc9896fdd1f973d418d73c4178999c1ef6fbe9812f437a9944a8704e748a7e2"
+      },
+      {
+        "bytes": 4227,
+        "gitBlob": "56099affbc1bada0f65e0332566fbd89f54a8749",
+        "path": "samples/jozz_vehicle_m7_suspension_import.cpp",
+        "sha256": "04dd1a0e641077a4c2309aad533aebf0c4dc9100bee9651a6ac0fe657ee2d872"
+      },
+      {
+        "bytes": 120170,
+        "gitBlob": "c13c77a8e5552175ee8266b2da33a54691f1dae9",
+        "path": "assets/source/Offroad_Big_Wheels.gltf",
+        "sha256": "1fe1d08dd068157d699dc5232054ee61f6aa5a14af15480be0c77aeb55b5b617"
+      },
+      {
+        "bytes": 3206,
+        "gitBlob": "80deebbdd2cae8e6592fe04dd9a1ac808f6307ef",
+        "path": "assets/contracts/offroad_big_wheel.asset.json",
+        "sha256": "24cf7d68bff367a6fcf267dd5efd841e13658736693881099fd52b2e7c613bfb"
+      },
+      {
+        "bytes": 5817,
+        "gitBlob": "fcc972b2bf86536d4c4fb605dcfa6d5eec5e8e2d",
+        "path": "assets/reports/asset_audit_latest.json",
+        "sha256": "0c8610c3ea9214ee9351a77000fd69987bd5ebc2ba278843021881afcb779db4"
+      },
+      {
+        "bytes": 5337,
+        "gitBlob": "4d92283b06c34b7028494760b712e18d1747a71b",
+        "path": "assets/contracts/one_sided_wheel_mount.asset.json",
+        "sha256": "110e71595ba88dff11d4a29be533616b54980bcb25f035d9a0531a587e8dce01"
+      }
+    ],
+    "repository": "Jozzpoly/Box3d_FunProject"
+  }
+}
