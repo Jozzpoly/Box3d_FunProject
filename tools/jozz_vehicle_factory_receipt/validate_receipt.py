@@ -67,6 +67,26 @@ def main() -> int:
     require(len(paths) == len(set(paths)), "duplicate serialized field path")
     require(receipt["serializedFieldCount"] == len(paths), "serialized field count mismatch")
     require(len(paths) >= 65, f"unexpectedly small serialized schema: {len(paths)}")
+    type_by_path = {row["path"]: row["type"] for row in schema}
+    expected_types = {
+        "chassisDensity": "float",
+        "frontRigType": "int",
+        "wishbone.casterDeg": "float",
+        "wishbone.ackermannTrapezoid": "bool",
+        "trailingArm.armMass": "float",
+        "rackServoForce": "float",
+        "wheelDensity": "float",
+        "suspensionHertz": "float",
+        "allWheelDrive": "bool",
+        "bodyVisualModel": "string",
+        "bodyVisualOffset": "vec3",
+    }
+    for path, expected_type in expected_types.items():
+        require(type_by_path.get(path) == expected_type, f"native type mismatch: {path}")
+    require(
+        all(row["source"].startswith("native-JozzFieldDesc:") for row in schema),
+        "schema contains a non-native descriptor source",
+    )
     for forbidden in (
         "rackTravel",
         "filterGroupIndex",
