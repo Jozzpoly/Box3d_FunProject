@@ -13,6 +13,12 @@
       "bytes": 14201,
       "mode": "parsed"
     },
+    "m6_jazda_na_plaskim_2026_08_03": {
+      "file": "run_m6_jazda_na_plaskim_2026_08_03.txt",
+      "sha256": "f09fc2db939c8917d4bc53903ffb6899fe7e1f4f63d1cdeea09bec3dcb216e20",
+      "bytes": 8937,
+      "mode": "raw-only"
+    },
     "m6_torus_w_aucie_2026_08_03": {
       "file": "run_m6_torus_w_aucie_2026_08_03.txt",
       "sha256": "647eb4342304212848538d14cf24d5fc975d6e444e6822eeba18a7d0da3285db",

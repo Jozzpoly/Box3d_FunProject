@@ -106,6 +106,7 @@ bool RunP1SteeringFenceProbe( const JozzVehiclePrimitiveDefaults& defaults );
 bool RunP5SteeringSetupProbe( const JozzVehiclePrimitiveDefaults& defaults );
 bool RunP4SteeringReturnProbe( const JozzVehiclePrimitiveDefaults& defaults );
 bool RunStraightPullDiagnosisProbe( const JozzVehiclePrimitiveDefaults& defaults );
+bool RunRideQualityDiagnosisProbe( const JozzVehiclePrimitiveDefaults& defaults );
 bool RunP6MassAndLimitSanityProbe( const JozzVehiclePrimitiveDefaults& defaults );
 bool RunP6StressMatrixProbe( const JozzVehiclePrimitiveDefaults& defaults );
 bool RunP3SuspensionPreloadProbe( const JozzVehiclePrimitiveDefaults& defaults );
@@ -276,6 +277,7 @@ int main()
 		{ "p4 steering return", RunP4SteeringReturnProbe },
 		{ "p4 centering assist", RunP4CenteringAssistProbe },
 		{ "straight-pull diagnosis", RunStraightPullDiagnosisProbe },
+		{ "ride quality diagnosis", RunRideQualityDiagnosisProbe },
 		{ "preset determinism", RunPresetDeterminismProbe },
 	};
 	const int probeCount = (int)( sizeof( probes ) / sizeof( probes[0] ) );

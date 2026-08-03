@@ -1,0 +1,141 @@
+RUN: jak kolo jedzie po PLASKIM - pierwszy pomiar tego, co czuje kierowca
+DATA: 2026-08-03
+NARZEDZIE: build/bin/Debug/jozz_vehicle_validation.exe (uruchomiony z ROOTA repo)
+SONDA:   samples/validation/jozz_probes_ride.cpp ("ride quality diagnosis probe")
+
+POWOD POWSTANIA
+  Wlasciciel przejechal sie autem na nowych obwiedniach kola i zglosil, ze
+  wszystkie szarpia i podskakuja przy predkosci, najgorzej w drificie, a sfera
+  jezdzi gladko (ma za to wady, dla ktorych caly program powstal).
+  Zaden przyrzad w programie nie mogl tego zlapac:
+    - stend Q3 toczy JEDNO kolo po plycie w tempie spaceru, bez osi skretu,
+      bez nadwozia i bez poslizgu bocznego;
+    - macierz stresu walidatora mierzy drzenie NA POSTOJU po skrypcie znecania,
+      nigdy drzenia W TRAKCIE jazdy.
+  Program nie mial wiec liczby na jedyna rzecz, ktora decyduje o tym, czy kolo
+  nadaje sie do jazdy. Ten przebieg jest ta liczba.
+
+METODA
+  Idealnie plaska plyta (CreateM6SmokeGround), wiec KAZDE pionowe przyspieszenie
+  nadwozia jest wyprodukowane przez model kola - kolo idealnie okragle musi tu
+  pokazac zero. Predkosc trzymana regulatorem proporcjonalnym na gazie, zeby
+  obwiednie porownywac przy TEJ SAMEJ predkosci, a nie przy predkosci maksymalnej
+  kazdej z nich. Okno pomiarowe 240 krokow po 120 krokach osiadania i 300 krokach
+  rozpedzania. Krok 1/60 s, 4 podkroki (jak w grze), CCD wylaczone (jak w grze).
+  Masa kola ZAMROZONA dla kazdej obwiedni - w tym przebiegu splacony dlug U-32,
+  ktory sprawial, ze walec i union wazyly mniej niz sfera. Wiersze roznia sie
+  wiec KSZTALTEM, nie masa.
+
+KOLUMNY
+  v_zad     zadana predkosc [m/s]
+  v_real    srednia osiagnieta w oknie [m/s]
+  a_rms     pionowe przyspieszenie nadwozia, wartosc skuteczna [m/s2]  <- "podskakuje"
+  a_max     najgorszy pojedynczy krok [m/s2]
+  skok_rms  ruch zawieszenia [mm na krok] - czy wstrzas jest pochlaniany czy przenoszony
+  pkt/kolo  srednia liczba obciazonych punktow styku na jedno kolo
+  swieze%   udzial punktow styku, ktore solver musial zalozyc od nowa w tym kroku
+
+ride quality diagnosis probe (flat ground - a perfect wheel reads zero):
+obwiednia                 v_zad  v_real    a_rms    a_max  skok_rms pkt/kolo  swieze%
+sfera                       8.0     7.9    0.018      0.0    0.0466     1.00     0.0%
+sfera                      16.0    15.6    0.061      0.1    0.0801     1.00     0.0%
+sfera                      24.0    17.3    0.088      0.2    0.1104     1.00     0.0%
+sfera+walec (domyslne)      8.0     7.9    0.018      0.0    0.0466     1.00     0.0%
+sfera+walec (domyslne)     16.0    15.6    0.061      0.1    0.0801     1.00     0.0%
+sfera+walec (domyslne)     24.0    17.3    0.088      0.2    0.1104     1.00     0.0%
+walec (1 ksztalt)           8.0     7.1    1.314      3.5    7.4211     0.61   100.0%
+walec (1 ksztalt)          16.0    13.1    2.434      6.4   11.1637     0.41   100.0%
+walec (1 ksztalt)          24.0    13.1    2.440      6.4   11.1897     0.41   100.0%
+union (3 warstwy)           8.0     7.1    1.353      4.3    3.8196     0.95   100.0%
+union (3 warstwy)          16.0    12.4    2.382      5.7    9.3730     0.51   100.0%
+union (3 warstwy)          24.0    12.4    2.382      5.7    9.3730     0.51   100.0%
+opona-16                    8.0     7.3    1.141      3.2    4.2866     0.63    86.3%
+opona-16                   16.0    13.0    2.757      7.9   11.2863     0.47   100.0%
+opona-16                   24.0    13.0    2.757      7.9   11.2863     0.47   100.0%
+opona-32                    8.0     7.2    1.113      2.4    2.8725     1.01    71.4%
+opona-32                   16.0    13.7    2.233      6.1    9.7940     0.55   100.0%
+opona-32                   24.0    13.7    2.170      6.4    9.7660     0.56   100.0%
+opona-64                    8.0     7.3    0.992      2.2    2.5095     1.31    74.9%
+opona-64                   16.0    13.9    2.244      5.4    9.6867     0.79   100.0%
+opona-64                   24.0    14.0    2.170      5.5    9.6584     0.76   100.0%
+--- w zakrecie (v_zad 16 m/s, skret 0.5) ---
+sfera                      16.0    14.5    0.861      2.7    2.4888     1.00     0.0%
+sfera+walec (domyslne)     16.0    14.5    0.861      2.7    2.4888     1.00     0.0%
+walec (1 ksztalt)          16.0    11.7    4.659     16.8   14.7831     0.37   100.0%
+union (3 warstwy)          16.0    11.7    3.601     13.1   11.5064     0.52   100.0%
+opona-16                   16.0    10.7    4.221     15.3   10.4076     0.64   100.0%
+opona-32                   16.0    12.0    3.729     13.3    9.0235     0.63   100.0%
+opona-64                   16.0    12.6    3.615     11.2    9.1062     0.86   100.0%
+--- podkroki solvera (v_zad 16 m/s, prosto) ---
+sfera @ 4 podkr.           16.0    15.6    0.061      0.1    0.0801     1.00     0.0%
+sfera @ 8 podkr.           16.0    15.6    0.025      0.1    0.2309     1.00     0.0%
+sfera @ 16 podkr.          16.0    15.6    0.009      0.0    0.0487     1.00     0.0%
+sfera @ 32 podkr.          16.0    15.6    0.004      0.0    0.0507     1.00     0.0%
+opona-32 @ 4 podkr.        16.0    13.7    2.233      6.1    9.7940     0.55   100.0%
+opona-32 @ 8 podkr.        16.0    14.5    2.095      6.3   10.5220     0.54   100.0%
+opona-32 @ 16 podkr.       16.0    14.6    2.576      6.8   13.0588     0.51   100.0%
+opona-32 @ 32 podkr.       16.0    14.4    3.233     10.4   14.6515     0.50   100.0%
+--- scianki walca (v_zad 16 m/s, prosto) ---
+walec 6 scianek            16.0     1.9    2.654      7.9    9.8691     1.11     9.3%
+walec 12 scianek           16.0     3.1    1.305      3.0    6.5719     0.87     9.7%
+walec 24 scianek           16.0    10.6    2.891      8.6   11.7642     0.35   100.0%
+walec 32 scianek           16.0    13.1    2.434      6.4   11.1637     0.41   100.0%
+ok ride diagnosis runs stay finite
+ride quality diagnosis probe: ok
+
+CO Z TEGO WYNIKA (odczyt liczb, nie interpretacja intencji)
+
+  1. Domyslne kolo jest fizycznie SFERA. Wiersze "sfera" i "sfera+walec
+     (domyslne)" sa identyczne co do ostatniej cyfry we WSZYSTKICH dziesieciu
+     porownaniach, lacznie z zakretem przy 16 m/s. Boczny walec obwiedni
+     dzielonej nigdy nie dotyka gruntu. Potwierdza w AUCIE to, co stend
+     zapisal wczesniej jako "split envelope martwy".
+
+  2. Kazda obwiednia inna niz sfera jest 25-40x bardziej szarpiaca. Przy
+     16 m/s na wprost: sfera 0.061 wobec 2.23-2.76 dla calej reszty. To sie
+     zgadza z werdyktem wlasciciela z jazdy.
+
+  3. To NIE jest kwestia liczby ksztaltow. Jeden walec (1 ksztalt) daje 2.434,
+     a piercien 64 kapsul daje 2.244. Roznica miedzy 1 a 64 ksztaltami jest
+     mniejsza niz roznica miedzy dowolnym z nich a sfera (37x).
+
+  4. Kolo TRACI KONTAKT z ziemia. pkt/kolo dla sfery wynosi dokladnie 1.00
+     w kazdym wierszu; dla pozostalych 0.35-1.31, czyli w duzej czesci krokow
+     kolo nie ma zadnego obciazonego punktu styku. Kolo podskakuje na wlasnej
+     powierzchni.
+
+  5. Zbior punktow styku jest budowany OD NOWA w kazdym kroku (swieze 100%)
+     dla kazdej obwiedni z powierzchnia inna niz kulista; dla sfery 0.0%.
+
+  6. Podkroki NIE lecza. Sfera poprawia sie monotonicznie z liczba podkrokow
+     (0.061 -> 0.025 -> 0.009 -> 0.004), opona-32 POGARSZA sie
+     (2.233 -> 2.095 -> 2.576 -> 3.233). To jest podpis pobudzenia
+     rozwiazywanego coraz dokladniej, a nie bledu, ktory sie domyka.
+     Odpowiada na U-30 przeczaco.
+
+  7. W zakrecie wszystko jest gorsze, ale dystans zostaje: sfera 0.861 wobec
+     3.6-4.7, a_max sfery 2.7 wobec 11.2-16.8.
+
+  8. Predkosc maksymalna: sfera dochodzi do 17.3 m/s przy zadaniu 24; reszta
+     scina sie na 12.4-14.0. Szarpanie zjada okolo cwierc predkosci.
+
+ZASTRZEZENIE DO OSTATNIEJ TABELI (waznosc czesciowa)
+  Sweep sciankami walca mial odpowiedziec, czy tetnienie promienia N-kata
+  (1-cos(pi/N)) jest zrodlem szarpania. NIE odpowiada, bo kola 6- i
+  12-scienne w ogole nie rozpedzaja sie do predkosci pomiaru: przy pelnym
+  gazie osiagaja 1.9 i 3.1 m/s zamiast 16. Ich a_rms zmierzone jest wiec
+  w innym rezimie i NIE JEST porownywalne z reszta tabeli. Wiersze 24 i 32
+  scianki (10.6 i 13.1 m/s) sa porownywalne miedzy soba i pokazuja, ze w
+  zakresie, w ktorym auto w ogole jedzie, zageszczenie scianek nic nie daje
+  (2.891 -> 2.434 przy 100% swiezych w obu). Osobno wazny fakt sam w sobie:
+  kolo 6-scienne nie jest w stanie jechac.
+
+CZEGO TEN PRZEBIEG NIE ROZSTRZYGA
+  - Kierunku przyczynowego miedzy "traci styk" a "styk budowany od nowa" -
+    to sa dwa odczyty tego samego zjawiska i te dane ich nie rozdzielaja.
+    Slad przeciw prostej historii "wina utraty rozgrzanego startu": walec
+    6-scienny przy 1.9 m/s ma tylko 9.3% swiezych, a mimo to a_rms 2.654.
+  - Zachowania na siatce terenu - caly przebieg jest na plaskiej plycie,
+    celowo, zeby oddzielic kolo od gruntu.
+  - Progu akceptacji. Co znaczy "dosc gladko" to werdykt wlasciciela;
+    sonda istnieje po to, zeby ten werdykt dalo sie przypiac do liczby.

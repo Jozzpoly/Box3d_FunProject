@@ -297,6 +297,7 @@ set(JOZZ_VALIDATION_FILES
     validation/jozz_probes_steering.cpp
     validation/jozz_probes_config.cpp
     validation/jozz_probes_map.cpp
+    validation/jozz_probes_ride.cpp
 )
 add_executable(jozz_vehicle_validation
     jozz_vehicle_validation.cpp

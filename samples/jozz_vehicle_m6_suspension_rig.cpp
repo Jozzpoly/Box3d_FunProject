@@ -179,20 +179,34 @@ int CreateJozzVehicleM6WheelEnvelope( b3BodyId wheelBodyId, const b3ShapeDef* sh
 		return 2;
 	}
 
+	// U-32 (2026-08-03): CYLINDER and PHASED_UNION used to keep whatever mass
+	// their own hulls happened to integrate - a cylinder wheel weighed 28.9 kg
+	// against the sphere wheel's 45.5 kg, so every measurement that compared
+	// them was comparing two different cars, and the shape got the credit or the
+	// blame for a mass change. Same discipline as the torus branch above: the
+	// reference is TAKEN from a throwaway sphere built with this same shapeDef,
+	// never derived from a formula.
+	b3Sphere massReference = { b3Vec3_zero, desc->radius };
+	b3ShapeId massReferenceId = b3CreateSphereShape( wheelBodyId, shapeDef, &massReference );
+	b3MassData sphereMass = b3Body_GetMassData( wheelBodyId );
+	b3DestroyShape( massReferenceId, false );
+
 	if ( desc->mode == JOZZ_M6_ENVELOPE_CYLINDER )
 	{
 		// Centered on the body origin because the wheel frame is the wheel center.
 		b3HullData* hull = b3CreateCylinder( desc->width, desc->radius, -0.5f * desc->width, sides );
 		outShapeIds[0] = b3CreateHullShape( wheelBodyId, shapeDef, hull );
 		b3DestroyHull( hull );
+		b3Body_SetMassData( wheelBodyId, sphereMass );
 		return 1;
 	}
 
 	// PHASED_UNION: stack co-located cylinder hulls, each rotated by a fraction
 	// of one facet angle about the spin axis. The union's rolling surface has
 	// layerCount * sides effective facets while each individual hull stays
-	// inside the engine's 32-side / 64-vertex hull limits. Density is divided
-	// by the layer count so the wheel keeps roughly one cylinder's mass.
+	// inside the engine's 32-side / 64-vertex hull limits. Density is divided by
+	// the layer count so the stacked hulls do not integrate layerCount times the
+	// mass; the frozen sphere reference below is what actually pins the result.
 	int layerCount = b3ClampInt( desc->unionLayerCount, 2, JOZZ_M6_MAX_WHEEL_SHAPES );
 	b3ShapeDef layerDef = *shapeDef;
 	layerDef.density = shapeDef->density / (float)layerCount;
@@ -217,6 +231,7 @@ int CreateJozzVehicleM6WheelEnvelope( b3BodyId wheelBodyId, const b3ShapeDef* sh
 		b3DestroyHull( hull );
 	}
 
+	b3Body_SetMassData( wheelBodyId, sphereMass );
 	return layerCount;
 }
 

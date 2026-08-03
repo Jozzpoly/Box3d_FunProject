@@ -491,6 +491,19 @@
         }
       }
     },
+    "m6_jazda_na_plaskim_2026_08_03": {
+      "source_file": "run_m6_jazda_na_plaskim_2026_08_03.txt",
+      "source_sha256": "f09fc2db939c8917d4bc53903ffb6899fe7e1f4f63d1cdeea09bec3dcb216e20",
+      "source_bytes": 8937,
+      "provenance": {
+        "RUN": "jak kolo jedzie po PLASKIM - pierwszy pomiar tego, co czuje kierowca",
+        "DATA": "2026-08-03",
+        "NARZEDZIE": "build/bin/Debug/jozz_vehicle_validation.exe (uruchomiony z ROOTA repo)",
+        "SONDA": "samples/validation/jozz_probes_ride.cpp (\"ride quality diagnosis probe\")",
+        "Zaden przyrzad w programie nie mogl tego zlapac": ""
+      },
+      "tables": {}
+    },
     "m6_torus_w_aucie_2026_08_03": {
       "source_file": "run_m6_torus_w_aucie_2026_08_03.txt",
       "source_sha256": "647eb4342304212848538d14cf24d5fc975d6e444e6822eeba18a7d0da3285db",

@@ -39,6 +39,39 @@ otwartym; implementacja produktowa NIE rozpoczęta**
 > - Werdykt o feelu należy do Jozza i **nie został wydany** (reguła twarda 5).
 >   Otwarte: `Q3-5` (wzorzec zachowania) — dopiero po akceptacji w oknie.
 
+> **Rewizja 2026-08-03 (e) — JAZDA OBALA WARSZTAT. Cała rodzina obwiedni
+> wielokształtnych nie potrafi się toczyć, a dzisiejsze koło jest w jeździe
+> fizycznie sferą.** Właściciel przejechał się na nowych kołach: „wszystkie nowe
+> są szarpane i strasznie podskakują przy większych prędkościach i zwłaszcza
+> przy drifcie", przy czym **sfera jeździ gładko**, tylko ma wady, dla których
+> cały ten program powstał.
+> - **To był brak przyrządu, nie zła obwiednia.** Stend Q3 toczy jedno koło po
+>   płycie w tempie spaceru, bez osi skrętu i bez nadwozia; macierz stresu
+>   walidatora mierzy drżenie **na postoju**. Wielkość, która decyduje o tym,
+>   czy koło nadaje się do jazdy, **nie miała w programie liczby**. Nowa sonda
+>   `samples/validation/jozz_probes_ride.cpp` jest tą liczbą: płaska płyta,
+>   na której koło idealnie okrągłe **musi** pokazać zero, prędkość trzymana
+>   regulatorem, masa zamrożona dla wszystkich kandydatów.
+> - **`F-35` — dzisiejsze koło JEST sferą.** Wiersze `sfera` i `sfera+walec`
+>   są identyczne co do ostatniej cyfry we wszystkich dziesięciu porównaniach,
+>   łącznie z zakrętem. Boczny walec **nigdy nie dotyka gruntu**.
+> - **`F-36` — nie chodzi o liczbę kształtów.** `a_rms` przy 16 m/s na wprost:
+>   sfera **0,061**, walec (1 kształt) 2,434, union 2,382, opona-16 2,757,
+>   opona-32 2,233, opona-64 2,244. Jeden kształt jest tak samo zły jak 64,
+>   a od sfery dzieli je **37×**. Koło **traci styk**: `pkt/koło` 0,35–1,31
+>   wobec dokładnie 1,00 dla sfery. Prędkość maksymalna: sfera 17,3 m/s,
+>   reszta ścina się na 12,4–14,0.
+> - **`F-37` — podkroki nie leczą, pogarszają.** 4/8/16/32 podkroki: sfera
+>   0,061 → 0,004 (monotonicznie w dół, kontrola miary), opona-32
+>   2,233 → **3,233**. `U-30` zamknięte przecząco: budżetu CPU **nie da się**
+>   wymienić na gładkość tej rodziny.
+> - **Bilans rodziny.** `F-31`: nie daje odcisku. `F-36`: nie potrafi się toczyć.
+>   Ani kształty, ani podkroki nie kupują poprawy — to nie jest kwestia budżetu.
+> - Spłacone przy okazji: `U-32` (walec i union mają wreszcie zamrożoną masę,
+>   więc wiersze różnią się kształtem, a nie masą). Otwarte: `U-33` (czy silnik
+>   ma jakąkolwiek bryłę obrotowo symetryczną szerszą niż punkt), `U-34` (mesh
+>   vs płyta), **`U-35` — wybór kierunku, decyzja właściciela.**
+
 > **Rewizja 2026-08-03 (d) — TORUS WCHODZI DO SAMOCHODU. Działa, kosztuje mało,
 > i wywala kierownicę.** Właściciel po przejechaniu obu kandydatów na stanowisku:
 > pryzmaty odpadają („podskakują na płaskim, chcę samochody a nie wibratory"),

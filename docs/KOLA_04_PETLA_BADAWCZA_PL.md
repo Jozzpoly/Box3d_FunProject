@@ -510,6 +510,43 @@ może rozłożyć impulsy inaczej.
 plama kontaktu, tylko pięć gwoździ. Falsyfikator zostaje w zapisie taki, jaki
 był (reguła twarda 6), a wniosek formułujemy na `nios`, nie na `max%`.
 
+### R1b — JAK KOŁO JEDZIE (przyrząd, którego nie było) — 2026-08-03
+
+**Skąd się wzięło.** Właściciel przejechał się autem na nowych obwiedniach
+i zgłosił, że **wszystkie szarpią i podskakują przy prędkości**, najgorzej
+w drifcie, a **sfera jeździ gładko** — ma za to wady, dla których cały program
+powstał. Program nie mógł tego zobaczyć **w zasadzie**, bo mierzył co innego:
+
+| przyrząd | co mierzy | czego nie mierzy |
+|---|---|---|
+| stend Q3 | jedno koło, płyta, tempo spaceru | osi skrętu, nadwozia, prędkości, poślizgu |
+| macierz stresu walidatora | drżenie **na postoju** po skrypcie znęcania | drżenia **w trakcie jazdy** |
+
+Czyli: jedyna wielkość, która decyduje o tym, czy koło nadaje się do jazdy,
+nie miała liczby. To nie jest pomyłka w wyniku — to **dziura w metodzie**,
+i wszystkie werdykty wydane w warsztacie są o tyle podejrzane, o ile
+opierały się na założeniu, że stend przewiduje jazdę.
+
+**Przyrząd:** `samples/validation/jozz_probes_ride.cpp`, sonda diagnostyczna
+w walidatorze (wzorem `straight-pull diagnosis` — drukuje, nie bramkuje).
+Idealnie płaska płyta, więc **koło idealnie okrągłe musi pokazać zero**;
+prędkość trzymana regulatorem, żeby porównywać przy tej samej prędkości,
+a nie przy prędkości maksymalnej każdego kandydata. Masa zamrożona dla
+wszystkich obwiedni (przy okazji spłacone `U-32`).
+
+**Wyniki:** `F-35` (dzisiejsze koło jest w jeździe fizycznie sferą — boczny
+walec nigdy nie dotyka gruntu), `F-36` (każda obwiednia inna niż sfera szarpie
+25–40×, i **nie zależy to od liczby kształtów**: 1 walec ≈ 64 kapsuły ≫ sfera),
+`F-37` (podkroki nie leczą — pogarszają).
+
+**Co to znaczy dla programu.** `F-31` powiedział, że sztywna bryła wielokształtna
+nie daje odcisku. `F-36` mówi, że **ta sama rodzina nie potrafi się też toczyć**.
+Rodzina nie dostarcza więc żadnej z dwóch rzeczy, dla których była budowana —
+i nie jest to kwestia budżetu, bo ani kształty (`F-36`), ani podkroki (`F-37`)
+nie kupują poprawy. Otwarte po tym: `U-33` (czy silnik w ogóle ma bryłę
+obrotowo symetryczną szerszą niż punkt), `U-34` (mesh vs płyta), `U-35`
+(wybór kierunku — decyzja właściciela).
+
 ### R2 — ATLAS ZJAWISK TRZECH ŚWIATÓW
 
 **Pytanie:** czym różnią się mierzalnie drift, zwykła jazda i offroad skalny?
@@ -625,22 +662,47 @@ U-29  Czy sufit ~5 punktow efektywnych jest wlasnoscia RODZINY
       teoretyczny sufit dla 576 ksztaltow to setki punktow, a
       dostajemy piec. Rozstrzygnie to inna rodzina o tej samej
       liczbie ksztaltow (np. pas malych sfer albo pudelek).       -> R1/R3
-U-30  Ile podkrokow kosztuje odcisk W POJEZDZIE. F-31 mierzy jedno
-      kolo w Q3; pojazd ma ich cztery i dzieli z nimi budzet
-      solvera. CZESCIOWO ODPOWIEDZIANE 2026-08-03 -> F-34: sam
-      pierscien 64 kapsul na cztery kola kosztuje 0.403 ms/krok
-      przy 4 podkrokach, czyli 2.4% klatki. Brakuje drugiej
-      polowy: ile kosztuje przy 32 podkrokach, ktorych zada F-31
-      do jakiegokolwiek odcisku.                                 -> Q4
+U-30  ZAMKNIETE 2026-08-03 -> F-34 (koszt) + F-37 (skutek).
+      Pytanie brzmialo "ile podkrokow kosztuje odcisk W POJEZDZIE"
+      i zakladalo, ze podkroki sa waluta, za ktora kupuje sie
+      jakosc. NIE SA - dla tej rodziny obwiedni. Sweep 4/8/16/32
+      przy 16 m/s: sfera poprawia sie monotonicznie
+      (0.061 -> 0.004), opona-32 POGARSZA sie (2.233 -> 3.233).
+      Cena byla znana (F-34: 0.403 ms/krok), ale nie ma czego za
+      nia kupic. Monotoniczna sfera jest kontrola miary.
 U-31  Czym nastroic kierownice pod styk o PRAWDZIWEJ szerokosci
       (F-33). Kandydaci: wyprzedzenie, promien zataczania,
       tlumienie ukladu, tarcie przekladni. To zmienia prowadzenie
       auta, wiec kolejnosc jest odwrotna niz zwykle: najpierw
       decyzja wlasciciela, potem pomiar.                         -> Q4/V3
-U-32  DLUG: tryby CYLINDER i PHASED_UNION nie maja zamrozonej masy
-      (walec 28.9 kg wobec 45.5 kg sfery). Kazde porownanie
-      z ich udzialem lamie regule twarda 1. Defekt sprzed
-      2026-08-03, znaleziony przy okazji F-33.                    -> narzedzia
+U-32  SPLACONE 2026-08-03. CYLINDER i PHASED_UNION biora teraz
+      referencje masy z jednorazowej sfery, tym samym wzorcem co
+      TORUS (masa BRANA, nie wyprowadzana). Splacone po to, zeby
+      wiersze walca i uniona w sondzie jazdy roznily sie
+      KSZTALTEM, a nie masa - inaczej F-36 bylby porownaniem
+      dwoch roznych aut.
+      samples/jozz_vehicle_m6_suspension_rig.cpp
+U-33  Czy w slowniku ksztaltow box3d istnieje bryla OBROTOWO
+      SYMETRYCZNA wzgledem osi koła i szersza niz punkt. Sfera
+      jest jedyna znana - i to ona jako jedyna toczy sie gladko
+      (F-36). Kapsula o osi wzdluz osi koła wygladalaby idealnie
+      (przekroj w plaszczyznie toczenia to okrag), ale jej czasze
+      maja promien rowny promieniowi koła, wiec najwezsze takie
+      kolo ma szerokosc 2R - dla R 0.51 m to 1.03 m zamiast
+      0.44 m. Jesli odpowiedz brzmi NIE, to jest granica silnika,
+      a nie kwestia strojenia, i przesadza o wyborze kierunku.  -> R5/R-inf
+U-34  Czy szarpanie z F-36 zachowuje sie tak samo na SIATCE
+      terenu. Caly przebieg jest na plaskiej plycie - celowo,
+      zeby oddzielic kolo od gruntu - ale produkt jezdzi po
+      meshu, gdzie dochodza krawedzie trojkatow. Nie zmieni to
+      werdyktu o sferze (0.061 to podloga), moze zmienic
+      dystanse miedzy kandydatami.                              -> R1
+U-35  Ktory kierunek po F-36. Trzy rozlaczne: (a) sfera zostaje
+      koliderem, a szerokosc/odcisk/flaczenie robi MODEL SIL,
+      (b) opona jako cialo podatne, (c) latka do rdzenia box3d
+      z prawdziwym koliderem obrotowym (D-CORE-01). To decyzja
+      wlasciciela; moim zadaniem jest wycena kazdej z trzech,
+      nie wybor.                                                 -> par. 8
 U-14  Ile manifoldow daje kolo na MESHU (nie na pudle) i czy kazdy
       wnosi wlasna kotwice tarcia (P-11).                         -> R1
 U-15  Czy prawo opony na dzisiejszej sferze obsluguje Z-07..Z-09.  -> R4
