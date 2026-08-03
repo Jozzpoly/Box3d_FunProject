@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,23 @@ RELEVANT_PATHS = (
     "assets/reports/asset_audit_latest.json",
     "assets/contracts/one_sided_wheel_mount.asset.json",
 )
+
+FIELD_TABLE_ORDER = (
+    ("kRootFieldsA", ""),
+    ("kWishboneFields", "wishbone"),
+    ("kTrailingArmFields", "trailingArm"),
+    ("kRootFieldsB", ""),
+    ("kWheelEnvelopeFields", "wheelEnvelope"),
+    ("kRootFieldsC", ""),
+)
+
+NATIVE_TYPE_NAMES = {
+    "Float": "float",
+    "Int": "int",
+    "Bool": "bool",
+    "Vec3": "vec3",
+    "String": "string",
+}
 
 
 def run_git(root: Path, *args: str) -> str:
@@ -45,39 +63,32 @@ def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def describe_value(value: Any) -> str:
-    if isinstance(value, bool):
-        return "bool"
-    if isinstance(value, int):
-        return "int"
-    if isinstance(value, float):
-        return "float"
-    if isinstance(value, str):
-        return "string"
-    if (
-        isinstance(value, list)
-        and len(value) == 3
-        and all(isinstance(item, (int, float)) and not isinstance(item, bool) for item in value)
-    ):
-        return "vec3"
-    if isinstance(value, list):
-        return "array"
-    if isinstance(value, dict):
-        return "object"
-    raise TypeError(f"unsupported schema value: {type(value).__name__}")
-
-
-def collect_field_schema(value: Any, prefix: str = "") -> list[dict[str, str]]:
+def extract_native_field_schema(root: Path) -> list[dict[str, str]]:
+    source = (root / "samples/jozz_vehicle_m6_config_io.cpp").read_text(encoding="utf-8")
     rows: list[dict[str, str]] = []
-    if not isinstance(value, dict):
-        raise TypeError("factoryConfig must be an object")
-    for key, child in value.items():
-        path = f"{prefix}.{key}" if prefix else key
-        kind = describe_value(child)
-        if kind == "object":
-            rows.extend(collect_field_schema(child, path))
-        else:
-            rows.append({"path": path, "type": kind, "source": "native-config-writer"})
+    for table_name, prefix in FIELD_TABLE_ORDER:
+        table_match = re.search(
+            rf"const\s+\w+\s+{re.escape(table_name)}\[\]\s*=\s*\{{(.*?)\n\}};",
+            source,
+            flags=re.DOTALL,
+        )
+        if table_match is None:
+            raise RuntimeError(f"native field table not found: {table_name}")
+        fields = re.findall(
+            r'\.key\s*=\s*"([^"]+)"\s*,\s*\.type\s*=\s*JozzFieldType::(Float|Int|Bool|Vec3|String)',
+            table_match.group(1),
+        )
+        if not fields:
+            raise RuntimeError(f"native field table is empty: {table_name}")
+        for key, native_type in fields:
+            path = f"{prefix}.{key}" if prefix else key
+            rows.append(
+                {
+                    "path": path,
+                    "type": NATIVE_TYPE_NAMES[native_type],
+                    "source": f"native-JozzFieldDesc:{table_name}",
+                }
+            )
     return rows
 
 
@@ -105,12 +116,14 @@ def main() -> int:
     if payload.get("format") != "jv-web-factory-payload" or payload.get("schemaVersion") != 1:
         raise SystemExit("unexpected native payload format")
 
-    field_schema = collect_field_schema(payload["factoryConfig"])
+    field_schema = extract_native_field_schema(root)
     canonical_payload = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
         "utf-8"
     )
     source_commit = run_git(root, "rev-parse", "HEAD")
-    source_branch = os.environ.get("GITHUB_REF_NAME") or run_git(root, "rev-parse", "--abbrev-ref", "HEAD")
+    source_branch = os.environ.get("GITHUB_HEAD_REF") or os.environ.get("GITHUB_REF_NAME") or run_git(
+        root, "rev-parse", "--abbrev-ref", "HEAD"
+    )
 
     receipt = {
         "format": "jv-web-factory-receipt",
