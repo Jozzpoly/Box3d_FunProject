@@ -16,7 +16,12 @@
 // text fits inline so an entry stays small and we don't need a second arena
 // for the strings.
 #define TEXT_CAPACITY 1024
-#define TEXT_BUFFER_SIZE 64 // 63 chars + NUL
+// 63 chars was enough for body names and joint types, but a rig overlay line
+// carries a whole sentence of telemetry and was being cut mid-word with no
+// warning anywhere - the reader saw a complete-looking line that had silently
+// lost its ending. 1024 slots x 64 extra bytes = 64 KB of static, which is the
+// cheaper side of that trade.
+#define TEXT_BUFFER_SIZE 128 // 127 chars + NUL
 
 typedef struct TextSlot
 {

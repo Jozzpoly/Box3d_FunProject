@@ -2423,11 +2423,17 @@ typedef enum
 	QC_SWEEP_OBSTACLE,
 	QC_SWEEP_STONE_W,
 	QC_SWEEP_STONE_Z,
+	// Podkroki NIE sa ustawieniem wydajnosci, tylko parametrem eksperymentu, i
+	// dlatego stoja tu obok geometrii. Uwaga U-20: przemiatanie po nich rusza
+	// DWIE rzeczy naraz, bo F-16 wiaze efektywny contactHertz z 0.125*inv_h.
+	// Wniosek "wiecej podkrokow = X" wolno wyciagac tylko o tym, co nie zalezy
+	// od twardosci kontaktu, albo po kontroli z zamrozonym hertzem.
+	QC_SWEEP_SUBSTEPS,
 	QC_SWEEP_COUNT
 } QcSweepParam;
 
-static const char* s_qcSweepNames[QC_SWEEP_COUNT] = { "segments", "crown",	  "rows",	 "drop",   "spring",
-													  "speed",	  "obstacle", "stone_w", "stone_z" };
+static const char* s_qcSweepNames[QC_SWEEP_COUNT] = { "segments", "crown",	  "rows",	 "drop",	"spring",
+													  "speed",	  "obstacle", "stone_w", "stone_z", "substeps" };
 
 // Ktore parametry zmieniaja BRYLE kola. Tylko dla nich powtorzony odcisk
 // obwiedni jest ostrzezeniem - przy przemiataniu sprezyny czy predkosci ta sama
@@ -2485,6 +2491,12 @@ static void QcSweepApply( JozzQcConfig* c, QcSweepParam p, double v, char* tag, 
 			c->obstacleZ = (float)v;
 			snprintf( tag, tagCap, "kam_z=%.4g", v );
 			break;
+		case QC_SWEEP_SUBSTEPS:
+			c->substeps = (int)( v + 0.5 );
+			if ( c->substeps < 1 )
+				c->substeps = 1;
+			snprintf( tag, tagCap, "podkrokow=%d", c->substeps );
+			break;
 		default:
 			c->obstacleH = (float)v;
 			snprintf( tag, tagCap, "prog=%.4g", v );
@@ -2530,7 +2542,8 @@ static int QcSweep( const char* csvPath, const JozzQcConfig* base, QcSweepParam 
 	fprintf( f, "point,value,segments,shapes,envelope,profile_err_mm,loaded_points,ripple_mm,road,target_v,"
 				"drive_torque_nm,torque_spread,loss_power_w,"
 				"sprung_accel_rms,accel_spread,airborne_frac,airborne_spread,travel_rms,travel_dyn_rms,churn_pct,"
-				"slip_mean,speed_mean,ms_per_step,valid,why\n" );
+				"slip_mean,speed_mean,ms_per_step,valid,why,"
+				"loaded_manifolds,points_eff,share_max,share_max_peak\n" );
 
 	printf( "\n=== Q3 PRZEMIATANIE: %s od %.6g do %.6g, %d punktow ===\n", s_qcSweepNames[param], from, to,
 			steps );
@@ -2541,8 +2554,14 @@ static int QcSweep( const char* csvPath, const JozzQcConfig* base, QcSweepParam 
 		printf( "prog WASKI: polowa szerokosci %.4g m, srodek w z %.4g (kolo ma polowe %.4g m)\n",
 				(double)base->obstacleHalfZ, (double)base->obstacleZ, 0.5 * (double)base->wheelW );
 	printf( "kazdy punkt to %d przebiegi z przesunietym startem; +- to POLOWA ROZRZUTU\n\n", JOZZ_QC_REPEATS );
-	printf( "%-14s %9s %6s %6s %9s %8s %16s %8s %15s %13s %8s %7s\n", "punkt", "bryla", "shape", "pkt",
-			"profil_mm", "tetn_mm", "moment Nm", "strata_W", "a_rms m/s2", "w powietrzu", "churn%", "ms/krok" );
+	// `nios` i `max%` to ROZKLAD obciazenia, nie jego suma (R1). `pkt` mowi, ile
+	// punktow solver uznal za nosne, `nios` ile z nich naprawde niesie, a `max%`
+	// ile procent calego nacisku stoi na jednym punkcie. Falsyfikator R1 jest
+	// zapisany wprost na `max%`: powyzej 90% ta para bryla+manifold nie dostarcza
+	// uzytecznego rozkladu nacisku i zadne wygladzanie obwiedni tego nie zmieni.
+	printf( "%-14s %9s %6s %6s %6s %5s %9s %8s %16s %8s %15s %13s %8s %7s\n", "punkt", "bryla", "shape", "pkt",
+			"nios", "max%", "profil_mm", "tetn_mm", "moment Nm", "strata_W", "a_rms m/s2", "w powietrzu", "churn%",
+			"ms/krok" );
 
 	uint64_t* sigs = (uint64_t*)calloc( (size_t)steps, sizeof( uint64_t ) );
 	for ( int i = 0; i < steps; ++i )
@@ -2559,7 +2578,7 @@ static int QcSweep( const char* csvPath, const JozzQcConfig* base, QcSweepParam 
 			// Punkt niebudowalny NIE przerywa przemiatania i NIE jest po cichu
 			// pomijany: "tutaj konstrukcja sie konczy" jest wynikiem.
 			printf( "%-14s   NIEZBUDOWANY: %s\n", tag, c.err );
-			fprintf( f, "%d,%.17g,%d,0,%016llx,,,0,%s,%.17g,,,,,,,,,,,,,,0,%s\n", i, v, cfg.segments,
+			fprintf( f, "%d,%.17g,%d,0,%016llx,,,0,%s,%.17g,,,,,,,,,,,,,,0,%s,,,,\n", i, v, cfg.segments,
 					 (unsigned long long)c.envelope, JozzQc_RoadName( cfg.road ), cfg.targetSpeed, c.err );
 			continue;
 		}
@@ -2571,20 +2590,21 @@ static int QcSweep( const char* csvPath, const JozzQcConfig* base, QcSweepParam 
 			const char* same = "";
 			if ( QcSweepTouchesShape( param ) && i > 0 && sigs && sigs[i] == sigs[i - 1] )
 				same = "  = TA SAMA BRYLA";
-			printf( "%-14s %9llx %6d %6.2f %9.3f %8.3f %9.2f+-%-4.2f %8.1f %8.3f+-%-5.3f %6.1f+-%-4.1f%% %8.1f "
-					"%7.3f%s%s\n",
-					tag, (unsigned long long)( c.envelope & 0xffffffffull ), c.shapes, c.points,
-					1000.0 * c.profileErr, 1000.0 * c.ripple, c.torque, c.torqueSpread, c.loss, c.accel,
-					c.accelSpread, 100.0 * c.airborne, 100.0 * c.airborneSpread, c.churn, c.msPerStep, same,
-					c.invalid ? "  NIEWAZNY" : "" );
+			printf( "%-14s %9llx %6d %6.2f %6.2f %5.1f %9.3f %8.3f %9.2f+-%-4.2f %8.1f %8.3f+-%-5.3f "
+					"%6.1f+-%-4.1f%% %8.1f %7.3f%s%s\n",
+					tag, (unsigned long long)( c.envelope & 0xffffffffull ), c.shapes, c.points, c.pointsEff,
+					100.0 * c.shareMax, 1000.0 * c.profileErr, 1000.0 * c.ripple, c.torque, c.torqueSpread, c.loss,
+					c.accel, c.accelSpread, 100.0 * c.airborne, 100.0 * c.airborneSpread, c.churn, c.msPerStep,
+					same, c.invalid ? "  NIEWAZNY" : "" );
 		}
 		fprintf( f,
 				 "%d,%.17g,%d,%d,%016llx,%.6f,%.17g,%.6f,%s,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,"
-				 "%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%d,%s\n",
+				 "%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%d,%s,%.17g,%.17g,%.17g,%.17g\n",
 				 i, v, cfg.segments, c.shapes, (unsigned long long)c.envelope, 1000.0 * c.profileErr, c.points,
 				 1000.0 * c.ripple, JozzQc_RoadName( cfg.road ), cfg.targetSpeed, c.torque, c.torqueSpread,
 				 c.loss, c.accel, c.accelSpread, c.airborne, c.airborneSpread, c.travelRms, c.travelDyn, c.churn,
-				 c.slip, c.speed, c.msPerStep, c.invalid ? 0 : 1, c.why );
+				 c.slip, c.speed, c.msPerStep, c.invalid ? 0 : 1, c.why, c.manifolds, c.pointsEff, c.shareMax,
+				 c.shareMaxPeak );
 		fflush( stdout );
 	}
 	fclose( f );
@@ -2619,7 +2639,7 @@ static int QcSweep( const char* csvPath, const JozzQcConfig* base, QcSweepParam 
 
 // Macierz kandydat x droga x predkosc. To jest realny wynik etapu Q3: jedna
 // tabela, w ktorej nowy kandydat stoi obok dzisiejszego kola produktu w tych
-// samych warunkach, z jawnym znacznikiem wazności kazdego przebiegu.
+// samych warunkach, z jawnym znacznikiem waznoĹ›ci kazdego przebiegu.
 static int QcCompare( const char* csvPath )
 {
 	FILE* probe = fopen( csvPath, "rb" );
@@ -2650,9 +2670,12 @@ static int QcCompare( const char* csvPath )
 			 BENCH_QC_SHA256 );
 	fprintf( f, "# warmup=%d window=%d repeats=%d\n", JOZZ_QC_WARMUP_STEPS, JOZZ_QC_WINDOW_STEPS,
 			 JOZZ_QC_REPEATS );
+	// Kolumny rozkladu nacisku dolozone na KONIEC (2026-08-04), zeby wiersze
+	// zarejestrowane 2026-07-31 dalo sie dalej porownywac kolumna po kolumnie.
 	fprintf( f, "candidate,segments,shapes,ripple_mm,road,target_v,drive_torque_nm,torque_spread,loss_power_w,"
 				"sprung_accel_rms,accel_spread,airborne_frac,airborne_spread,travel_rms,travel_dyn_rms,churn_pct,"
-				"slip_mean,speed_mean,ms_per_step,valid,why\n" );
+				"slip_mean,speed_mean,ms_per_step,valid,why,"
+				"loaded_points,loaded_manifolds,points_eff,share_max,share_max_peak\n" );
 
 	printf( "\n=== Q3 QUARTER CAR - porownanie kandydatow ===\n" );
 	printf( "sprezyna 13500 N/m, zeta 0.35, masa resorowana 150 kg, nieresorowana 44 kg\n" );
@@ -2666,8 +2689,9 @@ static int QcCompare( const char* csvPath )
 		for ( int ri = 0; ri < JOZZ_QC_ROAD_COUNT; ++ri )
 		{
 			printf( "--- droga %s, v_zad %.1f m/s ---\n", JozzQc_RoadName( (JozzQcRoad)ri ), speeds[si] );
-			printf( "%-12s %5s %6s %8s %16s %8s %15s %13s %8s %7s\n", "kandydat", "N", "shape", "tetn_mm",
-					"moment Nm", "strata_W", "a_rms m/s2", "w powietrzu", "churn%", "ms/krok" );
+			printf( "%-12s %5s %6s %6s %6s %5s %8s %16s %8s %15s %13s %8s %7s\n", "kandydat", "N", "shape", "pkt",
+					"nios", "max%", "tetn_mm", "moment Nm", "strata_W", "a_rms m/s2", "w powietrzu", "churn%",
+					"ms/krok" );
 			for ( int ci = 0; ci < nc; ++ci )
 			{
 				JozzQcConfig cfg = JozzQc_DefaultConfig();
@@ -2681,20 +2705,23 @@ static int QcCompare( const char* csvPath )
 				if ( !c.built )
 				{
 					printf( "%-12s   NIEZBUDOWANY: %s\n", cand[ci].label, c.err );
-					fprintf( f, "%s,%d,0,0,%s,%.17g,,,,,,,,,,,,,,0,%s\n", cand[ci].label, cand[ci].segments,
+					fprintf( f, "%s,%d,0,0,%s,%.17g,,,,,,,,,,,,,,0,%s,,,,,\n", cand[ci].label, cand[ci].segments,
 							 JozzQc_RoadName( (JozzQcRoad)ri ), speeds[si], c.err );
 					continue;
 				}
-				printf( "%-12s %5d %6d %8.3f %9.2f+-%-4.2f %8.1f %8.3f+-%-5.3f %6.1f+-%-4.1f%% %8.1f %7.3f%s\n",
-						cand[ci].label, cand[ci].segments, c.shapes, 1000.0 * c.ripple, c.torque, c.torqueSpread,
-						c.loss, c.accel, c.accelSpread, 100.0 * c.airborne, 100.0 * c.airborneSpread, c.churn,
-						c.msPerStep, c.invalid ? "  NIEWAZNY" : "" );
+				printf( "%-12s %5d %6d %6.2f %6.2f %5.1f %8.3f %9.2f+-%-4.2f %8.1f %8.3f+-%-5.3f %6.1f+-%-4.1f%% "
+						"%8.1f %7.3f%s\n",
+						cand[ci].label, cand[ci].segments, c.shapes, c.points, c.pointsEff, 100.0 * c.shareMax,
+						1000.0 * c.ripple, c.torque, c.torqueSpread, c.loss, c.accel, c.accelSpread,
+						100.0 * c.airborne, 100.0 * c.airborneSpread, c.churn, c.msPerStep,
+						c.invalid ? "  NIEWAZNY" : "" );
 				fprintf( f, "%s,%d,%d,%.6f,%s,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,"
-							"%.17g,%.17g,%.17g,%.17g,%d,%s\n",
+							"%.17g,%.17g,%.17g,%.17g,%d,%s,%.17g,%.17g,%.17g,%.17g,%.17g\n",
 						 cand[ci].label, cand[ci].segments, c.shapes, 1000.0 * c.ripple,
 						 JozzQc_RoadName( (JozzQcRoad)ri ), speeds[si], c.torque, c.torqueSpread, c.loss,
 						 c.accel, c.accelSpread, c.airborne, c.airborneSpread, c.travelRms, c.travelDyn, c.churn,
-						 c.slip, c.speed, c.msPerStep, c.invalid ? 0 : 1, c.why );
+						 c.slip, c.speed, c.msPerStep, c.invalid ? 0 : 1, c.why, c.points, c.manifolds,
+						 c.pointsEff, c.shareMax, c.shareMaxPeak );
 				fflush( stdout );
 			}
 			printf( "\n" );
@@ -2812,7 +2839,7 @@ int main( int argc, char** argv )
 			if ( QcParseSweepParam( argv[++i], &qcSweepParam ) == 0 )
 			{
 				fprintf( stderr,
-						 "BLAD: nieznany parametr '%s' (segments|crown|rows|drop|spring|speed|obstacle|stone_w|stone_z)\n",
+						 "BLAD: nieznany parametr '%s' (segments|crown|rows|drop|spring|speed|obstacle|stone_w|stone_z|substeps)\n",
 						 argv[i] );
 				return 2;
 			}
@@ -2837,7 +2864,7 @@ int main( int argc, char** argv )
 					 "--qc-probe <plik.txt>\n"
 					 "       %s --qc-compare <plik.csv>\n"
 					 "       %s --qc-sweep <plik.csv> --qc-sweep-param "
-					 "segments|crown|rows|drop|spring|speed|obstacle|stone_w|stone_z --qc-sweep-from A --qc-sweep-to B "
+					 "segments|crown|rows|drop|spring|speed|obstacle|stone_w|stone_z|substeps --qc-sweep-from A --qc-sweep-to B "
 					 "[--qc-sweep-steps N] [+ opcje --qc-* jako baza]\n"
 					 "       %s --qc-trace <plik.csv> [--qc-config <plik.qc>] "
 					 "[--qc-variant sphere|prism-Nmax|torus-N] "
@@ -2878,7 +2905,7 @@ int main( int argc, char** argv )
 			fprintf( stderr, "BLAD: nie moge zapisac %s\n", qcTemplate );
 			return 3;
 		}
-		printf( "szablon konstrukcji narożnika -> %s\n", qcTemplate );
+		printf( "szablon konstrukcji naroĹĽnika -> %s\n", qcTemplate );
 		return 0;
 	}
 	if ( qcConfig )
@@ -2949,14 +2976,14 @@ int main( int argc, char** argv )
 			return 1;
 		}
 		// Formatow konstrukcji sa DWA i oba musza byc pod ta sama bramka: `.rig`
-		// opisuje samo kolo (Q2A), `.qc` caly narożnik (Q3). Osobna bramka dla
+		// opisuje samo kolo (Q2A), `.qc` caly naroĹĽnik (Q3). Osobna bramka dla
 		// drugiego formatu znaczylaby, ze da sie zapomniec o jednej z nich.
 		if ( JozzQc_ConfigSelfTest( err, sizeof( err ) ) == 0 )
 		{
 			printf( "CONFIG CHECK FAILED (.qc)\n  %s\n", err );
 			return 1;
 		}
-		printf( "CONFIG CHECK OK  (.rig kolo Q2A + .qc narożnik Q3)\n" );
+		printf( "CONFIG CHECK OK  (.rig kolo Q2A + .qc naroĹĽnik Q3)\n" );
 		printf( "  kazde pole struktury jest w tabeli formatu : tak (rozmiar + mapa pokrycia)\n" );
 		printf( "  zapis -> odczyt zachowuje kazde pole       : tak (co do bitu)\n" );
 		printf( "  powtorny zapis daje ten sam tekst          : tak\n" );

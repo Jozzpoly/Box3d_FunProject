@@ -475,18 +475,25 @@ nagłówka `# config` we wzorcach bez zmiany fizyki) oraz `jozz_vehicle_m6_
 suspension_rig.cpp` (1404 linie maszynerii pojazdu wpiętej w assety, które
 `KOLA_02` §3 nazywa blokerem; bierzemy stamtąd liczby i lekcję, nie kod).
 
-### R1 — WIDZIALNOŚĆ (najwyższy priorytet po R0.5)
+### R1 — WIDZIALNOŚĆ (najwyższy priorytet po R0.5) — **pierwszy punkt ZAMKNIĘTY 2026-08-03**
 
 **Pytanie:** sześć z dwunastu zjawisk (Z-04…Z-09, Z-11) jest dziś niemierzalnych.
 Ile z nich da się zobaczyć bez dotykania `src/`?
 
 Zakres:
-- rozkład nacisku po punktach manifoldu w czasie → czy Z-04 jest w ogóle widoczny;
+- ~~rozkład nacisku po punktach manifoldu w czasie → czy Z-04 jest w ogóle
+  widoczny~~ — **ZROBIONE, `F-31` + `P-18`.** Dane były w `b3ContactData` od
+  początku i były wyrzucane po zsumowaniu. Odpowiedź: **odcisku nie ma** —
+  1–3 punkty efektywne, rekord rodziny ~5 przy 576 kształtach i 32 podkrokach.
+  Liczba kształtów i liczba podkroków działają multiplikatywnie i obie są
+  konieczne; sama geometria nie wystarcza.
 - ile manifoldów i punktów nośnych daje kontakt z **meshem** (nie z pudłem) —
   bo teren ze skanu jest meshem, a P-11 mówi, że każdy manifold ma własną
-  kotwicę tarcia; to może być cichy sterownik feelu;
+  kotwicę tarcia; to może być cichy sterownik feelu. **NADAL OTWARTE i po
+  `F-31` ważniejsze niż było**: cała rodzina została zmierzona na gruncie
+  pudełkowym, a produkt jeździ po meshu;
 - czy `b3ShapeCast` wzdłuż profilu opony da tanią miarę „co jest pod kołem",
-  jako *przyrząd pomiarowy*, jeszcze nie jako model.
+  jako *przyrząd pomiarowy*, jeszcze nie jako model. **OTWARTE.**
 
 Falsyfikator R1 (**zawężony po krytyce**): jeżeli rozkład nacisku po punktach
 jest degeneracyjny (1 punkt niesie > 90% obciążenia), wniosek brzmi
@@ -494,6 +501,14 @@ jest degeneracyjny (1 punkt niesie > 90% obciążenia), wniosek brzmi
 nacisku"** — a nie „Z-04 jest nieosiągalny żadną bryłą sztywną". Wynik zależy
 od bryły, generatora manifoldu, gruntu i algorytmu redukcji punktów; inna para
 może rozłożyć impulsy inaczej.
+
+**Rozstrzygnięcie falsyfikatora (2026-08-03).** Próg 90% przekracza tylko
+`torus-32` przy 13 m/s (`max` 92,2%). Reszta rodziny mieści się w 39–77%, czyli
+**formalnie falsyfikator nie zapalił się** — ale liczba, którą zapala, była
+źle dobrana. Prawdziwa granica nie leży na „jednym punkcie", tylko na **skali**:
+39% na najgorszym punkcie przy pięciu punktach efektywnych to nadal nie jest
+plama kontaktu, tylko pięć gwoździ. Falsyfikator zostaje w zapisie taki, jaki
+był (reguła twarda 6), a wniosek formułujemy na `nios`, nie na `max%`.
 
 ### R2 — ATLAS ZJAWISK TRZECH ŚWIATÓW
 
@@ -596,8 +611,24 @@ U-09  WYCOFANE (dotyczylo rodziny "podatnosc zamiast geometrii").
 U-10  Czy trzy swiaty moga dzielic jeden backend.                 -> R2
 U-11  Kontrolowane porownanie stend vs pojazd.                    -> R1/V2
 U-12  WYCOFANE. Role skanu odrzucone permanentnie (N-02).
-U-13  Ile obciazenia niesie POJEDYNCZY punkt manifoldu - czy Z-04
-      jest osiagalny jakakolwiek bryla sztywna.                   -> R1
+U-13  ZAMKNIETE 2026-08-03 -> F-31 (i P-18). Zmierzone: caly ciezar
+      stoi na 1-3 punktach efektywnych, rekord rodziny ~5 przy
+      576 ksztaltach i 32 podkrokach (1.59 ms/krok na JEDNO kolo).
+      Prog degeneracji falsyfikatora R1 przekracza tylko torus-32
+      przy 13 m/s (max 92.2%). Odpowiedz brzmi wiec: TA rodzina
+      obwiedni nie daje odcisku po zadnej dostepnej cenie - a nie
+      "zadna bryla sztywna go nie da".                            -> R8
+U-29  Czy sufit ~5 punktow efektywnych jest wlasnoscia RODZINY
+      (pierscien kapsul o osi rownoleglej do osi kola), czy
+      procedury manifoldu. Kapsula lezaca na plaszczyznie daje
+      styk LINIOWY, wiec do czterech punktow na pare - czyli
+      teoretyczny sufit dla 576 ksztaltow to setki punktow, a
+      dostajemy piec. Rozstrzygnie to inna rodzina o tej samej
+      liczbie ksztaltow (np. pas malych sfer albo pudelek).       -> R1/R3
+U-30  Ile podkrokow kosztuje odcisk W POJEZDZIE. F-31 mierzy jedno
+      kolo w Q3; pojazd ma ich cztery i dzieli z nimi budzet
+      solvera. Bez tej liczby "32 podkroki" nie jest opcja, tylko
+      cyfra ze stanowiska.                                       -> Q4
 U-14  Ile manifoldow daje kolo na MESHU (nie na pudle) i czy kazdy
       wnosi wlasna kotwice tarcia (P-11).                         -> R1
 U-15  Czy prawo opony na dzisiejszej sferze obsluguje Z-07..Z-09.  -> R4

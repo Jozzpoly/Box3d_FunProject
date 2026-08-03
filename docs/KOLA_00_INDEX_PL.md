@@ -39,6 +39,44 @@ otwartym; implementacja produktowa NIE rozpoczęta**
 > - Werdykt o feelu należy do Jozza i **nie został wydany** (reguła twarda 5).
 >   Otwarte: `Q3-5` (wzorzec zachowania) — dopiero po akceptacji w oknie.
 
+> **Rewizja 2026-08-03 (c) — OTWARTY MANIFOLD. Pierwszy punkt `R1` zamknięty:
+> sztywna bryła w tym silniku NIE daje odcisku.** Właściciel: „przeanalizuj
+> krytycznie gdzie jesteśmy, po czym zdecyduj co dalej". Decyzja: **nie zaczynamy
+> opony odkształcalnej — najpierw otwieramy manifold**, bo `R1` jest w planie
+> przed `R8`, a bez rozkładu nacisku każde porównanie „sztywna vs miękka" niesie
+> nierozliczoną podłogę szumu z `F-27`.
+> - **Dane były w ręku od początku i szły na podłogę.** `JqcContactTelemetry`
+>   czytała `totalNormalImpulse` **osobno dla każdego punktu** i zostawiała
+>   z tego licznik i sumę. Trzy liczby, które teraz idą przez sample → okno →
+>   komórkę → trace → CSV → tabelę okna: **`nios`** = `(Σp)²/Σp²` (ile punktów
+>   NAPRAWDĘ niesie), **`max%`** (udział największego), **kotwice** (nośne
+>   manifoldy — tarcie jest centralne na manifold, nie na punkt).
+> - **`P-18` — fakt o silniku, którego program nie miał zapisanego:**
+>   `B3_MAX_MANIFOLD_POINTS = 4`, a `frictionImpulse`, `twistImpulse` i
+>   `rollingImpulse` są polami MANIFOLDU. Rozdzielczość odcisku jest w tym
+>   silniku kwantowana **liczbą kształtów**, nie gładkością obwiedni.
+> - **`F-31` — odpowiedź na `U-13` / `Z-04`: odcisku nie ma.** Cały ciężar stoi
+>   na **1–3 punktach efektywnych**; rekord całej rodziny to **~5** przy 576
+>   kształtach i 32 podkrokach, za **1,59 ms/krok na JEDNO koło**. Kontrola miary
+>   przechodzi: `sphere` daje dokładnie `nios 1.00 / max 100%`. Liczba kształtów
+>   i liczba podkroków działają **multiplikatywnie** — sama geometria nie
+>   wystarcza: 64/4 → 1,56; 576/4 → 2,87; 64/32 → 2,83; 576/32 → 5,23.
+> - **`F-32` — `F-27` dostał mechanizm, i to zmienia jego wagę.** Te same 64 vs
+>   576 kształtów na tej samej obwiedni: przy 4 podkrokach 775,0 → 816,1 W
+>   (5,3%), przy 32 podkrokach 636,0 → 634,4 W (**0,25%**). Podłoga szumu to
+>   **niedozbieżność solvera**, nie liczba kształtów. `F-27` zostaje ważny dla
+>   protokołu Q3, bo protokół Q3 ma 4 podkroki — ale teraz wiadomo, czym go zdjąć.
+> - Nowy parametr przemiatania **`substeps`** (obsługuje też `U-20`), z zapisanym
+>   ostrzeżeniem, że rusza równocześnie efektywny `contactHertz` (`F-16`).
+> - Naprawione przy okazji: overlay okna **po cichu ucinał tekst na 63 znakach**
+>   (`samples/gfx/text.c`) — linia wyglądała na kompletną i gubiła końcówkę.
+>
+> **Wniosek dla kolejnego etapu:** gałąź podatna (`R8`) przestała być jedną
+> z opcji i stała się jedyną drogą do plamy kontaktu — ale `F-31` mówi też, że
+> opona odkształcalna zbudowana z wielu sztywnych ciał uderzy w tę samą ścianę
+> zbieżności. Otwarte: `U-29` (czy sufit to rodzina, czy procedura manifoldu),
+> `U-30` (ile podkroków kosztuje odcisk w POJEŹDZIE, nie na stanowisku).
+
 > **Rewizja 2026-08-03 (b) — krytyczna walidacja własnej pracy z tego samego dnia.
 > Wynik `F-26` okazał się artefaktem stanowiska i został WYCOFANY.** Właściciel:
 > „przeanalizuj krytycznie całość ostatnich zmian i potraktuj je jak coś, co

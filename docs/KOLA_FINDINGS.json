@@ -382,7 +382,7 @@
     "F-27": {
       "status": "BENCH_PRELIMINARY",
       "claim": "Sama LICZBA KSZTALTOW przesuwa wynik Q3, przy IDENTYCZNEJ obwiedni. torus-64, crown_r 0.05, zwis 0, plaska plyta, 4 m/s, rzedy 1/3/5/7/9: wszystkie piec punktow ma ten sam odcisk obwiedni (5f587854) i to samo tetnienie 6.046 mm, a mimo to strata idzie MONOTONICZNIE 775.0 / 797.6 / 798.8 / 802.7 / 816.1 W (+5.3%) razem ze srednia liczba punktow kontaktu niosacych obciazenie 2.84 / 6.51 / 10.95 / 14.79 / 18.55. Koszt CPU 0.050 -> 1.176 ms/krok (24x). Rozrzut miedzy 3 powtorzeniami zerowy w kazdym punkcie.",
-      "scope": "To jest PODLOGA SZUMU przyrzadu dla kazdego porownania miedzy kolami zlozonymi z roznej liczby ksztaltow - a takie wlasnie beda porownania opony sztywnej z odksztalcalna, bo ta druga z definicji ma wiecej elementow w kontakcie. Roznica ponizej ~5% miedzy konstrukcjami o istotnie roznej liczbie punktow kontaktu nie jest wynikiem o ksztalcie. Mechanizm (redundantne wiezy kontaktu w solverze) jest PRAWDOPODOBNY, nie dowiedziony. Surowy przebieg: evidence/run_q3_ksztalt_vs_liczba_2026_08_03.txt (raw-only).",
+      "scope": "To jest PODLOGA SZUMU przyrzadu dla kazdego porownania miedzy kolami zlozonymi z roznej liczby ksztaltow - a takie wlasnie beda porownania opony sztywnej z odksztalcalna, bo ta druga z definicji ma wiecej elementow w kontakcie. Roznica ponizej ~5% miedzy konstrukcjami o istotnie roznej liczbie punktow kontaktu nie jest wynikiem o ksztalcie. Mechanizm (redundantne wiezy kontaktu w solverze) POTWIERDZONY 2026-08-03 przez F-32: przy 32 podkrokach zamiast 4 ta sama roznica spada z 5.3% do 0.25%, wiec to niedozbieznosc, nie liczba ksztaltow. Liczba 5.3% zostaje wazna dla protokolu Q3, bo protokol Q3 ma 4 podkroki. Surowy przebieg: evidence/run_q3_ksztalt_vs_liczba_2026_08_03.txt (raw-only), kontrola: evidence/run_q3_rozklad_nacisku_2026_08_03.txt.",
       "evidence": [
         "none"
       ],
@@ -414,6 +414,33 @@
         "none"
       ],
       "code": "tools/jozz_wheel_bench/jozz_wheel_rig.c JozzRig_MinTorusSegments / JrRowsEnvelope"
+    },
+    "P-18": {
+      "status": "ENGINE_FACT",
+      "claim": "Manifold Box3D miesci NAJWYZEJ 4 punkty kontaktu (`B3_MAX_MANIFOLD_POINTS` = 4, include/box3d/constants.h:114; `b3Manifold.pointCount` jest udokumentowane jako 0..4). Tarcie liniowe (`frictionImpulse`), tarcie skretne (`twistImpulse`) i opor toczenia (`rollingImpulse`) sa polami MANIFOLDU, nie punktu - czyli jedna para ksztaltow ma jedna kotwice tarcia niezaleznie od tego, iloma punktami sie styka (to samo stwierdzenie co P-11, tu z jawnym limitem punktow).",
+      "scope": "Konsekwencja konstrukcyjna: rozdzielczosc odcisku - i normalna, i tarciowa - jest w tym silniku kwantowana LICZBA KSZTALTOW, a nie gladkoscia obwiedni. Odcisk opony moze powstac tylko jako tablica manifoldow. To jest fakt o kodzie, nie o pomiarze; ile z tych punktow naprawde niesie obciazenie, mowi dopiero F-31.",
+      "evidence": [
+        "none"
+      ],
+      "code": "include/box3d/constants.h B3_MAX_MANIFOLD_POINTS, include/box3d/types.h b3Manifold"
+    },
+    "F-31": {
+      "status": "BENCH_PRELIMINARY",
+      "claim": "Sztywna bryla w tym rigu NIE daje odcisku: caly ciezar stoi na 1-3 punktach efektywnych, a rekord calej rodziny to ~5. Miara: `nios` = (suma p)^2 / suma p^2 po impulsach normalnych punktow, `max%` = udzial najwiekszego punktu. Kontrola miary przechodzi - `sphere` daje dokladnie nios 1.00 / max 100.0%, czyli tyle, ile ma z geometrii. Na plycie przy 4 podkrokach: prism-Nmax nios 1.66 / max 71.4%, prism-32 1.53 / 76.8%, torus-32 1.73 / 72.1%, torus-64 2.03 / 61.3%. Przy 13 m/s torus-32 przekracza prog degeneracji falsyfikatora R1 (nios 1.19, max 92.2%). Liczba punktow i liczba podkrokow dzialaja MULTIPLIKATYWNIE, obie sa konieczne: 64 ksztalty / 4 podkroki -> nios 1.56; 576 ksztaltow / 4 podkroki -> 2.87; 64 ksztalty / 32 podkroki -> 2.83; 576 ksztaltow / 32 podkroki -> 5.23 (max% odpowiednio 76.3 / 55.8 / 52.8 / 39.0).",
+      "scope": "Jeden rig (Q3), grunt PUDELKOWY, jedno kolo, plaska plyta 4 m/s dla przebiegow 2x2. Nie mowi, ze zaden uklad sztywny nie da odcisku - mowi, ze TA rodzina obwiedni z TA procedura manifoldu i TYM budzetem solvera go nie daje. Cena rekordu: 576 ksztaltow x 32 podkroki to 1.59 ms/krok na JEDNO kolo w Release /O2. Falsyfikator R1 jest tym samym zdaniem od drugiej strony i zostal PRZEKROCZONY tylko przez torus-32 przy 13 m/s. Surowy przebieg: evidence/run_q3_rozklad_nacisku_2026_08_03.txt (raw-only).",
+      "evidence": [
+        "none"
+      ],
+      "code": "tools/jozz_wheel_bench/jozz_qc_rig.c JqcContactTelemetry"
+    },
+    "F-32": {
+      "status": "BENCH_PRELIMINARY",
+      "claim": "Podloga szumu z F-27 (sama liczba ksztaltow przesuwa strate o 5.3% przy identycznej obwiedni) jest efektem NIEDOZBIEZNOSCI solvera, a nie wlasnoscia liczby ksztaltow. Ten sam kontrast 64 vs 576 ksztaltow na tej samej obwiedni: przy 4 podkrokach 775.0 -> 816.1 W (5.3%), przy 32 podkrokach 636.0 -> 634.4 W (0.25%, czyli ponizej progu rozroznialnosci). Rownolegle rosnie rozklad obciazenia: nios 1.56 -> 2.87 przy 4 podkrokach i 2.83 -> 5.23 przy 32, wiec dodatkowe ksztalty naprawde przejmuja czesc nacisku, tylko przy 4 podkrokach solver nie zdazy tego rozdzielic i placi za to strata.",
+      "scope": "F-27 NIE jest wycofany: jego liczba jest poprawna dla protokolu Q3, ktory ma 4 podkroki - i dopoki protokol ma 4 podkroki, to jest realna podloga szumu kazdego porownania o roznej liczbie ksztaltow. F-32 mowi tylko, skad ta podloga sie bierze i czym ja da sie zdjac. UWAGA U-20: przemiatanie po podkrokach rusza rownoczesnie efektywny contactHertz (F-16 wiaze go z 0.125*inv_h), wiec kolumn `strata` w przebiegach B i C nie wolno czytac jako pomiaru samej zbieznosci; wniosek dotyczy ROZNICY miedzy 64 a 576 ksztaltami przy TYCH SAMYCH podkrokach, gdzie contactHertz jest wspolny. Surowy przebieg: evidence/run_q3_rozklad_nacisku_2026_08_03.txt (raw-only).",
+      "evidence": [
+        "none"
+      ],
+      "code": "tools/jozz_wheel_bench/wheel_bench.c QC_SWEEP_SUBSTEPS"
     }
   }
 }

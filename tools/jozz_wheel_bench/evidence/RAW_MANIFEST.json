@@ -19,28 +19,34 @@
       "bytes": 4738,
       "mode": "raw-only"
     },
-    "q3_crown_sweep_2026_07_31": {
-      "file": "run_q3_crown_sweep_2026_07_31.txt",
-      "sha256": "9d350f2c44a9f72608bc4b41b375d03dd08206b0d6afe19e0841b50258bed25a",
-      "bytes": 1178,
-      "mode": "raw-only"
-    },
-    "qc_probe_2026_07_31": {
-      "file": "run_qc_probe_2026_07_31.txt",
-      "sha256": "148a948f4fb55e693624cba6461c8777d80bfec49e186dae73f660779ba0d632",
-      "bytes": 4293,
-      "mode": "raw-only"
-    },
     "q3_crown_profile_2026_08_03": {
       "file": "run_q3_crown_profile_2026_08_03.txt",
       "sha256": "b19213f725ba9a57ba58f5b81986a264254d9b69f98adc5ceb130c1e5118bbe1",
       "bytes": 1888,
       "mode": "raw-only"
     },
+    "q3_crown_sweep_2026_07_31": {
+      "file": "run_q3_crown_sweep_2026_07_31.txt",
+      "sha256": "9d350f2c44a9f72608bc4b41b375d03dd08206b0d6afe19e0841b50258bed25a",
+      "bytes": 1178,
+      "mode": "raw-only"
+    },
     "q3_ksztalt_vs_liczba_2026_08_03": {
       "file": "run_q3_ksztalt_vs_liczba_2026_08_03.txt",
       "sha256": "73529f8245d45180f93c18211c758a33b90b038c88fd010ecfb6b7dd71c5c352",
       "bytes": 6096,
+      "mode": "raw-only"
+    },
+    "q3_rozklad_nacisku_2026_08_03": {
+      "file": "run_q3_rozklad_nacisku_2026_08_03.txt",
+      "sha256": "dbcdb95918a5c38d3dc403da67c24c762b6eb1618da75da9214fdde549f8530f",
+      "bytes": 12436,
+      "mode": "raw-only"
+    },
+    "qc_probe_2026_07_31": {
+      "file": "run_qc_probe_2026_07_31.txt",
+      "sha256": "148a948f4fb55e693624cba6461c8777d80bfec49e186dae73f660779ba0d632",
+      "bytes": 4293,
       "mode": "raw-only"
     }
   }

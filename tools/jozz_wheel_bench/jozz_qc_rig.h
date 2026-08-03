@@ -229,6 +229,29 @@ typedef struct
 	double normalImpulse; // suma impulsow normalnych na kole w tym kroku
 	int loadedPoints;
 	int newLoadedPoints;
+	// --- ROZKLAD nacisku, nie tylko jego suma (R1 / U-13, dolozone 2026-08-04) ---
+	// Te trzy liczby byly dostepne od poczatku i byly wyrzucane. Solver liczy
+	// `totalNormalImpulse` OSOBNO dla kazdego punktu; telemetria brala z tego
+	// tylko licznik i sume, wiec pytanie "czy kolo ma odcisk, czy stoi na jednym
+	// gwozdziu" nie mialo jak sie pojawic w zadnej tabeli.
+	//
+	// loadedManifolds - ile PAR ksztaltow niesie obciazenie. To NIE jest to samo
+	//   co liczba punktow: manifold ma ich do czterech (B3_MAX_MANIFOLD_POINTS),
+	//   ale tarcie liniowe i skretne jest w nim CENTRALNE (P-11) - jeden
+	//   frictionImpulse na manifold, nie na punkt. Liczba kotwic tarcia to wiec
+	//   liczba manifoldow, i to ona, a nie liczba punktow, jest wielkoscia
+	//   fizycznie znaczaca dla przyczepnosci.
+	// shareMax - udzial najwiekszego pojedynczego punktu w sumie impulsow, 0..1.
+	//   Falsyfikator R1 jest sformulowany wprost na tej liczbie: > 0.90 znaczy
+	//   "ta para bryla+manifold nie dostarcza uzytecznego rozkladu nacisku".
+	// pointsEff - (suma p)^2 / (suma p^2). Rowne 1, gdy jeden punkt niesie
+	//   wszystko; rowne k, gdy k punktow niesie po rowno. Odroznia punkt NOSNY od
+	//   punktu ISTOTNEGO, czego samo `loadedPoints` nie potrafi: kontakt
+	//   spekulatywny o impulsie 1e-6 N*s liczy sie do `loadedPoints` tak samo jak
+	//   punkt niosacy cwierc pojazdu.
+	int loadedManifolds;
+	double shareMax;
+	double pointsEff;
 	int airborne;
 	int limitHit;
 } JozzQcSample;
@@ -358,6 +381,14 @@ typedef struct
 	int limitHits;
 	double contactChurnPct;
 	double loadedPointsAvg;
+	// Rozklad nacisku, srednie po oknie. `shareMaxPeak` stoi obok sredniej, bo
+	// degeneracja jest zjawiskiem CHWILOWYM: kolo moze przez wieksza czesc okna
+	// stac na kilku punktach i degenerowac sie dokladnie tam, gdzie to boli, czyli
+	// na krawedzi progu. Srednia by to zjadla.
+	double loadedManifoldsAvg;
+	double shareMaxAvg;
+	double shareMaxPeak;
+	double pointsEffAvg;
 	double slipRatioMean;
 	double speedMean;
 	int saturatedSteps;
@@ -373,9 +404,11 @@ void JozzQc_WindowBegin( JozzQcWindow* w );
 void JozzQc_WindowAdd( JozzQcWindow* w, const JozzQcSample* s );
 void JozzQc_WindowEnd( JozzQcWindow* w, const JozzQcRig* rig );
 
+// Nowe kolumny dokladane na KONIEC, zeby kazdy dotychczasowy przebieg dalo sie
+// dalej czytac tym samym indeksem kolumny.
 #define JOZZ_QC_TRACE_HEADER                                                                                           \
 	"step,time,x,speed,drive_torque,travel,sprung_y,sprung_accel_y,wheel_y,omega_spin,slip,normal_impulse,"           \
-	"loaded_pts,new_loaded_pts,airborne,limit_hit,saturated\n"
+	"loaded_pts,new_loaded_pts,airborne,limit_hit,saturated,loaded_manifolds,share_max,points_eff\n"
 void JozzQc_TraceLine( const JozzQcSample* s, char* out, size_t cap );
 
 // --- protokol pomiaru --------------------------------------------------------
@@ -434,6 +467,13 @@ typedef struct
 	// przy zwisie 0 ma pieciokrotnie wiecej ksztaltow i TE SAMA obwiednie, a
 	// zmienia sie tylko liczba punktow, ktorymi solver ja opisuje.
 	double points;
+	// Rozklad tego obciazenia miedzy punkty (R1). `points` mowi ILE punktow jest
+	// nosnych, `pointsEff` ile z nich NAPRAWDE niesie, `manifolds` ile jest
+	// niezaleznych kotwic tarcia, a `shareMax` czy caly ciezar nie stoi na jednym.
+	double manifolds;
+	double pointsEff;
+	double shareMax;
+	double shareMaxPeak;
 	// Tozsamosc OBWIEDNI (JozzRig_EnvelopeSignature) i najwieksza odchylka
 	// zbudowanego przekroju od zamowionego luku, w metrach.
 	uint64_t envelope;

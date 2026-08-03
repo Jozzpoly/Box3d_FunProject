@@ -1,0 +1,154 @@
+=== Q3 - ROZKLAD nacisku po punktach kontaktu, nie tylko jego suma (2026-08-03) ===
+pytanie R1 / U-13: czy sztywna bryla w tym silniku daje w ogole odcisk, czy
+                   caly ciezar stoi na jednym punkcie
+baza: torus-N N=64, R 0.5141, W 0.4375, crown_r 0.05, v 4 m/s - TA SAMA baza co
+      przebieg F-27 z run_q3_ksztalt_vs_liczba_2026_08_03.txt
+kazdy punkt: 3 przebiegi z przesunietym startem, okno 600 po 120 rozgrzewki
+build: Release /O2, wheel_bench.exe
+
+nowe kolumny:
+  pkt   punkty, ktore solver uznal za nosne (totalNormalImpulse > 0)
+  nios  ile punktow NAPRAWDE niesie: (suma p)^2 / suma p^2.
+        1.0 = caly ciezar na jednym punkcie, k = k punktow po rowno
+  max%  udzial najwiekszego pojedynczego punktu w sumie impulsow.
+        Falsyfikator R1 jest zapisany wprost na tej liczbie: > 90% znaczy
+        "ta para bryla+manifold nie daje uzytecznego rozkladu nacisku"
+fakt silnika w tle: B3_MAX_MANIFOLD_POINTS = 4, a tarcie liniowe i skretne jest
+CENTRALNE na manifold (jeden frictionImpulse na pare ksztaltow, nie na punkt)
+
+
+----------------------------------------------------------------
+PRZEBIEG A - ta sama obwiednia, rosnaca liczba ksztaltow
+Odczyt przebiegu F-27 nowym przyrzadem. Kolumny do ms/krok wlacznie musza
+wyjsc CO DO CYFRY takie same jak w run_q3_ksztalt_vs_liczba_2026_08_03.txt.
+----------------------------------------------------------------
+
+=== Q3 PRZEMIATANIE: rows od 1 do 9, 5 punktow ===
+baza: torus-N N=64 droga flat v_zad 4.00 k 13500 N/m zeta 0.350
+kazdy punkt to 3 przebiegi z przesunietym startem; +- to POLOWA ROZRZUTU
+
+punkt              bryla  shape    pkt   nios  max% profil_mm  tetn_mm        moment Nm strata_W      a_rms m/s2   w powietrzu   churn% ms/krok
+rzedow=1        5f587854     64   2.84   1.56  76.3     0.000    6.046     99.61+-0.00    775.0    0.075+-0.000    0.0+-0.0 %     25.5   0.048
+rzedow=3        5f587854    192   6.51   2.13  63.8     0.000    6.046    102.50+-0.00    797.6    0.089+-0.000    0.0+-0.0 %     28.0   0.203  = TA SAMA BRYLA
+rzedow=5        5f587854    320  10.95   2.59  59.8     0.000    6.046    102.66+-0.00    798.8    0.097+-0.000    0.0+-0.0 %     27.1   0.424  = TA SAMA BRYLA
+rzedow=7        5f587854    448  14.79   2.84  57.4     0.000    6.046    103.16+-0.00    802.7    0.096+-0.000    0.0+-0.0 %     28.5   0.714  = TA SAMA BRYLA
+rzedow=9        5f587854    576  18.55   2.87  55.8     0.000    6.046    104.89+-0.00    816.1    0.082+-0.000    0.0+-0.0 %     28.3   1.167  = TA SAMA BRYLA
+
+roznych bryl w tym przemiataniu: 1 na 5 punktow
+UWAGA: ten parametr NIE ZMIENIL obwiedni. Rozrzut ponizej jest podloga szumu
+przyrzadu przy zmianie liczby ksztaltow, a nie skutkiem ksztaltu.
+
+tabela -> C:\Users\Pioter\AppData\Local\Temp\claude\C--Pliki-Joza-Gamo-devovo-Box3d-FunProject-box3d\cfc3a648-3d74-4a7b-bb58-8e353be21dc4\scratchpad\ev_a.csv
+Czego to NIE mowi: nic o feelu (V3, wylacznie Jozz) i nic o pelnym pojezdzie (Q4).
+
+
+----------------------------------------------------------------
+PRZEBIEG B - kontrola: podkroki solvera przy JEDNYM rzedzie
+U-20: przemiatanie po podkrokach rusza DWIE rzeczy naraz (F-16 wiaze efektywny
+contactHertz z 0.125*inv_h). Czytamy z niego wylacznie kolumny nios i max%.
+----------------------------------------------------------------
+
+=== Q3 PRZEMIATANIE: substeps od 1 do 32, 6 punktow ===
+baza: torus-N N=64 droga flat v_zad 4.00 k 13500 N/m zeta 0.350
+kazdy punkt to 3 przebiegi z przesunietym startem; +- to POLOWA ROZRZUTU
+
+punkt              bryla  shape    pkt   nios  max% profil_mm  tetn_mm        moment Nm strata_W      a_rms m/s2   w powietrzu   churn% ms/krok
+podkrokow=1     5f587854     64   2.84   2.13  60.5     0.000    6.046    141.55+-0.00   1101.3    0.798+-0.000    0.0+-0.0 %     47.5   0.038
+podkrokow=7     5f587854     64   3.27   1.80  69.5     0.000    6.046     96.05+-0.00    747.3    0.065+-0.000    0.0+-0.0 %     19.4   0.059
+podkrokow=13    5f587854     64   4.38   2.94  48.1     0.000    6.046     90.14+-0.00    701.3    0.057+-0.000    0.0+-0.0 %     10.8   0.080
+podkrokow=20    5f587854     64   4.64   3.29  43.2     0.000    6.046     86.70+-0.01    674.6    0.055+-0.000    0.0+-0.0 %      8.1   0.105
+podkrokow=26    5f587854     64   4.61   2.86  52.0     0.000    6.046     83.97+-0.00    653.3    0.056+-0.000    0.0+-0.0 %      7.3   0.125
+podkrokow=32    5f587854     64   4.58   2.83  52.8     0.000    6.046     81.75+-0.00    636.0    0.056+-0.000    0.0+-0.0 %      6.8   0.144
+
+tabela -> C:\Users\Pioter\AppData\Local\Temp\claude\C--Pliki-Joza-Gamo-devovo-Box3d-FunProject-box3d\cfc3a648-3d74-4a7b-bb58-8e353be21dc4\scratchpad\ev_b.csv
+Czego to NIE mowi: nic o feelu (V3, wylacznie Jozz) i nic o pelnym pojezdzie (Q4).
+
+
+----------------------------------------------------------------
+PRZEBIEG C - to samo przy DZIEWIECIU rzedach (576 ksztaltow)
+Rozstrzyga, czy sufit ~2-3 punktow to geometria, czy zbieznosc solvera.
+----------------------------------------------------------------
+
+=== Q3 PRZEMIATANIE: substeps od 1 do 32, 6 punktow ===
+baza: torus-N N=64 droga flat v_zad 4.00 k 13500 N/m zeta 0.350
+kazdy punkt to 3 przebiegi z przesunietym startem; +- to POLOWA ROZRZUTU
+
+punkt              bryla  shape    pkt   nios  max% profil_mm  tetn_mm        moment Nm strata_W      a_rms m/s2   w powietrzu   churn% ms/krok
+podkrokow=1     5f587854    576  17.61   4.11  41.7     0.000    6.046    161.82+-0.00   1259.0    0.598+-0.000    0.0+-0.0 %     60.1   1.080
+podkrokow=7     5f587854    576  21.16   3.33  50.1     0.000    6.046     95.57+-0.00    743.6    0.055+-0.000    0.0+-0.0 %     20.0   1.201
+podkrokow=13    5f587854    576  24.65   3.78  44.1     0.000    6.046     89.66+-0.00    697.6    0.057+-0.000    0.0+-0.0 %     12.4   1.371
+podkrokow=20    5f587854    576  33.13   4.53  39.9     0.000    6.046     86.56+-0.00    673.5    0.052+-0.000    0.0+-0.0 %      7.7   1.428
+podkrokow=26    5f587854    576  36.65   4.81  40.9     0.000    6.046     83.54+-0.02    650.0    0.056+-0.000    0.0+-0.0 %      6.0   1.510
+podkrokow=32    5f587854    576  35.43   5.23  39.0     0.000    6.046     81.53+-0.01    634.4    0.060+-0.000    0.0+-0.0 %      5.6   1.593
+
+tabela -> C:\Users\Pioter\AppData\Local\Temp\claude\C--Pliki-Joza-Gamo-devovo-Box3d-FunProject-box3d\cfc3a648-3d74-4a7b-bb58-8e353be21dc4\scratchpad\ev_c.csv
+Czego to NIE mowi: nic o feelu (V3, wylacznie Jozz) i nic o pelnym pojezdzie (Q4).
+
+
+----------------------------------------------------------------
+PRZEBIEG D - falsyfikator R1 na calej rodzinie kandydatow
+sphere jest kontrola miary: kula na plycie ma DOKLADNIE jeden punkt, wiec
+nios musi wyjsc 1.00 a max% 100. Jesli nie wychodzi, miara jest zepsuta.
+----------------------------------------------------------------
+Box3D: hull final half edge count of 258 exceeds limit of 255
+
+=== Q3 QUARTER CAR - porownanie kandydatow ===
+sprezyna 13500 N/m, zeta 0.35, masa resorowana 150 kg, nieresorowana 44 kg
+okno 600 krokow po 120 krokach rozgrzewki, dt 1/60, 4 podkroki
+kazda komorka to 3 przebiegi z przesunietym punktem startu; +- to POLOWA ROZRZUTU
+
+--- droga flat, v_zad 13.0 m/s ---
+kandydat         N  shape    pkt   nios  max%  tetn_mm        moment Nm strata_W      a_rms m/s2   w powietrzu   churn% ms/krok
+sphere           0      1   1.00   1.00 100.0    0.000     -0.01+-0.01     -0.3    0.005+-0.000    0.0+-0.0 %      0.0   0.006
+prism-Nmax      42      1   1.86   1.82  63.1    1.438     73.11+-0.05   1848.7    1.512+-0.007    5.8+-0.4 %    100.0   0.014
+prism-32        32      1   1.29   1.92  59.7    2.476    118.19+-0.39   2988.7    2.544+-0.028   37.9+-0.8 %    100.0   0.012  NIEWAZNY
+torus-32        32     32   2.34   1.19  92.2    3.896    118.12+-0.01   2987.0    0.802+-0.000   10.8+-0.0 %    100.0   0.033  NIEWAZNY
+torus-64        64     64   4.17   1.86  66.3    0.973    102.32+-0.00   2587.4    0.468+-0.000    0.0+-0.0 %    100.0   0.093
+
+--- droga cleat, v_zad 13.0 m/s ---
+kandydat         N  shape    pkt   nios  max%  tetn_mm        moment Nm strata_W      a_rms m/s2   w powietrzu   churn% ms/krok
+sphere           0      1   1.00   1.00 100.0    0.000     -0.06+-0.01     -1.4    0.047+-0.000    0.0+-0.0 %      0.0   0.007
+prism-Nmax      42      1   1.87   1.82  63.2    1.438     73.06+-0.09   1847.5    1.519+-0.007    5.2+-0.5 %    100.0   0.014
+prism-32        32      1   1.28   1.91  60.2    2.476    119.44+-2.05   3020.2    2.575+-0.056   38.2+-2.0 %    100.0   0.013  NIEWAZNY
+torus-32        32     32   2.37   1.17  93.2    3.896    116.29+-0.63   2940.7    0.836+-0.011    5.3+-1.5 %    100.0   0.033
+torus-64        64     64   4.14   1.89  65.3    0.973    101.36+-0.00   2563.1    0.494+-0.000    0.0+-0.0 %    100.0   0.087
+
+--- droga comb, v_zad 13.0 m/s ---
+kandydat         N  shape    pkt   nios  max%  tetn_mm        moment Nm strata_W      a_rms m/s2   w powietrzu   churn% ms/krok
+sphere           0      1   0.40   1.01  99.6    0.000    199.01+-0.44   5029.2    8.251+-0.005   61.2+-0.3 %     42.8   0.006  NIEWAZNY
+prism-Nmax      42      1   0.90   1.88  65.2    1.438    179.41+-14.95   4534.7    5.093+-0.262   59.4+-2.5 %    100.0   0.015  NIEWAZNY
+prism-32        32      1   0.87   1.91  64.6    2.476    188.43+-8.47   4763.5    4.790+-0.170   62.0+-0.4 %    100.0   0.014  NIEWAZNY
+torus-32        32     32   1.10   1.46  82.5    3.896    184.83+-0.98   4672.4    5.138+-0.153   63.9+-1.0 %    100.0   0.031  NIEWAZNY
+torus-64        64     64   1.50   2.04  68.4    0.973    189.24+-7.66   4784.0    5.305+-0.086   65.9+-1.3 %    100.0   0.078  NIEWAZNY
+
+--- droga flat, v_zad 4.0 m/s ---
+kandydat         N  shape    pkt   nios  max%  tetn_mm        moment Nm strata_W      a_rms m/s2   w powietrzu   churn% ms/krok
+sphere           0      1   1.00   1.00 100.0    0.000     -0.00+-0.00     -0.0    0.001+-0.000    0.0+-0.0 %      0.0   0.006
+prism-Nmax      42      1   1.94   1.66  71.4    1.438     82.09+-0.00    638.7    0.332+-0.000    0.0+-0.0 %     89.7   0.007
+prism-32        32      1   1.91   1.53  76.8    2.476    115.99+-0.51    902.8    0.531+-0.006    0.0+-0.0 %     70.1   0.007
+torus-32        32     32   3.42   1.73  72.1    3.896     67.22+-0.00    523.1    0.177+-0.000    0.0+-0.0 %      8.6   0.035
+torus-64        64     64   4.74   2.03  61.3    0.973     54.72+-0.00    425.7    0.055+-0.000    0.0+-0.0 %      0.0   0.084
+
+--- droga cleat, v_zad 4.0 m/s ---
+kandydat         N  shape    pkt   nios  max%  tetn_mm        moment Nm strata_W      a_rms m/s2   w powietrzu   churn% ms/krok
+sphere           0      1   1.00   1.00 100.0    0.000      1.81+-0.00     14.1    0.295+-0.000    0.0+-0.0 %      0.2   0.006
+prism-Nmax      42      1   1.95   1.66  71.4    1.438     82.88+-0.00    644.9    0.421+-0.000    0.0+-0.0 %     89.6   0.007
+prism-32        32      1   1.93   1.53  76.3    2.476    114.98+-0.08    894.9    0.610+-0.001    0.0+-0.0 %     69.3   0.007
+torus-32        32     32   3.39   1.72  72.3    3.896     68.59+-0.00    533.7    0.306+-0.000    0.0+-0.0 %      8.4   0.033
+torus-64        64     64   4.68   2.01  61.9    0.973     56.01+-0.01    435.8    0.267+-0.000    0.0+-0.0 %      0.2   0.090
+
+--- droga comb, v_zad 4.0 m/s ---
+kandydat         N  shape    pkt   nios  max%  tetn_mm        moment Nm strata_W      a_rms m/s2   w powietrzu   churn% ms/krok
+sphere           0      1   1.00   1.01  99.7    0.000     32.55+-0.00    253.2    1.207+-0.000    1.3+-0.0 %      3.2   0.007
+prism-Nmax      42      1   1.97   1.65  72.3    1.438    100.64+-0.01    782.9    1.085+-0.000    0.5+-0.0 %     86.2   0.011
+prism-32        32      1   1.92   1.55  77.0    2.476    131.94+-0.01   1026.6    1.117+-0.000    0.2+-0.0 %     68.8   0.010
+torus-32        32     32   3.07   1.56  77.7    3.896     88.51+-0.00    688.5    1.078+-0.000    0.0+-0.0 %     13.3   0.035
+torus-64        64     64   4.25   1.90  65.3    0.973     80.28+-0.00    624.5    1.068+-0.000    0.0+-0.0 %      5.3   0.150
+
+tabela -> C:\Users\Pioter\AppData\Local\Temp\claude\C--Pliki-Joza-Gamo-devovo-Box3d-FunProject-box3d\cfc3a648-3d74-4a7b-bb58-8e353be21dc4\scratchpad\ev_d.csv
+
+Czego ta tabela NIE mowi: nic o feelu (to V3, wylacznie Jozz) i nic o
+pelnym pojezdzie (to Q4). Wynik Q3 nie awansuje na prawo bez Q4.
+
+
+=== KONIEC ===

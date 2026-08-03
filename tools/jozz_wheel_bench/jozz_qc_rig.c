@@ -1330,31 +1330,54 @@ int JozzQc_ContactPoints( const JozzQcRig* rig, JozzRigContactPoint* out, int ca
 
 // Telemetria kontaktu kola. Ta sama definicja co w Q2A (wheel_bench.c sekcja E):
 // nosny punkt = totalNormalImpulse > 0, churn = nosny I nieprzeniesiony.
-static void JqcContactTelemetry( const JozzQcRig* r, int* loaded, int* fresh, double* impulse )
+// Rozklad dolozony 2026-08-04: patrz komentarz przy JozzQcSample w naglowku.
+// Petla nie zmienila sie ani o warunek - te same punkty, ten sam prog nosnosci.
+// Doszly wylacznie akumulatory, wiec `loaded`, `fresh` i `impulse` sa co do bitu
+// tym samym, czym byly, i cala dotychczasowa tabela Q3 zostaje wazna.
+typedef struct
+{
+	int loaded;
+	int fresh;
+	int manifolds;
+	double impulse;
+	double shareMax;
+	double pointsEff;
+} JqcContactStats;
+
+static void JqcContactTelemetry( const JozzQcRig* r, JqcContactStats* out )
 {
 	static b3ContactData cd[256];
 	int cc = b3Body_GetContactData( r->wheel, cd, 256 );
-	*loaded = 0;
-	*fresh = 0;
-	*impulse = 0.0;
+	double sumSq = 0.0;
+	double peak = 0.0;
+	memset( out, 0, sizeof( *out ) );
 	for ( int i = 0; i < cc; ++i )
 	{
 		for ( int m = 0; m < cd[i].manifoldCount; ++m )
 		{
 			const b3Manifold* mf = &cd[i].manifolds[m];
+			int carrying = 0;
 			for ( int k = 0; k < mf->pointCount; ++k )
 			{
 				const b3ManifoldPoint* p = &mf->points[k];
 				if ( p->totalNormalImpulse > 0.0f )
 				{
-					*loaded += 1;
-					*impulse += (double)p->totalNormalImpulse;
+					double v = (double)p->totalNormalImpulse;
+					out->loaded += 1;
+					out->impulse += v;
+					sumSq += v * v;
+					if ( v > peak )
+						peak = v;
+					carrying = 1;
 					if ( !p->persisted )
-						*fresh += 1;
+						out->fresh += 1;
 				}
 			}
+			out->manifolds += carrying;
 		}
 	}
+	out->shareMax = out->impulse > 0.0 ? peak / out->impulse : 0.0;
+	out->pointsEff = sumSq > 0.0 ? ( out->impulse * out->impulse ) / sumSq : 0.0;
 }
 
 void JozzQc_Step( JozzQcRig* rig, JozzQcSample* out )
@@ -1422,9 +1445,9 @@ void JozzQc_Step( JozzQcRig* rig, JozzQcSample* out )
 	b3Pos pw = b3Body_GetPosition( rig->wheel );
 	JozzWheelKin k = JozzRig_KinematicsR( rig->wheel, c->wheelR );
 
-	int loaded = 0, fresh = 0;
-	double impulse = 0.0;
-	JqcContactTelemetry( rig, &loaded, &fresh, &impulse );
+	JqcContactStats ct;
+	JqcContactTelemetry( rig, &ct );
+	int loaded = ct.loaded;
 
 	double travel = JqcTravel( rig );
 	double accelY = ( (double)vc2.y - rig->prevSprungVy ) / dt;
@@ -1451,9 +1474,12 @@ void JozzQc_Step( JozzQcRig* rig, JozzQcSample* out )
 			double denom = v > 0.5 ? v : 0.5;
 			out->slipRatio = ( k.referenceRimSpeed - (double)vc2.x ) / denom;
 		}
-		out->normalImpulse = impulse;
-		out->loadedPoints = loaded;
-		out->newLoadedPoints = fresh;
+		out->normalImpulse = ct.impulse;
+		out->loadedPoints = ct.loaded;
+		out->newLoadedPoints = ct.fresh;
+		out->loadedManifolds = ct.manifolds;
+		out->shareMax = ct.shareMax;
+		out->pointsEff = ct.pointsEff;
 		out->airborne = ( loaded == 0 );
 		out->limitHit = ( travel >= rig->travelUpper - 1e-4 || travel <= rig->travelLower + 1e-4 );
 	}
@@ -1485,6 +1511,19 @@ void JozzQc_WindowAdd( JozzQcWindow* w, const JozzQcSample* s )
 	w->limitHits += s->limitHit ? 1 : 0;
 	w->contactChurnPct += s->newLoadedPoints;
 	w->loadedPointsAvg += s->loadedPoints;
+	w->loadedManifoldsAvg += s->loadedManifolds;
+	// Udzial i liczba efektywna sa NIEOKRESLONE w powietrzu. Usrednienie ich po
+	// wszystkich krokach wliczyloby tam zera, przez co kolo skaczace wygladaloby
+	// na kolo o ladnie rozlozonym nacisku - dokladnie na odwrot niz jest. Dlatego
+	// te dwie liczby ida po krokach W KONTAKCIE, a dzielnik odtwarzamy w End
+	// z sumy `airborne`, ktora i tak jest liczona.
+	if ( s->airborne == 0 )
+	{
+		w->shareMaxAvg += s->shareMax;
+		w->pointsEffAvg += s->pointsEff;
+		if ( s->shareMax > w->shareMaxPeak )
+			w->shareMaxPeak = s->shareMax;
+	}
 	w->slipRatioMean += s->slipRatio;
 	w->speedMean += s->speed;
 	w->saturatedSteps += s->saturated ? 1 : 0;
@@ -1497,6 +1536,7 @@ void JozzQc_WindowEnd( JozzQcWindow* w, const JozzQcRig* rig )
 	double n = (double)w->steps;
 	double sumFresh = w->contactChurnPct;
 	double sumLoaded = w->loadedPointsAvg;
+	double contactSteps = n - w->airborneFraction; // `airborneFraction` jest tu jeszcze SUMA
 
 	w->driveTorqueMean /= n;
 	w->sprungAccelRms = sqrt( w->sprungAccelRms / n );
@@ -1513,6 +1553,12 @@ void JozzQc_WindowEnd( JozzQcWindow* w, const JozzQcRig* rig )
 	}
 	w->travelRms = sqrt( w->travelRms / n );
 	w->loadedPointsAvg = sumLoaded / n;
+	w->loadedManifoldsAvg /= n;
+	if ( contactSteps > 0.0 )
+	{
+		w->shareMaxAvg /= contactSteps;
+		w->pointsEffAvg /= contactSteps;
+	}
 	w->contactChurnPct = ( sumLoaded > 0.0 ) ? 100.0 * sumFresh / sumLoaded : 0.0;
 	w->slipRatioMean /= n;
 	w->speedMean /= n;
@@ -1548,10 +1594,11 @@ void JozzQc_WindowEnd( JozzQcWindow* w, const JozzQcRig* rig )
 
 void JozzQc_TraceLine( const JozzQcSample* s, char* out, size_t cap )
 {
-	snprintf( out, cap, "%d,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%d,%d,%d,%d,%d\n",
+	snprintf( out, cap,
+			  "%d,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%d,%d,%d,%d,%d,%d,%.17g,%.17g\n",
 			  s->step, s->time, s->x, s->speed, s->driveTorque, s->travel, s->sprungY, s->sprungAccelY, s->wheelY,
 			  s->omegaSpin, s->slipRatio, s->normalImpulse, s->loadedPoints, s->newLoadedPoints, s->airborne,
-			  s->limitHit, s->saturated );
+			  s->limitHit, s->saturated, s->loadedManifolds, s->shareMax, s->pointsEff );
 }
 
 // ---------------------------------------------------------- protokol pomiaru
@@ -1646,6 +1693,14 @@ JozzQcCell JozzQc_MeasureCell( const JozzQcConfig* base, int warmup, int windowS
 		c.travelDyn += r.win.travelDynRms;
 		c.churn += r.win.contactChurnPct;
 		c.points += r.win.loadedPointsAvg;
+		c.manifolds += r.win.loadedManifoldsAvg;
+		c.pointsEff += r.win.pointsEffAvg;
+		c.shareMax += r.win.shareMaxAvg;
+		// Szczyt bierzemy NAJGORSZY z powtorzen, nie sredni: degeneracja raz
+		// zaobserwowana jest faktem o tej bryle, a usrednienie jej po powtorzeniach
+		// tylko by ja rozmylo.
+		if ( r.win.shareMaxPeak > c.shareMaxPeak )
+			c.shareMaxPeak = r.win.shareMaxPeak;
 		c.slip += r.win.slipRatioMean;
 		c.speed += r.win.speedMean;
 		c.msPerStep += r.msPerStep;
@@ -1660,7 +1715,7 @@ JozzQcCell JozzQc_MeasureCell( const JozzQcConfig* base, int warmup, int windowS
 	n = (double)c.repeats;
 	c.torque /= n, c.accel /= n, c.airborne /= n;
 	c.loss /= n, c.travelRms /= n, c.travelDyn /= n, c.churn /= n, c.slip /= n, c.speed /= n, c.msPerStep /= n;
-	c.points /= n;
+	c.points /= n, c.manifolds /= n, c.pointsEff /= n, c.shareMax /= n;
 	c.torqueSpread = 0.5 * ( tHi - tLo );
 	c.accelSpread = 0.5 * ( aHi - aLo );
 	c.airborneSpread = 0.5 * ( bHi - bLo );

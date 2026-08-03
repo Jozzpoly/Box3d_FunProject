@@ -306,6 +306,33 @@ Każdy przebieg w wersji `PUDŁO` i `MESH` (`KOLA_05` §1.2, linia „grunt").
 | `limit_hits` | — | ile kroków na ograniczniku skoku |
 | `contact_churn` | — | ta sama definicja co Q2A, dla porównywalności |
 | `slip_ratio_mean` | — | `(omega·R − v)/v`; jedyna metryka nowa wobec Q2 |
+| `loaded_points` | — | punkty, które solver uznał za nośne (`totalNormalImpulse > 0`) |
+| `loaded_manifolds` | — | ile **par kształtów** niesie; tyle jest kotwic tarcia (`P-11`, `P-18`) |
+| `points_eff` | — | `(Σp)²/Σp²` — ile punktów **naprawdę** niesie (§7.1) |
+| `share_max`, `share_max_peak` | — | udział największego punktu: średni po oknie i najgorszy krok |
+
+### 7.1 Rozkład nacisku, nie tylko jego suma (2026-08-03, `F-31`)
+
+Do 2026-08-03 telemetria kontaktu czytała `totalNormalImpulse` **osobno dla
+każdego punktu** i zostawiała z tego licznik i sumę. Rozkład szedł na podłogę
+przy każdym kroku, a `loaded_points` sam w sobie **wprowadza w błąd**: kontakt
+spekulatywny o impulsie rzędu 1e-6 N·s liczy się do niego tak samo jak punkt
+niosący ćwierć pojazdu.
+
+`points_eff` to *participation ratio*: równe **1**, gdy jeden punkt niesie
+wszystko, i **k**, gdy k punktów niesie po równo. Kontrola miary: `sphere` na
+płycie ma z geometrii dokładnie jeden punkt i daje `points_eff` 1,00 przy
+`share_max` 100,0% — jeżeli kiedykolwiek przestanie, miara jest zepsuta.
+
+**`share_max` i `points_eff` liczy się WYŁĄCZNIE po krokach w kontakcie.**
+W powietrzu te wielkości nie istnieją; uśrednione z zerami dawałyby koło
+skaczące jako koło o ładnie rozłożonym nacisku, czyli dokładnie na odwrót.
+`loaded_points` i `loaded_manifolds` idą po wszystkich krokach, tak jak dotąd —
+te dwie rodziny mają różne dzielniki i nie wolno ich mieszać.
+
+`share_max_peak` stoi obok średniej, bo degeneracja bywa **chwilowa**: koło może
+przez większość okna stać na kilku punktach i degenerować się dokładnie tam,
+gdzie to boli — na krawędzi progu.
 
 ## 8. Co UNIEWAŻNIA przebieg
 
@@ -446,9 +473,18 @@ niezbadane:
 Trzeci tryb obok pojedynczego przebiegu i macierzy kandydatów:
 
 ```
-wheel_bench --qc-sweep <plik.csv> --qc-sweep-param segments|crown|spring|speed|obstacle
+wheel_bench --qc-sweep <plik.csv>
+            --qc-sweep-param segments|crown|rows|drop|spring|speed|obstacle|stone_w|stone_z|substeps
             --qc-sweep-from A --qc-sweep-to B [--qc-sweep-steps N] [+ opcje --qc-* jako baza]
 ```
+
+**`substeps` nie jest ustawieniem wydajności, tylko parametrem eksperymentu**
+(dodane 2026-08-03) — i dlatego stoi na tej liście obok geometrii. Ostrzeżenie
+`U-20` obowiązuje: przemiatanie po podkrokach rusza **dwie rzeczy naraz**, bo
+`F-16` wiąże efektywny `contactHertz` z `0.125·inv_h`. Wolno z niego czytać to,
+co nie zależy od twardości kontaktu (`points_eff`, `share_max`), albo **różnicę
+między dwiema konstrukcjami przy tej samej liczbie podkroków** — bo wtedy
+`contactHertz` jest dla obu wspólny. Tak właśnie zmierzone jest `F-32`.
 
 Ten sam protokół co §3 i §8: rozgrzewka 120, okno 600, **3 powtórzenia na punkt**,
 ten sam werdykt ważności. Różnica jest tylko taka, że zmienną jest jedno pole

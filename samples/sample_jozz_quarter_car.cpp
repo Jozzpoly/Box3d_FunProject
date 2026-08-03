@@ -758,7 +758,11 @@ public:
 					  m_last.saturated ? "  SAT" : "" );
 		DrawTextLine( "moment %.1f Nm   skok %.1f mm (statyka %.1f)%s", m_last.driveTorque, 1000.0 * m_last.travel,
 					  1000.0 * JozzQc_StaticSag( &m_cfg ), m_last.limitHit ? "  ZDERZAK" : "" );
-		DrawTextLine( "a_pion %.2f m/s2   styk %d pkt   %s", m_last.sprungAccelY, m_last.loadedPoints,
+		// "styk N pkt" samo w sobie wprowadza w blad: kolo o 576 kapsulach pokazuje
+		// kilkanascie punktow i stoi przy tym na dwoch. Dlatego obok liczby punktow
+		// stoi liczba NIOSACYCH i udzial najwiekszego.
+		DrawTextLine( "a_pion %.2f m/s2   styk %d pkt (niesie %.1f, max %.0f%%)   %s", m_last.sprungAccelY,
+					  m_last.loadedPoints, m_last.pointsEff, 100.0 * m_last.shareMax,
 					  m_last.airborne ? "KOLO W POWIETRZU" : "na gruncie" );
 		if ( m_winSteps > 0 )
 			DrawTextLine( "okno %d: strata %.0f W  a_rms %.3f  powietrze %.1f%%", m_winSteps, m_winLive.lossPower,
@@ -1607,6 +1611,23 @@ private:
 			ImGui::Text( "powietrze %6.1f %%      churn    %8.1f %%", 100.0 * m_winLive.airborneFraction,
 						 m_winLive.contactChurnPct );
 			ImGui::Text( "poslizg %8.4f        v srednie %7.3f m/s", m_winLive.slipRatioMean, m_winLive.speedMean );
+			// Rozklad nacisku stoi w oknie na zywo, a nie tylko w tabeli, bo to jest
+			// liczba, ktora ma byc widoczna PODCZAS krecenia suwakiem: dokladanie
+			// rzedow podnosi "punktow" i nie rusza "niesie", i dopoki obie nie stoja
+			// obok siebie, wyglada to jak postep.
+			ImGui::Text( "punktow %6.1f        niesie %6.2f  (kotwic %.1f)", m_winLive.loadedPointsAvg,
+						 m_winLive.pointsEffAvg, m_winLive.loadedManifoldsAvg );
+			{
+				bool degenerate = m_winLive.shareMaxAvg > 0.90;
+				ImVec4 col = degenerate ? ImVec4( 0.95f, 0.45f, 0.35f, 1.0f ) : ImVec4( 1, 1, 1, 1 );
+				ImGui::TextColored( col, "max na 1 pkt %5.0f %%    szczyt %5.0f %%", 100.0 * m_winLive.shareMaxAvg,
+									100.0 * m_winLive.shareMaxPeak );
+				if ( ImGui::IsItemHovered() )
+					ImGui::SetTooltip( "Ile procent nacisku niesie JEDEN punkt. Powyzej 90%% ta bryla\n"
+									   "nie daje uzytecznego rozkladu nacisku (falsyfikator R1).\n"
+									   "Liczone tylko po krokach W KONTAKCIE - w powietrzu ta wielkosc\n"
+									   "nie istnieje i usredniona z zerami klamalaby na korzysc." );
+			}
 			if ( m_winLive.invalid )
 				ImGui::TextColored( ImVec4( 1.0f, 0.45f, 0.35f, 1.0f ), "NIEWAZNY: %s", m_winLive.invalidWhy );
 		}
@@ -1818,7 +1839,7 @@ private:
 		float tableH = rowH * ( 3.2f + (float)std::min<size_t>( m_rows.size(), 10 ) );
 		ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit |
 								ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY;
-		if ( ImGui::BeginTable( "qc_rows", 12, flags, ImVec2( 0.0f, tableH ) ) )
+		if ( ImGui::BeginTable( "qc_rows", 14, flags, ImVec2( 0.0f, tableH ) ) )
 		{
 			ImGui::TableSetupScrollFreeze( 2, 1 );
 			ImGui::TableSetupColumn( "" );
@@ -1826,6 +1847,11 @@ private:
 			ImGui::TableSetupColumn( "bryla" );
 			ImGui::TableSetupColumn( "ksz" );
 			ImGui::TableSetupColumn( "pkt" );
+			// `nios` i `max%` opisuja ROZKLAD nacisku, ktorego `pkt` nie widzi. Stoja
+			// obok siebie celowo: rozjazd miedzy nimi (duzo punktow, malo nosnych)
+			// jest normalnym stanem tego kola, a nie awaria pomiaru.
+			ImGui::TableSetupColumn( "nios" );
+			ImGui::TableSetupColumn( "max%" );
 			ImGui::TableSetupColumn( "tetn" );
 			ImGui::TableSetupColumn( "strata W" );
 			ImGui::TableSetupColumn( "a_rms" );
@@ -1894,9 +1920,40 @@ private:
 				ImGui::TableNextColumn();
 				ImGui::Text( "%.1f", r.cell.points );
 				if ( ImGui::IsItemHovered() )
-					ImGui::SetTooltip( "Srednia liczba punktow kontaktu NIOSACYCH obciazenie.\n"
-									   "To nie to samo co liczba ksztaltow: przy tej samej obwiedni\n"
-									   "wiecej punktow zmienia zmierzona strate o kilka procent." );
+					ImGui::SetTooltip( "Srednia liczba punktow kontaktu, ktore solver uznal za nosne.\n"
+									   "To nie to samo co liczba ksztaltow ANI co liczba punktow, ktore\n"
+									   "naprawde niosa - do tego jest kolumna obok." );
+
+				ImGui::TableNextColumn();
+				ImGui::Text( "%.2f", r.cell.pointsEff );
+				if ( ImGui::IsItemHovered() )
+					ImGui::SetTooltip( "Ile punktow NAPRAWDE niesie: (suma p)^2 / suma p^2.\n"
+									   "1.0 = caly ciezar na jednym punkcie, k = k punktow po rowno.\n"
+									   "Kotwic tarcia (manifoldow) jest przy tym %.2f - tarcie jest\n"
+									   "CENTRALNE na manifold, nie na punkt.\n"
+									   "Ta liczba prawie nie rosnie od dokladania ksztaltow; rosnie\n"
+									   "od podkrokow solvera, i to dopiero razem z ksztaltami.",
+									   r.cell.manifolds );
+
+				ImGui::TableNextColumn();
+				{
+					// Falsyfikator R1 jest zapisany wprost na tej liczbie, wiec ma tu
+					// byc widoczny kolorem, a nie dopiero po najechaniu myszka.
+					bool degenerate = r.cell.shareMax > 0.90;
+					if ( degenerate )
+						ImGui::TextColored( ImVec4( 0.95f, 0.45f, 0.35f, 1.0f ), "%.0f", 100.0 * r.cell.shareMax );
+					else
+						ImGui::Text( "%.0f", 100.0 * r.cell.shareMax );
+					if ( ImGui::IsItemHovered() )
+						ImGui::SetTooltip( "Procent calego nacisku stojacy na JEDNYM punkcie (srednia okna).\n"
+										   "Najgorsza chwila calego przebiegu: %.0f%%.\n"
+										   "%s",
+										   100.0 * r.cell.shareMaxPeak,
+										   degenerate ? "POWYZEJ 90%: ta para bryla+manifold nie daje uzytecznego\n"
+														"rozkladu nacisku. Gladsza obwiednia tego nie naprawi."
+													  : "Ponizej progu degeneracji (90%)." );
+				}
+
 				ImGui::TableNextColumn();
 				ImGui::Text( "%.3f", 1000.0 * r.cell.ripple );
 
@@ -2512,6 +2569,10 @@ private:
 				r.cell.envelope = JozzRig_EnvelopeSignature( &w );
 				r.cell.profileErr = JozzRig_ProfileError( &w );
 				r.cell.points = one.win.loadedPointsAvg;
+				r.cell.manifolds = one.win.loadedManifoldsAvg;
+				r.cell.pointsEff = one.win.pointsEffAvg;
+				r.cell.shareMax = one.win.shareMaxAvg;
+				r.cell.shareMaxPeak = one.win.shareMaxPeak;
 			}
 			r.cell.repeats = 1;
 			r.cell.msPerStep = one.msPerStep;
@@ -2606,12 +2667,16 @@ private:
 					"road,obstacle_h,obstacle_half_z,obstacle_z,"
 					"target_v,drive_torque_nm,torque_spread,loss_power_w,sprung_accel_rms,accel_spread,"
 					"airborne_frac,airborne_spread,travel_rms,travel_dyn_rms,churn_pct,slip_mean,speed_mean,"
-					"ms_per_step,valid,why\n" );
+					"ms_per_step,valid,why,"
+					// Rozklad nacisku i liczba podkrokow ida razem, bo bez podkrokow
+					// rozkladu sie nie czyta: przy 4 podkrokach kolo stoi na ~2 punktach
+					// niezaleznie od tego, z ilu ksztaltow jest zbudowane.
+					"loaded_manifolds,points_eff,share_max,share_max_peak,substeps\n" );
 		for ( const Row& r : m_rows )
 			fprintf( f,
 					 "%s,%d,%d,%d,%016llx,%.6f,%.17g,%.6f,%.9g,%.9g,%.9g,%d,%.9g,%s,%.9g,%.9g,%.9g,"
 					 "%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,"
-					 "%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%d,%s\n",
+					 "%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%d,%s,%.17g,%.17g,%.17g,%.17g,%d\n",
 					 r.label, r.cell.repeats, r.cfg.variant == JOZZ_RIG_SPHERE ? 0 : r.cfg.segments, r.cell.shapes,
 					 (unsigned long long)r.cell.envelope, 1000.0 * r.cell.profileErr, r.cell.points,
 					 1000.0 * r.cell.ripple, (double)r.cfg.wheelR, (double)r.cfg.wheelW, (double)r.cfg.crownR,
@@ -2620,7 +2685,8 @@ private:
 					 r.cfg.targetSpeed, r.cell.torque, r.cell.torqueSpread, r.cell.loss, r.cell.accel,
 					 r.cell.accelSpread, r.cell.airborne, r.cell.airborneSpread, r.cell.travelRms, r.cell.travelDyn,
 					 r.cell.churn, r.cell.slip, r.cell.speed, r.cell.msPerStep, r.cell.invalid ? 0 : 1,
-					 r.cell.why );
+					 r.cell.why, r.cell.manifolds, r.cell.pointsEff, r.cell.shareMax, r.cell.shareMaxPeak,
+					 r.cfg.substeps );
 		fclose( f );
 		snprintf( m_rowsMsg, sizeof( m_rowsMsg ), "zapisano %s", path.string().c_str() );
 	}
@@ -2752,11 +2818,13 @@ private:
 		JozzQc_ConfigDigest( &m_cfg, digest, sizeof( digest ) );
 		fprintf( f,
 				 "%s | sesja=%s | krok=%d | v=%.4f moment=%.2f sat=%d | skok=%.4f (%.4f..%.4f) | "
-				 "a_pion=%.3f | styk=%d pkt airborne=%d | okno=%d krokow strata=%.1f W a_rms=%.4f "
+				 "a_pion=%.3f | styk=%d pkt niesie=%.2f max=%.3f kotwic=%d airborne=%d | "
+				 "okno=%d krokow strata=%.1f W a_rms=%.4f "
 				 "powietrze=%.2f%% churn=%.1f%% wazny=%d %s | zaburzen=%d %s | config=%s\n",
 				 stamp, m_rig.perturbed ? "EXPLORATION" : "OBSERVATION", m_stepCount, m_last.speed,
 				 m_last.driveTorque, m_last.saturated, m_last.travel, m_rig.travelLower, m_rig.travelUpper,
-				 m_last.sprungAccelY, m_last.loadedPoints, m_last.airborne, m_winSteps, m_winLive.lossPower,
+				 m_last.sprungAccelY, m_last.loadedPoints, m_last.pointsEff, m_last.shareMax,
+				 m_last.loadedManifolds, m_last.airborne, m_winSteps, m_winLive.lossPower,
 				 m_winLive.sprungAccelRms, 100.0 * m_winLive.airborneFraction, m_winLive.contactChurnPct,
 				 m_winLive.invalid ? 0 : 1, m_winLive.invalid ? m_winLive.invalidWhy : "-", m_rig.perturbCount,
 				 m_rig.perturbCount ? m_rig.lastPerturbation : "-", digest );
