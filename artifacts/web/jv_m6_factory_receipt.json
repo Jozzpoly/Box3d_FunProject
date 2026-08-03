@@ -683,7 +683,7 @@
   "serializedFieldCount": 76,
   "source": {
     "branch": "agent/web-factory-receipt",
-    "commit": "515f5b35d02114f79e162704560c83f22f6d210c",
+    "commit": "a740dec74f4243679c71a17eb59723ee0b42f8bb",
     "dirty": false,
     "files": [
       {
