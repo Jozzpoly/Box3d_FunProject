@@ -1,9 +1,9 @@
 name: f3-native-factory-receipt
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/web-factory-receipt
+      - jozz-scan-terrain-f0
     paths:
       - .github/workflows/f3-native-factory-receipt.yml
 
@@ -14,9 +14,10 @@ jobs:
   generate:
     runs-on: ubuntu-24.04
     steps:
-      - name: Check out native source
+      - name: Check out native source branch
         uses: actions/checkout@v4
         with:
+          ref: agent/web-factory-receipt
           fetch-depth: 0
 
       - name: Configure standalone receipt tool
