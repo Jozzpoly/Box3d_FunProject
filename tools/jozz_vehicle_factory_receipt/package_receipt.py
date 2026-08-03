@@ -31,6 +31,16 @@ def run_git(root: Path, *args: str) -> str:
     ).strip()
 
 
+def tracked_tree_is_dirty(root: Path) -> bool:
+    result = subprocess.run(
+        ["git", "-C", str(root), "diff", "--quiet", "HEAD", "--"],
+        check=False,
+    )
+    if result.returncode not in (0, 1):
+        raise RuntimeError(f"git diff failed with exit code {result.returncode}")
+    return result.returncode == 1
+
+
 def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -109,7 +119,7 @@ def main() -> int:
             "repository": "Jozzpoly/Box3d_FunProject",
             "branch": source_branch,
             "commit": source_commit,
-            "dirty": bool(run_git(root, "status", "--porcelain")),
+            "dirty": tracked_tree_is_dirty(root),
             "files": [file_receipt(root, path) for path in RELEVANT_PATHS],
         },
         "payloadReceipt": {
