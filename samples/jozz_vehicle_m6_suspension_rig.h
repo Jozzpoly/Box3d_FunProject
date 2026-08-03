@@ -154,6 +154,9 @@ enum JozzVehicleM6WheelEnvelopeMode
 	JOZZ_M6_ENVELOPE_PHASED_UNION = 2,
 	JOZZ_M6_ENVELOPE_SPLIT_SPHERE_SIDEWALL = 3,
 	JOZZ_M6_ENVELOPE_TORUS = 4,
+	// The engine's own wheel collider (JOZZ patch in src/wheel_shape.c): one
+	// shape, rotationally symmetric about the spin axis, full tread width.
+	JOZZ_M6_ENVELOPE_WHEEL = 5,
 };
 
 // Raised from 4 for the capsule ring. 96 covers the sealed ring at any crown

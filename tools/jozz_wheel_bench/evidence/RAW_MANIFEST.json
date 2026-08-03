@@ -13,6 +13,12 @@
       "bytes": 14201,
       "mode": "parsed"
     },
+    "core_kolider_kola_2026_08_03": {
+      "file": "run_core_kolider_kola_2026_08_03.txt",
+      "sha256": "400d25aed7bad44e2677ec8fb7b5ded358416370eb9f4f2b4f49033ffae10c49",
+      "bytes": 7412,
+      "mode": "raw-only"
+    },
     "m6_jazda_na_plaskim_2026_08_03": {
       "file": "run_m6_jazda_na_plaskim_2026_08_03.txt",
       "sha256": "f09fc2db939c8917d4bc53903ffb6899fe7e1f4f63d1cdeea09bec3dcb216e20",

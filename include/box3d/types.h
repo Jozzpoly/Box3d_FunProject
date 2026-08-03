@@ -447,6 +447,10 @@ typedef enum b3ShapeType
 	/// A sphere with an offset
 	b3_sphereShape,
 
+	/// JOZZ PATCH: a wheel - solid cylinder with rounded shoulders, rotationally
+	/// symmetric about its spin axis. See src/wheel_shape.c for why it exists.
+	b3_wheelShape,
+
 	/// The number of shape types
 	b3_shapeTypeCount
 } b3ShapeType;
@@ -1901,6 +1905,28 @@ typedef struct b3Sphere
 
 /// A solid capsule can be viewed as two hemispheres connected
 /// by a rectangle.
+/// JOZZ PATCH: a wheel. Solid cylinder of (radius - cornerRadius) and
+/// (halfWidth - cornerRadius), swept by a ball of cornerRadius. Convex, and
+/// rotationally symmetric about the axis, which is the property that makes it
+/// roll without manufacturing its own bumps. See src/wheel_shape.c.
+typedef struct b3Wheel
+{
+	/// Local center of the wheel.
+	b3Vec3 center;
+
+	/// Local spin axis. Must be unit length.
+	b3Vec3 axis;
+
+	/// Outer radius, tread to center.
+	float radius;
+
+	/// Half the tread width, along the axis.
+	float halfWidth;
+
+	/// Shoulder rounding. 0 = square edge, halfWidth = fully rounded shoulder.
+	float cornerRadius;
+} b3Wheel;
+
 typedef struct b3Capsule
 {
 	/// Local center of the first hemisphere

@@ -146,6 +146,27 @@ int CreateJozzVehicleM6WheelEnvelope( b3BodyId wheelBodyId, const b3ShapeDef* sh
 		return 1;
 	}
 
+	if ( desc->mode == JOZZ_M6_ENVELOPE_WHEEL )
+	{
+		// One analytic shape. Same mass-freezing discipline as the torus branch:
+		// the reference is TAKEN from a throwaway sphere, never derived.
+		b3Sphere reference = { b3Vec3_zero, desc->radius };
+		b3ShapeId referenceId = b3CreateSphereShape( wheelBodyId, shapeDef, &reference );
+		b3MassData sphereMass = b3Body_GetMassData( wheelBodyId );
+		b3DestroyShape( referenceId, false );
+
+		b3Wheel wheel;
+		wheel.center = b3Vec3_zero;
+		wheel.axis = { 0.0f, 1.0f, 0.0f }; // the wheel body spins about its local Y
+		wheel.radius = desc->radius;
+		wheel.halfWidth = 0.5f * desc->width;
+		wheel.cornerRadius = b3ClampFloat( desc->torusCrownRadius, 0.0f, 0.5f * desc->width );
+		outShapeIds[0] = b3CreateWheelShape( wheelBodyId, shapeDef, &wheel );
+
+		b3Body_SetMassData( wheelBodyId, sphereMass );
+		return 1;
+	}
+
 	if ( desc->mode == JOZZ_M6_ENVELOPE_SPHERE ||
 		 ( desc->mode == JOZZ_M6_ENVELOPE_SPLIT_SPHERE_SIDEWALL && desc->terrainCategoryBits == 0 ) )
 	{

@@ -45,6 +45,15 @@ static float b3ComputeShapeMargin( b3Shape* shape )
 		}
 		break;
 
+		// JOZZ PATCH: bounding sphere of the cylinder, exact.
+		case b3_wheelShape:
+		{
+			float r = shape->wheel.radius;
+			float h = shape->wheel.halfWidth;
+			margin = sqrtf( r * r + h * h );
+		}
+		break;
+
 		case b3_hullShape:
 		{
 			const b3HullData* hull = shape->hull;
@@ -120,6 +129,10 @@ static b3Shape* b3CreateShapeInternal( b3World* world, b3Body* body, b3WorldTran
 	{
 		case b3_capsuleShape:
 			shape->capsule = *(b3Capsule*)geometry;
+			break;
+
+		case b3_wheelShape: // JOZZ PATCH
+			shape->wheel = *(b3Wheel*)geometry;
 			break;
 
 		case b3_compoundShape:
@@ -345,6 +358,23 @@ b3ShapeId b3CreateCapsuleShape( b3BodyId bodyId, const b3ShapeDef* def, const b3
 	return shapeId;
 }
 
+// JOZZ PATCH: create a wheel shape. Degenerate dimensions fall back to a sphere
+// rather than producing a body with no collider - the same discipline the
+// vehicle code uses, so a bad number never silently removes a wheel.
+b3ShapeId b3CreateWheelShape( b3BodyId bodyId, const b3ShapeDef* def, const b3Wheel* wheel )
+{
+	if ( wheel->radius <= 0.0f || wheel->halfWidth <= 0.0f || wheel->cornerRadius < 0.0f ||
+		 wheel->cornerRadius > wheel->halfWidth || wheel->cornerRadius > wheel->radius )
+	{
+		b3Sphere sphere = { wheel->center, wheel->radius > 0.0f ? wheel->radius : B3_LINEAR_SLOP };
+		return b3CreateShape( bodyId, def, &sphere, b3_sphereShape, b3Transform_identity, b3Vec3_one, false );
+	}
+
+	b3Wheel normalized = *wheel;
+	normalized.axis = b3Normalize( wheel->axis );
+	return b3CreateShape( bodyId, def, &normalized, b3_wheelShape, b3Transform_identity, b3Vec3_one, false );
+}
+
 b3ShapeId b3CreateHullShape( b3BodyId bodyId, const b3ShapeDef* def, const b3HullData* hull )
 {
 	B3_VALIDATE( b3IsValidHull( hull ) );
@@ -564,6 +594,9 @@ b3AABB b3ComputeShapeAABB( const b3Shape* shape, b3Transform transform )
 		case b3_capsuleShape:
 			return b3ComputeCapsuleAABB( &shape->capsule, transform );
 
+		case b3_wheelShape: // JOZZ PATCH
+			return b3ComputeWheelAABB( &shape->wheel, transform );
+
 		case b3_compoundShape:
 			return b3ComputeCompoundAABB( shape->compound, transform );
 
@@ -619,6 +652,13 @@ b3AABB b3ComputeSweptShapeAABB( const b3Shape* shape, const b3Sweep* sweep, floa
 		case b3_capsuleShape:
 			return b3ComputeSweptCapsuleAABB( &shape->capsule, xf1, xf2 );
 
+		case b3_wheelShape: // JOZZ PATCH: union of the two end poses
+		{
+			b3AABB a1 = b3ComputeWheelAABB( &shape->wheel, xf1 );
+			b3AABB a2 = b3ComputeWheelAABB( &shape->wheel, xf2 );
+			return (b3AABB){ b3Min( a1.lowerBound, a2.lowerBound ), b3Max( a1.upperBound, a2.upperBound ) };
+		}
+
 		case b3_hullShape:
 			return b3ComputeSweptHullAABB( shape->hull, xf1, xf2 );
 
@@ -644,6 +684,8 @@ b3Vec3 b3GetShapeCentroid( const b3Shape* shape )
 		}
 		case b3_sphereShape:
 			return shape->sphere.center;
+		case b3_wheelShape: // JOZZ PATCH
+			return shape->wheel.center;
 		case b3_hullShape:
 			return shape->hull->center;
 		case b3_meshShape:
@@ -720,6 +762,9 @@ b3MassData b3ComputeShapeMass( const b3Shape* shape )
 		case b3_sphereShape:
 			return b3ComputeSphereMass( &shape->sphere, shape->density );
 
+		case b3_wheelShape: // JOZZ PATCH
+			return b3ComputeWheelMass( &shape->wheel, shape->density );
+
 		default:
 			return (b3MassData){ 0 };
 	}
@@ -739,6 +784,19 @@ b3ShapeExtent b3ComputeShapeExtent( const b3Shape* shape, b3Vec3 localCenter )
 			b3Vec3 c2 = b3Sub( shape->capsule.center2, localCenter );
 			b3Vec3 r = { radius, radius, radius };
 			extent.maxExtent = b3Add( b3Max( c1, c2 ), r );
+		}
+		break;
+
+		// JOZZ PATCH. minExtent drives the solver's "fast body" test, so it must
+		// be the SMALLEST half-thickness of the wheel, which is the half width.
+		case b3_wheelShape:
+		{
+			float radius = shape->wheel.radius;
+			float halfWidth = shape->wheel.halfWidth;
+			extent.minExtent = b3MinFloat( radius, halfWidth );
+			b3Vec3 c = b3Sub( shape->wheel.center, localCenter );
+			b3Vec3 r = { radius, radius, radius };
+			extent.maxExtent = b3Add( b3Abs( c ), r );
 		}
 		break;
 
@@ -1047,6 +1105,17 @@ b3ShapeProxy b3MakeShapeProxy( const b3Shape* shape )
 
 		case b3_sphereShape:
 			return (b3ShapeProxy){ &shape->sphere.center, 1, shape->sphere.radius };
+
+		// JOZZ PATCH. A proxy is points+radius and cannot express a wheel
+		// exactly, so this is the exact bounding SPHERE - conservative, which is
+		// what the proxy users (broad phase, casts, overlap) need. The contact
+		// path never goes through here; it uses the analytic manifold.
+		case b3_wheelShape:
+		{
+			float r = shape->wheel.radius;
+			float h = shape->wheel.halfWidth;
+			return (b3ShapeProxy){ &shape->wheel.center, 1, sqrtf( r * r + h * h ) };
+		}
 
 		case b3_hullShape:
 		{

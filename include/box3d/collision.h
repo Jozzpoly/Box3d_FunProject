@@ -589,6 +589,19 @@ B3_API b3TOIOutput b3TimeOfImpact( const b3TOIInput* input );
  * @{
  */
 
+/// JOZZ PATCH: wheel geometry and contact. See src/wheel_shape.c.
+B3_API b3AABB b3ComputeWheelAABB( const b3Wheel* wheel, b3Transform transform );
+B3_API b3MassData b3ComputeWheelMass( const b3Wheel* wheel, float density );
+B3_API b3Vec3 b3ComputeWheelSupport( const b3Wheel* wheel, b3Vec3 direction );
+
+/// Collide a wheel and a hull. The wheel is A.
+B3_API void b3CollideWheelAndHull( b3LocalManifold* manifold, int capacity, const b3Wheel* wheelA,
+								   const b3HullData* hullB, b3Transform transformBtoA );
+
+/// Collide a wheel and a triangle. The wheel is A.
+B3_API void b3CollideWheelAndTriangle( b3LocalManifold* manifold, int capacity, const b3Wheel* wheelA, b3Vec3 v1,
+									   b3Vec3 v2, b3Vec3 v3 );
+
 /// Collide two spheres.
 B3_API void b3CollideSpheres( b3LocalManifold* manifold, int capacity, const b3Sphere* sphereA, const b3Sphere* sphereB,
 							  b3Transform transformBtoA );

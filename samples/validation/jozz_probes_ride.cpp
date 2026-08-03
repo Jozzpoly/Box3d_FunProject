@@ -203,6 +203,7 @@ bool RunRideQualityDiagnosisProbe( const JozzVehiclePrimitiveDefaults& defaults 
 		{ "opona-16", JOZZ_M6_ENVELOPE_TORUS, 16, 0 },
 		{ "opona-32", JOZZ_M6_ENVELOPE_TORUS, 32, 0 },
 		{ "opona-64", JOZZ_M6_ENVELOPE_TORUS, 64, 0 },
+		{ "KOLO (nowy ksztalt)", JOZZ_M6_ENVELOPE_WHEEL, 0, 0 },
 	};
 	const float speeds[] = { 8.0f, 16.0f, 24.0f };
 

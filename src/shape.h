@@ -49,6 +49,7 @@ typedef struct b3Shape
 	{
 		b3Capsule capsule;
 		b3Sphere sphere;
+		b3Wheel wheel; // JOZZ PATCH
 		const b3HullData* hull;
 		b3Mesh mesh;
 		const b3HeightFieldData* heightField;

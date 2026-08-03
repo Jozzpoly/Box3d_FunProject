@@ -68,6 +68,7 @@ set(BOX3D_SOURCE_FILES
 	sensor.c
 	sensor.h
 	shape.c
+	wheel_shape.c
 	shape.h
 	simd.c
 	simd.h

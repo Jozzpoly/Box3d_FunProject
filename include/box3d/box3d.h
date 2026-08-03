@@ -789,6 +789,9 @@ B3_API b3ShapeId b3CreateSphereShape( b3BodyId bodyId, const b3ShapeDef* def, co
 /// @return the shape id for accessing the shape
 B3_API b3ShapeId b3CreateCapsuleShape( b3BodyId bodyId, const b3ShapeDef* def, const b3Capsule* capsule );
 
+/// JOZZ PATCH: create a wheel shape. See src/wheel_shape.c for what it is and why.
+B3_API b3ShapeId b3CreateWheelShape( b3BodyId bodyId, const b3ShapeDef* def, const b3Wheel* wheel );
+
 /// Create a convex hull shape and attach it to a body. The shape definition is fully cloned. Contacts are not created
 /// until the next time step.
 /// @return the shape id for accessing the shape

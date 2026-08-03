@@ -1,0 +1,109 @@
+RUN: NOWY KSZTALT W SILNIKU - kolider kola (b3_wheelShape)
+DATA: 2026-08-03
+LATKA: src/wheel_shape.c (cala matematyka w jednym pliku) + wpiecie:
+       include/box3d/types.h (enum + struct b3Wheel), src/shape.h (unia),
+       src/shape.c (7 przypadkow switch + b3CreateWheelShape),
+       src/contact.c (rejestracja pary kolo-hull + dyspozycja),
+       include/box3d/collision.h, include/box3d/box3d.h, src/CMakeLists.txt
+NARZEDZIE: build/bin/Debug/jozz_vehicle_validation.exe (z ROOTA repo)
+
+CO TO JEST
+  Bryla obrotowa wokol osi kola: pelny walec o promieniu (R - c) i polszerokosci
+  (W/2 - c), przemieciony kula o promieniu c. Wypukla, z analitycznym support.
+  c = 0 -> walec o ostrej krawedzi (slick); 0 < c < W/2 -> bieznia plaska z
+  zaokraglonym barkiem; c = W/2 -> bark w pelni zaokraglony (balonowka).
+
+  Manifold liczony Z OSI, nigdy z wierzcholkow ani scianek. Na plaszczyznie daje
+  DOKLADNIE DWA punkty, po jednym na kazdym koncu szerokosci bierzni, i sa to te
+  same dwa punkty po obrocie kola. Identyfikatory punktow (0 i 1) sa stale, wiec
+  solver zachowuje rozgrzany start miedzy krokami. To jest wlasnosc, ktora sfera
+  ma za darmo i ktora traci kazde kolo fasetowane.
+
+  Masa kola ZAMROZONA z referencyjnej sfery, jak we wszystkich pozostalych
+  obwiedniach - wiersze roznia sie ksztaltem, nie masa.
+
+ride quality diagnosis probe (flat ground - a perfect wheel reads zero):
+obwiednia                 v_zad  v_real    a_rms    a_max  skok_rms pkt/kolo  swieze%
+sfera                       8.0     7.9    0.018      0.0    0.0466     1.00     0.0%
+sfera                      16.0    15.6    0.061      0.1    0.0801     1.00     0.0%
+sfera                      24.0    17.3    0.088      0.2    0.1104     1.00     0.0%
+sfera+walec (domyslne)      8.0     7.9    0.018      0.0    0.0466     1.00     0.0%
+sfera+walec (domyslne)     16.0    15.6    0.061      0.1    0.0801     1.00     0.0%
+sfera+walec (domyslne)     24.0    17.3    0.088      0.2    0.1104     1.00     0.0%
+walec (1 ksztalt)           8.0     7.1    1.314      3.5    7.4211     0.61   100.0%
+walec (1 ksztalt)          16.0    13.1    2.434      6.4   11.1637     0.41   100.0%
+walec (1 ksztalt)          24.0    13.1    2.440      6.4   11.1897     0.41   100.0%
+union (3 warstwy)           8.0     7.1    1.353      4.3    3.8196     0.95   100.0%
+union (3 warstwy)          16.0    12.4    2.382      5.7    9.3730     0.51   100.0%
+union (3 warstwy)          24.0    12.4    2.382      5.7    9.3730     0.51   100.0%
+opona-16                    8.0     7.3    1.141      3.2    4.2866     0.63    86.3%
+opona-16                   16.0    13.0    2.757      7.9   11.2863     0.47   100.0%
+opona-16                   24.0    13.0    2.757      7.9   11.2863     0.47   100.0%
+opona-32                    8.0     7.2    1.113      2.4    2.8725     1.01    71.4%
+opona-32                   16.0    13.7    2.233      6.1    9.7940     0.55   100.0%
+opona-32                   24.0    13.7    2.170      6.4    9.7660     0.56   100.0%
+opona-64                    8.0     7.3    0.992      2.2    2.5095     1.31    74.9%
+opona-64                   16.0    13.9    2.244      5.4    9.6867     0.79   100.0%
+opona-64                   24.0    14.0    2.170      5.5    9.6584     0.76   100.0%
+KOLO (nowy ksztalt)         8.0     7.9    0.022      0.1    0.1242     2.00     0.0%
+KOLO (nowy ksztalt)        16.0    15.7    0.022      0.1    0.0860     2.00     0.0%
+KOLO (nowy ksztalt)        24.0    17.8    0.037      0.1    0.0859     2.00     0.0%
+--- w zakrecie (v_zad 16 m/s, skret 0.5) ---
+sfera                      16.0    14.5    0.861      2.7    2.4888     1.00     0.0%
+sfera+walec (domyslne)     16.0    14.5    0.861      2.7    2.4888     1.00     0.0%
+walec (1 ksztalt)          16.0    11.7    4.659     16.8   14.7831     0.37   100.0%
+union (3 warstwy)          16.0    11.7    3.601     13.1   11.5064     0.52   100.0%
+opona-16                   16.0    10.7    4.221     15.3   10.4076     0.64   100.0%
+opona-32                   16.0    12.0    3.729     13.3    9.0235     0.63   100.0%
+opona-64                   16.0    12.6    3.615     11.2    9.1062     0.86   100.0%
+KOLO (nowy ksztalt)        16.0    14.4    0.698      2.4    2.3615     2.00     0.0%
+--- podkroki solvera (v_zad 16 m/s, prosto) ---
+sfera @ 4 podkr.           16.0    15.6    0.061      0.1    0.0801     1.00     0.0%
+sfera @ 8 podkr.           16.0    15.6    0.025      0.1    0.2309     1.00     0.0%
+sfera @ 16 podkr.          16.0    15.6    0.009      0.0    0.0487     1.00     0.0%
+sfera @ 32 podkr.          16.0    15.6    0.004      0.0    0.0507     1.00     0.0%
+opona-32 @ 4 podkr.        16.0    13.7    2.233      6.1    9.7940     0.55   100.0%
+opona-32 @ 8 podkr.        16.0    14.5    2.095      6.3   10.5220     0.54   100.0%
+opona-32 @ 16 podkr.       16.0    14.6    2.576      6.8   13.0588     0.51   100.0%
+opona-32 @ 32 podkr.       16.0    14.4    3.233     10.4   14.6515     0.50   100.0%
+--- scianki walca (v_zad 16 m/s, prosto) ---
+walec 6 scianek            16.0     1.9    2.654      7.9    9.8691     1.11     9.3%
+walec 12 scianek           16.0     3.1    1.305      3.0    6.5719     0.87     9.7%
+walec 24 scianek           16.0    10.6    2.891      8.6   11.7642     0.35   100.0%
+walec 32 scianek           16.0    13.1    2.434      6.4   11.1637     0.41   100.0%
+ok ride diagnosis runs stay finite
+ride quality diagnosis probe: ok
+
+WYNIK (16 m/s na wprost, plaska plyta)
+  sfera                 a_rms 0.061   1.00 punktu styku
+  opona-64 kapsul       a_rms 2.244   0.79 punktu
+  KOLO (nowy ksztalt)   a_rms 0.022   2.00 punktu, swieze 0.0%
+
+  Nowy kolider jest 2.8x GLADSZY OD SFERY przy jednoczesnej pelnej szerokosci
+  bierzni i dwoch punktach styku. Wobec najlepszego kola zlozonego ze stockowych
+  ksztaltow: 102x gladziej.
+
+  Przy 24 m/s: sfera 0.088, kolo 0.037, a predkosc maksymalna 17.8 wobec 17.3 -
+  nowy kolider jest tez szybszy, bo nie traci energii na mlotkowanie.
+  W zakrecie: sfera 0.861, kolo 0.698.
+  pkt/kolo = 2.00 w KAZDYM kroku i swieze 0.0% - styk nie znika i nie jest
+  odbudowywany od nowa. Dokladnie tak, jak zaprojektowano.
+
+CZEGO TEN PRZEBIEG NIE POKAZUJE - WAZNE, NIE POMIJAC
+  1. Para KOLO x SIATKA TROJKATOW NIE JEST JESZCZE ZAREJESTROWANA. Zaimplemento-
+     wana jest funkcja b3CollideWheelAndTriangle (z odrzucaniem punktow poza
+     trojkatem), ale dyspozycja dla meshu idzie inna sciezka (src/mesh_contact.c)
+     i nie zostala podpieta. Podloze tego przebiegu to pudlo (hull), tak jak w
+     calym walidatorze. W GRZE, na mapie z siatki, to kolo nie ma jeszcze
+     kontaktu z terenem. To jest nastepny krok i bez niego kolider nie jest
+     gotowy do jazdy po mapie.
+  2. Kontakt kolo-hull nie przycina punktow do wielokata sciany. Na wielkiej
+     plaskiej plycie jest to dokladne; przy krawedzi pudla albo na waskiej belce
+     punkt moze wypasc poza sciane.
+  3. Proxy (b3MakeShapeProxy) to sfera opisana na kole - zachowawcza, wiec
+     bezpieczna dla broad phase i castow, ale niedokladna dla zapytan
+     geometrycznych. Sciezka kontaktu jej nie uzywa.
+  4. Masa liczona jak dla pelnego walca (zaokraglenie barku pominiete). Kod
+     pojazdu i tak zamraza mase z referencyjnej sfery.
+  5. Wszystko na plaskiej plycie. Zachowanie na wybojach niezmierzone.
+  6. Werdykt o feelu nalezy do wlasciciela - to sa liczby, nie werdykt.
