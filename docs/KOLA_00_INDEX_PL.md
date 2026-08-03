@@ -318,6 +318,15 @@ otwartym; implementacja produktowa NIE rozpoczęta**
 
 To jest jedyne wejście do prac nad kołami i oponami. Nie zaczynaj od żadnego innego pliku.
 
+## Zaczynasz tu
+
+**`KOLA_PRZEKAZANIE_KOLIDER_KOLA_PL.md`** — jedyny dokument, który trzeba
+przeczytać, żeby ruszyć dalej. Kierunek jest rozstrzygnięty (`O-6`): **kolider
+koła w silniku**. Tam jest komplet: co zbudować, dlaczego nic innego nie zadziała
+(z liczbami), gdzie w `src/` to wpiąć, gotowy egzamin z progiem powodzenia
+i lista rzeczy niesprawdzonych. Reszta dokumentów poniżej to zaplecze dowodowe —
+przydatne, ale nie do czytania po kolei.
+
 ## Kolejność czytania
 
 | Kiedy | Plik | Czego jest jedynym właścicielem |
