@@ -344,8 +344,9 @@ void JozzVehicleM6RigLab::DrawSuspensionTab()
 			const char* envelopes[] = { "Sfera (gładka, wybrzusza się na boki)",
 										"Walec (prawdziwa szerokość, graniasty)", "Suma fazowa (eksperymentalne)",
 										"Mieszana: sfera + prawdziwa szerokość (domyślne)",
-										"Opona: pierścień kapsuł (najlepsze toczenie, shimmy kierownicy)" };
-			edited |= ImGui::Combo( "Kształt", &m_editEnvelopeMode, envelopes, 5 );
+										"Opona: pierścień kapsuł (najlepsze toczenie, shimmy kierownicy)",
+										"KOŁO: prawdziwy kolider koła w silniku (NOWE, najgładsze)" };
+			edited |= ImGui::Combo( "Kształt", &m_editEnvelopeMode, envelopes, 6 );
 			HelpMarker( "Kształt fizycznej bryły koła (nie wizualny model 3D - ten rysuje się zawsze tak samo).\n\n"
 						"OPONA: pierścień kapsuł o płaskiej bieżni i zaokrąglonych barkach. Prawdziwa szerokość we "
 						"WSZYSTKICH kierunkach naraz, żadnych masek kolizji i ani jednej ostrej krawędzi - a to one, "
@@ -369,6 +370,27 @@ void JozzVehicleM6RigLab::DrawSuspensionTab()
 							"przekładni), nie w kole - i zmienia to, jak auto się prowadzi, więc jest decyzją "
 							"właściciela.\n\n"
 							"Jeździć tym MOŻNA: zawieszenie i wyboje czuje się w pełni, tor jazdy błądzi." );
+			}
+			if ( m_editEnvelopeMode == JOZZ_M6_ENVELOPE_WHEEL )
+			{
+				ImGui::TextColored( ImVec4( 0.45f, 0.85f, 0.50f, 1.0f ), "Nowy kolider: gladszy OD SFERY, pelna szerokosc." );
+				HelpMarker( "To NIE jest koło składane z klocków - to nowy typ bryły dodany do silnika fizyki "
+							"(src/wheel_shape.c). Walec o zaokrąglonych barkach, obrotowo symetryczny względem osi "
+							"koła, a styk liczony analitycznie Z OSI zamiast z wierzchołków.\n\n"
+							"Dlatego działa: na płaszczyźnie daje dokładnie DWA punkty styku, na obu końcach "
+							"szerokości bieżni, i są to TE SAME dwa punkty po obrocie koła. Każde koło składane "
+							"z kształtów gubi tę własność i przez to podskakuje.\n\n"
+							"Zmierzone w TYM aucie przy 58 km/h (trzęsienie nadwozia, m/s2):\n"
+							"  sfera 0,061  |  opona z 64 kapsuł 2,244  |  TO KOŁO 0,022\n"
+							"Na gruncie z trójkątów (mapa): sfera 0,060  |  opona 1,945  |  TO KOŁO 0,023\n"
+							"Punktów styku 2,00 w każdym kroku wobec 1,00 sfery, prędkość maksymalna 17,8 wobec "
+							"17,3 m/s - nie traci energii na młotkowanie.\n\n"
+							"Promień barku ustawia profil: 0 = slick o ostrej krawędzi, połowa szerokości = "
+							"balonówka o okrągłym przekroju.\n\n"
+							"NIESPRAWDZONE: zachowanie na wybojach i na krawędziach skrzyń. Kierownica może "
+							"szarpać jak przy oponie, bo styk ma prawdziwą szerokość - tego jeszcze nie mierzyłem." );
+				float halfWidth = 0.5f * m_config.wheelEnvelope.width;
+				edited |= ImGui::SliderFloat( "Promień barku", &m_editEnvelopeCrownRadius, 0.0f, halfWidth, "%.3f m" );
 			}
 			if ( m_editEnvelopeMode == JOZZ_M6_ENVELOPE_PHASED_UNION )
 			{
