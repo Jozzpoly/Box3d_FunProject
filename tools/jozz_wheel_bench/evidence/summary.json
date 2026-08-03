@@ -491,6 +491,18 @@
         }
       }
     },
+    "m6_torus_w_aucie_2026_08_03": {
+      "source_file": "run_m6_torus_w_aucie_2026_08_03.txt",
+      "source_sha256": "647eb4342304212848538d14cf24d5fc975d6e444e6822eeba18a7d0da3285db",
+      "source_bytes": 4334,
+      "provenance": {
+        "pytanie wlasciciela": "wpisac torus w kolo produktu, zeby dalo sie nim przejechac",
+        "kolo produktu": "R 0.5141 m, W 0.4375 m - te same wymiary co kolo stendu Q3",
+        "walidatora": "\"wheel mass equals the sphere alone\")",
+        "build": "Release /O2 (wydajnosc), Debug (walidator)"
+      },
+      "tables": {}
+    },
     "q3_compare_2026_07_31": {
       "source_file": "run_q3_compare_2026_07_31.txt",
       "source_sha256": "c086d7d91831d53fe2555580d124492f61d8f2ea533bdd6204c7a13c4448179e",

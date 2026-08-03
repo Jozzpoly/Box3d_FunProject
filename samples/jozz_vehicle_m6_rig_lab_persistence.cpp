@@ -220,6 +220,8 @@ void JozzVehicleM6RigLab::SyncEditFromConfig()
 		m_editArmMass = m_config.armMass;
 		m_editEnvelopeMode = m_config.wheelEnvelope.mode;
 		m_editEnvelopeLayers = m_config.wheelEnvelope.unionLayerCount;
+		m_editEnvelopeTorusSegments = m_config.wheelEnvelope.torusSegments;
+		m_editEnvelopeCrownRadius = m_config.wheelEnvelope.torusCrownRadius;
 		m_editStrutCasterDeg = m_config.strutCasterDeg;
 		m_editMaxSteeringAngleDegrees = m_config.maxSteeringAngleDegrees;
 		m_editFrontToeDeg = m_config.frontToeDeg;
@@ -244,6 +246,8 @@ void JozzVehicleM6RigLab::ApplyPendingStructuralSetup()
 		m_config.armMass = m_editArmMass;
 		m_config.wheelEnvelope.mode = m_editEnvelopeMode;
 		m_config.wheelEnvelope.unionLayerCount = m_editEnvelopeLayers;
+		m_config.wheelEnvelope.torusSegments = m_editEnvelopeTorusSegments;
+		m_config.wheelEnvelope.torusCrownRadius = m_editEnvelopeCrownRadius;
 		m_config.strutCasterDeg = m_editStrutCasterDeg;
 		m_config.maxSteeringAngleDegrees = m_editMaxSteeringAngleDegrees;
 		m_config.frontToeDeg = m_editFrontToeDeg;

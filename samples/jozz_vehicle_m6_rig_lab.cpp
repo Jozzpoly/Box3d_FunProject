@@ -178,6 +178,9 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		//   DAMP      float  live suspension damping ratio
 		//   PRELOAD   float  ride-height preload (sets BOTH axles; sliders split them)
 		//   DROOP     float  arm rest droop degrees (needs a rebuild)
+		//   ENVELOPE  "mode[,segments[,crownRadius]]"  wheel collision shape
+		//             (0 sphere / 1 cylinder / 2 phased union / 3 split / 4 torus);
+		//             headless A/B of the wheel shape, e.g. with PERF_DUMP
 		//   TAB       0-5  force one tab open for a frame (Zaw/Nad/Nap/Kier/Świat/Debug)
 		//   PRESET    name  load a named preset on boot
 		//   TELEPORT  name  move the spawn anchor to a named world anchor on boot
@@ -277,6 +280,22 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		{
 			m_editWishbone.restArmDroopDeg = (float)atof( v );
 			ApplyPendingStructuralSetup();
+		}
+		if ( const char* v = std::getenv( "JOZZ_M6_ENVELOPE" ) )
+		{
+			// "mode[,segments[,crownRadius]]". Exists so the wheel-shape question
+			// can be measured headless: comparing envelopes by clicking a combo
+			// and reading a vsync-capped frame counter is not a measurement.
+			int mode = m_editEnvelopeMode;
+			int segments = m_editEnvelopeTorusSegments;
+			float crown = m_editEnvelopeCrownRadius;
+			if ( std::sscanf( v, "%d,%d,%f", &mode, &segments, &crown ) >= 1 )
+			{
+				m_editEnvelopeMode = mode;
+				m_editEnvelopeTorusSegments = segments;
+				m_editEnvelopeCrownRadius = crown;
+				ApplyPendingStructuralSetup();
+			}
 		}
 		if ( const char* v = std::getenv( "JOZZ_M6_TAB" ) )
 		{

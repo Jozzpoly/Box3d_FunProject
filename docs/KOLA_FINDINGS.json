@@ -441,6 +441,24 @@
         "none"
       ],
       "code": "tools/jozz_wheel_bench/wheel_bench.c QC_SWEEP_SUBSTEPS"
+    },
+    "F-33": {
+      "status": "BENCH_PRELIMINARY",
+      "claim": "Styk z ziemia na PRAWDZIWEJ SZEROKOSCI wzbudza szarpanie ukladu kierowniczego w POJEZDZIE - i nie jest to wina liczby ksztaltow. Walidator produktowy, ta sama konfiguracja, zmieniana wylacznie obwiednia kola: sfera 0/18 czerwonych i 0.31 st oscylacji po puszczeniu kierownicy, mieszana sfera+walec (domyslna) 0/18 i 0.31 st, torus-64 3/18 i 4.66 st, walec 8/18 i 6.71 st. JEDEN ksztalt (walec) wypada gorzej niz piecdziesiat kilka (pierscien kapsul). Amplituda idzie za szerokoscia plaskiej biezni: 337 / 238 / 137 / 38 mm biezni daje 6 / 6 / 5 / 3 czerwonych sond. Obwiednia domyslna dotyka terenu SFERA, czyli jednym punktem na plaszczyznie symetrii kola.",
+      "scope": "Wniosek: geometria kierownicy tego pojazdu byla strojona wobec styku PUNKTOWEGO i nigdy nie spotkala opony. Naprawa jest po stronie kierownicy (wyprzedzenie, promien zataczania, tlumienie, tarcie przekladni), nie po stronie kola - od strony kola szarpanie znika dopiero wtedy, gdy opona wraca do bycia kula. To pierwszy wynik tego programu, ktorego stend Q3 nie mogl zobaczyc W ZASADZIE, bo Q3 nie ma osi skretu (regula twarda 2 w dzialaniu). ZASTRZEZENIE: wiersz `walec` mial mase kola 28.9 kg zamiast 45.5 - tryby CYLINDER i PHASED_UNION nigdy nie mialy zamrozonej masy. Kierunek wniosku to wzmacnia (lzejsze kolo szarpie mocniej), ale wiersz nie spelnia reguly twardej 1. Surowy przebieg: evidence/run_m6_torus_w_aucie_2026_08_03.txt (raw-only).",
+      "evidence": [
+        "none"
+      ],
+      "code": "samples/jozz_vehicle_m6_suspension_rig.cpp CreateJozzVehicleM6WheelEnvelope"
+    },
+    "F-34": {
+      "status": "BENCH_PRELIMINARY",
+      "claim": "Koszt CPU pierscienia kapsul w PELNYM pojezdzie na terenie MESHOWYM jest maly w liczbach bezwzglednych. Cztery kola, mapa produktu, jazda pod JOZZ_M6_AUTODRIVE, Release /O2, mediana z 3 przebiegow po 600 krokach, ms na krok fizyki: sama sfera 0.099, mieszana (domyslna) 0.105, opona 16 kapsul 0.143, opona 32 kapsuly 0.197, opona 64 kapsuly 0.403. Liczba kontaktow w swiecie rosnie 4 -> 15 -> 28 -> 60. Wzgledem dzisiejszego kola to 1.4x / 1.9x / 3.8x, ale najdrozszy wariant bierze 2.4% budzetu klatki 16.7 ms.",
+      "scope": "To jest PIERWSZY pomiar tej rodziny obwiedni na gruncie MESHOWYM - caly dotychczasowy program kol (F-21..F-32) mierzyl na gruncie PUDELKOWYM, a produkt jezdzi po meshu. Liczby dotycza jednego pojazdu na tej mapie i nie mowia nic o scenie z wieloma pojazdami. Nie mowia tez nic o jakosci toczenia - to osobne pytanie i osobne findingi. Wniosek praktyczny: CPU nie jest przeszkoda w przeniesieniu torusa do produktu; przeszkoda jest F-33. Surowy przebieg: evidence/run_m6_torus_w_aucie_2026_08_03.txt (raw-only).",
+      "evidence": [
+        "none"
+      ],
+      "code": "samples/jozz_vehicle_m6_rig_lab.cpp JOZZ_M6_ENVELOPE + JOZZ_M6_PERF_DUMP"
     }
   }
 }

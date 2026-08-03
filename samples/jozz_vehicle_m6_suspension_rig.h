@@ -131,6 +131,20 @@ enum JozzVehicleM6RigType
 // solver's warm-start impulses. It stays available as the measured negative
 // result and a facet-mechanism visualizer, not as a recommendation.
 //
+// TORUS is the 2026-08-03 answer and the reason the split above can retire:
+// a ring of `torusSegments` capsules whose axes run along the wheel's own spin
+// axis, at ring radius (radius - crownRadius) and half length (width/2 -
+// crownRadius). The cross-section is a stadium - flat tread, rounded shoulders
+// - so the shape is correct at the TRUE tire width in every direction at once.
+// No collision masks, no lateral bulge, and no facets: a capsule has no edges,
+// which is what actually governs rolling quality (measured on the Q3 bench -
+// the torus beat the current hull wheel by 33% loss and 83% harshness while
+// having 57% MORE radial ripple, so ripple is not the driver, edges are).
+//
+// The geometry is the same math as the research bench (tools/jozz_wheel_bench),
+// including the axis: the bench's wheel spins about its local Y as well, so the
+// ring transfers one to one.
+//
 // Radius/width should come from asset markers (M3A), so future wheel models
 // adapt automatically.
 enum JozzVehicleM6WheelEnvelopeMode
@@ -139,9 +153,13 @@ enum JozzVehicleM6WheelEnvelopeMode
 	JOZZ_M6_ENVELOPE_CYLINDER = 1,
 	JOZZ_M6_ENVELOPE_PHASED_UNION = 2,
 	JOZZ_M6_ENVELOPE_SPLIT_SPHERE_SIDEWALL = 3,
+	JOZZ_M6_ENVELOPE_TORUS = 4,
 };
 
-#define JOZZ_M6_MAX_WHEEL_SHAPES 4
+// Raised from 4 for the capsule ring. 96 covers the sealed ring at any crown
+// radius the sanitizer allows and leaves headroom; the array lives per corner,
+// so the cost is 4 corners * 96 * sizeof(b3ShapeId) of runtime struct.
+#define JOZZ_M6_MAX_WHEEL_SHAPES 96
 
 struct JozzVehicleM6WheelEnvelopeDesc
 {
@@ -153,7 +171,21 @@ struct JozzVehicleM6WheelEnvelopeDesc
 	// Collision category carried by drivable surfaces; used by
 	// SPLIT_SPHERE_SIDEWALL to separate rolling from side contact.
 	uint64_t terrainCategoryBits;
+	// TORUS only. `torusSegments` is how many capsules the ring has; the
+	// minimum for a SEALED ring is pi/asin(crownRadius/ringRadius) and the
+	// sanitizer raises anything below it (a gappy ring is a wheel with holes,
+	// not a cheaper wheel). Above that minimum the segment count only buys
+	// smaller radial ripple, and costs CPU linearly.
+	int torusSegments;
+	// Shoulder radius. Must stay below width/2 or the tread has no flat part
+	// left. Bigger is smoother AND cheaper (a fatter shoulder seals the ring
+	// with fewer capsules) - the price is a narrower flat tread.
+	float torusCrownRadius;
 };
+
+// Minimum capsule count for a SEALED ring at these dimensions. Returns 0 when
+// the desc is not a torus or the dimensions make no sense.
+int JozzVehicleM6MinTorusSegments( const JozzVehicleM6WheelEnvelopeDesc* desc );
 
 // Creates the wheel collision shapes on an existing wheel body whose local Y
 // axis is the wheel spin axis (the body is spawned with local Y rotated onto

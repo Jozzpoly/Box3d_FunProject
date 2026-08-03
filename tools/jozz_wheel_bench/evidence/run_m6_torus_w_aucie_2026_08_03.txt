@@ -1,0 +1,66 @@
+=== Torus jako obwiednia kola W SAMOCHODZIE (M6) - 2026-08-03 ===
+pytanie wlasciciela: wpisac torus w kolo produktu, zeby dalo sie nim przejechac
+kolo produktu: R 0.5141 m, W 0.4375 m - te same wymiary co kolo stendu Q3
+masa i bezwladnosc ZAMROZONE na wartosci sferycznej we wszystkich trybach,
+  wiec jedyna zmienna jest KSZTALT (regula twarda 1; pilnuje tego straznik S3
+  walidatora: "wheel mass equals the sphere alone")
+build: Release /O2 (wydajnosc), Debug (walidator)
+
+CZESC 1 - WALIDATOR PRODUKTOWY, uruchamiany Z ROOTA REPO
+Kazdy wiersz to caly przebieg walidatora przy INNEJ obwiedni domyslnej.
+Sonda p4 podaje amplitude oscylacji kierownicy po puszczeniu (last-60 amp).
+
+  sfera         1 ksztalt,  styk punktowy  sond czerwonych 0/18   shimmy  0.31 st   koniec   0.25 st   masa kola 45.5 kg (sfera 45.5)
+  mieszana      2 ksztalty, styk punktowy (domyslne)  sond czerwonych 0/18   shimmy  0.31 st   koniec   0.25 st   masa kola 45.5 kg (sfera 45.5)
+  torus-64     64 ksztalty, prawdziwa szerokosc  sond czerwonych 3/18   shimmy  4.66 st   koniec  -3.96 st   masa kola 45.5 kg (sfera 45.5)
+  walec         1 ksztalt,  prawdziwa szerokosc  sond czerwonych 8/18   shimmy  6.71 st   koniec  -0.20 st   masa kola 28.9 kg (sfera 45.5)
+
+ZASTRZEZENIE DO WIERSZA "walec". Kolumna masy pokazuje 28.9 kg zamiast 45.5 -
+tryb CYLINDER (i PHASED_UNION) NIGDY nie mial zamrozonej masy; robily to tylko
+sfera i mieszana (przez gestosc 0 na walcu bocznym), a od dzis takze torus.
+Walec porownuje sie wiec przy o 36% LZEJSZEJ masie nieresorowanej, co lamie
+regule twarda 1. Kierunek wniosku to WZMACNIA, a nie oslabia: lzejsze kolo ma
+mniejsza bezwladnosc do wzbudzenia, a mimo to szarpie MOCNIEJ od torusa.
+Zaleglosc zapisana osobno - to defekt sprzed tej zmiany, nie jej skutek.
+
+WNIOSEK CZESCI 1. Wyzwalaczem NIE jest liczba ksztaltow: sam WALEC, ktory ma
+jeden ksztalt, wypada gorzej niz pierscien 64 kapsul. Wspolna cecha obu
+przypadkow czerwonych to styk z ziemia na PRAWDZIWEJ SZEROKOSCI. Obwiednia
+mieszana dotyka terenu SFERA, czyli jednym punktem na plaszczyznie symetrii
+kola - i tak byla strojona cala geometria kierownicy.
+
+CZESC 2 - szerokosc plaskiej biezni (ten sam pierscien, inny promien barku)
+Promien barku ustawia, ile z biezni jest plaskie: bieznia = W - 2*bark.
+
+  bark 0,050 m -> bieznia plaska  337 mm:  sond czerwonych 6/18   shimmy  7.85 st
+  bark 0,100 m -> bieznia plaska  238 mm:  sond czerwonych 6/18   shimmy 10.47 st
+  bark 0,150 m -> bieznia plaska  137 mm:  sond czerwonych 5/18   shimmy  2.93 st
+  bark 0,200 m -> bieznia plaska   38 mm:  sond czerwonych 3/18   shimmy  4.66 st
+
+WNIOSEK CZESCI 2. Szarpanie idzie w parze z SZEROKOSCIA plaskiej biezni.
+Znika dopiero wtedy, gdy opona przestaje byc oponaa i wraca do bycia kula.
+Nie ma wiec naprawy po stronie kola - naprawa siedzi w kierownicy.
+
+CZESC 3 - KOSZT CPU w prawdziwym aucie, na prawdziwej mapie, w jezdzie
+Uwaga metodyczna: teren mapy jest MESHEM, a caly program kol mierzyl dotad na
+gruncie PUDELKOWYM. To jest pierwszy pomiar tej rodziny na tym, po czym
+produkt naprawde jezdzi. Srednia z 60 krokow po 600 krokach jazdy,
+JOZZ_M6_AUTODRIVE=1, Release /O2. Budzet klatki: 16.7 ms.
+
+PIERWSZY przebieg tego pomiaru zostal ODRZUCONY i powtorzony: szedl rownolegle
+z kompilacjami, wyszedl niemonotoniczny (32 kapsuly tansze niz 16 i niz sama
+sfera), a napisany pod nim wniosek cytowal liczby z jeszcze innego przebiegu.
+Ponizej trzy przebiegi na przypadek, podana MEDIANA i wszystkie trzy surowe.
+
+  sama sfera (kontrola dolna)            0,099 ms/krok  (0,093 / 0,094 / 0,099)  ksztaltow  563  kontaktow   4
+  mieszana: sfera + walec (domyslne)     0,105 ms/krok  (0,101 / 0,103 / 0,105)  ksztaltow  567  kontaktow   4
+  opona: 16 kapsul,  bark 0.20           0,143 ms/krok  (0,141 / 0,143 / 0,143)  ksztaltow  623  kontaktow  15
+  opona: 32 kapsuly, bark 0.20           0,197 ms/krok  (0,179 / 0,188 / 0,197)  ksztaltow  687  kontaktow  28
+  opona: 64 kapsuly, bark 0.20           0,403 ms/krok  (0,312 / 0,322 / 0,403)  ksztaltow  815  kontaktow  60
+
+WNIOSEK CZESCI 3. Opona kosztuje 1,4x dzisiejszego kola przy 16 kapsulach,
+1,9x przy 32 i 3,8x przy 64. W liczbach bezwzglednych najdrozszy wariant to
+0,40 ms na krok fizyki przy budzecie klatki 16,7 ms, czyli okolo 2,4%.
+CPU NIE JEST tu przeszkoda; przeszkoda jest kierownica.
+
+=== KONIEC ===

@@ -345,6 +345,8 @@ public:
 	float m_editArmMass;
 	int m_editEnvelopeMode;
 	int m_editEnvelopeLayers;
+	int m_editEnvelopeTorusSegments;
+	float m_editEnvelopeCrownRadius;
 	float m_editStrutCasterDeg;
 	float m_editMaxSteeringAngleDegrees;
 	float m_editFrontToeDeg;

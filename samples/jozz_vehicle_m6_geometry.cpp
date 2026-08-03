@@ -230,6 +230,30 @@ bool SanitizeJozzVehicleM6Config( JozzVehicleM6Config* config )
 		clampField( &config->maxSteeringAngleDegrees, "maxSteeringAngleDegrees", 5.0f, safeMax );
 	}
 
+	// Wheel envelope. A torus whose shoulder radius reaches half the tire width
+	// has no flat tread left, and one whose ring has fewer capsules than the
+	// sealing minimum is a wheel with HOLES in it - the contact would drop into
+	// the gaps once per capsule. Both are clamped loudly, like every other
+	// field here, because a hand-edited file must not build a wheel that is
+	// quietly different from the one it names.
+	if ( config->wheelEnvelope.mode == JOZZ_M6_ENVELOPE_TORUS )
+	{
+		clampField( &config->wheelEnvelope.torusCrownRadius, "wheelEnvelope.torusCrownRadius", 0.005f,
+					b3MaxFloat( 0.006f, 0.49f * config->wheelEnvelope.width ) );
+		int minSegments = JozzVehicleM6MinTorusSegments( &config->wheelEnvelope );
+		if ( config->wheelEnvelope.torusSegments < minSegments ||
+			 config->wheelEnvelope.torusSegments > JOZZ_M6_MAX_WHEEL_SHAPES )
+		{
+			int fixed = b3ClampInt( config->wheelEnvelope.torusSegments, minSegments, JOZZ_M6_MAX_WHEEL_SHAPES );
+			std::printf( "jozz m6 WARNING: config sanitized: wheelEnvelope.torusSegments %d -> %d "
+						 "(sealed ring needs at least %d at crown %.3f m)\n",
+						 config->wheelEnvelope.torusSegments, fixed, minSegments,
+						 config->wheelEnvelope.torusCrownRadius );
+			config->wheelEnvelope.torusSegments = fixed;
+			changed = true;
+		}
+	}
+
 	// Visual identity strings: this TU (JOZZ_VEHICLE_CORE_FILES) is shared with
 	// the headless validator, which must NOT gain a dependency on the lab-only
 	// body registry - so bodyVisualModel only gets a structural guard here
@@ -332,18 +356,44 @@ JozzVehicleM6Config JozzVehicleM6DefaultConfig( float wheelRadius, float wheelWi
 	config.rackServoSpeedGain = 12.0f;
 	config.rackServoMaxSpeed = 1.2f;
 
-	// Split envelope is the M6 default: smooth sphere for rolling on terrain,
-	// true-width cylinder for props/walls/curbs. The 2026-07-05 probe killed
-	// the phased-union idea (contact hops between layered hulls lose the
-	// solver warm start; it rolled worse than one cylinder), and the plain
-	// sphere keeps the ~0.29 m lateral bulge. Requires terrain tagged with
-	// terrainCategoryBits; the builder falls back to a sphere when it is 0.
+	// The split envelope STAYS the default, and the reason is measured, not
+	// cautious. TORUS is available and is the better rolling shape by every
+	// bench number plus the owner's own verdict (2026-08-03: the hull wheels
+	// "hop on flat ground - I want cars, not vibrators"; the torus is "smooth
+	// in every condition, bumps included"). But switching the DEFAULT to it
+	// takes the product validator from 18/18 to 15/18, and the three that fall
+	// over are steering probes: the front end shimmies (4.66 deg sustained
+	// oscillation after release, settles 3.96 deg off straight).
+	//
+	// The control run says this is NOT the capsule ring's fault. Same probe,
+	// four envelopes:
+	//   sphere          1 shape, point contact       0 red,  0.31 deg
+	//   split (default) sphere on terrain            0 red,  0.31 deg
+	//   torus-64        64 shapes, true width        3 red,  4.66 deg
+	//   cylinder        ONE shape, true width        8 red,  6.71 deg
+	// The single-shape cylinder is WORSE than the 64-capsule ring, and the
+	// shimmy tracks the width of the flat tread (337/238/137/38 mm of tread
+	// gives 6/6/5/3 failed probes). So the trigger is ground contact across a
+	// REAL WIDTH, which the split envelope has never had - it meets terrain
+	// with a sphere, i.e. a single point on the wheel's center plane.
+	//
+	// In other words the steering geometry was tuned against a point contact
+	// and has never met a tire. Fixing that is steering work (caster, scrub
+	// radius, steering damping, rack friction) and it changes how the car
+	// feels, so it is the owner's call and a separate change - not something
+	// to slip in underneath a wheel-shape swap (hard rule 3: one variable).
 	config.wheelEnvelope.mode = JOZZ_M6_ENVELOPE_SPLIT_SPHERE_SIDEWALL;
 	config.wheelEnvelope.cylinderSides = 32;
 	config.wheelEnvelope.unionLayerCount = 4;
 	config.wheelEnvelope.radius = wheelRadius;
 	config.wheelEnvelope.width = wheelWidth;
 	config.wheelEnvelope.terrainCategoryBits = JOZZ_M6_TERRAIN_CATEGORY;
+	config.wheelEnvelope.torusSegments = 64;
+	// Scaled from the width, not hard-coded in meters, so a different wheel
+	// asset keeps the same cross-section proportions instead of silently
+	// losing its flat tread. 0.914 * (width/2) is the bench's 0.20 m at the
+	// current 0.4375 m wheel.
+	config.wheelEnvelope.torusCrownRadius = 0.914f * 0.5f * wheelWidth;
 	config.wheelDensity = 80.0f;
 	config.wheelFriction = 1.25f;
 	config.wheelRollingResistance = 0.02f;

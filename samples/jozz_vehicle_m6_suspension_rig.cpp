@@ -69,6 +69,26 @@ b3JointId CreateLinkRod( b3WorldId worldId, b3BodyId chassisId, b3BodyId knuckle
 
 } // namespace
 
+int JozzVehicleM6MinTorusSegments( const JozzVehicleM6WheelEnvelopeDesc* desc )
+{
+	if ( desc == nullptr || desc->mode != JOZZ_M6_ENVELOPE_TORUS )
+	{
+		return 0;
+	}
+	float crown = desc->torusCrownRadius;
+	float ring = desc->radius - crown;
+	if ( crown <= 0.0f || ring <= 0.0f || crown >= ring )
+	{
+		return 3;
+	}
+	// Neighbouring capsules overlap when half the axis spacing is smaller than
+	// the capsule radius: ring * sin(pi/N) <= crown. Same derivation as the
+	// research bench's JozzRig_MinTorusSegments.
+	float nMin = B3_PI / std::asin( crown / ring );
+	int n = (int)std::ceil( nMin - 1e-6f );
+	return n < 3 ? 3 : n;
+}
+
 int CreateJozzVehicleM6WheelEnvelope( b3BodyId wheelBodyId, const b3ShapeDef* shapeDef,
 									  const JozzVehicleM6WheelEnvelopeDesc* desc,
 									  b3ShapeId outShapeIds[JOZZ_M6_MAX_WHEEL_SHAPES] )
@@ -76,6 +96,54 @@ int CreateJozzVehicleM6WheelEnvelope( b3BodyId wheelBodyId, const b3ShapeDef* sh
 	for ( int i = 0; i < JOZZ_M6_MAX_WHEEL_SHAPES; ++i )
 	{
 		outShapeIds[i] = b3_nullShapeId;
+	}
+
+	if ( desc->mode == JOZZ_M6_ENVELOPE_TORUS )
+	{
+		float crown = desc->torusCrownRadius;
+		float ring = desc->radius - crown;
+		float halfLen = 0.5f * desc->width - crown;
+		int segments = b3ClampInt( desc->torusSegments, JozzVehicleM6MinTorusSegments( desc ),
+								   JOZZ_M6_MAX_WHEEL_SHAPES );
+
+		if ( crown > 0.0f && ring > 0.0f && halfLen > 0.0f )
+		{
+			// The wheel must weigh exactly what it weighed as a sphere. Hard
+			// rule 1 of the wheel program: never compare collision shapes
+			// without frozen mass and inertia - otherwise the car changes
+			// character because the unsprung mass moved, and the shape gets
+			// the credit or the blame. The validator's S3 guard checks this.
+			//
+			// The reference is TAKEN, not derived: a throwaway sphere is built
+			// with the same shapeDef and its mass data read back, so nothing
+			// here duplicates the engine's own sphere formulas or drifts from
+			// them later.
+			b3Sphere reference = { b3Vec3_zero, desc->radius };
+			b3ShapeId referenceId = b3CreateSphereShape( wheelBodyId, shapeDef, &reference );
+			b3MassData sphereMass = b3Body_GetMassData( wheelBodyId );
+			b3DestroyShape( referenceId, false );
+
+			for ( int i = 0; i < segments; ++i )
+			{
+				float angle = 2.0f * B3_PI * (float)i / (float)segments;
+				b3Capsule capsule;
+				capsule.radius = crown;
+				capsule.center1 = { ring * std::cos( angle ), -halfLen, ring * std::sin( angle ) };
+				capsule.center2 = { capsule.center1.x, halfLen, capsule.center1.z };
+				outShapeIds[i] = b3CreateCapsuleShape( wheelBodyId, shapeDef, &capsule );
+			}
+
+			b3Body_SetMassData( wheelBodyId, sphereMass );
+			return segments;
+		}
+
+		// Dimensions that cannot build a ring degrade to the plain sphere rather
+		// than producing a wheel with no collider at all - and explicitly, not
+		// by falling through into the cylinder/union code below. The sanitizer
+		// is what keeps this branch unreachable from the UI and from files.
+		b3Sphere sphere = { b3Vec3_zero, desc->radius };
+		outShapeIds[0] = b3CreateSphereShape( wheelBodyId, shapeDef, &sphere );
+		return 1;
 	}
 
 	if ( desc->mode == JOZZ_M6_ENVELOPE_SPHERE ||

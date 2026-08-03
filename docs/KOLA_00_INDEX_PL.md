@@ -39,6 +39,42 @@ otwartym; implementacja produktowa NIE rozpoczęta**
 > - Werdykt o feelu należy do Jozza i **nie został wydany** (reguła twarda 5).
 >   Otwarte: `Q3-5` (wzorzec zachowania) — dopiero po akceptacji w oknie.
 
+> **Rewizja 2026-08-03 (d) — TORUS WCHODZI DO SAMOCHODU. Działa, kosztuje mało,
+> i wywala kierownicę.** Właściciel po przejechaniu obu kandydatów na stanowisku:
+> pryzmaty odpadają („podskakują na płaskim, chcę samochody a nie wibratory"),
+> torus jest „bardzo płynny, przyjemny we wszystkich warunkach i z bumpami,
+> w aktualnej formie byłby już lepszy niż aktualne sfera z cylindrem" — przy czym
+> **to nie jest wybór kierunku na stałe**. Polecenie: wpisać torus w koło produktu.
+> - **`JOZZ_M6_ENVELOPE_TORUS`** — piąty tryb obwiedni koła M6. Ta sama
+>   matematyka co stend, łącznie z osią: koło produktu też kręci się wokół
+>   lokalnej Y, więc pierścień przenosi się jeden do jednego. Masa i bezwładność
+>   **zamrożone na wartości sferycznej**, żeby jedyną zmienną był kształt
+>   (reguła twarda 1; pilnuje tego strażnik `S3` walidatora).
+> - **`F-33` — i to jest wynik dnia. Prawdziwa szerokość styku z ziemią wzbudza
+>   szarpanie kierownicy.** Walidator, ta sama konfiguracja, zmieniana wyłącznie
+>   obwiednia: sfera `0/18` i 0,31°, mieszana `0/18` i 0,31°, **torus-64 `3/18`
+>   i 4,66°, walec `8/18` i 6,71°**. Jeden kształt (walec) wypada **gorzej** niż
+>   pierścień kapsuł, a amplituda idzie za szerokością płaskiej bieżni
+>   (337/238/137/38 mm → 6/6/5/3 czerwonych). Dzisiejsza obwiednia dotyka terenu
+>   **sferą, czyli jednym punktem** — i tak była strojona cała kierownica.
+>   **Geometria kierownicy nigdy nie spotkała opony.** Naprawa siedzi
+>   w kierownicy, nie w kole, i zmienia prowadzenie auta, więc to decyzja
+>   właściciela i osobna zmiana (reguła twarda 3).
+> - To jest pierwszy wynik programu, którego stend Q3 **nie mógł zobaczyć
+>   w zasadzie** — Q3 nie ma osi skrętu. Reguła twarda 2 w działaniu.
+> - **`F-34` — CPU nie jest przeszkodą.** Cztery koła, mapa produktu, jazda,
+>   `Release /O2`, mediana z 3 przebiegów: sfera 0,099 / mieszana 0,105 /
+>   opona-16 0,143 / opona-32 0,197 / opona-64 **0,403 ms** na krok fizyki.
+>   Najdroższy wariant bierze **2,4%** budżetu klatki. To zarazem **pierwszy
+>   pomiar tej rodziny na gruncie MESHOWYM** — cały program mierzył na pudełkach.
+> - Dlatego **domyślna obwiednia się NIE zmienia**: torus jest do wyboru
+>   w zakładce „Zawieszenie → kształt kolizji koła", z ostrzeżeniem o szarpaniu
+>   i zmierzonymi kosztami w podpowiedzi. Nowy hak `JOZZ_M6_ENVELOPE` pozwala
+>   porównywać obwiednie headless, bo klikanie w combo i patrzenie na licznik
+>   klatek ograniczony przez vsync nie jest pomiarem.
+> - Zaległość znaleziona przy okazji: tryby `CYLINDER` i `PHASED_UNION`
+>   **nigdy nie miały zamrożonej masy** — walec waży 28,9 kg zamiast 45,5.
+
 > **Rewizja 2026-08-03 (c) — OTWARTY MANIFOLD. Pierwszy punkt `R1` zamknięty:
 > sztywna bryła w tym silniku NIE daje odcisku.** Właściciel: „przeanalizuj
 > krytycznie gdzie jesteśmy, po czym zdecyduj co dalej". Decyzja: **nie zaczynamy

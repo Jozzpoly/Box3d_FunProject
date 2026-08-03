@@ -320,7 +320,13 @@ using WheelEnvelopeField = JozzFieldDesc<JozzVehicleM6WheelEnvelopeDesc>;
 const WheelEnvelopeField kWheelEnvelopeFields[] = {
 	{ .key = "mode", .type = JozzFieldType::Int, .lastInObject = false, .intMember = &JozzVehicleM6WheelEnvelopeDesc::mode },
 	{ .key = "cylinderSides", .type = JozzFieldType::Int, .lastInObject = false, .intMember = &JozzVehicleM6WheelEnvelopeDesc::cylinderSides },
-	{ .key = "unionLayerCount", .type = JozzFieldType::Int, .lastInObject = true, .intMember = &JozzVehicleM6WheelEnvelopeDesc::unionLayerCount },
+	{ .key = "unionLayerCount", .type = JozzFieldType::Int, .lastInObject = false, .intMember = &JozzVehicleM6WheelEnvelopeDesc::unionLayerCount },
+	// Appended 2026-08-03 with the torus. Files written before it simply lack
+	// these keys; the reader leaves the struct defaults in place and the
+	// sanitizer then raises the segment count to a sealed ring, so an old
+	// preset switched to torus by hand still builds a wheel without holes.
+	{ .key = "torusSegments", .type = JozzFieldType::Int, .lastInObject = false, .intMember = &JozzVehicleM6WheelEnvelopeDesc::torusSegments },
+	{ .key = "torusCrownRadius", .type = JozzFieldType::Float, .lastInObject = true, .floatMember = &JozzVehicleM6WheelEnvelopeDesc::torusCrownRadius },
 };
 
 template <typename T, size_t N>

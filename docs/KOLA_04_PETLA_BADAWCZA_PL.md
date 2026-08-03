@@ -627,8 +627,20 @@ U-29  Czy sufit ~5 punktow efektywnych jest wlasnoscia RODZINY
       liczbie ksztaltow (np. pas malych sfer albo pudelek).       -> R1/R3
 U-30  Ile podkrokow kosztuje odcisk W POJEZDZIE. F-31 mierzy jedno
       kolo w Q3; pojazd ma ich cztery i dzieli z nimi budzet
-      solvera. Bez tej liczby "32 podkroki" nie jest opcja, tylko
-      cyfra ze stanowiska.                                       -> Q4
+      solvera. CZESCIOWO ODPOWIEDZIANE 2026-08-03 -> F-34: sam
+      pierscien 64 kapsul na cztery kola kosztuje 0.403 ms/krok
+      przy 4 podkrokach, czyli 2.4% klatki. Brakuje drugiej
+      polowy: ile kosztuje przy 32 podkrokach, ktorych zada F-31
+      do jakiegokolwiek odcisku.                                 -> Q4
+U-31  Czym nastroic kierownice pod styk o PRAWDZIWEJ szerokosci
+      (F-33). Kandydaci: wyprzedzenie, promien zataczania,
+      tlumienie ukladu, tarcie przekladni. To zmienia prowadzenie
+      auta, wiec kolejnosc jest odwrotna niz zwykle: najpierw
+      decyzja wlasciciela, potem pomiar.                         -> Q4/V3
+U-32  DLUG: tryby CYLINDER i PHASED_UNION nie maja zamrozonej masy
+      (walec 28.9 kg wobec 45.5 kg sfery). Kazde porownanie
+      z ich udzialem lamie regule twarda 1. Defekt sprzed
+      2026-08-03, znaleziony przy okazji F-33.                    -> narzedzia
 U-14  Ile manifoldow daje kolo na MESHU (nie na pudle) i czy kazdy
       wnosi wlasna kotwice tarcia (P-11).                         -> R1
 U-15  Czy prawo opony na dzisiejszej sferze obsluguje Z-07..Z-09.  -> R4

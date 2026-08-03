@@ -13,6 +13,12 @@
       "bytes": 14201,
       "mode": "parsed"
     },
+    "m6_torus_w_aucie_2026_08_03": {
+      "file": "run_m6_torus_w_aucie_2026_08_03.txt",
+      "sha256": "647eb4342304212848538d14cf24d5fc975d6e444e6822eeba18a7d0da3285db",
+      "bytes": 4334,
+      "mode": "raw-only"
+    },
     "q3_compare_2026_07_31": {
       "file": "run_q3_compare_2026_07_31.txt",
       "sha256": "c086d7d91831d53fe2555580d124492f61d8f2ea533bdd6204c7a13c4448179e",

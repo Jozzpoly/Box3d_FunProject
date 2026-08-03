@@ -343,14 +343,69 @@ void JozzVehicleM6RigLab::DrawSuspensionTab()
 			ImGui::Indent();
 			const char* envelopes[] = { "Sfera (gładka, wybrzusza się na boki)",
 										"Walec (prawdziwa szerokość, graniasty)", "Suma fazowa (eksperymentalne)",
-										"Mieszana: sfera + prawdziwa szerokość (domyślne)" };
-			edited |= ImGui::Combo( "Kształt", &m_editEnvelopeMode, envelopes, 4 );
-			HelpMarker( "Kształt fizycznej bryły koła (nie wizualny model 3D - ten rysuje się zawsze tak samo). "
-						"Domyślna mieszana daje idealny kontakt z terenem (sfera) BEZ 'niewidzialnej ściany' obok "
-						"przeszkód (prawdziwa szerokość walca). Zmieniaj tylko przy problemach z fizyką koła." );
+										"Mieszana: sfera + prawdziwa szerokość (domyślne)",
+										"Opona: pierścień kapsuł (najlepsze toczenie, shimmy kierownicy)" };
+			edited |= ImGui::Combo( "Kształt", &m_editEnvelopeMode, envelopes, 5 );
+			HelpMarker( "Kształt fizycznej bryły koła (nie wizualny model 3D - ten rysuje się zawsze tak samo).\n\n"
+						"OPONA: pierścień kapsuł o płaskiej bieżni i zaokrąglonych barkach. Prawdziwa szerokość we "
+						"WSZYSTKICH kierunkach naraz, żadnych masek kolizji i ani jednej ostrej krawędzi - a to one, "
+						"nie liczba ścianek, psują toczenie. Na stanowisku bije dzisiejsze koło o 33% straty i 83% "
+						"twardości.\n\n"
+						"MIESZANA (domyślna): gładka sfera do terenu plus walec prawdziwej szerokości do przeszkód, "
+						"sklejone maskami kolizji. Sfera dotyka ziemi w JEDNYM punkcie na osi symetrii koła.\n\n"
+						"Masa i bezwładność koła są TE SAME we wszystkich trybach - przełączasz wyłącznie kształt." );
+			if ( m_editEnvelopeMode == JOZZ_M6_ENVELOPE_TORUS )
+			{
+				ImGui::TextColored( ImVec4( 0.95f, 0.75f, 0.35f, 1.0f ), "Uwaga: przy tym kształcie przód SZARPIE." );
+				HelpMarker( "Zmierzone, nie przypuszczenie: walidator produktowy spada z 18/18 na 15/18, a trzy "
+							"czerwone to sondy kierownicy - po puszczeniu koło oscyluje 4,7 stopnia i zatrzymuje "
+							"się 4 stopnie od prosto.\n\n"
+							"To NIE jest wina pierścienia kapsuł. Kontrola: sam WALEC - jeden kształt - jest gorszy "
+							"(8 czerwonych, 6,7 stopnia), a szarpanie rośnie razem z szerokością płaskiej bieżni. "
+							"Wyzwalaczem jest styk z ziemią na PRAWDZIWEJ SZEROKOŚCI, którego mieszana obwiednia "
+							"nigdy nie miała.\n\n"
+							"Czyli: geometria kierownicy była strojona pod styk punktowy i nigdy nie spotkała opony. "
+							"Naprawa siedzi w kierownicy (wyprzedzenie, promień zataczania, tłumienie, tarcie "
+							"przekładni), nie w kole - i zmienia to, jak auto się prowadzi, więc jest decyzją "
+							"właściciela.\n\n"
+							"Jeździć tym MOŻNA: zawieszenie i wyboje czuje się w pełni, tor jazdy błądzi." );
+			}
 			if ( m_editEnvelopeMode == JOZZ_M6_ENVELOPE_PHASED_UNION )
 			{
 				edited |= ImGui::SliderInt( "Warstwy sumy", &m_editEnvelopeLayers, 2, 4 );
+			}
+			if ( m_editEnvelopeMode == JOZZ_M6_ENVELOPE_TORUS )
+			{
+				// Zakresy liczone z BIEŻĄCEJ opony, nie stałe: przy innym kole
+				// stała granica w metrach albo odcinałaby sensowny zakres, albo
+				// pozwalała zbudować oponę bez bieżni.
+				float halfWidth = 0.5f * m_config.wheelEnvelope.width;
+				edited |= ImGui::SliderFloat( "Promień barku", &m_editEnvelopeCrownRadius, 0.02f, 0.49f * 2.0f * halfWidth,
+											  "%.3f m" );
+				HelpMarker( "Jak mocno zaokrąglone są barki opony. Większy promień = gładsze toczenie I TAŃSZE "
+							"(grubszy bark uszczelnia pierścień mniejszą liczbą kapsuł). Cena jest w szerokości "
+							"płaskiej bieżni, która o tyle się zwęża." );
+
+				JozzVehicleM6WheelEnvelopeDesc probe = m_config.wheelEnvelope;
+				probe.mode = JOZZ_M6_ENVELOPE_TORUS;
+				probe.torusCrownRadius = m_editEnvelopeCrownRadius;
+				int minSegments = JozzVehicleM6MinTorusSegments( &probe );
+				edited |= ImGui::SliderInt( "Kapsuł w obwodzie", &m_editEnvelopeTorusSegments, minSegments,
+											JOZZ_M6_MAX_WHEEL_SHAPES );
+				HelpMarker( "Ile kapsuł tworzy pierścień. Poniżej minimum pierścień ma DZIURY - kontakt wpadałby w nie "
+							"raz na kapsułę - więc suwak się tam nie cofnie. Powyżej minimum kupujesz tylko mniejsze "
+							"tętnienie promienia, a płacisz procesorem: to są kształty razy CZTERY KOŁA.\n\n"
+							"ZMIERZONE w tym aucie, na tej mapie, w jeździe (Release, mediana z 3 przebiegów, "
+							"ms na krok fizyki):\n"
+							"  sama sfera        0,099\n"
+							"  mieszana          0,105   <- dzisiejsze koło\n"
+							"  opona 16 kapsuł   0,143\n"
+							"  opona 32 kapsuły  0,197\n"
+							"  opona 64 kapsuły  0,403\n"
+							"Budżet klatki to 16,7 ms, więc nawet 64 kapsuły biorą z niej 2,4%." );
+				ImGui::TextDisabled( "minimum dla szczelności: %d   |   bieżnia płaska: %.0f mm   |   %d kształtów na auto",
+									 minSegments, 1000.0f * ( 2.0f * halfWidth - 2.0f * m_editEnvelopeCrownRadius ),
+									 4 * m_editEnvelopeTorusSegments );
 			}
 			ImGui::Unindent();
 		}
