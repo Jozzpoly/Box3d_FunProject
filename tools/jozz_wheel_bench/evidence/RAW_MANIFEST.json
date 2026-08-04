@@ -78,6 +78,12 @@
       "sha256": "cdfabbbdd9d1ff0f181e2a450da2253e29948258be1b0b4e328d84052507f783",
       "bytes": 55673,
       "mode": "raw-only"
+    },
+    "wheel_seam_02a_2026_08_04": {
+      "file": "run_wheel_seam_02a_2026_08_04.txt",
+      "sha256": "76bc2291a855e13dc57426c7dcc48343011e9c582c25e748dd1639e0a5256ae1",
+      "bytes": 52723,
+      "mode": "raw-only"
     }
   }
 }

@@ -15,13 +15,6 @@ override wheel–ground, więc „miękka opona” miesza się z miękkością c
 **Spłata:** per-wheel lub per-material normal softness, wybierana w obu ścieżkach
 prepare contact; A/B przy identycznym manifoldzie.
 
-## P0-3 — Nieciągłość wheel–triangle na szwach
-
-Kontakty z płaszczyzną trójkąta są odrzucane poza barycentrą; brak kompletnego
-fallbacku do krawędzi i wierzchołka. Koło może zgubić kontakt na szwie mesha.
-
-**Spłata:** minimalny seam probe, potem edge/vertex fallback i trwałe IDs.
-
 ## P1-1 — Wheel–hull nie jest pełnym kontaktem convex–convex
 
 Wybór ściany i manifold płaszczyzny nie ograniczają wszystkich punktów do
@@ -45,6 +38,15 @@ rzeczywistego profilu.
 
 **Spłata:** albo dokładne całkowanie bryły obrotowej, albo jawny kontrakt
 „collision-only; mass supplied by caller”. Nie zmieniać przed testem topologii.
+
+## P2-1 — Pełny UBSan zatrzymuje się w `compound.c`
+
+Pełny zestaw testów pod UBSan zatrzymuje się w `src/compound.c:582` na
+misaligned `b3HullData*` store. Ten sam błąd został odtworzony na czystym
+checkpointcie `8472512`; `WheelShapeTest` przechodzi pod UBSan.
+
+**Spłata:** osobny minimalny reproduktor i poprawka layoutu/alokacji compound,
+bez mieszania jej z geometrią koła.
 
 ## P3-1 — Historyczne ograniczenia pojazdu
 

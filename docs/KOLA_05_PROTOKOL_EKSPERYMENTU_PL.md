@@ -1,7 +1,7 @@
 # Koła i opony — protokół eksperymentu
 
-Status: bieżący protokół dla `WHEEL-RIGID-01`, `WHEEL-SEAM-02` i
-`WHEEL-SOFT-03`. Historyczny protokół stendu v2.1 oraz rigi Q0–Q4 zachowano w
+Status: bieżący protokół dla `WHEEL-RIGID-01`, `WHEEL-SEAM-02A`,
+`WHEEL-HULL-02B` i `WHEEL-SOFT-03`. Historyczny protokół stendu v2.1 oraz rigi Q0–Q4 zachowano w
 `archive/consolidated_2026-08/KOLA_05_PROTOKOL_STENDU_V21_PL.md`.
 
 ## 1. Minimalny kontrakt paczki
@@ -99,22 +99,49 @@ Kontrole:
 Akceptacja nie zależy od tego, który wariant daje niższe drgania. Najpierw ma
 być poprawny geometrycznie i stabilny; wynik jazdy opisujemy osobno.
 
-## 6. `WHEEL-SEAM-02`
+## 6. `WHEEL-SEAM-02A` — triangle/mesh — ZAMKNIĘTY
 
-Scena minimalna: dwa współpłaszczyznowe trójkąty ze wspólną krawędzią oraz
-wariant z małą zmianą normalnej.
+Scena minimalna obejmuje finite edge, finite vertex, tylną stronę trójkąta, dwa
+współpłaszczyznowe trójkąty oraz załamanie `0,02 m / 1,00 m` (`~1,15°`).
 
-Mierzymy:
+Bramka płaskiego, obciążonego szwu:
 
-- brak klatki bez kontaktu podczas przejścia przez szew;
-- ciągłość normalnej i impulsu;
-- poprawne face/edge/vertex feature IDs;
-- brak podwójnego impulsu od dwóch współpłaszczyznowych trójkątów;
-- powtórzenie w obu kierunkach i przy kilku fazach obrotu.
+- brak kroku bez kontaktu;
+- dokładnie 1 solver point, bez podwójnego impulsu;
+- suma impulsu w oknie `±5%`;
+- stały `featureId`, dokładnie jeden handoff `triangleIndex`;
+- najwyżej jeden reset `persisted` podczas handoffu;
+- oba kierunki i fazy `0,00 / 0,73 / 1,61 rad`.
 
-Dopiero po tej bramce wyniki mapy mogą walidować model opony.
+Bramka łagodnego załamania:
 
-## 7. `WHEEL-SOFT-03`
+- brak kroku bez kontaktu i `1–2` punkty dla dwóch różnych normalnych;
+- iloczyn kolejnych normalnych `> 0,995`;
+- suma impulsu po rozgrzewce w oknie `±20%`;
+- oba kierunki i fazy `0,00 / 1,17 rad`.
+
+Próg `20%` zapisano po pomiarze kontrolnym `+9% / +13,5%`, ale przed poprawką
+normalnej klastra; pre-fix anomalia `+36,4%` była więc czerwona, nie została
+zaakceptowana przez dostrojenie progu. Surowy przebieg i komendy są w
+`tools/jozz_wheel_bench/evidence/run_wheel_seam_02a_2026_08_04.txt`.
+
+## 7. `WHEEL-HULL-02B`
+
+Scena minimalna: skończona ściana hulla, przejście przez jej krawędź, narożnik
+oraz kontrola negatywna, w której support nieskończonej płaszczyzny leży poza
+polygonem i nie wolno utworzyć kontaktu.
+
+Bramka wymaga:
+
+- clippingu face manifold do polygonu ściany;
+- istotnych osi face, edge/axis i ich deterministycznego wyboru;
+- poprawnych face/edge/vertex feature IDs i warm startu;
+- braku phantom contact oraz luki przy prawdziwym przejściu;
+- obu kierunków, kilku faz koła i obciążonego testu impulsu.
+
+Softness, profil, masa, tarcie i parametry solvera pozostają zamrożone.
+
+## 8. `WHEEL-SOFT-03`
 
 A i B używają identycznej geometrii i manifoldu.
 
@@ -131,7 +158,7 @@ Werdykt wymaga Q2, następnie Q3 na prostej i w zakręcie, a na końcu Q4 na mes
 Mierzymy dodatkowo kompresję, siłę/impuls normalny, stratę energii i wpływ na
 sterowanie.
 
-## 8. Status wyniku
+## 9. Status wyniku
 
 - `PROVISIONAL` — świeży przebieg, poprawny technicznie;
 - `SUPPORTED` — powtórzony i przeniesiony co najmniej poziom wyżej;
@@ -143,7 +170,7 @@ sterowanie.
 Status findingu żyje w `KOLA_FINDINGS.json`. Proza nie może nadawać mu innego
 statusu.
 
-## 9. Manualna sesja
+## 10. Manualna sesja
 
 Chwyt, wymuszenie impulsu, zmiana suwaka podczas okna pomiarowego lub ręczne
 przejęcie pojazdu oznaczają sesję eksploracyjną. Jest cenna i może wygenerować
@@ -152,7 +179,7 @@ nową hipotezę, ale nie zastępuje deterministycznego przebiegu headless.
 Feeling, obraz i zachowanie graniczne odbiera Jozz. Instrument ma zachować
 konfigurację i log, a nie automatycznie ogłaszać „dobrze jeździ”.
 
-## 10. Bramka publikacji
+## 11. Bramka publikacji
 
 Przed wpisaniem wyniku do aktywnej dokumentacji:
 

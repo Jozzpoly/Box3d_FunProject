@@ -38,6 +38,15 @@ zakręcie z `0,571` do `0,436 m/s²`; na prostej pogorszyło wynik z `0,053` do
 `0,061 m/s²`. Jest to odtworzony efekt geometrii w tym jednym deterministycznym
 protokole (`F-39`), nie dowód podatności ani uniwersalnie lepszej opony.
 
+`WHEEL-SEAM-02A` zamknął kontrolowany zakres triangle/mesh (`F-40`, `F-41`).
+Kontakt trójkąta jest jednostronny, zachowuje face support, a poza skończoną
+ścianą przechodzi na rzeczywistą krawędź lub wierzchołek. Na obciążonym płaskim
+szwie solver utrzymuje dokładnie jeden punkt bez luki w obu kierunkach i przy
+trzech fazach obrotu. Na załamaniu `~1,15°` suma impulsu pozostaje w przyjętym
+oknie `20%`; wheel-only wybór normalnej najgłębszego manifoldu usunął zmierzony
+przed poprawką, zależny od fazy skok `+36,4%`. Dwa świeże przebiegi pełnego
+walidatora produktu pozostały bajtowo identyczne (`19 + 2`, `OK`).
+
 ## 3. Najbliższy program badawczy
 
 Front door programu: `KOLA_00_INDEX_PL.md`.
@@ -57,12 +66,21 @@ granicę speculative distance oraz trwałość `featureId` podczas rzeczywistego
 obrotu dynamicznego koła. Następne rozszerzenie telemetryczne należy wykonywać
 już w ramach seam/soft, bez ponownego otwierania topologii plane.
 
-### Etap B — poprawność terenu — AKTYWNY NASTĘPNY KROK (`WHEEL-SEAM-02`)
+### Etap B1 — trójkąty i mesh — ZAMKNIĘTY (`WHEEL-SEAM-02A`)
 
-- test przejazdu przez szew dwóch współpłaszczyznowych trójkątów;
-- fallback krawędź/wierzchołek dla kontaktu wheel–triangle;
-- brak znikania kontaktu na granicy barycentrycznej;
-- później pełne ograniczenie wheel–hull do face polygon oraz osie edge/axis.
+- face/edge/vertex są rozróżniane przez feature IDs;
+- finite edge/vertex fallback usuwa lukę po odrzuceniu barycentrycznym;
+- płaski szew nie dubluje constraintu ani impulsu;
+- mała zmiana normalnej jest sprawdzona w obu kierunkach i kilku fazach;
+- przejście `triangleIndex` może dać jeden jawny reset `persisted`, ale bez luki
+  kontaktu, zmiany feature ID ani churnu po obu stronach.
+
+### Etap B2 — hully i narożniki — AKTYWNY NASTĘPNY KROK (`WHEEL-HULL-02B`)
+
+- ograniczyć manifold nieskończonej płaszczyzny do polygonu ściany hulla;
+- dodać istotne osie edge/axis dla pełnego convex–convex rozdzielenia;
+- zablokować phantom contacts przy krawędziach i narożnikach;
+- powtórzyć obciążone przejścia w obu kierunkach i kilku fazach koła.
 
 ### Etap C — A/B podatności
 
@@ -85,8 +103,8 @@ powierzchnię zapytań. Nie wracać do wielu niezależnych stockowych collideró
 
 ## 4. Otwarte ograniczenia implementacji
 
-- wheel–triangle filtruje punkty testem barycentrycznym bez pełnego fallbacku
-  krawędzi/wierzchołka;
+- testy triangle/mesh obejmują kontrolowane płaskie i łagodnie załamane szwy,
+  lecz nie dowodzą poprawności dowolnej siatki ani bardzo ostrych cech;
 - wheel–hull opiera się głównie na normalnych ścian i płaszczyźnie, bez pełnego
   clippingu do wielokąta ściany i kompletnego SAT;
 - masa koła jest przybliżeniem walca obwiedniowego; pojazd zamraża ją osobno;
@@ -115,10 +133,10 @@ Szczegóły: `JV_JES_HERITAGE_PL.md`.
 
 ## 7. Minimalna bramka następnego commita
 
-- seam probe dwóch współpłaszczyznowych trójkątów;
-- test face→edge→vertex bez znikania kontaktu;
-- przejście istniejących testów koła i pełnego walidatora pojazdu;
-- brak zmiany masy, tarcia i geometrii w A/B;
+- wheel–hull face polygon clipping i test negatywny phantom corner;
+- edge/axis separation oraz przejście face→edge→vertex bez znikania kontaktu;
+- przejście 16 istniejących testów koła i pełnego walidatora pojazdu;
+- brak zmiany masy, tarcia, profilu i softness w tej paczce;
 - `python tools/docs_audit.py`;
 - `python tools/repo_hygiene.py`;
 - `python tools/jozz_core_delta.py` przy delcie `src/`/`include/`;

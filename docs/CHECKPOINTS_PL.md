@@ -3,6 +3,12 @@
 Krótki dziennik najnowszego stanu. Wpis ma maksymalnie: CO / CZEMU / EFEKT / DALEJ.
 Starsze wpisy: `archive/ledgers/CHECKPOINTS_2026-07_PL.md`.
 
+## 2026-08-04 · WHEEL-SEAM-02A — szwy trójkątów i mesha
+- CO: dodano jednostronny wheel–triangle, finite edge/vertex fallback, stabilne feature IDs oraz wheel-only wybór normalnej najgłębszego manifoldu w klastrze mesha.
+- CZEMU: samo odrzucenie barycentryczne gubiło kontakt na granicy, a normalna pierwszego trójkąta dawała zależny od fazy skok impulsu `+36,4%` na łagodnym załamaniu.
+- EFEKT: 16 testów koła; płaski obciążony szew ma dokładnie 1 constraint w obu kierunkach i 3 fazach, załamanie `~1,15°` przechodzi w obu kierunkach i 2 fazach; pełne unity i ASan są zielone, wheel UBSan jest zielony, a 2 pełne walidacje produktu są bajtowo identyczne.
+- DALEJ: `WHEEL-HULL-02B` — clipping do face polygon oraz komplet osi edge/axis; podatność nadal czeka.
+
 ## 2026-08-04 · WHEEL-RIGID-01 — strict support manifold
 - CO: plane/triangle baseline raportuje 1 support vertex albo 2 końce rzeczywistego support segment; speculative distance tylko bramkuje istnienie kontaktu.
 - CZEMU: poprzedni manifold mieszał geometrię crown z liczbą próbek wpadających w speculative band.

@@ -623,9 +623,13 @@ static void b3CollideWheelAndPlane( b3LocalManifold* manifold, int capacity, con
 // radii added at the end. Alternating projection converges in a few passes
 // because both cores are convex.
 static void b3CollideWheelAndSegment( b3LocalManifold* manifold, int capacity, const b3Wheel* wheel, b3Vec3 p1,
-									  b3Vec3 p2, float radiusB )
+									  b3Vec3 p2, float radiusB, float* fractionB )
 {
 	manifold->pointCount = 0;
+	if ( fractionB != NULL )
+	{
+		*fractionB = 0.0f;
+	}
 	if ( capacity <= 0 )
 	{
 		return;
@@ -639,17 +643,18 @@ static void b3CollideWheelAndSegment( b3LocalManifold* manifold, int capacity, c
 
 	b3Vec3 onCore = wheel->center;
 	b3Vec3 onSegment = p1;
+	float segmentFraction = 0.0f;
 
 	for ( int iteration = 0; iteration < 4; ++iteration )
 	{
 		// Closest point on the segment to the current core point.
-		float t = 0.0f;
+		segmentFraction = 0.0f;
 		if ( edgeLengthSqr > B3_WHEEL_EPS )
 		{
-			t = b3Dot( b3Sub( onCore, p1 ), edge ) / edgeLengthSqr;
-			t = b3ClampFloat( t, 0.0f, 1.0f );
+			segmentFraction = b3Dot( b3Sub( onCore, p1 ), edge ) / edgeLengthSqr;
+			segmentFraction = b3ClampFloat( segmentFraction, 0.0f, 1.0f );
 		}
-		onSegment = b3MulAdd( p1, t, edge );
+		onSegment = b3MulAdd( p1, segmentFraction, edge );
 
 		// Closest point of the cross-section solid to that segment point. Done
 		// in the flat drawing, then spun back out onto the wheel.
@@ -671,6 +676,14 @@ static void b3CollideWheelAndSegment( b3LocalManifold* manifold, int capacity, c
 			// equally close. Pick one rather than collapsing onto the axle.
 			onCore = b3MulAdd( onCore, closest.y, b3WheelPerpendicular( axis ) );
 		}
+	}
+
+	// The last clamped projection identifies the finite segment feature used by
+	// the returned contact. Callers may still use a tiny numerical tolerance when
+	// classifying values produced close to an endpoint.
+	if ( fractionB != NULL )
+	{
+		*fractionB = segmentFraction;
 	}
 
 	b3Vec3 separationVector = b3Sub( onSegment, onCore );
@@ -709,14 +722,14 @@ void b3CollideWheelAndCapsule( b3LocalManifold* manifold, int capacity, const b3
 {
 	b3Vec3 p1 = b3TransformPoint( transformBtoA, capsuleB->center1 );
 	b3Vec3 p2 = b3TransformPoint( transformBtoA, capsuleB->center2 );
-	b3CollideWheelAndSegment( manifold, capacity, wheelA, p1, p2, capsuleB->radius );
+	b3CollideWheelAndSegment( manifold, capacity, wheelA, p1, p2, capsuleB->radius, NULL );
 }
 
 void b3CollideWheelAndSphere( b3LocalManifold* manifold, int capacity, const b3Wheel* wheelA, const b3Sphere* sphereB,
 							  b3Transform transformBtoA )
 {
 	b3Vec3 center = b3TransformPoint( transformBtoA, sphereB->center );
-	b3CollideWheelAndSegment( manifold, capacity, wheelA, center, center, sphereB->radius );
+	b3CollideWheelAndSegment( manifold, capacity, wheelA, center, center, sphereB->radius, NULL );
 }
 
 void b3CollideWheelAndHull( b3LocalManifold* manifold, int capacity, const b3Wheel* wheelA, const b3HullData* hullB,
@@ -778,6 +791,14 @@ void b3CollideWheelAndTriangle( b3LocalManifold* manifold, int capacity, const b
 	normal = b3MulSV( 1.0f / area, normal );
 	float offset = b3Dot( normal, v1 );
 
+	// Triangles are one-sided. Match sphere/capsule triangle contact and reject
+	// a wheel whose center is behind the authored face before considering any
+	// face, edge, or vertex fallback.
+	if ( b3Dot( normal, wheelA->center ) - offset < 0.0f )
+	{
+		return;
+	}
+
 	b3Vec3 support = b3ComputeWheelSupport( wheelA, b3Neg( normal ) );
 	if ( b3Dot( normal, support ) - offset > B3_SPECULATIVE_DISTANCE )
 	{
@@ -794,8 +815,9 @@ void b3CollideWheelAndTriangle( b3LocalManifold* manifold, int capacity, const b
 	// 26.5 m/s2 instead of rolling.
 	manifold->normal = normal;
 	manifold->triangleNormal = normal;
-	// The wheel always meets the triangle's face: its surface is smooth, so the
-	// deepest point can never be a vertex or an edge of the wheel.
+	// Start with the triangle face. If every strict support point projects
+	// outside the finite face, the boundary fallback below reclassifies the
+	// contact as the triangle edge or vertex that is actually touched.
 	manifold->feature = b3_featureTriangleFace;
 
 	// Drop points that fall outside the triangle. Without this a wheel spanning
@@ -830,4 +852,89 @@ void b3CollideWheelAndTriangle( b3LocalManifold* manifold, int capacity, const b
 		kept += 1;
 	}
 	manifold->pointCount = kept;
+	if ( kept > 0 )
+	{
+		return;
+	}
+
+	// The infinite plane touched the wheel, but its support feature projected
+	// outside this finite triangle. Test the boundary instead of dropping the
+	// contact: each finite edge query naturally degenerates to a vertex query
+	// when its closest fraction clamps to an endpoint.
+	b3Vec2 profile[B3_MAX_WHEEL_PROFILE_POINTS];
+	int profileCount = b3GetWheelProfile( wheelA, profile );
+	const b3Vec3 vertices[3] = { v1, v2, v3 };
+	const b3TriangleFeature edgeFeatures[3] = { b3_featureEdge1, b3_featureEdge2, b3_featureEdge3 };
+	const b3TriangleFeature vertexFeatures[3] = { b3_featureVertex1, b3_featureVertex2, b3_featureVertex3 };
+	float bestSeparation = FLT_MAX;
+	b3Vec3 bestNormal = b3Vec3_zero;
+	b3LocalManifoldPoint bestPoint = { 0 };
+	b3TriangleFeature bestFeature = b3_featureNone;
+
+	for ( int edgeIndex = 0; edgeIndex < 3; ++edgeIndex )
+	{
+		int nextIndex = ( edgeIndex + 1 ) % 3;
+		b3LocalManifoldPoint candidatePoint = { 0 };
+		b3LocalManifold candidate = { 0 };
+		candidate.points = &candidatePoint;
+		float fraction = 0.0f;
+		b3CollideWheelAndSegment( &candidate, 1, wheelA, vertices[edgeIndex], vertices[nextIndex], 0.0f, &fraction );
+		if ( candidate.pointCount == 0 )
+		{
+			continue;
+		}
+
+		// Segment contact is wheel -> segment. Mesh contact needs the one-sided
+		// triangle -> wheel normal, and it must remain in the front hemisphere.
+		b3Vec3 triangleToWheel = b3Neg( candidate.normal );
+		if ( b3Dot( triangleToWheel, normal ) <= 0.0f )
+		{
+			continue;
+		}
+
+		b3TriangleFeature feature;
+		const float endpointTolerance = 16.0f * FLT_EPSILON;
+		if ( fraction <= endpointTolerance )
+		{
+			feature = vertexFeatures[edgeIndex];
+		}
+		else if ( fraction >= 1.0f - endpointTolerance )
+		{
+			feature = vertexFeatures[nextIndex];
+		}
+		else
+		{
+			feature = edgeFeatures[edgeIndex];
+		}
+
+		// Smooth wheel rotation does not change this index. It identifies the
+		// cross-section support feature while the triangle feature occupies the
+		// other half of the persistent pair.
+		b3Vec3 wheelToTriangle = candidate.normal;
+		float axial = b3Dot( wheelToTriangle, wheelA->axis );
+		b3Vec3 radial = b3MulSub( wheelToTriangle, axial, wheelA->axis );
+		float radialLength = b3Length( radial );
+		int profileIndex = b3WheelProfileSupport( profile, profileCount, axial, radialLength );
+		candidatePoint.pair = ( b3FeaturePair ){ 0 };
+		candidatePoint.pair.index1 = (uint8_t)feature;
+		candidatePoint.pair.owner2 = 1;
+		candidatePoint.pair.index2 = (uint8_t)profileIndex;
+
+		if ( candidatePoint.separation < bestSeparation )
+		{
+			bestSeparation = candidatePoint.separation;
+			bestNormal = triangleToWheel;
+			bestPoint = candidatePoint;
+			bestFeature = feature;
+		}
+	}
+
+	if ( bestFeature != b3_featureNone )
+	{
+		manifold->normal = bestNormal;
+		manifold->triangleNormal = normal;
+		manifold->feature = bestFeature;
+		manifold->points[0] = bestPoint;
+		manifold->pointCount = 1;
+	}
 }

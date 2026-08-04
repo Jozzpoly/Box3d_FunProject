@@ -609,6 +609,22 @@
       "source_bytes": 55673,
       "provenance": {},
       "tables": {}
+    },
+    "wheel_seam_02a_2026_08_04": {
+      "source_file": "run_wheel_seam_02a_2026_08_04.txt",
+      "source_sha256": "76bc2291a855e13dc57426c7dcc48343011e9c582c25e748dd1639e0a5256ae1",
+      "source_bytes": 52723,
+      "provenance": {
+        "Date": "2026-08-04",
+        "Base HEAD before this checkpoint": "8472512 (WHEEL-RIGID-01)",
+        "Scope": "b3Wheel vs one-sided finite triangle boundaries and mesh seams.",
+        "Not in scope": "full wheel-vs-hull face clipping / edge-axis SAT, local tire softness, manual driving feel.",
+        "- Coplanar loaded seam": "both directions, wheel phases 0.00 / 0.73 / 1.61 rad.",
+        "- Shallow folded seam": "0.02 m rise over 1.00 m (~1.15 deg), both directions, phases 0.00 / 1.17 rad.",
+        "- Coplanar acceptance": "no contact gap, exactly one solver point, normal impulse within 5%, stable featureId, exactly one triangle handoff, at most one persisted reset.",
+        "- Folded acceptance": "no contact gap, 1-2 points allowed for two distinct face normals, adjacent solved normals dot > 0.995, total impulse within 20% after warm-up, stable featureId, exactly one triangle handoff, at most one persisted reset."
+      },
+      "tables": {}
     }
   }
 }

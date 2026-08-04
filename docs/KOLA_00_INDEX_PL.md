@@ -1,7 +1,8 @@
 # Koła i opony — front door
 
-Status: własny `b3Wheel` jest zintegrowany, a `WHEEL-RIGID-01` zamknął
-rygorystyczny baseline plane. Najbliższa bramka to ciągłość triangle/seam.
+Status: własny `b3Wheel` jest zintegrowany; `WHEEL-RIGID-01` zamknął
+baseline plane, a `WHEEL-SEAM-02A` kontrolowane szwy triangle/mesh. Najbliższa
+bramka to pełna poprawność wheel–hull przy ścianach, krawędziach i narożnikach.
 Historyczny baseline przed porządkami: `5b92e9c`; rewizję roboczą odczytaj z Git.
 
 > Sztywny manifold nie udaje już rosnącego śladu. Crown 3 mm zachował poprawę
@@ -40,8 +41,11 @@ modelem strukturalnej opony.
 WHEEL-RIGID-01 — DONE
   strict support: 1 vertex albo 2 końce prawdziwego support segment
 
-WHEEL-SEAM-02 — NEXT
-  ciągłość face/edge/vertex na trójkątach i szwach mapy
+WHEEL-SEAM-02A — DONE
+  finite triangle face/edge/vertex oraz obciążone szwy mesha
+
+WHEEL-HULL-02B — NEXT
+  face polygon clipping, edge/axis SAT i brak phantom corner contacts
 
 WHEEL-SOFT-03
   lokalna podatność A/B przy identycznej geometrii i manifoldzie

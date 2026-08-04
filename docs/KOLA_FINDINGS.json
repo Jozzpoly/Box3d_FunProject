@@ -12,7 +12,8 @@
     "OWNER_DECISION": "Rozstrzygniete przez Jozza. Pomiar tego nie zmienia.",
     "SUPERSEDED": "Zastapione przez pozniejszy finding. Nie cytowac.",
     "EVIDENCE_BROKEN": "Liczby findingu NIE wystepuja w zadnym zachowanym surowym przebiegu. Nie cytowac do czasu regeneracji.",
-    "VEHICLE_MEASURED": "Zmierzone w PELNYM pojezdzie (nadwozie, zawieszenie, os skretu, predkosc), a nie na stendzie. Wprowadzone 2026-08-03: werdykt wlasciciela z jazdy pokazal, ze stend i pojazd to dwie rozne klasy dowodu i mieszanie ich pod jedna etykieta ukrywalo, ze najwazniejszego pytania nikt nie mierzyl."
+    "VEHICLE_MEASURED": "Zmierzone w PELNYM pojezdzie (nadwozie, zawieszenie, os skretu, predkosc), a nie na stendzie. Wprowadzone 2026-08-03: werdykt wlasciciela z jazdy pokazal, ze stend i pojazd to dwie rozne klasy dowodu i mieszanie ich pod jedna etykieta ukrywalo, ze najwazniejszego pytania nikt nie mierzyl.",
+    "ENGINE_MEASURED": "Zmierzone w kontrolowanym tescie kodu silnika/manifoldu, bez pelnego pojazdu. Nie jest findingiem starego stendu v2 i nie awansuje automatycznie na dowolna mape."
   },
   "findings": {
     "F-01": {
@@ -505,6 +506,24 @@
         "none"
       ],
       "code": "samples/validation/jozz_probes_ride.cpp; tools/jozz_wheel_bench/evidence/run_wheel_rigid_01_topology_2026_08_04.txt"
+    },
+    "F-40": {
+      "status": "ENGINE_FACT",
+      "claim": "WHEEL-SEAM-02A: b3Wheel vs triangle jest jednostronny i nie gubi kontaktu tylko dlatego, ze strict face support wypada poza barycentre. W takim przypadku finite boundary fallback wybiera najglebsza rzeczywista krawedz lub wierzcholek, a feature pair rozroznia TriangleFace / Edge1-3 / Vertex1-3 oraz support profilu kola.",
+      "scope": "Egzekwowane przez 9 nowych testow wheel: back-face negative regression, finite edge, finite vertex, stabilnosc edge feature podczas spin, distant-boundary negative regression, niski poziom coplanar seam, world mesh boundary, obciazony plaski seam i lagodnie zalamany seam. Nie obejmuje wheel-hull ani dowolnie ostrych/nie-manifold siatek. Surowy przebieg: evidence/run_wheel_seam_02a_2026_08_04.txt (raw-only).",
+      "evidence": [
+        "none"
+      ],
+      "code": "src/wheel_shape.c b3CollideWheelAndTriangle / b3CollideWheelAndSegment; test/test_wheel_shape.c"
+    },
+    "F-41": {
+      "status": "ENGINE_MEASURED",
+      "claim": "WHEEL-SEAM-02A: obciazone kolo przechodzi przez wspolplaszczyznowy szew bez luki i z dokladnie jednym solver pointem w obu kierunkach oraz trzech fazach obrotu. Na zalamaniu ok. 1.15 stopnia dopuszczalne 1-2 punkty utrzymuja ciagla normalna i sume impulsu w oknie 20% w obu kierunkach i dwoch fazach. Wheel-only wybor normalnej najglebszego zaakceptowanego manifoldu usunal przed-poprawkowy, zalezny od fazy skok impulsu +36.4%.",
+      "scope": "Plaski seam: staly featureId, dokladnie jeden handoff triangleIndex, najwyzej jeden reset persisted wynikajacy z obecnego klucza cache, brak churnu po obu stronach i impuls w oknie 5%. Fold: normal dot >0.995, 1-2 punkty i impuls po rozgrzewce w oknie 20%; prog zapisany przed finalna poprawka normalnej klastra. Pelne unity i ASan zielone, WheelShapeTest zielony pod UBSan. Pelny UBSan nie jest zielony z powodu odtworzonego na czystym 8472512, niezwiazanego misaligned store w src/compound.c:582. Dwa swieze przebiegi produktu sa bajtowo identyczne (sha256 396c7304983c), 19 + 2 probes OK. Nie dowodzi poprawnosci wheel-hull ani manualnego feelingu. Surowy przebieg: evidence/run_wheel_seam_02a_2026_08_04.txt (raw-only).",
+      "evidence": [
+        "none"
+      ],
+      "code": "src/mesh_contact.c wheel-only deepest cluster normal; test/test_wheel_shape.c RunLoadedFlatMeshSeamPass / RunLoadedFoldedMeshSeamPass"
     }
   }
 }

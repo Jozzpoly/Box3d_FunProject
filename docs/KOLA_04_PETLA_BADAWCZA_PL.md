@@ -161,11 +161,20 @@ crown `1,00 all/kolo` oraz `1,00 nios/kolo`; 3 mm nadal poprawiło zakręt
 (`0,053`→`0,061 m/s²`). Wniosek: confound liczby punktów usunięty; crown pozostaje
 zmienną geometryczną, nie podatnością.
 
-### WHEEL-SEAM-02 — trójkąty i krawędzie — AKTYWNY
+### WHEEL-SEAM-02A — trójkąty i mesh — ZAMKNIĘTY
 
-Dopiero po baseline: przejazd przez płaski szew dwóch trójkątów, granicę
-trójkąta, krawędź hulla i narożnik. Celem jest ciągłość kontaktu, nie strojenie
-komfortu. Brak edge/vertex fallbacku nie może być pomylony z twardością opony.
+Finite triangle fallback rozróżnia face/edge/vertex i odrzuca tylną stronę.
+Obciążony płaski szew przechodzi bez luki, z dokładnie jednym constraintem, w
+obu kierunkach i trzech fazach. Wariant `~1,15°` przechodzi w obu kierunkach i
+dwóch fazach; wheel-only normalna najgłębszego manifoldu usunęła zależny od
+fazy skok impulsu `+36,4%`. Pełny walidator produktu nie zmienił ani bajtu.
+
+### WHEEL-HULL-02B — krawędzie i narożniki hulla — AKTYWNY
+
+Następna niewiadoma jest odrębna: obecny wheel–hull wybiera ścianę, lecz używa
+jej jak nieskończonej płaszczyzny i nie ma kompletnego edge/axis SAT. Celem jest
+clipping do polygonu ściany, brak phantom contacts i ciągłość face→edge→vertex
+na rzeczywistych przeszkodach. Softness pozostaje zamrożona.
 
 ### WHEEL-SOFT-03 — lokalna podatność A/B
 

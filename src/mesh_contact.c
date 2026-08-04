@@ -930,6 +930,41 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 		}
 	}
 
+	// A wheel is rotationally smooth, so adjacent triangle manifolds with nearly
+	// equal normals are alternate samples of the same tread contact. Using the
+	// first BVH result as the cluster normal made the answer depend on triangle
+	// order and wheel phase: the solver could keep the flat normal while the
+	// deeper point was already on a shallow ramp, then apply a large correction
+	// when the representative normal finally switched. Pick the deepest wheel
+	// manifold deterministically; other convex shapes retain the existing rule.
+	if ( shapeB->type == b3_wheelShape )
+	{
+		for ( int clusterIndex = 0; clusterIndex < clusterCount; ++clusterIndex )
+		{
+			float bestSeparation = FLT_MAX;
+			for ( int manifoldIndex = 0; manifoldIndex < acceptedManifoldCount; ++manifoldIndex )
+			{
+				if ( clusterMemberships[manifoldIndex] != clusterIndex )
+				{
+					continue;
+				}
+
+				const b3LocalManifold* manifold = acceptedManifolds[manifoldIndex];
+				float minSeparation = manifold->points[0].separation;
+				for ( int pointIndex = 1; pointIndex < manifold->pointCount; ++pointIndex )
+				{
+					minSeparation = b3MinFloat( minSeparation, manifold->points[pointIndex].separation );
+				}
+				if ( minSeparation < bestSeparation )
+				{
+					bestSeparation = minSeparation;
+					clusters[clusterIndex].manifoldNormal = manifold->normal;
+					clusters[clusterIndex].triangleNormal = manifold->triangleNormal;
+				}
+			}
+		}
+	}
+
 	if ( clusterPointCount == 0 )
 	{
 		return false;
