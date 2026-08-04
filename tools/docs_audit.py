@@ -32,6 +32,7 @@ REQUIRED = [
     DOCS / "CHECKPOINTS_PL.md",
     DOCS / "TECH_DEBT_PL.md",
     DOCS / "JV_JES_HERITAGE_PL.md",
+    DOCS / "JV_RESEARCH_OS_PL.md",
     DOCS / "MAPA_INDEX_PL.md",
     DOCS / "ASSET_CONTRACT_PL.md",
     DOCS / "SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md",
@@ -55,6 +56,7 @@ ACTIVE_PROJECT_DOCS = {
     "HOTKEY_AUDIT_PL.md",  # forbidden below; kept here only for a clear error if restored
     "JV_DOCS_INDEX_PL.md",
     "JV_JES_HERITAGE_PL.md",
+    "JV_RESEARCH_OS_PL.md",
     "KOLA_00_INDEX_PL.md",
     "KOLA_01_DOWODY_PL.md",
     "KOLA_02_ARCHITEKTURA_PL.md",
@@ -85,6 +87,7 @@ REQUIRED_ROUTES = {
         "TECH_DEBT_PL.md",
         "MAPA_INDEX_PL.md",
         "JV_JES_HERITAGE_PL.md",
+        "JV_RESEARCH_OS_PL.md",
         "ASSET_CONTRACT_PL.md",
         "SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md",
         "SUBSYSTEM_UI_PRESETS_PL.md",
@@ -94,6 +97,7 @@ REQUIRED_ROUTES = {
         "KOLA_03_POLITYKA_BOX3D_PL.md",
         "KOLA_04_PETLA_BADAWCZA_PL.md",
         "KOLA_05_PROTOKOL_EKSPERYMENTU_PL.md",
+        "JV_RESEARCH_OS_PL.md",
         "KOLA_FINDINGS.json",
         "JOZZ_CORE_PATCHES.json",
     ],
@@ -101,6 +105,7 @@ REQUIRED_ROUTES = {
         "KOLA_00_INDEX_PL.md",
         "TECH_DEBT_PL.md",
         "MAPA_INDEX_PL.md",
+        "JV_RESEARCH_OS_PL.md",
     ],
     DOCS / "KOLA_00_INDEX_PL.md": [
         "KOLA_02_ARCHITEKTURA_PL.md",
@@ -110,6 +115,8 @@ REQUIRED_ROUTES = {
     ],
     DOCS / "KOLA_02_ARCHITEKTURA_PL.md": ["KOLA_03_POLITYKA_BOX3D_PL.md"],
     DOCS / "KOLA_04_PETLA_BADAWCZA_PL.md": ["KOLA_05_PROTOKOL_EKSPERYMENTU_PL.md"],
+    DOCS / "KOLA_05_PROTOKOL_EKSPERYMENTU_PL.md": ["JV_RESEARCH_OS_PL.md"],
+    DOCS / "JV_RESEARCH_OS_PL.md": ["tools/jv_lab.py", "tools/research/experiments/WHEEL-SOFT-03.json"],
     DOCS / "SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md": ["ASSET_CONTRACT_PL.md"],
 }
 

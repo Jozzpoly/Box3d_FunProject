@@ -165,6 +165,19 @@ Werdykt wymaga Q2, następnie Q3 na prostej i w zakręcie, a na końcu Q4 na mes
 Mierzymy dodatkowo kompresję, siłę/impuls normalny, stratę energii i wpływ na
 sterowanie.
 
+## 8.1 Wykonywalny kontrakt i JV Research OS
+
+Aktywny eksperyment ma maszynową specyfikację w
+`tools/research/experiments/` i jest prowadzony przez `python tools/jv_lab.py`.
+Kontrakt blokuje drugą zmienną główną, zapisuje `HEAD:index-tree`, wymaga
+artefaktów niezależnie od kodu wyjścia procesu i nie pozwala wznowić runu na
+zmienionej proposal.
+
+Awans Q2→Q3→Q4 wymaga zapieczętowanego parent runu oraz jawnej decyzji
+`SUPPORTED`/`STRONGLY_SUPPORTED`; zielony proces nie nadaje statusu wiedzy.
+Pełny kontrakt infrastruktury: `JV_RESEARCH_OS_PL.md`. Bieżący plan 03:
+`tools/research/experiments/WHEEL-SOFT-03.json`.
+
 ## 9. Status wyniku
 
 - `PROVISIONAL` — świeży przebieg, poprawny technicznie;

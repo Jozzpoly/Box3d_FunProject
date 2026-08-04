@@ -1,0 +1,123 @@
+{
+  "schema": "jv-experiment/v1",
+  "id": "VEHICLE-FLEET-STRESS-04",
+  "order": 40,
+  "depends_on_experiments": [
+    "WHEEL-SOFT-03"
+  ],
+  "title": "Wielopojazdowy stress lab i wspólne sterowanie",
+  "state": "planned",
+  "question": "Jak skaluje się pełny pojazd JV, jego kontakty i wybrany model koła wraz z liczbą jednocześnie aktywnych aut?",
+  "hypothesis": "Broadcast input lub deterministyczny autopilot pozwoli odtworzyć ten sam workload dla 1/4/8/16/32 pojazdów, ujawniając koszt kontaktów, narożników i przyszłej podatności bez mieszania go z AI.",
+  "primary_factor": "vehicle_count",
+  "baseline_variant": "FLEET_01",
+  "variants": [
+    {
+      "id": "FLEET_01",
+      "parameters": {
+        "vehicle_count": 1
+      }
+    },
+    {
+      "id": "FLEET_04",
+      "parameters": {
+        "vehicle_count": 4
+      }
+    },
+    {
+      "id": "FLEET_08",
+      "parameters": {
+        "vehicle_count": 8
+      }
+    },
+    {
+      "id": "FLEET_16",
+      "parameters": {
+        "vehicle_count": 16
+      }
+    },
+    {
+      "id": "FLEET_32",
+      "parameters": {
+        "vehicle_count": 32
+      }
+    }
+  ],
+  "locked_factors": {
+    "vehicle_revision": "one immutable full JV config per campaign",
+    "wheel_model": "one selected wheel/contact model per campaign",
+    "input_trace": "identical broadcast trace or deterministic autopilot seed",
+    "spawn_layout": "deterministic non-overlapping grid",
+    "terrain": "fixed plate or fixed obstacle field",
+    "time_step_and_substeps": "unchanged",
+    "worker_count": "fixed per campaign",
+    "camera_and_render": "disabled for headless performance campaign"
+  },
+  "confounds": [
+    "Changing vehicle count and wheel model in the same campaign would mix scale with model cost.",
+    "Manual driving creates a different workload for every run.",
+    "Rendering and camera visibility can dominate frame time and hide physics scaling.",
+    "Overlapping spawns create startup explosions rather than a representative vehicle workload.",
+    "Sleeping vehicles would make nominal fleet size differ from active fleet size."
+  ],
+  "levels": [
+    {
+      "id": "S1",
+      "rig": "headless flat plate fleet",
+      "purpose": "Measure pure vehicle/contact scaling with deterministic broadcast input.",
+      "depends_on": [],
+      "entry_gate": "Single vehicle reproduces the current validator and no vehicles overlap at spawn.",
+      "exit_gate": "Stable mean/p95/p99 timing and contact counts for 1/4/8/16/32 vehicles."
+    },
+    {
+      "id": "S2",
+      "rig": "headless obstacle field fleet",
+      "purpose": "Exercise seams, hull edges and difficult contact paths at fleet scale.",
+      "depends_on": [
+        "S1"
+      ],
+      "entry_gate": "S1 timing is repeatable and per-vehicle workload is understood.",
+      "exit_gate": "No crashes/non-finite states; expensive contact-path incidence and p99 cost are recorded."
+    },
+    {
+      "id": "S3",
+      "rig": "interactive fleet playground",
+      "purpose": "Let Jozz control all cars together or take over one while preserving the measured scenario.",
+      "depends_on": [
+        "S1",
+        "S2"
+      ],
+      "entry_gate": "Headless workload and controls are deterministic.",
+      "exit_gate": "Interactive mode reproduces the same spawn/input contract and exposes live fleet telemetry."
+    }
+  ],
+  "metrics": [
+    "physics step mean/p50/p95/p99/max",
+    "active and sleeping vehicle count",
+    "body/shape/contact/manifold/constraint counts",
+    "hard-path wheel-hull and mesh-contact incidence",
+    "worker utilization and task count",
+    "memory high-water mark",
+    "non-finite or escaped vehicle count",
+    "per-vehicle distance and input-trace completion"
+  ],
+  "promotion_rules": [
+    "Scale campaigns change only vehicle_count.",
+    "Wheel/contact model comparisons are separate campaigns using the same fleet-count matrix.",
+    "S2 begins only after S1 establishes a stable cost baseline.",
+    "Interactive S3 is a product/tooling layer, not evidence unless it replays the deterministic trace.",
+    "A fleet size that exceeds the frame budget remains a valid measured result, not a failed experiment."
+  ],
+  "manual_gates": [
+    "Jozz can broadcast throttle/steer/brake to all vehicles.",
+    "Jozz can select and take over one vehicle without changing the others' deterministic controller.",
+    "The lab visibly reports active fleet size, physics p95/p99 and contact pressure instead of only FPS."
+  ],
+  "blockers": [
+    "Finish WHEEL-SOFT-03A so fleet campaigns can lock an explicit wheel-contact model.",
+    "Refactor vehicle creation into a reusable fleet-safe spawn API.",
+    "Add deterministic broadcast input trace and minimal autopilot independent of gameplay AI.",
+    "Expose per-step physics/contact counters in a machine-readable headless result.",
+    "Separate headless validation from GUI/NFD/GTK dependencies in CMake."
+  ]
+}

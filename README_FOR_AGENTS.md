@@ -44,8 +44,9 @@ Czytaj w tej kolejności:
 3. `docs/CHECKPOINTS_PL.md` — krótki dziennik najnowszych zmian;
 4. `docs/TECH_DEBT_PL.md` — wyłącznie otwarty dług;
 5. `docs/KOLA_00_INDEX_PL.md` — program badawczy koła/opony;
-6. dokument subsystemu, którego dotykasz;
-7. `docs/archive/` — tylko po historię i uzasadnienie dawnych decyzji.
+6. `docs/JV_RESEARCH_OS_PL.md` — wykonywalny cykl spec → run → decyzja → awans;
+7. dokument subsystemu, którego dotykasz;
+8. `docs/archive/` — tylko po historię i uzasadnienie dawnych decyzji.
 
 Gdy dokumenty się różnią, wygrywa kod + świeży pomiar + powyższa hierarchia.
 Dokument z archiwum nigdy nie jest instrukcją bieżącej pracy.
@@ -93,6 +94,9 @@ python tools/jv_gate.py quick  # normalny checkpoint
 python tools/jv_gate.py deep   # dokumentacja, infrastruktura i regresje danych
 python tools/jv_gate.py wheel  # dodatkowo lokalny Wheel Scope z gotowym buildem
 python tools/jv_gate.py full   # pełna bramka produktu na Windows
+
+python tools/jv_lab.py next    # najbliższy wykonywalny/odblokowywany eksperyment
+python tools/jv_lab.py plan tools/research/experiments/WHEEL-SOFT-03.json
 ```
 
 Przed checkpointem stage'uj kompletną propozycję. Bramka odmawia pracy, gdy
@@ -106,7 +110,9 @@ dowodowego. Bramka drukuje token `HEAD:index-tree`. Po przerwaniu wznowienie od
 `--start-at N` wymaga podania tego samego `--proposal-token`; zmieniona propozycja
 nie może ominąć wcześniejszych kontroli. `--stop-after N` wykonuje ograniczony
 zakres i kończy komunikatem `PARTIAL OK`, nigdy fałszywym sukcesem całego profilu.
-Pojedyncze „OK” składnika nie zastępuje pełnego profilu.
+Pojedyncze „OK” składnika nie zastępuje pełnego profilu. `deep` uruchamia też
+regresje JV Research OS, więc zmiana runnera, specyfikacji lub reguł awansu nie
+może ominąć checkpointu.
 
 Czystą paczkę źródłową twórz przez `python tools/export_source.py`; skrypt czyta
 bajty wyłącznie z commitowanego drzewa `HEAD`, więc nie pakuje brudnego worktree,

@@ -1,6 +1,6 @@
 # Current State Index — Jozz Vehicle
 
-Data odświeżenia: 2026-08-04
+Data odświeżenia: 2026-08-05
 Snapshot bazowy: `jozz-scan-terrain-f0` @ `5b92e9c`
 Status: bieżące źródło prawdy; historia w `archive/` i Git.
 
@@ -97,6 +97,12 @@ już w ramach seam/soft, bez ponownego otwierania topologii plane.
 
 ### Etap C — A/B podatności — AKTYWNY NASTĘPNY KROK (`WHEEL-SOFT-03`)
 
+Maszynowy kontrakt eksperymentu istnieje w
+`tools/research/experiments/WHEEL-SOFT-03.json`, a wspólny cykl opisuje
+`JV_RESEARCH_OS_PL.md`. Jego kolejność, blokady,
+warianty i awans Q2→Q3→Q4 obsługuje `python tools/jv_lab.py`. Stan pozostaje
+`blocked` do czasu lokalnego hooka softness i command contractu `metrics.json`.
+
 Ta sama geometria, te same feature IDs, punkty manifoldu, masa, tarcie,
 zawieszenie i podkroki:
 
@@ -147,12 +153,19 @@ Szczegóły: `JV_JES_HERITAGE_PL.md`.
 
 ## 7. Minimalna bramka następnego commita
 
-- wheel–hull face polygon clipping i test negatywny phantom corner;
-- edge/axis separation oraz przejście face→edge→vertex bez znikania kontaktu;
-- przejście 16 istniejących testów koła i pełnego walidatora pojazdu;
-- brak zmiany masy, tarcia, profilu i softness w tej paczce;
-- `python tools/docs_audit.py`;
-- `python tools/repo_hygiene.py`;
-- `python tools/jozz_core_delta.py` przy delcie `src/`/`include/`;
-- `git diff --check`;
-- wpis w `CHECKPOINTS_PL.md` i aktualizacja długu.
+Pakiet `WHEEL-SOFT-03A` ma zbudować wyłącznie infrastrukturę lokalnej
+podatności, bez strojenia wyniku:
+
+- `0/default` zachowuje bitowo/metrycznie baseline `241fe10`;
+- wheel-local Hertz/damping jest wybierany w obu prepare paths: convex i mesh;
+- nie zmienia tarcia, rolling resistance, geometrii, liczby punktów ani feature IDs;
+- non-wheel contacts nadal używają wyłącznie ustawień świata;
+- Q2 zapisuje maszynowy `metrics.json` do `{case_dir}`;
+- `WHEEL-SOFT-03.json` przechodzi ze stanu `blocked` do `ready` dopiero po tych testach;
+- `python tools/research/test_jv_experiment.py`;
+- `python tools/jv_gate.py deep`;
+- pełny validator produktu na Windows;
+- wpis w `CHECKPOINTS_PL.md` i aktualizacja `TECH_DEBT_PL.md`.
+
+Nie zmieniać jeszcze wartości domyślnych pojazdu ani nie wybierać „najlepszej”
+miękkości w tym samym commicie.

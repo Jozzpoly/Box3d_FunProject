@@ -1,0 +1,117 @@
+{
+  "schema": "jv-experiment/v1",
+  "id": "WHEEL-SOFT-03",
+  "order": 30,
+  "depends_on_experiments": [],
+  "title": "Lokalna podatność normalna koła przy zamrożonym manifoldzie",
+  "state": "blocked",
+  "question": "Czy lokalna podatność normalnego kontaktu wheel-ground zmniejsza drgania i szczyty obciążenia bez zmiany geometrii, topologii manifoldu ani zachowania stycznego?",
+  "hypothesis": "Zmniejszenie wheel-specific contact Hertz da mierzalne ugięcie i obniży pionowe piki, a zakres pośredni zachowa energię, trwałość kontaktu oraz sterowanie lepiej niż skrajnie miękki wariant.",
+  "primary_factor": "wheel_contact_hertz_scale",
+  "baseline_variant": "A_WORLD_1_00",
+  "variants": [
+    {
+      "id": "A_WORLD_1_00",
+      "parameters": {
+        "wheel_contact_hertz_scale": 1.0
+      }
+    },
+    {
+      "id": "B_LOCAL_0_75",
+      "parameters": {
+        "wheel_contact_hertz_scale": 0.75
+      }
+    },
+    {
+      "id": "B_LOCAL_0_50",
+      "parameters": {
+        "wheel_contact_hertz_scale": 0.5
+      }
+    },
+    {
+      "id": "B_LOCAL_0_25",
+      "parameters": {
+        "wheel_contact_hertz_scale": 0.25
+      }
+    }
+  ],
+  "locked_factors": {
+    "geometry": "b3Wheel profile and cornerRadius bit-identical to 241fe10 baseline",
+    "manifold_topology": "strict rigid support; identical point count and feature IDs",
+    "contact_damping_ratio": "world value during first Hertz sweep",
+    "friction_and_rolling_resistance": "unchanged",
+    "wheel_mass_and_inertia": "unchanged",
+    "suspension_and_steering": "unchanged",
+    "time_step_and_substeps": "unchanged",
+    "ground_geometry": "identical within each paired run",
+    "random_seed": "fixed per scene"
+  },
+  "confounds": [
+    "Changing damping together with Hertz would prevent attribution.",
+    "Changing crown/profile or manifold point count would reintroduce the topology confound removed by WHEEL-RIGID-01.",
+    "Global world contact softness would affect chassis, props and every other collision.",
+    "Tuning vehicle feeling before the tire decision could mask the physical effect.",
+    "Comparing runs with different time step, substeps or warm-up windows would invalidate energy and peak metrics."
+  ],
+  "levels": [
+    {
+      "id": "Q2",
+      "rig": "single loaded wheel / quarter-car contact rig",
+      "purpose": "Isolate normal compliance, compression and energy response before vehicle coupling.",
+      "depends_on": [],
+      "entry_gate": "Zero-override parity with 241fe10 and identical manifold IDs/counts.",
+      "exit_gate": "Repeatable compression curve, finite metrics, no topology drift and at least one candidate distinguishable from baseline."
+    },
+    {
+      "id": "Q3",
+      "rig": "full JV vehicle on plate and controlled bump",
+      "purpose": "Transfer the Q2 mechanism to sprung mass without changing vehicle tuning.",
+      "depends_on": [
+        "Q2"
+      ],
+      "entry_gate": "Q2 decision packet is READY_FOR_ANALYSIS and a candidate range is selected without changing locked factors.",
+      "exit_gate": "Straight and bump runs repeat; acceleration/travel/energy effects agree in sign with Q2 and contact persistence remains stable."
+    },
+    {
+      "id": "Q4",
+      "rig": "full vehicle on triangle mesh and controlled corner",
+      "purpose": "Check transfer to real terrain topology and steering load.",
+      "depends_on": [
+        "Q2",
+        "Q3"
+      ],
+      "entry_gate": "Q3 transfer succeeded without retuning suspension or steering.",
+      "exit_gate": "No new seam/corner regression, performance remains acceptable and Jozz completes manual feeling gate."
+    }
+  ],
+  "metrics": [
+    "normal compression mean/rms/peak",
+    "normal impulse and reconstructed force curve",
+    "sprung-mass vertical acceleration rms/peak",
+    "dynamic suspension travel rms/peak",
+    "contact point count, load-bearing point count and feature-ID persistence",
+    "energy loss per distance and terminal speed",
+    "settling time after controlled bump",
+    "physics step mean/p95/p99",
+    "steering angle/yaw response during Q4"
+  ],
+  "promotion_rules": [
+    "A level may advance only after its baseline and every promoted candidate are repeated from the same immutable proposal.",
+    "A candidate with topology drift, non-finite metrics or missing artifacts is INCONCLUSIVE, not a win.",
+    "Q2 must identify a mechanism before Q3 vehicle testing.",
+    "Q3 must preserve the sign of the Q2 effect before Q4 terrain testing.",
+    "No default vehicle parameter changes are allowed inside WHEEL-SOFT-03.",
+    "Status SUPPORTED or REFUTED is assigned after analysis, never by the runner."
+  ],
+  "manual_gates": [
+    "Jozz checks for obvious sinking, delayed steering response, bouncing and unnatural sticky contact in Q4.",
+    "Any feeling change is recorded but does not automatically reject the mechanism because the current vehicle tune is provisional.",
+    "A visible or audible regression must be reproducible before reopening manifold geometry."
+  ],
+  "blockers": [
+    "Implement a wheel-local normal softness override with zero/default parity in both convex and mesh contact preparation paths.",
+    "Expose machine-readable Q2 metrics without changing the existing baseline scene.",
+    "Add a headless command contract for one case that writes metrics.json into {case_dir}.",
+    "Add tests proving local softness does not alter friction, manifold topology, feature IDs or non-wheel contacts."
+  ]
+}

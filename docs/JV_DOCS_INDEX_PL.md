@@ -13,6 +13,7 @@ agenta i brak równoległych „aktualnych planów”.
 | `TECH_DEBT_PL.md` | wyłącznie otwarty dług |
 | `MAPA_INDEX_PL.md` | stan mapy i skanów |
 | `JV_JES_HERITAGE_PL.md` | granica transferu JV → JES |
+| `JV_RESEARCH_OS_PL.md` | wykonywalny system spec → immutable run → decyzja → awans |
 
 Czytanie zaczyna się od `README_FOR_AGENTS.md`, nie od wyszukiwarki po `docs/`.
 
@@ -66,6 +67,7 @@ Mapa: `archive/README_PL.md`.
 - `python tools/jv_gate.py quick` — normalny checkpoint;
 - `python tools/jv_gate.py deep` — dokumentacja/infrastruktura i testy regresji;
 - `python tools/jv_gate.py wheel` — dodatkowo lokalne bramki Wheel Scope;
+- `python tools/jv_lab.py next|plan|start|resume|seal|decide` — cykl aktywnego eksperymentu;
 - `python tools/docs_audit.py` — autorytet, routing i code–docs drift;
 - `python tools/repo_hygiene.py` — przenośność i czystość commitowanego drzewa;
 - `python tools/export_source.py` — deterministyczny ZIP z `HEAD`.

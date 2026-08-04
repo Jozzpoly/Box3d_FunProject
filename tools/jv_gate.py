@@ -39,6 +39,7 @@ QUICK = (
 
 DEEP = QUICK + (
     Gate("hygiene tool regressions", py("tools/test_hygiene.py")),
+    Gate("JV Research OS regressions", py("tools/research/test_jv_experiment.py")),
     Gate("evidence regressions shard a (T1-T3)", py("tools/evidence/run_regression_tests.py", "--shard", "a")),
     Gate("evidence regressions shard b (T4-T5)", py("tools/evidence/run_regression_tests.py", "--shard", "b")),
     Gate("evidence regressions shard c (T6-T9)", py("tools/evidence/run_regression_tests.py", "--shard", "c")),

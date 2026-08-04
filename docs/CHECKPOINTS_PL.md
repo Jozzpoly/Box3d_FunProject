@@ -3,6 +3,12 @@
 Krótki dziennik najnowszego stanu. Wpis ma maksymalnie: CO / CZEMU / EFEKT / DALEJ.
 Starsze wpisy: `archive/ledgers/CHECKPOINTS_2026-07_PL.md`.
 
+## 2026-08-05 · JV Research OS — wykonywalne eksperymenty
+- CO: dodano `jv_lab.py`, kontrakty `WHEEL-SOFT-03`/`VEHICLE-FLEET-STRESS-04`, immutable runy, resume po tokenie proposal, wymagane artefakty i jawne decyzje parent-run.
+- CZEMU: bramki jakości i evidence nie prowadziły aktywnego A/B ani nie wymuszały jednej zmiennej i awansu rigów.
+- EFEKT: 10 regresji runnera; brak `metrics.json` jest FAIL, zmiana proposal blokuje resume, a Q3/Q4 wymagają zapieczętowanego i zatwierdzonego wcześniejszego rigu.
+- DALEJ: `WHEEL-SOFT-03A` — lokalny hook softness + Q2 metrics; spec pozostaje `blocked` do czasu zero-delta parity.
+
 ## 2026-08-04 · WHEEL-HULL-02B — finite hully i narożniki
 - CO: face clipping do polygonu, konserwatywny face-prism fast path, feature walk oraz numeryczne osie edge/vertex-cone ze stabilnymi IDs.
 - CZEMU: nieskończona płaszczyzna dawała phantom corners, a search ograniczony do najlepszej ściany gubił odległy support vertex i wnętrze stożka wierzchołka.

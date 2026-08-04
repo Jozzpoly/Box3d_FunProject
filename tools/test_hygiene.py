@@ -120,6 +120,7 @@ class HygieneToolsTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("proposal completeness", result.stdout)
         self.assertIn("documentation authority and routing", result.stdout)
+        self.assertIn("JV Research OS regressions", result.stdout)
         shard_keys = re.findall(r"evidence regressions shard ([a-k])", result.stdout)
         self.assertEqual(shard_keys, list("abcdefghijk"))
 

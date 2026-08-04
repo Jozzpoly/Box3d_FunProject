@@ -11,6 +11,9 @@ Skala: **P0** blokuje wiarygodność badań, **P1** blokuje następny etap produ
 
 Globalne `contactHertz` zmienia wszystkie kontakty świata. Nie istnieje lokalny
 override wheel–ground, więc „miękka opona” miesza się z miękkością całej sceny.
+Maszynowy plan A/B i drabina awansu istnieją już jako
+`tools/research/experiments/WHEEL-SOFT-03.json`; otwarta blokada jest teraz
+wyłącznie w runtime/telemetrii, nie w organizacji eksperymentu.
 
 **Spłata:** per-wheel lub per-material normal softness, wybierana w obu ścieżkach
 prepare contact; A/B przy identycznym manifoldzie.
