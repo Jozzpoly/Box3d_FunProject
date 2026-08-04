@@ -60,7 +60,7 @@ Własności wymagane:
 | Ścieżka | Stan | Kontrakt |
 |---|---|---|
 | AABB / swept AABB | dokładna dla obwiedni profilu | broad phase |
-| wheel–plane | dedykowana, lecz topologia do naprawy | `WHEEL-RIGID-01` |
+| wheel–plane | exact dla support feature profilu | 1 vertex albo 2 końce segmentu |
 | wheel–triangle | dedykowana, brak pełnego seam fallback | `WHEEL-SEAM-02` |
 | wheel–hull | dedykowana, niepełny convex–convex | po seam |
 | wheel–capsule/sphere | dedykowana projekcja | bumpery i proste przeszkody |
@@ -81,8 +81,10 @@ Dla ciągłej, sztywnej powierzchni i płaszczyzny:
   `B3_SPECULATIVE_DISTANCE`.
 
 Speculative distance odpowiada za istnienie kontaktu, nie za model deformacji.
-Feature ID ma identyfikować faktyczny support feature i przeżywać obrót koła.
-To jest baseline, od którego mierzymy każdą późniejszą podatność.
+Feature ID identyfikuje znormalizowany indeks końca support feature i przeżywa
+obrót koła. Ten kontrakt jest egzekwowany przez testy overlapu, camber, granicy
+speculative distance i warm-start persistence. To jest zamknięty baseline, od
+którego mierzymy każdą późniejszą podatność.
 
 ## 6. Teren i krawędzie
 

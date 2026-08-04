@@ -138,7 +138,7 @@ który właśnie wykonaliśmy?** Odpowiedź ulepsza następny cykl.
 
 ## 3. Bieżąca kolejka rekurencji
 
-### WHEEL-RIGID-01 — rygorystyczny baseline manifoldu
+### WHEEL-RIGID-01 — rygorystyczny baseline manifoldu — ZAMKNIĘTY
 
 Cel: oddzielić prawdziwy support sztywnej bryły od sztucznego „odcisku”
 wywołanego wybieraniem wszystkich punktów profilu wewnątrz
@@ -154,10 +154,14 @@ A/B:
 Zamrożone: profil, crown, masa, tarcie, world softness, podkroki, prędkość,
 zawieszenie i warunki startowe.
 
-Mierzone: liczba punktów, `featureId`, persistence, rozkład impulsu, penetracja,
-`a_rms`, skok zawieszenia i utrata kontaktu.
+Wynik: strict support jest wdrożony i testowany. Dwa pełne przebiegi produktu
+były bajtowo identyczne i zielone. Rozdzielona telemetria pokazała dla każdego
+crown `1,00 all/kolo` oraz `1,00 nios/kolo`; 3 mm nadal poprawiło zakręt
+(`0,571`→`0,436 m/s²`), ale pogorszyło prostą
+(`0,053`→`0,061 m/s²`). Wniosek: confound liczby punktów usunięty; crown pozostaje
+zmienną geometryczną, nie podatnością.
 
-### WHEEL-SEAM-02 — trójkąty i krawędzie
+### WHEEL-SEAM-02 — trójkąty i krawędzie — AKTYWNY
 
 Dopiero po baseline: przejazd przez płaski szew dwóch trójkątów, granicę
 trójkąta, krawędź hulla i narożnik. Celem jest ciągłość kontaktu, nie strojenie

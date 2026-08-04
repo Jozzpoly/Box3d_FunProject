@@ -66,6 +66,18 @@
       "sha256": "148a948f4fb55e693624cba6461c8777d80bfec49e186dae73f660779ba0d632",
       "bytes": 4293,
       "mode": "raw-only"
+    },
+    "wheel_rigid_01_2026_08_04": {
+      "file": "run_wheel_rigid_01_2026_08_04.txt",
+      "sha256": "237e43b5c2849c01554f9912446c1cd53d528b2b4f770d5b7a1ab4aca284781a",
+      "bytes": 54545,
+      "mode": "raw-only"
+    },
+    "wheel_rigid_01_topology_2026_08_04": {
+      "file": "run_wheel_rigid_01_topology_2026_08_04.txt",
+      "sha256": "cdfabbbdd9d1ff0f181e2a450da2253e29948258be1b0b4e328d84052507f783",
+      "bytes": 55673,
+      "mode": "raw-only"
     }
   }
 }

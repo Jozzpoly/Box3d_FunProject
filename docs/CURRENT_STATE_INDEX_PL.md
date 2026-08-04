@@ -23,16 +23,26 @@ bieżni raportuje m.in. poprawę drgań w zakręcie dla 3 mm crown drop. Te licz
 **zapisanym wynikiem eksperymentów projektu**, nie zostały ponownie odtworzone w
 trakcie porządków dokumentacji.
 
-Krytyczne zastrzeżenie: kod manifoldu płaszczyzny wybiera wszystkie wierzchołki
-profilu mieszczące się w `B3_SPECULATIVE_DISTANCE`. Zatem wzrost liczby punktów
-z obciążeniem może być skutkiem próbkowania i dystansu spekulacyjnego, a nie
-odkształcenia opony. Obecne dane nie dowodzą jeszcze fizycznego „rosnącego śladu”.
+`WHEEL-RIGID-01` został odtworzony lokalnie i zamknięty testem czerwony→zielony (`F-38`).
+Manifold płaszczyzny raportuje teraz rzeczywisty support sztywnego profilu: jeden
+wierzchołek albo dwa końce równoległego segmentu. `B3_SPECULATIVE_DISTANCE`
+decyduje wyłącznie o istnieniu kontaktu, nie o szerokości śladu. Sztywne koło
+nie udaje już deformacji przez aktywowanie pobliskich próbek.
+
+Pełny walidator pojazdu przeszedł dwukrotnie i dał bajtowo identyczne wyjście:
+19 sond + 2 sondy mapy, `OK`. Rozszerzona telemetria rozdzieliła wszystkie
+punkty manifoldu od punktów faktycznie niosących impuls; w sweepie crown każdy
+wariant miał stale `1,00 all/kolo` i `1,00 nios/kolo`. Mimo usunięcia confoundu
+speculative candidates 3 mm nadal obniżyło `a_rms` w
+zakręcie z `0,571` do `0,436 m/s²`; na prostej pogorszyło wynik z `0,053` do
+`0,061 m/s²`. Jest to odtworzony efekt geometrii w tym jednym deterministycznym
+protokole (`F-39`), nie dowód podatności ani uniwersalnie lepszej opony.
 
 ## 3. Najbliższy program badawczy
 
 Front door programu: `KOLA_00_INDEX_PL.md`.
 
-### Etap A — rygorystyczny baseline sztywny
+### Etap A — rygorystyczny baseline sztywny — ZAMKNIĘTY (`WHEEL-RIGID-01`)
 
 Dla ciągłego, odcinkowo-liniowego profilu:
 
@@ -42,10 +52,12 @@ Dla ciągłego, odcinkowo-liniowego profilu:
 - feature ID identyfikuje rzeczywistą cechę supportu i pozostaje stabilny przy
   obrocie koła.
 
-Sonda ma raportować liczbę punktów, trwałość, rozkład impulsów, `a_rms` i wykrywać
-sztuczny wzrost 1→3 punktów wskutek samego overlapu.
+Testy sprawdzają topologię przy różnym overlapie, camber, limit pojemności,
+granicę speculative distance oraz trwałość `featureId` podczas rzeczywistego
+obrotu dynamicznego koła. Następne rozszerzenie telemetryczne należy wykonywać
+już w ramach seam/soft, bez ponownego otwierania topologii plane.
 
-### Etap B — poprawność terenu
+### Etap B — poprawność terenu — AKTYWNY NASTĘPNY KROK (`WHEEL-SEAM-02`)
 
 - test przejazdu przez szew dwóch współpłaszczyznowych trójkątów;
 - fallback krawędź/wierzchołek dla kontaktu wheel–triangle;
@@ -73,7 +85,6 @@ powierzchnię zapytań. Nie wracać do wielu niezależnych stockowych collideró
 
 ## 4. Otwarte ograniczenia implementacji
 
-- wheel–plane obecnie miesza support i speculative candidates;
 - wheel–triangle filtruje punkty testem barycentrycznym bez pełnego fallbacku
   krawędzi/wierzchołka;
 - wheel–hull opiera się głównie na normalnych ścian i płaszczyźnie, bez pełnego
@@ -104,8 +115,9 @@ Szczegóły: `JV_JES_HERITAGE_PL.md`.
 
 ## 7. Minimalna bramka następnego commita
 
-- nowy test manifold topology;
-- przejście istniejących testów koła;
+- seam probe dwóch współpłaszczyznowych trójkątów;
+- test face→edge→vertex bez znikania kontaktu;
+- przejście istniejących testów koła i pełnego walidatora pojazdu;
 - brak zmiany masy, tarcia i geometrii w A/B;
 - `python tools/docs_audit.py`;
 - `python tools/repo_hygiene.py`;

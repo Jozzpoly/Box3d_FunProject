@@ -7,14 +7,6 @@ Ten plik zawiera **wyłącznie otwarty dług**. Zamknięte i historyczne punkty 
 Skala: **P0** blokuje wiarygodność badań, **P1** blokuje następny etap produktu,
 **P2** ważne, ale może poczekać, **P3** dziedzictwo JV bez wpływu na JES.
 
-## P0-1 — Topologia manifoldu udaje odcisk opony
-
-`b3CollideWheelAndPlane` aktywuje wierzchołki profilu mieszczące się w dystansie
-spekulacyjnym. Liczba punktów zależy więc od overlapu i próbkowania profilu.
-Wynik 3 mm crown nie izoluje geometrii od topologii kontaktu.
-
-**Spłata:** rygorystyczny support vertex/segment + sonda kontakt count/persistence.
-
 ## P0-2 — Brak czystego eksperymentu podatności
 
 Globalne `contactHertz` zmienia wszystkie kontakty świata. Nie istnieje lokalny

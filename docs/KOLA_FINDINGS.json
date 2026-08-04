@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "purpose": "Jedyne miejsce, w ktorym zyje AKTUALNY status kazdego findingu F-xx / P-xx. Dokumenty KOLA_*.md moga finding OPISYWAC, ale nie moga nadawac mu statusu. Sprawdzane przez tools/evidence/evidence.py check.",
-  "updated": "2026-08-03",
+  "updated": "2026-08-04",
   "statuses": {
     "ENGINE_FACT": "Wlasciwosc kodu Box3D, weryfikowalna przez odczyt zrodla. Nie wymaga transferu Q2-Q4.",
     "MATH_FACT": "Czysta matematyka badanych funkcji, bez silnika. Nie wymaga transferu.",
@@ -487,6 +487,24 @@
         "none"
       ],
       "code": "samples/validation/jozz_probes_ride.cpp"
+    },
+    "F-38": {
+      "status": "ENGINE_FACT",
+      "claim": "WHEEL-RIGID-01: kontakt b3Wheel z płaszczyzną ma ścisłą topologię supportu. Unikalny support vertex daje 1 punkt, rzeczywisty segment równoległy do płaszczyzny daje 2 końce; głębszy overlap nie dodaje próbek profilu, a B3_SPECULATIVE_DISTANCE wyłącznie bramkuje istnienie kontaktu.",
+      "scope": "Egzekwowane przez 7 testów: crown przy trzech separacjach, flat segment przy trzech separacjach, spin, 5° camber, caller capacity=1, brak kontaktu poza speculative distance oraz world-level featureId/persisted podczas obrotu. ASan i UBSan zielone. Nie obejmuje jeszcze fallbacku edge/vertex dla granicy trójkąta ani pełnego wheel-hull SAT.",
+      "evidence": [
+        "none"
+      ],
+      "code": "src/wheel_shape.c b3WheelProfileSupportFeature / b3CollideWheelAndPlane; test/test_wheel_shape.c"
+    },
+    "F-39": {
+      "status": "VEHICLE_MEASURED",
+      "claim": "Po usunięciu speculative-candidate bias wszystkie warianty crown mają 1.00 wszystkich punktów manifoldu/kolo i 1.00 punktów z dodatnim impulsem/kolo. Mimo tego 3 mm crown nadal obniża a_rms w zakręcie z 0.571 do 0.436 m/s2, podczas gdy na prostej podnosi je z 0.053 do 0.061 m/s2. Warianty 10 i 30 mm dają w tym protokole 0.471 w zakręcie i 0.061 na prostej.",
+      "scope": "Pełny headless jozz_vehicle_validation, ta sama geometria pojazdu i parametry poza crown, dwa kolejne lokalne przebiegi o bajtowo identycznym stdout (sha256 396c7304983c). Telemetria rozdziela wszystkie punkty manifoldu (`all/kolo`) od punktów z dodatnim totalNormalImpulse (`nios/kolo`). Walidator zakończył 19 sond + 2 map probes, OK. Wynik usuwa bias speculative candidates i w tym oknie nie pokazuje różnicy liczby punktów; nie dowodzi deformacji, optymalnego feelingu ani transferu na nierówny teren.",
+      "evidence": [
+        "none"
+      ],
+      "code": "samples/validation/jozz_probes_ride.cpp; tools/jozz_wheel_bench/evidence/run_wheel_rigid_01_topology_2026_08_04.txt"
     }
   }
 }

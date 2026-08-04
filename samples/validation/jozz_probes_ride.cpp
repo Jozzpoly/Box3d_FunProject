@@ -53,7 +53,8 @@ struct RideSample
 	float accelRms;	 // chassis vertical acceleration, m/s^2
 	float accelMax;	 // worst single step
 	float travelRms; // suspension travel motion, mm - is the shake absorbed or passed through?
-	float pointsPerWheel;
+	float manifoldPointsPerWheel;
+	float loadedPointsPerWheel;
 	float freshPercent; // share of loaded contact points the solver had to re-seed this step
 	bool finite;
 };
@@ -62,7 +63,7 @@ struct RideSample
 // A contact the solver has seen before carries its warm-started impulse; a
 // fresh one starts from zero. A wheel whose contact set is replaced every step
 // gets no warm start at all, which is a force discontinuity on every step.
-void SampleWheelContacts( b3BodyId wheelId, int* loadedOut, int* freshOut )
+void SampleWheelContacts( b3BodyId wheelId, int* manifoldOut, int* loadedOut, int* freshOut )
 {
 	static b3ContactData contacts[128];
 	int count = b3Body_GetContactData( wheelId, contacts, 128 );
@@ -73,6 +74,7 @@ void SampleWheelContacts( b3BodyId wheelId, int* loadedOut, int* freshOut )
 			const b3Manifold* manifold = &contacts[i].manifolds[m];
 			for ( int k = 0; k < manifold->pointCount; ++k )
 			{
+				*manifoldOut += 1;
 				const b3ManifoldPoint* point = &manifold->points[k];
 				if ( point->totalNormalImpulse > 0.0f )
 				{
@@ -151,6 +153,7 @@ RideSample MeasureRide( const JozzVehiclePrimitiveDefaults& defaults, const Ride
 	double accelSumSq = 0.0;
 	double travelSumSq = 0.0;
 	double speedSum = 0.0;
+	double manifoldSum = 0.0;
 	double loadedSum = 0.0;
 	double freshSum = 0.0;
 	float previousVy = (float)b3Body_GetLinearVelocity( vehicle.chassisId ).y;
@@ -178,16 +181,18 @@ RideSample MeasureRide( const JozzVehiclePrimitiveDefaults& defaults, const Ride
 		}
 		speedSum += (double)GetJozzVehicleM6ForwardSpeed( vehicle );
 
+		int manifoldPoints = 0;
 		int loaded = 0;
 		int fresh = 0;
 		for ( int corner = 0; corner < JOZZ_M6_CORNER_COUNT; ++corner )
 		{
-			SampleWheelContacts( vehicle.corners[corner].wheelId, &loaded, &fresh );
+			SampleWheelContacts( vehicle.corners[corner].wheelId, &manifoldPoints, &loaded, &fresh );
 			float travel = GetJozzVehicleM6WheelTelemetry( vehicle, corner ).suspensionTravel;
 			float rate = ( travel - previousTravel[corner] ) * 1000.0f; // mm per step
 			previousTravel[corner] = travel;
 			travelSumSq += (double)rate * (double)rate;
 		}
+		manifoldSum += (double)manifoldPoints;
 		loadedSum += (double)loaded;
 		freshSum += (double)fresh;
 	}
@@ -195,7 +200,8 @@ RideSample MeasureRide( const JozzVehiclePrimitiveDefaults& defaults, const Ride
 	out.meanSpeed = (float)( speedSum / windowSteps );
 	out.accelRms = (float)std::sqrt( accelSumSq / windowSteps );
 	out.travelRms = (float)std::sqrt( travelSumSq / ( windowSteps * JOZZ_M6_CORNER_COUNT ) );
-	out.pointsPerWheel = (float)( loadedSum / ( windowSteps * JOZZ_M6_CORNER_COUNT ) );
+	out.manifoldPointsPerWheel = (float)( manifoldSum / ( windowSteps * JOZZ_M6_CORNER_COUNT ) );
+	out.loadedPointsPerWheel = (float)( loadedSum / ( windowSteps * JOZZ_M6_CORNER_COUNT ) );
 	out.freshPercent = loadedSum > 0.0 ? (float)( 100.0 * freshSum / loadedSum ) : 0.0f;
 	out.finite = IsM6VehicleStateValid( vehicle );
 
@@ -231,16 +237,17 @@ bool RunRideQualityDiagnosisProbe( const JozzVehiclePrimitiveDefaults& defaults 
 	};
 	const float speeds[] = { 8.0f, 16.0f, 24.0f };
 
-	const char* header = "  %-24s %6s %7s %8s %8s %9s %8s %8s\n";
-	const char* row = "  %-24s %6.1f %7.1f %8.3f %8.1f %9.4f %8.2f %7.1f%%\n";
-	std::printf( header, "obwiednia", "v_zad", "v_real", "a_rms", "a_max", "skok_rms", "pkt/kolo", "swieze%" );
+	const char* header = "  %-24s %6s %7s %8s %8s %9s %8s %8s %8s\n";
+	const char* row = "  %-24s %6.1f %7.1f %8.3f %8.1f %9.4f %8.2f %8.2f %7.1f%%\n";
+	std::printf( header, "obwiednia", "v_zad", "v_real", "a_rms", "a_max", "skok_rms", "all/kolo", "nios/kolo",
+				 "swieze%" );
 	for ( const RideEnvelope& envelope : envelopes )
 	{
 		for ( float speed : speeds )
 		{
 			RideSample sample = MeasureRide( defaults, envelope, speed, 0.0f, 4 );
 			std::printf( row, envelope.name, speed, sample.meanSpeed, sample.accelRms, sample.accelMax,
-						 sample.travelRms, sample.pointsPerWheel, sample.freshPercent );
+						 sample.travelRms, sample.manifoldPointsPerWheel, sample.loadedPointsPerWheel, sample.freshPercent );
 			allFinite &= sample.finite;
 		}
 	}
@@ -250,7 +257,7 @@ bool RunRideQualityDiagnosisProbe( const JozzVehiclePrimitiveDefaults& defaults 
 	{
 		RideSample sample = MeasureRide( defaults, envelope, 16.0f, 0.5f, 4 );
 		std::printf( row, envelope.name, 16.0f, sample.meanSpeed, sample.accelRms, sample.accelMax, sample.travelRms,
-					 sample.pointsPerWheel, sample.freshPercent );
+					 sample.manifoldPointsPerWheel, sample.loadedPointsPerWheel, sample.freshPercent );
 		allFinite &= sample.finite;
 	}
 
@@ -273,7 +280,7 @@ bool RunRideQualityDiagnosisProbe( const JozzVehiclePrimitiveDefaults& defaults 
 			char label[40];
 			std::snprintf( label, sizeof( label ), "%s @ %d podkr.", envelope.name, subSteps );
 			std::printf( row, label, 16.0f, sample.meanSpeed, sample.accelRms, sample.accelMax, sample.travelRms,
-						 sample.pointsPerWheel, sample.freshPercent );
+						 sample.manifoldPointsPerWheel, sample.loadedPointsPerWheel, sample.freshPercent );
 			allFinite &= sample.finite;
 		}
 	}
@@ -291,7 +298,7 @@ bool RunRideQualityDiagnosisProbe( const JozzVehiclePrimitiveDefaults& defaults 
 		char label[40];
 		std::snprintf( label, sizeof( label ), "walec %d scianek", sides );
 		std::printf( row, label, 16.0f, sample.meanSpeed, sample.accelRms, sample.accelMax, sample.travelRms,
-					 sample.pointsPerWheel, sample.freshPercent );
+					 sample.manifoldPointsPerWheel, sample.loadedPointsPerWheel, sample.freshPercent );
 		allFinite &= sample.finite;
 	}
 
@@ -309,7 +316,7 @@ bool RunRideQualityDiagnosisProbe( const JozzVehiclePrimitiveDefaults& defaults 
 		char label[40];
 		std::snprintf( label, sizeof( label ), "%s /mesh", envelope.name );
 		std::printf( row, label, 16.0f, sample.meanSpeed, sample.accelRms, sample.accelMax, sample.travelRms,
-					 sample.pointsPerWheel, sample.freshPercent );
+					 sample.manifoldPointsPerWheel, sample.loadedPointsPerWheel, sample.freshPercent );
 		allFinite &= sample.finite;
 	}
 
@@ -328,7 +335,7 @@ bool RunRideQualityDiagnosisProbe( const JozzVehiclePrimitiveDefaults& defaults 
 	{
 		RideSample sample = MeasureRide( defaults, envelope, 16.0f, 0.0f, 4 );
 		std::printf( row, envelope.name, 16.0f, sample.meanSpeed, sample.accelRms, sample.accelMax, sample.travelRms,
-					 sample.pointsPerWheel, sample.freshPercent );
+					 sample.manifoldPointsPerWheel, sample.loadedPointsPerWheel, sample.freshPercent );
 		allFinite &= sample.finite;
 	}
 
@@ -340,7 +347,7 @@ bool RunRideQualityDiagnosisProbe( const JozzVehiclePrimitiveDefaults& defaults 
 	{
 		RideSample sample = MeasureRide( defaults, envelope, 12.0f, 0.35f, 4 );
 		std::printf( row, envelope.name, 12.0f, sample.meanSpeed, sample.accelRms, sample.accelMax, sample.travelRms,
-					 sample.pointsPerWheel, sample.freshPercent );
+					 sample.manifoldPointsPerWheel, sample.loadedPointsPerWheel, sample.freshPercent );
 		allFinite &= sample.finite;
 	}
 

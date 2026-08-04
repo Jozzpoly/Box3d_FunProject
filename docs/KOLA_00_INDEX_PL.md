@@ -1,13 +1,12 @@
 # Koła i opony — front door
 
-Status: własny `b3Wheel` jest zintegrowany; najbliższa bramka to oddzielenie
-powierzchni, topologii manifoldu i podatności. Bieżący baseline fizyki przed
-porządkami: `5b92e9c`. Rewizję roboczą zawsze odczytaj z Git.
+Status: własny `b3Wheel` jest zintegrowany, a `WHEEL-RIGID-01` zamknął
+rygorystyczny baseline plane. Najbliższa bramka to ciągłość triangle/seam.
+Historyczny baseline przed porządkami: `5b92e9c`; rewizję roboczą odczytaj z Git.
 
-> Obecny wzrost liczby punktów przy małym crown nie dowodzi deformacji opony.
-> `b3CollideWheelAndPlane` może aktywować próbki profilu mieszczące się w
-> speculative distance. Do czasu `WHEEL-RIGID-01` jest to surrogate topologii,
-> nie fizyczny ślad.
+> Sztywny manifold nie udaje już rosnącego śladu. Crown 3 mm zachował poprawę
+> w zakręcie przy stałym `1,00 all/kolo` i `1,00 nios/kolo`, więc wcześniejszy
+> efekt nie był skutkiem speculative candidates. Nadal nie jest to deformacja.
 
 ## 1. Zacznij tutaj
 
@@ -38,10 +37,10 @@ modelem strukturalnej opony.
 ## 3. Bieżąca kolejka
 
 ```text
-WHEEL-RIGID-01
+WHEEL-RIGID-01 — DONE
   strict support: 1 vertex albo 2 końce prawdziwego support segment
 
-WHEEL-SEAM-02
+WHEEL-SEAM-02 — NEXT
   ciągłość face/edge/vertex na trójkątach i szwach mapy
 
 WHEEL-SOFT-03

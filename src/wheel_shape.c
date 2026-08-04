@@ -43,15 +43,15 @@
 // THE POINT OF THE CONTACT CODE
 // -----------------------------
 // The manifold is computed from the AXIS, never from vertices or facets. On a
-// plane the contact points sit on the cross-section points that are within
-// reach of the ground, and point number 3 is still point number 3 after the
-// wheel has turned. That is what the sphere gets for free and what every
-// faceted wheel loses.
+// plane it reports the actual support feature of the continuous, piecewise-
+// linear cross-section: one vertex, or both endpoints of a segment parallel to
+// the plane. Point number 3 is still point number 3 after the wheel has turned.
+// That is what the sphere gets for free and what every faceted wheel loses.
 //
-// It is the cross-section, not the deepest single point, that decides how many
-// contacts come out: a wheel pressed harder into the ground brings more of its
-// tread within reach, so the contact patch widens with load. That is as close
-// to a real footprint as a rigid body gets.
+// Speculative distance decides whether that support feature is close enough to
+// create a contact. It does NOT promote nearby profile samples into a wider
+// footprint. A rigid shape cannot grow a contact patch with load; any later
+// widening must come from an explicit compliance model, not manifold sampling.
 
 #include "core.h"
 #include "shape.h"
@@ -114,24 +114,57 @@ int b3GetWheelProfile( const b3Wheel* wheel, b3Vec2* profile )
 	return 2;
 }
 
-// Which cross-section point lies deepest in the direction described by its
-// component along the axle and its component away from the axle. The support
-// function and the manifold both go through here; if they ever disagreed the
-// manifold would report points that are not on the surface.
-static int b3WheelProfileSupport( const b3Vec2* profile, int count, float axial, float radialLength )
+typedef struct b3WheelSupportFeature
 {
+	int index1;
+	int index2;
+	float value;
+} b3WheelSupportFeature;
+
+// Which feature of the piecewise-linear cross-section lies deepest in the
+// direction described by its component along the axle and away from the axle.
+// A unique maximum is a vertex. Adjacent equal maxima are the endpoints of the
+// real support segment. The tolerance is only a few float ulps; it is not a
+// geometric skin and is deliberately many orders smaller than speculative
+// distance.
+static b3WheelSupportFeature b3WheelProfileSupportFeature( const b3Vec2* profile, int count, float axial,
+														   float radialLength )
+{
+	float values[B3_MAX_WHEEL_PROFILE_POINTS];
 	int best = 0;
 	float bestValue = -FLT_MAX;
 	for ( int i = 0; i < count; ++i )
 	{
 		float value = profile[i].x * axial + profile[i].y * radialLength;
+		values[i] = value;
 		if ( value > bestValue )
 		{
 			bestValue = value;
 			best = i;
 		}
 	}
-	return best;
+
+	float tolerance = b3MaxFloat( B3_WHEEL_EPS, 8.0f * FLT_EPSILON * ( 1.0f + fabsf( bestValue ) ) );
+	int first = best;
+	int last = best;
+	while ( first > 0 && fabsf( values[first - 1] - bestValue ) <= tolerance )
+	{
+		first -= 1;
+	}
+	while ( last + 1 < count && fabsf( values[last + 1] - bestValue ) <= tolerance )
+	{
+		last += 1;
+	}
+
+	return ( b3WheelSupportFeature ){ first, last, bestValue };
+}
+
+// Single support point used by generic support queries. If the support feature
+// is a segment, either endpoint is a valid support point; choose the first one
+// deterministically. Plane manifolds use the full feature above.
+static int b3WheelProfileSupport( const b3Vec2* profile, int count, float axial, float radialLength )
+{
+	return b3WheelProfileSupportFeature( profile, count, axial, radialLength ).index1;
 }
 
 // Closest point of the cross-section REGION to q, in the half plane where x
@@ -518,19 +551,20 @@ b3CastOutput b3RayCastWheel( const b3Wheel* wheel, const b3RayCastInput* input )
 }
 
 // Contact against a single outward plane expressed in the wheel's frame.
-// planeNormal points away from the other body (up, for ground). Produces one
-// contact per cross-section point that is within reach of the plane; their
-// separations differ under camber and across a crowned tread, which is exactly
-// the behaviour a real contact patch has.
+// planeNormal points away from the other body (up, for ground). A rigid,
+// continuous profile has only two possible support topologies against a plane:
+// one vertex, or a segment whose two endpoints share the maximum support value.
 //
-// The feature id is the index of the cross-section point and never changes
-// while the wheel spins - that is the whole reason this shape exists, because
-// it is what keeps the solver's warm start alive from step to step.
+// Stable feature ids are the normalized profile endpoint indices. They survive
+// spin because the profile is defined around the axis, not around circumference
+// facets. Speculative distance only decides whether the support feature exists;
+// it never adds neighbouring samples to the manifold.
 static void b3CollideWheelAndPlane( b3LocalManifold* manifold, int capacity, const b3Wheel* wheel, b3Vec3 planeNormal,
-									float planeOffset )
+										float planeOffset )
 {
 	manifold->pointCount = 0;
-	if ( capacity <= 0 )
+	int manifoldCapacity = b3MinInt( capacity, B3_MAX_MANIFOLD_POINTS );
+	if ( manifoldCapacity <= 0 )
 	{
 		return;
 	}
@@ -541,98 +575,42 @@ static void b3CollideWheelAndPlane( b3LocalManifold* manifold, int capacity, con
 	b3Vec3 toPlane = b3Neg( planeNormal );
 	float axial = b3Dot( toPlane, wheel->axis );
 	b3Vec3 radial = b3MulSub( toPlane, axial, wheel->axis );
-	float length = b3Length( radial );
+	float radialLength = b3Length( radial );
+	b3Vec3 radialDirection = radialLength > B3_WHEEL_EPS ? b3MulSV( 1.0f / radialLength, radial )
+														 : b3WheelPerpendicular( wheel->axis );
 
 	manifold->normal = toPlane;
 
-	if ( length <= B3_WHEEL_EPS )
-	{
-		// Wheel lying flat on its side: the rim face meets the plane. One point
-		// is enough - this is not a driving pose.
-		int index = b3WheelProfileSupport( profile, profileCount, axial, 0.0f );
-		b3Vec3 core = b3MulAdd( wheel->center, profile[index].x, wheel->axis );
-		core = b3MulAdd( core, profile[index].y, b3WheelPerpendicular( wheel->axis ) );
-		b3Vec3 surface = b3MulAdd( core, wheel->cornerRadius, toPlane );
-		manifold->points[0].point = surface;
-		manifold->points[0].separation = b3Dot( planeNormal, surface ) - planeOffset;
-		manifold->points[0].pair = ( b3FeaturePair ){ 0 };
-		manifold->points[0].pair.index1 = (uint8_t)index;
-		manifold->points[0].pair.index2 = (uint8_t)index;
-		manifold->points[0].triangleIndex = 0;
-		manifold->pointCount = 1;
-		return;
-	}
-
-	b3Vec3 radialDirection = b3MulSV( 1.0f / length, radial );
-
-	// Separation of cross-section point i, worked out on paper so we never
-	// build a contact only to throw it away:
-	//
-	//   separation(i) = base - ( x(i) * axial + y(i) * length )
-	//   base          = dot( planeNormal, center ) - cornerRadius - planeOffset
-	//
-	// The subtracted term is exactly what b3WheelProfileSupport maximises, so
-	// the deepest point here and the support point are always the same point.
+	// separation(i) = base - supportValue(i). The support feature maximises
+	// supportValue, therefore its separation is the minimum separation of the
+	// whole wheel against this plane.
 	float base = b3Dot( planeNormal, wheel->center ) - wheel->cornerRadius - planeOffset;
-
-	// Which points are touching. Not "the deepest one": the tread that is
-	// within B3_SPECULATIVE_DISTANCE of the ground is the tread the solver has
-	// to answer for this step, so a wheel pressed harder into the ground brings
-	// more of its width into the patch. On a flat tread both ends are at the
-	// same separation and either both count or neither does, so the common case
-	// is still the same two points it always was.
-	int candidates[B3_MAX_WHEEL_PROFILE_POINTS];
-	int candidateCount = 0;
-	for ( int i = 0; i < profileCount; ++i )
+	b3WheelSupportFeature feature = b3WheelProfileSupportFeature( profile, profileCount, axial, radialLength );
+	float supportSeparation = base - feature.value;
+	if ( supportSeparation > B3_SPECULATIVE_DISTANCE )
 	{
-		float separation = base - ( profile[i].x * axial + profile[i].y * length );
-		if ( separation <= B3_SPECULATIVE_DISTANCE )
-		{
-			candidates[candidateCount] = i;
-			candidateCount += 1;
-		}
-	}
-	if ( candidateCount == 0 )
-	{
-		// Out of reach. The callers below only get here after their own range
-		// check passes, so this is the plane being handed in directly.
 		return;
 	}
 
-	// The solver has room for four points and a cross-section may have eight.
-	// Keep both edges of the band and spread the rest evenly between them: the
-	// WIDTH of the patch is what holds the car up, so the edges are the two
-	// points that must never be the ones dropped.
-	int manifoldCapacity = b3MinInt( capacity, B3_MAX_MANIFOLD_POINTS );
-	int limit = b3MinInt( candidateCount, manifoldCapacity );
-	int count = 0;
-	for ( int k = 0; k < limit; ++k )
+	int indices[2] = { feature.index1, feature.index2 };
+	int supportCount = feature.index1 == feature.index2 ? 1 : 2;
+	int pointCount = b3MinInt( supportCount, manifoldCapacity );
+	for ( int i = 0; i < pointCount; ++i )
 	{
-		// Rounded, not truncated. Truncation biases every pick towards the low
-		// side, so five candidates in four slots would drop a point from one
-		// side of the tread and not the other.
-		int slot = 0;
-		if ( limit > 1 )
-		{
-			slot = (int)( ( (float)k * (float)( candidateCount - 1 ) ) / (float)( limit - 1 ) + 0.5f );
-		}
-		int index = candidates[slot];
-
+		int index = indices[i];
 		b3Vec3 core = b3MulAdd( wheel->center, profile[index].x, wheel->axis );
 		core = b3MulAdd( core, profile[index].y, radialDirection );
 		b3Vec3 surface = b3MulAdd( core, wheel->cornerRadius, toPlane );
 
-		manifold->points[count].point = surface;
-		manifold->points[count].separation = base - ( profile[index].x * axial + profile[index].y * length );
-		manifold->points[count].pair = ( b3FeaturePair ){ 0 };
-		// Stable id: WHICH cross-section point this is. Survives rotation.
-		manifold->points[count].pair.index1 = (uint8_t)index;
-		manifold->points[count].pair.index2 = (uint8_t)index;
-		manifold->points[count].triangleIndex = 0;
-		count += 1;
+		manifold->points[i].point = surface;
+		manifold->points[i].separation = base - ( profile[index].x * axial + profile[index].y * radialLength );
+		manifold->points[i].pair = ( b3FeaturePair ){ 0 };
+		manifold->points[i].pair.index1 = (uint8_t)index;
+		manifold->points[i].pair.index2 = (uint8_t)index;
+		manifold->points[i].triangleIndex = 0;
 	}
 
-	manifold->pointCount = count;
+	manifold->pointCount = pointCount;
 }
 
 // Contact against a segment with radius: covers both the capsule and (with a

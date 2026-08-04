@@ -395,28 +395,27 @@ void JozzVehicleM6RigLab::DrawSuspensionTab()
 				float maxDrop = 0.25f * m_config.wheelEnvelope.radius;
 				edited |= ImGui::SliderFloat( "Wysklepienie bieżni", &m_editWheelCrownDrop, 0.0f, maxDrop, "%.3f m" );
 				HelpMarker( "O ile środek bieżni jest wyżej niż jej brzegi.\n\n"
-							"0 = bieżnia płaska: koło stoi na ziemi obydwoma brzegami, dwa punkty styku, najszersza "
-							"stopa. Tak jest DOMYŚLNIE i tak zmierzone są liczby wyżej.\n\n"
-							"Więcej = opona wypukła jak w motocyklu albo w terenówce: na płaskim dotyka tylko "
-							"środkiem, więc stopa jest węższa, ale przy przechyle koło przetacza się na bok bieżni "
-							"zamiast wchodzić na ostry brzeg.\n\n"
-							"UWAGA BADAWCZA: obecny manifold aktywuje wierzchołki profilu mieszczące się w "
-							"dystansie spekulacyjnym. Więcej punktów przy większym overlapie może więc wynikać z "
-							"próbkowania kontaktu - NIE jest jeszcze dowodem deformacji ani rosnącego śladu opony.\n\n"
-							"Zmierzone w TYM aucie (trzęsienie nadwozia m/s2 | punktów styku na koło):\n"
-							"  prosto 58 km/h:  0mm 0,023|2,00   3mm 0,024|2,94   10mm 0,034|2,16   30mm 0,022|1,00\n"
-							"  ZAKRĘT 43 km/h:  0mm 0,603|2,00   3mm 0,447|2,43   10mm 0,459|1,53   30mm 0,468|1,00\n"
-							"Raport: na prostej crown prawie nic nie daje, a w zakręcie 3 mm koreluje ze spadkiem "
-							"szarpania o 26% i większą liczbą punktów. Przyczyna NIE jest rozstrzygnięta: profil i "
-							"topologia manifoldu są jeszcze zmieszane. Przy 30 mm zostaje jeden punkt.\n\n"
+							"0 = bieżnia płaska. Strict manifold sztywnego koła raportuje rzeczywisty support "
+							"profilu: jeden wierzchołek albo dwa końce dokładnie równoległego segmentu. Nie poszerza "
+							"śladu tylko dlatego, że koło weszło głębiej w speculative distance.\n\n"
+							"Więcej = opona wypukła jak w motocyklu albo terenówce: przy przechyle support płynnie "
+							"przechodzi po szerokości bieżni zamiast wchodzić na ostry bark. To nadal SZTYWNA "
+							"geometria, bez deformacji i bez rosnącego śladu.\n\n"
+							"WHEEL-RIGID-01, dwa bajtowo identyczne pełne przebiegi walidatora "
+							"(trzęsienie nadwozia m/s2 | wszystkie/obciążone punkty na koło):\n"
+							"  prosto 56 km/h:  0mm 0,053|1,00/1,00   3mm 0,061|1,00/1,00   10mm 0,061|1,00/1,00   30mm 0,061|1,00/1,00\n"
+							"  ZAKRĘT 41 km/h:  0mm 0,571|1,00/1,00   3mm 0,436|1,00/1,00   10mm 0,471|1,00/1,00   30mm 0,471|1,00/1,00\n"
+							"Czyli wcześniejsza poprawa 3 mm w zakręcie NIE znika po usunięciu biasu liczby punktów. "
+							"Jednocześnie prosta jest odrobinę gorsza. To dowód efektu profilu w tym protokole, "
+							"nie dowód podatności ani automatycznie lepszej opony.\n\n"
 							"Domyślnie 0. Jak ma jeździć auto, to Twoja decyzja, nie moja." );
 
 				edited |= ImGui::SliderInt( "Punkty przekroju", &m_editWheelProfilePoints, 2, B3_MAX_WHEEL_PROFILE_POINTS );
 				HelpMarker( "Iloma punktami narysowany jest łuk bieżni. Więcej = gładszy przekrój, NIE gładsza "
 							"jazda. Przy zerowym wysklepieniu ta liczba nic nie zmienia: punkty leżą w jednej "
 							"linii i silnik wyrzuca zbędne.\n\n"
-							"Solver i tak bierze najwyżej cztery punkty styku na koło - reszta przekroju kształtuje "
-							"bryłę, nie liczbę kontaktów." );
+							"Dla płaszczyzny strict manifold bierze jeden support vertex albo dwa końce prawdziwego "
+							"support segment. Pozostałe punkty kształtują bryłę, nie sztuczną szerokość kontaktu." );
 			}
 			if ( m_editEnvelopeMode == JOZZ_M6_ENVELOPE_PHASED_UNION )
 			{

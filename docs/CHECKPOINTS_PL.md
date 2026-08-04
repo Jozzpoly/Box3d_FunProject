@@ -3,6 +3,12 @@
 Krótki dziennik najnowszego stanu. Wpis ma maksymalnie: CO / CZEMU / EFEKT / DALEJ.
 Starsze wpisy: `archive/ledgers/CHECKPOINTS_2026-07_PL.md`.
 
+## 2026-08-04 · WHEEL-RIGID-01 — strict support manifold
+- CO: plane/triangle baseline raportuje 1 support vertex albo 2 końce rzeczywistego support segment; speculative distance tylko bramkuje istnienie kontaktu.
+- CZEMU: poprzedni manifold mieszał geometrię crown z liczbą próbek wpadających w speculative band.
+- EFEKT: 7 testów koła, ASan/UBSan i 2 bajtowo identyczne pełne walidacje są zielone; crown sweep ma stale 1,00 wszystkich i 1,00 obciążonych punktów/kolo.
+- DALEJ: `WHEEL-SEAM-02` — ciągłość face/edge/vertex na szwach mesha, bez strojenia komfortu.
+
 ## 2026-08-04 · Domknięcie wznawialnej bramki
 - CO: dodano fingerprint `HEAD:index-tree`, obowiązkowy token wznowienia i ograniczenie `--stop-after`.
 - CZEMU: samo `--start-at` nie dowodziło niezmienności propozycji i mogło ponownie przekroczyć limit pojedynczego uruchomienia.
