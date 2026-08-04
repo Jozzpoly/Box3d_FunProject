@@ -1,3 +1,5 @@
+> **ARCHIWUM — nie jest bieżącą instrukcją.** 2026-08-04 treść została scalona lub zastąpiona przez `docs/ASSET_CONTRACT_PL.md`. Plik pozostaje jako zapis historii.
+
 # Asset Contract Runtime V1 - Jozz Vehicle
 
 Date: 2026-07-04

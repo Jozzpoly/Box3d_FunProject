@@ -107,7 +107,38 @@ kontrakt.
   presetu, ale nie wymaga utrzymywania nieograniczonej zgodności historycznej,
   dopóki JV jest laboratorium jednego właściciela.
 
-## 7. Właściciele kodu
+## 7. Skróty klawiszowe
+
+Host przechwytuje te skróty przed samplem i nie wolno przydzielać ich nowym
+funkcjom JV:
+
+| Skrót | Host |
+|---|---|
+| `Tab` | pokaż/ukryj UI |
+| `Esc` | zamknij controls lub wyczyść zaznaczenie |
+| `Ctrl+Q` / `Ctrl+O` | wyjście / wyszukiwarka sampli |
+| `O` / `Shift+O` / `P` | krok / pięć kroków / pauza |
+| `M` / `F` / `?` | metryki / kadrowanie / pomoc |
+| `R` | rekonstrukcja bieżącego sampla |
+| `[` / `]` | poprzedni / następny sample |
+
+Pojazdy M5/M6: `W/S` jazda, `A/D` skręt, `Space` hamulec, `T` kamera.
+
+Wheel Scope: `1/2` kandydat, `,` / `.` prędkość, `V` kamera, `G` obserwacja,
+`S` zapis `.rig`, `W` reset liczników, `C` regulator, `K/J/B` impulsy,
+`Ctrl+LPM` chwyt. Ingerencje są wyłączone w trace i unieważniają przebieg
+headless jako dowód.
+
+Quarter Car Scope: `1–5` kandydat, `B` droga, `C` napęd, `X` pomiar, `Z` reset
+okna, `H` stanowisko/jazda, `J/K` wymuszenia, `,` / `.` prędkość, `V`, `S`, `G`,
+`Ctrl+LPM` jak wyżej.
+
+Reguła dodania skrótu: najpierw sprawdź `samples/main.cpp` i bieżący sample,
+preferuj UI dla ustawień nietrzymanych, opisz wpływ na ważność eksperymentu i
+zachowaj `[`/`]` wyłącznie dla hosta. Historyczny pełny audyt:
+`archive/consolidated_2026-08/HOTKEY_AUDIT_PL.md`.
+
+## 8. Właściciele kodu
 
 - `jozz_vehicle_m6_config_io.h/.cpp` — serializacja, load sesji i presetów;
 - `jozz_vehicle_m6_rig_lab_internal.h` — ścieżki i klasy stanu;
@@ -118,5 +149,5 @@ kontrakt.
 Po zmianie któregokolwiek kontraktu uruchom:
 
 ```text
-python tools/docs_audit.py
+python tools/jv_gate.py quick
 ```

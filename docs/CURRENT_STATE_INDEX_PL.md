@@ -30,6 +30,8 @@ odkształcenia opony. Obecne dane nie dowodzą jeszcze fizycznego „rosnącego 
 
 ## 3. Najbliższy program badawczy
 
+Front door programu: `KOLA_00_INDEX_PL.md`.
+
 ### Etap A — rygorystyczny baseline sztywny
 
 Dla ciągłego, odcinkowo-liniowego profilu:
@@ -87,7 +89,7 @@ Pełny rejestr: `TECH_DEBT_PL.md`.
 
 - wielociałowe zawieszenie i kierownica pozostają działającym laboratorium
   pojazdu, ale nie są aktualnym przedmiotem refaktoru;
-- centralny kampus mapy, offroad, import skanu i spawny per fragment są w kodzie;
+- centralny kampus mapy, offroad, import skanu i spawny per fragment są w kodzie (`MAPA_INDEX_PL.md`);
   manualny odbiór mapy pozostaje otwarty;
 - UI/presety oraz rig wizualny mają własne dokumenty subsystemowe;
 - stare milestone M0–M9 i zamknięte plany przeniesiono do `archive/`.

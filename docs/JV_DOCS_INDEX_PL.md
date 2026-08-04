@@ -1,80 +1,84 @@
 # JV — mapa dokumentacji
 
-Status: bieżące źródło prawdy o rolach dokumentów.
+Status: bieżące źródło prawdy o roli dokumentów. Celem jest jeden szlak dla
+agenta i brak równoległych „aktualnych planów”.
 
-Celem tej mapy jest usunięcie klasy błędu „kilka dokumentów naraz udaje aktualny
-plan”. Każdy bieżący plik ma jednego właściciela treści. Historia jest oddzielona.
+## 1. Wejście
 
-## Wejście
-
-| Plik | Właściciel treści |
+| Plik | Jedyny właściciel treści |
 |---|---|
-| `../README_FOR_AGENTS.md` | reguły pracy agenta |
-| `CURRENT_STATE_INDEX_PL.md` | aktualny stan implementacji i następny krok |
-| `CHECKPOINTS_PL.md` | najnowszy dziennik zmian, krótki i rotowany |
-| `TECH_DEBT_PL.md` | wyłącznie otwarte ryzyka i dług |
-| `JV_JES_HERITAGE_PL.md` | co z JV dziedziczy JES i w jakiej formie |
-| `MAPA_INDEX_PL.md` | bieżący stan mapy/skanów bez dawnych roadmap |
+| `../README_FOR_AGENTS.md` | reguły pracy i bramki |
+| `CURRENT_STATE_INDEX_PL.md` | aktualny stan kodu i najbliższy krok |
+| `CHECKPOINTS_PL.md` | krótki, rotowany handoff |
+| `TECH_DEBT_PL.md` | wyłącznie otwarty dług |
+| `MAPA_INDEX_PL.md` | stan mapy i skanów |
+| `JV_JES_HERITAGE_PL.md` | granica transferu JV → JES |
 
-## Program koła i opony
+Czytanie zaczyna się od `README_FOR_AGENTS.md`, nie od wyszukiwarki po `docs/`.
+
+## 2. Koło i opona
 
 | Plik | Rola |
 |---|---|
-| `KOLA_00_INDEX_PL.md` | wejście i twarde reguły programu |
-| `KOLA_01_DOWODY_PL.md` | wygenerowane tabele, fakty i wyniki negatywne |
-| `KOLA_02_ARCHITEKTURA_PL.md` | hipotezy architektoniczne i kontrakty |
-| `KOLA_03_POLITYKA_BOX3D_PL.md` | zasady zmian rdzenia |
-| `KOLA_04_PETLA_BADAWCZA_PL.md` | bieżący cykl K0–K7 i kolejka eksperymentów |
-| `KOLA_05_PROTOKOL_STENDU_V21_PL.md` | protokół pomiarowy i confoundy |
-| `KOLA_FINDINGS.json` | maszynowy status findingów |
+| `KOLA_00_INDEX_PL.md` | krótki front door i granice programu |
+| `KOLA_01_DOWODY_PL.md` | ledger pomiarów, faktów i wyników negatywnych |
+| `KOLA_02_ARCHITEKTURA_PL.md` | bieżące warstwy i kontrakty `b3Wheel` |
+| `KOLA_03_POLITYKA_BOX3D_PL.md` | prawo zmian rdzenia |
+| `KOLA_04_PETLA_BADAWCZA_PL.md` | cykl K0–K7 i kolejka rekurencji |
+| `KOLA_05_PROTOKOL_EKSPERYMENTU_PL.md` | manifest, metryki i bramki dowodu |
+| `KOLA_FINDINGS.json` | jedyny maszynowy status findingów |
+| `JOZZ_CORE_PATCHES.json` | własność i zakres delty Box3D |
 
-Dokumenty `KOLA_*` są obszerne, bo stanowią laboratorium dowodowe. Nie wolno
-kopiować ich treści do front doorów. Front door ma wskazywać, nie streszczać
-każdą historyczną iterację.
+Duży ledger dowodowy nie jest roadmapą. Plan bieżący żyje w `CURRENT_STATE` i
+kolejce `KOLA_04`.
 
-## Bieżące dokumenty subsystemów
+## 3. Subsystemy
 
-- `SUBSYSTEM_UI_PRESETS_PL.md` — UI, sesje i presety;
-- `SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md` — rozdział rigu wizualnego i fizycznego;
-- `SUSPENSION_RIG_SPACE_CONVENTIONS_PL.md` — osie i przestrzenie rigu;
-- `HOTKEY_AUDIT_PL.md` — skróty klawiszowe;
-- `ASSET_CONTRACT_RUNTIME_V1_PL.md` — wdrożony kontrakt runtime;
-- `ASSET_CONTRACT_V2_DRAFT_PL.md` — jawnie roboczy draft następnej wersji.
+| Plik | Zakres |
+|---|---|
+| `ASSET_CONTRACT_PL.md` | glTF + sidecar + granica physics authority |
+| `SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md` | przestrzenie, hardpointy i wizual rigu |
+| `SUBSYSTEM_UI_PRESETS_PL.md` | UI, stan sesji, presety, checkpointy i hotkeys |
 
-## ADR — trwałe decyzje, nie roadmapa
+Nie twórz osobnego dokumentu dla fragmentu, który ma już właściciela w tej
+tabeli. Rozbuduj istniejący kontrakt albo dodaj krótkie ADR dla jednej trwałej
+decyzji.
 
-Katalog `adr/` przechowuje krótkie decyzje architektoniczne. Status w nagłówku
-mówi, czy decyzja nadal obowiązuje. `0003` jest superseded jako finalna
-architektura zawieszenia, a `0005` to zakończona decyzja o kolejności prac.
-Bieżącą zasadą produktową pozostaje m.in. `0006`: realistyczny rdzeń i jawne,
-domyślnie wyłączone nakładki `[ARCADE]`.
+## 4. ADR
 
-## Dokumentacja upstream Box3D
+`adr/` przechowuje jedną decyzję na plik. ADR nie jest roadmapą. Status w
+nagłówku mówi, czy decyzja obowiązuje, została wykonana czy superseded.
 
-Pliki `overview.md`, `simulation.md`, `collision.md`, `recording.md` itd. należą
-do upstreamowej dokumentacji silnika i są wejściem do Doxygen. Nie są częścią
-narracji JV i nie należy ich przenosić do archiwum projektu.
+## 5. Upstream Box3D
 
-## Archiwum
+`overview.md`, `simulation.md`, `collision.md`, `recording.md` i pozostałe pliki
+manuala należą do upstreamu i Doxygen. Nie są narracją JV i nie podlegają
+scalaniu z dokumentami projektu.
 
-`archive/` przechowuje raporty etapów, stare plany, poprzednie ledger-y i pakiety
-założycielskie. Pliki archiwalne mogą wyjaśniać **dlaczego** coś zrobiono, ale nie
-mówią **co robić teraz**. Pełna mapa: `archive/README_PL.md`.
+## 6. Archiwum
 
-## Narzędzia higieny
+`archive/` zachowuje dawne plany, raporty i poprzedników scalonych dokumentów.
+Plik archiwalny może wyjaśniać **dlaczego**, ale nie mówi **co robić teraz**.
+Mapa: `archive/README_PL.md`.
 
-- `python tools/docs_audit.py` — spójność autorytetu, archiwum, findings i kontraktów kod–docs;
-- `python tools/repo_hygiene.py` — śledzone artefakty, kolizje nazw Windows, duplikaty, puste i nadmiernie duże pliki;
-- `python tools/test_hygiene.py` — izolowane testy negatywne bramek higieny;
-- `python tools/export_source.py` — deterministyczna paczka z commitowanego drzewa `HEAD`;
-- `python tools/jozz_core_delta.py` — pokrycie i koszt jawnych patchy `src/`/`include/`.
+## 7. Narzędzia jakości
 
-## Reguła tworzenia nowego dokumentu
+- `python tools/jv_gate.py quick` — normalny checkpoint;
+- `python tools/jv_gate.py deep` — dokumentacja/infrastruktura i testy regresji;
+- `python tools/jv_gate.py wheel` — dodatkowo lokalne bramki Wheel Scope;
+- `python tools/docs_audit.py` — autorytet, routing i code–docs drift;
+- `python tools/repo_hygiene.py` — przenośność i czystość commitowanego drzewa;
+- `python tools/export_source.py` — deterministyczny ZIP z `HEAD`.
 
-Nowy plik jest uzasadniony tylko wtedy, gdy jednocześnie:
+## 8. Reguła nowego dokumentu
 
-1. ma trwałego właściciela treści;
-2. nie duplikuje istniejącego źródła prawdy;
-3. ma określony status: current / draft / evidence / archive;
-4. wiadomo, co się z nim stanie po zamknięciu etapu;
-5. `python tools/docs_audit.py` oraz `python tools/repo_hygiene.py` przechodzą po jego dodaniu.
+Nowy aktywny dokument powstaje tylko wtedy, gdy:
+
+1. ma jednego trwałego właściciela treści;
+2. jego cykl życia różni się od istniejących dokumentów;
+3. nie jest jednorazowym raportem;
+4. zostaje podłączony do tej mapy;
+5. `docs_audit` potrafi wykryć jego osierocenie.
+
+Raport zakończonego etapu trafia do `archive/`. Realna zmiana stanu to kilka
+linii w `CHECKPOINTS`, nie kolejny plan o nazwie „final”.

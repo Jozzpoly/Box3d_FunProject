@@ -830,7 +830,7 @@ Wykryte audytem zewnętrznym 2026-07-27 i **potwierdzone w kodzie**:
 W-13…W-16 znalezione 2026-07-29. **W-14 i W-15 nie są wadami stendu — są
 wadami tego dokumentu**: opisywały silnik z jego komentarzy zamiast z jego kodu.
 
-Protokół naprawy: `KOLA_05_PROTOKOL_STENDU_V21_PL.md`. **Do czasu jego
+Protokół naprawy: `KOLA_05_PROTOKOL_EKSPERYMENTU_PL.md`. **Do czasu jego
 wykonania żaden wynik §7 nie awansuje na `PRAWO` ani nie zamyka rodziny.**
 
 ## 8. Rozdzielczość kontaktu i granica ciągłego styku (2026-07-31)

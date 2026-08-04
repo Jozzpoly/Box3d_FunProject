@@ -7,6 +7,8 @@ Historia iteracji R0–R8 i dawny rejestr pytań:
 
 ## 1. Produkt pętli
 
+Format manifestu, metryk i statusów: `KOLA_05_PROTOKOL_EKSPERYMENTU_PL.md`.
+
 Celem nie jest jak najszybsze wybranie jednego kształtu koła. Produktem są:
 
 1. prawa o mechanizmach, które mają wartość także dla JES;

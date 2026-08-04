@@ -3,6 +3,12 @@
 Krótki dziennik najnowszego stanu. Wpis ma maksymalnie: CO / CZEMU / EFEKT / DALEJ.
 Starsze wpisy: `archive/ledgers/CHECKPOINTS_2026-07_PL.md`.
 
+## 2026-08-04 · Rekurencja konkursowa dokumentacji
+- CO: scalono kontrakty assetów, osie rigu z dokumentem rigu, hotkeys z UI oraz zastąpiono przed-`b3Wheel` architekturę i protokół v2.1 bieżącymi kontraktami.
+- CZEMU: sześć aktywnych plików miało nakładających się właścicieli albo historyczny status wyglądający jak instrukcja.
+- EFEKT: aktywne dokumenty projektu spadły z 18 do 15 i z 3627 do 2673 linii; `quick`, 9/9 testów higieny i 43/43 testy evidence przechodzą w sześciu resumowalnych shardach.
+- DALEJ: wyeksportować commit/patch/report; kolejna paczka ma audytować wielki ledger `KOLA_01`, bez ruszania fizyki.
+
 ## 2026-08-04 · Fundament dokumentacji i archiwum
 - CO: jedna hierarchia źródeł prawdy, archiwum, bridge JV→JES, aktualne kontrakty subsystemów oraz cztery lokalne bramki higieny.
 - CZEMU: front door zatrzymał się na M8, stare plany udawały aktywne, rejestr miał osierocone findings, a eksport katalogu niósł setki MiB artefaktów.

@@ -12,6 +12,7 @@ materiał dziedzictwa. **Nie są bieżącymi instrukcjami.** Aktualny start:
 - `wheels/` — handoffy oraz dawne dzienniki iteracji, które doprowadziły do obecnego `b3Wheel`;
 - `jes_foundation_2026-07-15/` — historyczny pakiet założycielski JES;
 - `ledgers/` — poprzednie wersje state/checkpoints/debt;
+- `consolidated_2026-08/` — aktywne wcześniej dokumenty scalone w konkursowej rekurencji;
 - pozostałe pliki — wcześniejsze raporty M0–M5 i handoffy agentowe.
 
 ## Jak korzystać

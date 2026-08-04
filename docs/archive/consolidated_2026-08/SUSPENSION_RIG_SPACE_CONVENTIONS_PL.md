@@ -1,3 +1,5 @@
+> **ARCHIWUM — nie jest bieżącą instrukcją.** 2026-08-04 treść została scalona lub zastąpiona przez sekcję „Przestrzenie i osie” w `docs/SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md`. Plik pozostaje jako zapis historii.
+
 # Suspension Rig Space Conventions - Jozz Vehicle
 
 Date: 2026-07-04

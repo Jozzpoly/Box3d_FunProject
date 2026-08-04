@@ -1,3 +1,5 @@
+> **ARCHIWUM — nie jest bieżącą instrukcją.** 2026-08-04 treść została scalona lub zastąpiona przez sekcję „Skróty klawiszowe” w `docs/SUBSYSTEM_UI_PRESETS_PL.md`. Plik pozostaje jako zapis historii.
+
 # Skróty klawiszowe — Jozz Vehicle
 
 Status: bieżące źródło prawdy.

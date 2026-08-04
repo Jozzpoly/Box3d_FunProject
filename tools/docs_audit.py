@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import unquote
@@ -32,16 +33,86 @@ REQUIRED = [
     DOCS / "TECH_DEBT_PL.md",
     DOCS / "JV_JES_HERITAGE_PL.md",
     DOCS / "MAPA_INDEX_PL.md",
+    DOCS / "ASSET_CONTRACT_PL.md",
+    DOCS / "SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md",
+    DOCS / "SUBSYSTEM_UI_PRESETS_PL.md",
     DOCS / "KOLA_00_INDEX_PL.md",
     DOCS / "KOLA_01_DOWODY_PL.md",
     DOCS / "KOLA_02_ARCHITEKTURA_PL.md",
     DOCS / "KOLA_03_POLITYKA_BOX3D_PL.md",
     DOCS / "KOLA_04_PETLA_BADAWCZA_PL.md",
-    DOCS / "KOLA_05_PROTOKOL_STENDU_V21_PL.md",
+    DOCS / "KOLA_05_PROTOKOL_EKSPERYMENTU_PL.md",
     FINDINGS,
     DOCS / "JOZZ_CORE_PATCHES.json",
     ARCHIVE / "README_PL.md",
+    ARCHIVE / "consolidated_2026-08" / "README_PL.md",
 ]
+
+ACTIVE_PROJECT_DOCS = {
+    "ASSET_CONTRACT_PL.md",
+    "CHECKPOINTS_PL.md",
+    "CURRENT_STATE_INDEX_PL.md",
+    "HOTKEY_AUDIT_PL.md",  # forbidden below; kept here only for a clear error if restored
+    "JV_DOCS_INDEX_PL.md",
+    "JV_JES_HERITAGE_PL.md",
+    "KOLA_00_INDEX_PL.md",
+    "KOLA_01_DOWODY_PL.md",
+    "KOLA_02_ARCHITEKTURA_PL.md",
+    "KOLA_03_POLITYKA_BOX3D_PL.md",
+    "KOLA_04_PETLA_BADAWCZA_PL.md",
+    "KOLA_05_PROTOKOL_EKSPERYMENTU_PL.md",
+    "MAPA_INDEX_PL.md",
+    "SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md",
+    "SUBSYSTEM_UI_PRESETS_PL.md",
+    "TECH_DEBT_PL.md",
+}
+
+# Source -> tokens that must be routed explicitly from that source. These are
+# intentionally few and structural. They prevent a valid document from becoming
+# practically undiscoverable in the next conversation.
+REQUIRED_ROUTES = {
+    ROOT / "README_FOR_AGENTS.md": [
+        "docs/CURRENT_STATE_INDEX_PL.md",
+        "docs/JV_DOCS_INDEX_PL.md",
+    ],
+    ROOT / "JOZZ_VEHICLE_README_PL.md": [
+        "docs/CURRENT_STATE_INDEX_PL.md",
+        "docs/KOLA_00_INDEX_PL.md",
+    ],
+    DOCS / "JV_DOCS_INDEX_PL.md": [
+        "CURRENT_STATE_INDEX_PL.md",
+        "CHECKPOINTS_PL.md",
+        "TECH_DEBT_PL.md",
+        "MAPA_INDEX_PL.md",
+        "JV_JES_HERITAGE_PL.md",
+        "ASSET_CONTRACT_PL.md",
+        "SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md",
+        "SUBSYSTEM_UI_PRESETS_PL.md",
+        "KOLA_00_INDEX_PL.md",
+        "KOLA_01_DOWODY_PL.md",
+        "KOLA_02_ARCHITEKTURA_PL.md",
+        "KOLA_03_POLITYKA_BOX3D_PL.md",
+        "KOLA_04_PETLA_BADAWCZA_PL.md",
+        "KOLA_05_PROTOKOL_EKSPERYMENTU_PL.md",
+        "KOLA_FINDINGS.json",
+        "JOZZ_CORE_PATCHES.json",
+    ],
+    DOCS / "CURRENT_STATE_INDEX_PL.md": [
+        "KOLA_00_INDEX_PL.md",
+        "TECH_DEBT_PL.md",
+        "MAPA_INDEX_PL.md",
+    ],
+    DOCS / "KOLA_00_INDEX_PL.md": [
+        "KOLA_02_ARCHITEKTURA_PL.md",
+        "KOLA_04_PETLA_BADAWCZA_PL.md",
+        "KOLA_05_PROTOKOL_EKSPERYMENTU_PL.md",
+        "KOLA_FINDINGS.json",
+    ],
+    DOCS / "KOLA_02_ARCHITEKTURA_PL.md": ["KOLA_03_POLITYKA_BOX3D_PL.md"],
+    DOCS / "KOLA_04_PETLA_BADAWCZA_PL.md": ["KOLA_05_PROTOKOL_EKSPERYMENTU_PL.md"],
+    DOCS / "SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md": ["ASSET_CONTRACT_PL.md"],
+}
+
 
 CURRENT_AUTHORITY = [p for p in REQUIRED if p.suffix == ".md" and p != ARCHIVE / "README_PL.md"]
 FORBIDDEN_CURRENT = {
@@ -68,6 +139,11 @@ MOVED_BASENAMES = {
     "MAPA_ETAP_2_PRZESZKODY_I_POLIGONY_PL.md",
     "PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md",
     "KOLA_PRZEKAZANIE_KOLIDER_KOLA_PL.md",
+    "ASSET_CONTRACT_RUNTIME_V1_PL.md",
+    "ASSET_CONTRACT_V2_DRAFT_PL.md",
+    "HOTKEY_AUDIT_PL.md",
+    "SUSPENSION_RIG_SPACE_CONVENTIONS_PL.md",
+    "KOLA_05_PROTOKOL_STENDU_V21_PL.md",
 }
 
 LINK_RE = re.compile(r"(?<!!)\[[^\]]*\]\(([^)]+)\)")
@@ -86,6 +162,9 @@ CODE_DOC_TERMS = [
     ("LoadJozzVehicleM6PresetConfig", ROOT / "samples/jozz_vehicle_m6_config_io.h", DOCS / "SUBSYSTEM_UI_PRESETS_PL.md"),
     ("assets/vehicle_spawns.txt", ROOT / "samples/jozz_vehicle_m6_rig_lab_internal.h", DOCS / "SUBSYSTEM_UI_PRESETS_PL.md"),
     ("DrawTelescopingDamper", ROOT / "samples/jozz_vehicle_visual_mesh_draw.cpp", DOCS / "SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md"),
+    ("LoadJozzVehicleAssetContract", ROOT / "samples/jozz_vehicle_asset_contract.cpp", DOCS / "ASSET_CONTRACT_PL.md"),
+    ("physicsAuthority", ROOT / "samples/jozz_vehicle_asset_contract.cpp", DOCS / "ASSET_CONTRACT_PL.md"),
+    ("B3_SPECULATIVE_DISTANCE", ROOT / "src/wheel_shape.c", DOCS / "KOLA_02_ARCHITEKTURA_PL.md"),
 ]
 
 
@@ -96,14 +175,31 @@ def rel(path: Path) -> str:
         return str(path)
 
 
+def tracked_paths() -> list[Path]:
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files", "-z"],
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        message = result.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(message or "git ls-files failed")
+    return [
+        ROOT / raw.decode("utf-8", errors="strict")
+        for raw in result.stdout.split(b"\0")
+        if raw
+    ]
+
+
 def active_text_files() -> list[Path]:
     out: list[Path] = []
-    for path in ROOT.rglob("*"):
-        if not path.is_file() or path.suffix.lower() not in TEXT_SUFFIXES:
+    for path in tracked_paths():
+        if path.suffix.lower() not in TEXT_SUFFIXES:
             continue
-        if ".git" in path.parts or ARCHIVE in path.parents:
+        if ARCHIVE in path.parents:
             continue
-        out.append(path)
+        if path.is_file():
+            out.append(path)
     return out
 
 
@@ -206,6 +302,36 @@ def check() -> list[str]:
         if not path.is_file():
             errors.append(f"BRAK: {rel(path)}")
 
+    for source, tokens in REQUIRED_ROUTES.items():
+        if not source.is_file():
+            continue
+        source_text = source.read_text("utf-8", errors="replace")
+        for token in tokens:
+            if token not in source_text:
+                errors.append(f"BRAK TRASY: {rel(source)} -> {token}")
+
+    # Uppercase/project-owned Markdown at docs root must be represented by the
+    # curated active set. This catches a new plan/report that silently becomes
+    # a second front door. Explicitly retired names get a stronger message.
+    retired_active_names = {
+        "ASSET_CONTRACT_RUNTIME_V1_PL.md",
+        "ASSET_CONTRACT_V2_DRAFT_PL.md",
+        "HOTKEY_AUDIT_PL.md",
+        "SUSPENSION_RIG_SPACE_CONVENTIONS_PL.md",
+        "KOLA_05_PROTOKOL_STENDU_V21_PL.md",
+    }
+    for path in DOCS.glob("*.md"):
+        project_like = path.name.upper() == path.name or path.name.startswith((
+            "ASSET_", "CHECKPOINTS_", "CURRENT_", "HOTKEY_", "JV_", "KOLA_",
+            "MAPA_", "SUBSYSTEM_", "SUSPENSION_", "TECH_",
+        ))
+        if not project_like:
+            continue
+        if path.name in retired_active_names:
+            errors.append(f"SCALONY DOKUMENT WRÓCIŁ DO DOCS/: {path.name}")
+        elif path.name not in ACTIVE_PROJECT_DOCS:
+            errors.append(f"OSIEROCONY AKTYWNY DOKUMENT: {path.name} (dodaj do mapy albo archiwizuj)")
+
     for path in CURRENT_AUTHORITY:
         if not path.is_file():
             continue
@@ -261,6 +387,7 @@ def check() -> list[str]:
         ARCHIVE / "wheels",
         ARCHIVE / "jes_foundation_2026-07-15",
         ARCHIVE / "ledgers",
+        ARCHIVE / "consolidated_2026-08",
     ]:
         if not subdir.is_dir():
             errors.append(f"BRAK KATALOGU ARCHIWUM: {rel(subdir)}")
@@ -309,7 +436,7 @@ def main() -> int:
         for error in errors:
             print(f"- {error}")
         return 1
-    print("docs-audit: OK — authority, archive and local paths are coherent")
+    print("docs-audit: OK — authority, routing, archive and code-doc contracts are coherent")
     return 0
 
 

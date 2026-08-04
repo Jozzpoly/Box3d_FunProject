@@ -1,3 +1,5 @@
+> **ARCHIWUM — nie jest bieżącą instrukcją.** 2026-08-04 treść została scalona lub zastąpiona przez `docs/KOLA_05_PROTOKOL_EKSPERYMENTU_PL.md`. Plik pozostaje jako zapis historii.
+
 # Protokół stendu v2.1 — rigi Q0–Q4, słownik metryk, manifest dowodowy
 
 Data: 2026-07-28

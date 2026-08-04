@@ -18,11 +18,26 @@ import unittest
 import zipfile
 from pathlib import Path
 
+# The suite dynamically imports repository tools. Never leave Python bytecode
+# beside tracked sources: a quality gate must not dirty the tree it validates.
+sys.dont_write_bytecode = True
+
 REPO = Path(__file__).resolve().parents[1]
 DOCS_AUDIT = REPO / "tools" / "docs_audit.py"
 EXPORT_SOURCE = REPO / "tools" / "export_source.py"
 CORE_DELTA = REPO / "tools" / "jozz_core_delta.py"
 REPO_HYGIENE = REPO / "tools" / "repo_hygiene.py"
+JV_GATE = REPO / "tools" / "jv_gate.py"
+EVIDENCE_RUNNER = REPO / "tools" / "evidence" / "run_regression_tests.py"
+
+
+def load_evidence_runner():
+    spec = importlib.util.spec_from_file_location("jv_evidence_runner_for_test", EVIDENCE_RUNNER)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("cannot import run_regression_tests.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def run(*args: str, cwd: Path, check: bool = False) -> subprocess.CompletedProcess[str]:
@@ -98,6 +113,28 @@ class HygieneToolsTest(unittest.TestCase):
         result = run(sys.executable, str(REPO_HYGIENE), cwd=REPO)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("repo-hygiene: OK", result.stdout)
+
+    def test_jv_gate_profiles_are_discoverable(self) -> None:
+        result = run(sys.executable, str(JV_GATE), "deep", "--list", cwd=REPO)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("proposal completeness", result.stdout)
+        self.assertIn("documentation authority and routing", result.stdout)
+        self.assertIn("evidence regressions shard k", result.stdout)
+
+    def test_evidence_runner_partitions_the_suite(self) -> None:
+        result = run(sys.executable, str(EVIDENCE_RUNNER), "--list", cwd=REPO)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("a: T1-T3 (one process/test, timeout 300s)", result.stdout)
+        self.assertIn("e: T12-T14", result.stdout)
+        self.assertIn("k: T26+ and extras", result.stdout)
+        self.assertIn("test_T26c_non_regular_file_is_rejected", result.stdout)
+
+    def test_evidence_runner_reports_a_hard_timeout(self) -> None:
+        runner = load_evidence_runner()
+        command = [sys.executable, "-c", "import time; time.sleep(30)"]
+        rc = runner.run_command(command, REPO, 1)
+        self.assertEqual(rc, 124)
+
 
     def test_repo_hygiene_rejects_artifacts_and_windows_collisions(self) -> None:
         repo = TemporaryGitRepo()

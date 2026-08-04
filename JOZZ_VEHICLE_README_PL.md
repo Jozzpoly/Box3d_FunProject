@@ -42,3 +42,11 @@ strukturę repo. Macierz dziedzictwa: `docs/JV_JES_HERITAGE_PL.md`.
 
 Główny `README.md` pozostaje upstreamowym README Box3D. To celowe: JV jest
 forkiem silnika i nie udaje, że upstreamowa dokumentacja API przestała istnieć.
+
+## Lokalny checkpoint
+
+```text
+python tools/jv_gate.py quick
+```
+
+Pełna mapa profili i dokumentów: `README_FOR_AGENTS.md`.

@@ -89,36 +89,40 @@ biasu liczby kontaktów.
 
 ## 5. Lokalna bramka jakości
 
-Dla zmian wyłącznie dokumentacyjnych:
+Jedno wejście, profile będące uporządkowanymi supersetami:
 
 ```text
-python tools/docs_audit.py
-python tools/repo_hygiene.py
-python tools/test_hygiene.py
-git diff --check
+python tools/jv_gate.py quick  # normalny checkpoint
+python tools/jv_gate.py deep   # dokumentacja, infrastruktura i regresje danych
+python tools/jv_gate.py wheel  # dodatkowo lokalny Wheel Scope z gotowym buildem
+python tools/jv_gate.py full   # pełna bramka produktu na Windows
 ```
 
-Dla zmian programu koła bez rdzenia:
+Przed checkpointem stage'uj kompletną propozycję. Bramka odmawia pracy, gdy
+zostają konflikty, unstaged tracked files albo nieignorowane pliki untracked;
+dzięki temu worktree i index opisują te same bajty.
 
-```text
-python tools/jozz_wheel_bench/check_all.py
-python tools/docs_audit.py
-python tools/repo_hygiene.py
-```
+`quick` sprawdza routing dokumentacji, higienę commitowanego drzewa, jawność
+delty rdzenia, integralność evidence i whitespace worktree/index. `deep` dodaje
+negatywne testy regresji narzędzi oraz sześć małych shardów łańcucha dowodowego.
+Po przerwaniu można wznowić niezmienioną staged proposal przez `--start-at N`;
+każda bramka drukuje swój numer. Pojedyncze „OK” składnika nie zastępuje całego
+profilu.
 
-Dla każdej zmiany w `src/` lub `include/` dodatkowo:
+Czystą paczkę źródłową twórz przez `python tools/export_source.py`; skrypt czyta
+bajty wyłącznie z commitowanego drzewa `HEAD`, więc nie pakuje brudnego worktree,
+`build/`, cache ani sesji.
 
-```text
-python tools/jozz_core_delta.py
-```
-
-Czystą paczkę źródłową twórz przez `python tools/export_source.py`; skrypt czyta bajty wyłącznie z commitowanego drzewa `HEAD`, więc nie pakuje brudnego worktree, `build/`, cache ani sesji.
-
-Dla zmian shippingowego JV na Windows użyj istniejącego `tools/gate.ps1` i
-odpowiedniego walidatora. Zawsze przeczytaj pełny log pod kątem ostrzeżeń, nawet
-gdy kod wyjścia jest zerowy.
+Dla zmian shippingowego JV na Windows profil `full` uruchamia istniejący
+`tools/gate.ps1`. Zawsze czytaj pełny log pod kątem ostrzeżeń, nawet gdy kod
+wyjścia jest zerowy.
 
 ## 6. Dokumentowanie bez ponownego bałaganu
+
+Pracuj jak przy oddaniu konkursowym: jedna paczka ma jawny cel, baseline, zakres,
+zmienną główną, bramkę i artefakty końcowe. Zanim zaczniesz następną paczkę,
+poprzednia musi mieć commit/patch, wynik testów oraz krótki checkpoint. Odkrycia
+spoza zakresu trafiają do długu lub findings, nie do implementacji „przy okazji”.
 
 - Realna zmiana stanu: wpis ≤5 linii w `docs/CHECKPOINTS_PL.md`.
 - Zmiana otwartego ryzyka: aktualizacja `docs/TECH_DEBT_PL.md`.

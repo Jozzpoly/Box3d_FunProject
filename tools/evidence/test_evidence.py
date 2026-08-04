@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -60,7 +61,23 @@ class Sandbox:
     """Izolowana kopia repo: narzedzie + surowe logi + fixtures dokumentow."""
 
     def __init__(self) -> None:
-        self.root = Path(tempfile.mkdtemp(prefix="jp01_"))
+        # These tests perform many atomic writes with fsync. On Linux, use the
+        # RAM-backed temp filesystem when available so storage latency cannot
+        # turn a logic regression suite into a random multi-minute stall.
+        # Set JV_EVIDENCE_TEST_TMP to override; Windows keeps its normal temp.
+        configured = os.environ.get("JV_EVIDENCE_TEST_TMP")
+        if configured:
+            temp_parent = Path(configured)
+        elif os.name != "nt":
+            temp_parent = Path("/dev/shm")
+        else:
+            temp_parent = None
+        temp_dir = (
+            str(temp_parent)
+            if temp_parent is not None and temp_parent.is_dir() and os.access(temp_parent, os.W_OK)
+            else None
+        )
+        self.root = Path(tempfile.mkdtemp(prefix="jp01_", dir=temp_dir))
         (self.root / "tools" / "evidence").mkdir(parents=True)
         self.evidence = self.root / "tools" / "jozz_wheel_bench" / "evidence"
         self.evidence.mkdir(parents=True)

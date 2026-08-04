@@ -1,3 +1,5 @@
+> **ARCHIWUM — nie jest bieżącą instrukcją.** 2026-08-04 treść została scalona lub zastąpiona przez `docs/ASSET_CONTRACT_PL.md`. Plik pozostaje jako zapis historii.
+
 # Asset Contract v2 Draft — Jozz Vehicle
 
 Status: draft, first sidecars hardened with stable binding hints
