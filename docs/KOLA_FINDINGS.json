@@ -524,6 +524,24 @@
         "none"
       ],
       "code": "src/mesh_contact.c wheel-only deepest cluster normal; test/test_wheel_shape.c RunLoadedFlatMeshSeamPass / RunLoadedFoldedMeshSeamPass"
+    },
+    "F-42": {
+      "status": "ENGINE_FACT",
+      "claim": "WHEEL-HULL-02B: b3Wheel vs hull nie używa już nieskończonej płaszczyzny ściany. Punkty face są clipowane do polygonu, pełna projekcja koła może uruchomić wyłącznie konserwatywny face-prism fast path, a pozostałe przypadki przechodzą deterministyczny feature walk z rozłącznymi face/edge/vertex feature IDs.",
+      "scope": "Egzekwowane przez 16 testów hull w 32-testowym WheelShapeTest: phantom face/corner negatives, deep corner, shoulder gap, flat support segment, spin-stable edge, dwa jawne kontrprzykłady globalnego supportu, dense audit boxów i nieortogonalnych hullów oraz world-level warm start. Osie krawędzi i stożków wierzchołków są wyszukiwane numerycznie; to nie jest twierdzenie o analitycznie dokładnym SAT. Surowy przebieg: evidence/run_wheel_hull_02b_2026_08_04.txt (raw-only).",
+      "evidence": [
+        "none"
+      ],
+      "code": "src/wheel_shape.c b3CollideWheelAndHull / b3WheelInsideHullFacePrism / b3WheelHullEdgeAxis / b3WheelHullVertexAxis; test/test_wheel_shape.c"
+    },
+    "F-43": {
+      "status": "ENGINE_MEASURED",
+      "claim": "WHEEL-HULL-02B: obciążone koło przechodzi face→edge→vertex bez luki w obu kierunkach i przy fazach 0.00/0.73 rad; każda topologia przenosi impuls >0.1 N*s, a kolejne normalne mają dot >0.85. Finalny audit 2000 orientowanych boxów i 60 nieortogonalnych hullów utrzymał separację nie gorszą o więcej niż 3 mm od gęstego szukania 8192 kierunków.",
+      "scope": "Pełne unity i ASan zielone; scalar WheelShapeTest zielony pod UBSan; świeży offline jozz_vehicle_validation: 19 + 2 sondy, OK. Release GCC -O3: szeroka ściana 0.70-0.75 us/call, mała ściana/narożnik 11.5-12.0 us/call, odrzucony narożnik 1.56-1.60 us/call. Wynik nie dowodzi globalnej optymalności searchu poza audytowanym progiem ani feelingu w ręcznej jeździe. Surowy przebieg: evidence/run_wheel_hull_02b_2026_08_04.txt (raw-only).",
+      "evidence": [
+        "none"
+      ],
+      "code": "test/test_wheel_shape.c WheelWorldHullLoadedFaceEdgeVertexTransitionIsContinuous / WheelHullSATMatchesDenseGlobalDirectionSearch / WheelHullSATMatchesDenseSearchForRandomConvexHulls"
     }
   }
 }

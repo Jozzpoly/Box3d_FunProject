@@ -3,6 +3,12 @@
 Krótki dziennik najnowszego stanu. Wpis ma maksymalnie: CO / CZEMU / EFEKT / DALEJ.
 Starsze wpisy: `archive/ledgers/CHECKPOINTS_2026-07_PL.md`.
 
+## 2026-08-04 · WHEEL-HULL-02B — finite hully i narożniki
+- CO: face clipping do polygonu, konserwatywny face-prism fast path, feature walk oraz numeryczne osie edge/vertex-cone ze stabilnymi IDs.
+- CZEMU: nieskończona płaszczyzna dawała phantom corners, a search ograniczony do najlepszej ściany gubił odległy support vertex i wnętrze stożka wierzchołka.
+- EFEKT: 32 testy koła; 2000 boxów + 60 nieortogonalnych hullów w progu 3 mm; obciążone face→edge→vertex w 2 kierunkach × 2 fazy; Debug, ASan, scalar UBSan i validator `19 + 2` zielone.
+- DALEJ: `WHEEL-SOFT-03` — lokalna normalna softness A/B przy identycznej geometrii i manifoldzie; bez dalszego strojenia crown.
+
 ## 2026-08-04 · WHEEL-SEAM-02A — szwy trójkątów i mesha
 - CO: dodano jednostronny wheel–triangle, finite edge/vertex fallback, stabilne feature IDs oraz wheel-only wybór normalnej najgłębszego manifoldu w klastrze mesha.
 - CZEMU: samo odrzucenie barycentryczne gubiło kontakt na granicy, a normalna pierwszego trójkąta dawała zależny od fazy skok impulsu `+36,4%` na łagodnym załamaniu.

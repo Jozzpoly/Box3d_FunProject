@@ -1,9 +1,10 @@
 # Koła i opony — front door
 
-Status: własny `b3Wheel` jest zintegrowany; `WHEEL-RIGID-01` zamknął
-baseline plane, a `WHEEL-SEAM-02A` kontrolowane szwy triangle/mesh. Najbliższa
-bramka to pełna poprawność wheel–hull przy ścianach, krawędziach i narożnikach.
-Historyczny baseline przed porządkami: `5b92e9c`; rewizję roboczą odczytaj z Git.
+Status: własny `b3Wheel` jest zintegrowany; `WHEEL-RIGID-01`,
+`WHEEL-SEAM-02A` i `WHEEL-HULL-02B` zamknęły kontrolowany baseline sztywny dla
+plane, triangle/mesh oraz finite hull. Najbliższa bramka to `WHEEL-SOFT-03`:
+lokalna podatność A/B bez zmiany geometrii i topologii. Historyczny baseline
+przed porządkami: `5b92e9c`; rewizję roboczą odczytaj z Git.
 
 > Sztywny manifold nie udaje już rosnącego śladu. Crown 3 mm zachował poprawę
 > w zakręcie przy stałym `1,00 all/kolo` i `1,00 nios/kolo`, więc wcześniejszy
@@ -44,10 +45,10 @@ WHEEL-RIGID-01 — DONE
 WHEEL-SEAM-02A — DONE
   finite triangle face/edge/vertex oraz obciążone szwy mesha
 
-WHEEL-HULL-02B — NEXT
-  face polygon clipping, edge/axis SAT i brak phantom corner contacts
+WHEEL-HULL-02B — DONE
+  finite face clipping, feature walk, edge/vertex normal cones i brak phantom corners
 
-WHEEL-SOFT-03
+WHEEL-SOFT-03 — NEXT
   lokalna podatność A/B przy identycznej geometrii i manifoldzie
 
 WHEEL-STRUCT-04

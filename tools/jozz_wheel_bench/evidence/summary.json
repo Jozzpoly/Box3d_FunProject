@@ -596,6 +596,18 @@
       },
       "tables": {}
     },
+    "wheel_hull_02b_2026_08_04": {
+      "source_file": "run_wheel_hull_02b_2026_08_04.txt",
+      "source_sha256": "23774653d8e54e63a1793f83c700501d1a3b70e5c45e66bcc3708f3245d356bb",
+      "source_bytes": 6528,
+      "provenance": {
+        "Date": "2026-08-04",
+        "Baseline HEAD": "a3751430ba1b713aebb41d8a9bc5be89b47d4495 (a375143 package base)",
+        "Primary variable": "wheel-vs-hull finite contact topology and axis selection.",
+        "Frozen": "wheel profile, cornerRadius, mass, friction, world softness, solver substeps, vehicle setup."
+      },
+      "tables": {}
+    },
     "wheel_rigid_01_2026_08_04": {
       "source_file": "run_wheel_rigid_01_2026_08_04.txt",
       "source_sha256": "237e43b5c2849c01554f9912446c1cd53d528b2b4f770d5b7a1ab4aca284781a",

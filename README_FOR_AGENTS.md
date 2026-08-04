@@ -27,16 +27,13 @@ Zmiany rdzenia są dozwolone wyłącznie wtedy, gdy spełniają politykę z
 testy oraz brak wpływu przy wyłączonej funkcji. „Nie dotykaj rdzenia nigdy” jest
 historyczną zasadą, nie aktualnym zakazem.
 
-Najbliższa praca nie polega na dalszym strojeniu `wheelCrownDrop`. Najpierw trzeba
-oddzielić trzy zjawiska, które obecna implementacja miesza:
+Najbliższa praca nie polega na dalszym strojeniu `wheelCrownDrop` ani ponownym
+otwieraniu topologii. `WHEEL-RIGID-01`, `WHEEL-SEAM-02A` i `WHEEL-HULL-02B`
+zamknęły kontrolowany baseline sztywny dla plane, triangle/mesh oraz finite hull.
 
-1. kształt powierzchni;
-2. liczbę i rozmieszczenie punktów manifold;
-3. podatność normalną kontaktu.
-
-Kolejność: rygorystyczny baseline sztywnego manifoldu → poprawność na szwach
-mesh/hull → A/B lokalnej podatności przy identycznej geometrii i identycznych
-punktach → dopiero potem decyzja o strukturalnej oponie.
+Następny pakiet to `WHEEL-SOFT-03`: A/B lokalnej podatności przy identycznej
+geometrii, feature IDs i punktach manifoldu. Dopiero jego wynik może uzasadnić
+strukturalną oponę. Feeling i domyślne parametry nadal wymagają decyzji Jozza.
 
 ## 2. Źródła prawdy
 

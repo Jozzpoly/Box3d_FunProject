@@ -169,12 +169,14 @@ obu kierunkach i trzech fazach. Wariant `~1,15°` przechodzi w obu kierunkach i
 dwóch fazach; wheel-only normalna najgłębszego manifoldu usunęła zależny od
 fazy skok impulsu `+36,4%`. Pełny walidator produktu nie zmienił ani bajtu.
 
-### WHEEL-HULL-02B — krawędzie i narożniki hulla — AKTYWNY
+### WHEEL-HULL-02B — krawędzie i narożniki hulla — ZAMKNIĘTY
 
-Następna niewiadoma jest odrębna: obecny wheel–hull wybiera ścianę, lecz używa
-jej jak nieskończonej płaszczyzny i nie ma kompletnego edge/axis SAT. Celem jest
-clipping do polygonu ściany, brak phantom contacts i ciągłość face→edge→vertex
-na rzeczywistych przeszkodach. Softness pozostaje zamrożona.
+Face manifold jest clipowany do polygonu, szeroka ściana ma konserwatywny
+face-prism fast path, a przypadki graniczne przechodzą feature walk z osobnymi
+face/edge/vertex IDs. Obciążone face→edge→vertex przechodzi w obu kierunkach i
+fazach `0,00 / 0,73 rad`. Dense audit 2000 boxów i 60 nieortogonalnych hullów
+utrzymał próg 3 mm. Search stożków jest numeryczny i jego koszt narożnika
+pozostaje jawnym ograniczeniem; softness nie została zmieniona.
 
 ### WHEEL-SOFT-03 — lokalna podatność A/B
 

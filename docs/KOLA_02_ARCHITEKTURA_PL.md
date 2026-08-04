@@ -62,7 +62,7 @@ Własności wymagane:
 | AABB / swept AABB | dokładna dla obwiedni profilu | broad phase |
 | wheel–plane | exact dla support feature profilu | 1 vertex albo 2 końce segmentu |
 | wheel–triangle | finite face + edge/vertex fallback | kontrolowane szwy `WHEEL-SEAM-02A` |
-| wheel–hull | dedykowana, niepełny convex–convex | `WHEEL-HULL-02B` |
+| wheel–hull | finite face + feature walk + numeryczne edge/vertex cones | kontrolowany `WHEEL-HULL-02B`; błąd audytu ≤3 mm |
 | wheel–capsule/sphere | dedykowana projekcja | bumpery i proste przeszkody |
 | raycast | konserwatywny walec obwiedniowy | picking/probe, nie dokładny profil |
 | generic proxy / overlap / cast | konserwatywna sfera | jawnie conservative |

@@ -167,11 +167,13 @@ static int b3WheelProfileSupport( const b3Vec2* profile, int count, float axial,
 	return b3WheelProfileSupportFeature( profile, count, axial, radialLength ).index1;
 }
 
-// Closest point of the cross-section REGION to q, in the half plane where x
-// runs along the axle and y away from it. The region is everything under the
-// chain, so the polygon is the chain plus its two feet on the axle - that
-// region is what the support function above describes, and the two must agree.
-static b3Vec2 b3ClosestPointInWheelProfile( const b3Vec2* profile, int count, b3Vec2 q )
+// Closest point on the real boundary of the cross-section REGION. The
+// polygon closes along the axle for the inside test, but that closing segment
+// is not a surface after revolution and is deliberately excluded from the
+// nearest-boundary search. The remaining segments are the tread chain and the
+// two end discs.
+static b3Vec2 b3ClosestPointOnWheelProfileBoundary( const b3Vec2* profile, int count, b3Vec2 q, bool* insideOut,
+													 b3Vec2* outwardOut )
 {
 	b3Vec2 polygon[B3_MAX_WHEEL_PROFILE_POINTS + 2];
 	int n = 0;
@@ -183,25 +185,39 @@ static b3Vec2 b3ClosestPointInWheelProfile( const b3Vec2* profile, int count, b3
 	polygon[n++] = ( b3Vec2 ){ profile[count - 1].x, 0.0f };
 
 	// The chain runs left to right along the top, so the walk is clockwise and
-	// the inside is on the right of every edge.
+	// the inside is on the right of every edge. Include the closing axle edge
+	// only in this inside test.
 	bool inside = true;
 	float twiceArea = 0.0f;
-	float bestDistanceSqr = FLT_MAX;
-	b3Vec2 best = polygon[0];
-
 	for ( int i = 0; i < n; ++i )
 	{
 		b3Vec2 a = polygon[i];
 		b3Vec2 b = polygon[( i + 1 ) % n];
 		b3Vec2 edge = { b.x - a.x, b.y - a.y };
 		b3Vec2 toQ = { q.x - a.x, q.y - a.y };
-
 		twiceArea += a.x * b.y - b.x * a.y;
 		if ( edge.x * toQ.y - edge.y * toQ.x > 0.0f )
 		{
 			inside = false;
 		}
+	}
+	if ( fabsf( twiceArea ) <= B3_WHEEL_EPS )
+	{
+		inside = false;
+	}
 
+	float bestDistanceSqr = FLT_MAX;
+	b3Vec2 best = polygon[0];
+	b3Vec2 bestOutward = { 1.0f, 0.0f };
+
+	// n - 1 excludes the closing segment along the axle. It is an interior
+	// line of the revolved solid, not a contact surface.
+	for ( int i = 0; i < n - 1; ++i )
+	{
+		b3Vec2 a = polygon[i];
+		b3Vec2 b = polygon[i + 1];
+		b3Vec2 edge = { b.x - a.x, b.y - a.y };
+		b3Vec2 toQ = { q.x - a.x, q.y - a.y };
 		float lengthSqr = edge.x * edge.x + edge.y * edge.y;
 		float t = 0.0f;
 		if ( lengthSqr > B3_WHEEL_EPS )
@@ -216,24 +232,42 @@ static b3Vec2 b3ClosestPointInWheelProfile( const b3Vec2* profile, int count, b3
 		{
 			bestDistanceSqr = distanceSqr;
 			best = point;
+			if ( lengthSqr > B3_WHEEL_EPS )
+			{
+				float inverseLength = 1.0f / sqrtf( lengthSqr );
+				// Left of a clockwise boundary edge is outside.
+				bestOutward = ( b3Vec2 ){ -edge.y * inverseLength, edge.x * inverseLength };
+			}
 		}
 	}
 
-	// A single cross-section point, or a chain flat on the axle, encloses no
-	// area: there is no inside to be in, only the boundary.
-	if ( inside && fabsf( twiceArea ) > B3_WHEEL_EPS )
+	if ( insideOut != NULL )
 	{
-		return q;
+		*insideOut = inside;
+	}
+	if ( outwardOut != NULL )
+	{
+		*outwardOut = bestOutward;
 	}
 	return best;
 }
 
-// Deepest point of the wheel surface in direction d (d must be unit).
-b3Vec3 b3ComputeWheelSupport( const b3Wheel* wheel, b3Vec3 d )
+// Closest point of the cross-section REGION to q, in the half plane where x
+// runs along the axle and y away from it. The region is everything under the
+// chain, so the polygon is the chain plus its two feet on the axle - that
+// region is what the support function above describes, and the two must agree.
+static b3Vec2 b3ClosestPointInWheelProfile( const b3Vec2* profile, int count, b3Vec2 q )
 {
-	b3Vec2 profile[B3_MAX_WHEEL_PROFILE_POINTS];
-	int count = b3GetWheelProfile( wheel, profile );
+	bool inside = false;
+	b3Vec2 boundary = b3ClosestPointOnWheelProfileBoundary( profile, count, q, &inside, NULL );
+	return inside ? q : boundary;
+}
 
+// Deepest point of the wheel surface in direction d (d must be unit), using
+// an already normalized profile. Narrow-phase searches call this many times;
+// copying/rebuilding the same profile for every candidate axis is pure cost.
+static b3Vec3 b3ComputeWheelSupportFromProfile( const b3Wheel* wheel, const b3Vec2* profile, int count, b3Vec3 d )
+{
 	float axial = b3Dot( d, wheel->axis );
 	b3Vec3 radial = b3MulSub( d, axial, wheel->axis );
 	float length = b3Length( radial );
@@ -246,6 +280,14 @@ b3Vec3 b3ComputeWheelSupport( const b3Wheel* wheel, b3Vec3 d )
 		point = b3MulAdd( point, profile[best].y / length, radial );
 	}
 	return b3MulAdd( point, wheel->cornerRadius, d );
+}
+
+// Deepest point of the wheel surface in direction d (d must be unit).
+b3Vec3 b3ComputeWheelSupport( const b3Wheel* wheel, b3Vec3 d )
+{
+	b3Vec2 profile[B3_MAX_WHEEL_PROFILE_POINTS];
+	int count = b3GetWheelProfile( wheel, profile );
+	return b3ComputeWheelSupportFromProfile( wheel, profile, count, d );
 }
 
 b3Wheel b3MakeWheelProfile( b3Vec3 center, b3Vec3 axis, const b3Vec2* profile, int count, float cornerRadius )
@@ -645,7 +687,7 @@ static void b3CollideWheelAndSegment( b3LocalManifold* manifold, int capacity, c
 	b3Vec3 onSegment = p1;
 	float segmentFraction = 0.0f;
 
-	for ( int iteration = 0; iteration < 4; ++iteration )
+	for ( int iteration = 0; iteration < 6; ++iteration )
 	{
 		// Closest point on the segment to the current core point.
 		segmentFraction = 0.0f;
@@ -732,47 +774,637 @@ void b3CollideWheelAndSphere( b3LocalManifold* manifold, int capacity, const b3W
 	b3CollideWheelAndSegment( manifold, capacity, wheelA, center, center, sphereB->radius, NULL );
 }
 
+typedef enum b3WheelHullFeatureType
+{
+	b3_wheelHullFace,
+	b3_wheelHullEdge,
+	b3_wheelHullVertex,
+} b3WheelHullFeatureType;
+
+typedef struct b3WheelHullAxis
+{
+	b3Vec3 normal;
+	float separation;
+	int featureIndex;
+	b3WheelHullFeatureType featureType;
+} b3WheelHullAxis;
+
+static bool b3WheelPointInHullFace( const b3HullData* hull, int faceIndex, b3Transform transformBtoA, b3Vec3 faceNormal,
+									b3Vec3 point )
+{
+	const b3HullFace* faces = b3GetHullFaces( hull );
+	const b3HullHalfEdge* edges = b3GetHullEdges( hull );
+	const b3Vec3* points = b3GetHullPoints( hull );
+	if ( faces == NULL || edges == NULL || points == NULL )
+	{
+		return false;
+	}
+
+	int edgeIndex = faces[faceIndex].edge;
+	int firstEdge = edgeIndex;
+	do
+	{
+		const b3HullHalfEdge* edge = edges + edgeIndex;
+		const b3HullHalfEdge* next = edges + edge->next;
+		b3Vec3 v1 = b3TransformPoint( transformBtoA, points[edge->origin] );
+		b3Vec3 v2 = b3TransformPoint( transformBtoA, points[next->origin] );
+		b3Vec3 tangent = b3Sub( v2, v1 );
+		float length = b3Length( tangent );
+		if ( length <= B3_WHEEL_EPS )
+		{
+			return false;
+		}
+
+		// Hull half-edges run CCW with the face on their left. This is the
+		// same side plane used by the generic hull clipper: points behind it
+		// (separation <= 0) are inside the bounded face.
+		b3Vec3 sideNormal = b3Cross( b3MulSV( 1.0f / length, tangent ), faceNormal );
+		float sideSeparation = b3Dot( sideNormal, b3Sub( point, v1 ) );
+		if ( sideSeparation > 0.5f * B3_LINEAR_SLOP )
+		{
+			return false;
+		}
+
+		edgeIndex = edge->next;
+	}
+	while ( edgeIndex != firstEdge );
+
+	return true;
+}
+
+// Conservative certificate for the ordinary finite-face fast path. It
+// requires the entire wheel projection, not just the selected contact points,
+// to lie behind every side plane of the face polygon. If this holds, adjacent
+// hull edges and vertices cannot be the least-penetrating feature.
+static bool b3WheelInsideHullFacePrism( const b3Wheel* wheel, const b3Vec2* profile, int profileCount,
+										 const b3HullData* hull, int faceIndex, b3Transform transformBtoA,
+										 b3Vec3 faceNormal )
+{
+	const b3HullFace* faces = b3GetHullFaces( hull );
+	const b3HullHalfEdge* edges = b3GetHullEdges( hull );
+	const b3Vec3* points = b3GetHullPoints( hull );
+	if ( faces == NULL || edges == NULL || points == NULL )
+	{
+		return false;
+	}
+
+	int edgeIndex = faces[faceIndex].edge;
+	int firstEdge = edgeIndex;
+	do
+	{
+		const b3HullHalfEdge* edge = edges + edgeIndex;
+		const b3HullHalfEdge* next = edges + edge->next;
+		b3Vec3 v1 = b3TransformPoint( transformBtoA, points[edge->origin] );
+		b3Vec3 v2 = b3TransformPoint( transformBtoA, points[next->origin] );
+		b3Vec3 tangent = b3Sub( v2, v1 );
+		float length = b3Length( tangent );
+		if ( length <= B3_WHEEL_EPS )
+		{
+			return false;
+		}
+
+		b3Vec3 sideNormal = b3Cross( b3MulSV( 1.0f / length, tangent ), faceNormal );
+		b3Vec3 support = b3ComputeWheelSupportFromProfile( wheel, profile, profileCount, sideNormal );
+		float sideSeparation = b3Dot( sideNormal, b3Sub( support, v1 ) );
+		if ( sideSeparation > -0.5f * B3_LINEAR_SLOP )
+		{
+			return false;
+		}
+
+		edgeIndex = edge->next;
+	}
+	while ( edgeIndex != firstEdge );
+
+	return true;
+}
+
+// Exact support-plane separation for one candidate normal. The normal points
+// from the wheel (A) towards the hull (B), so the hull contributes its minimum
+// projection and the wheel contributes its maximum projection.
+static float b3WheelHullSeparation( const b3Wheel* wheel, const b3Vec3* hullPoints, int pointCount, b3Vec3 normal,
+									int* minimumIndex )
+{
+	b3Vec3 wheelSupport = b3ComputeWheelSupport( wheel, normal );
+	float minimumProjection = FLT_MAX;
+	int bestIndex = B3_NULL_INDEX;
+	for ( int i = 0; i < pointCount; ++i )
+	{
+		float projection = b3Dot( normal, hullPoints[i] );
+		if ( projection < minimumProjection )
+		{
+			minimumProjection = projection;
+			bestIndex = i;
+		}
+	}
+	if ( minimumIndex != NULL )
+	{
+		*minimumIndex = bestIndex;
+	}
+	return minimumProjection - b3Dot( normal, wheelSupport );
+}
+
+static bool b3WheelAxisTowardPoint( const b3Wheel* wheel, const b3Vec2* profile, int profileCount, b3Vec3 point,
+									 b3Vec3* normalOut )
+{
+	b3Vec3 delta = b3Sub( point, wheel->center );
+	float axial = b3Dot( delta, wheel->axis );
+	b3Vec3 radial = b3MulSub( delta, axial, wheel->axis );
+	float radialLength = b3Length( radial );
+	b3Vec2 query = { axial, radialLength };
+
+	bool inside = false;
+	b3Vec2 outward = { 1.0f, 0.0f };
+	b3Vec2 boundary = b3ClosestPointOnWheelProfileBoundary( profile, profileCount, query, &inside, &outward );
+	b3Vec2 direction;
+	float dx = query.x - boundary.x;
+	float dy = query.y - boundary.y;
+	float distance = sqrtf( dx * dx + dy * dy );
+	if ( distance > B3_WHEEL_EPS )
+	{
+		float scale = ( inside ? -1.0f : 1.0f ) / distance;
+		direction = ( b3Vec2 ){ scale * dx, scale * dy };
+	}
+	else
+	{
+		direction = outward;
+	}
+
+	b3Vec3 radialDirection = radialLength > B3_WHEEL_EPS ? b3MulSV( 1.0f / radialLength, radial )
+														 : b3WheelPerpendicular( wheel->axis );
+	b3Vec3 normal = b3MulAdd( b3MulSV( direction.x, wheel->axis ), direction.y, radialDirection );
+	float normalLength = b3Length( normal );
+	if ( normalLength <= B3_WHEEL_EPS )
+	{
+		return false;
+	}
+	*normalOut = b3MulSV( 1.0f / normalLength, normal );
+	return true;
+}
+
+static float b3WheelHullEdgeAxisSeparation( const b3Wheel* wheel, const b3Vec2* profile, int profileCount,
+											 b3Vec3 edgePoint, b3Vec3 a, b3Vec3 tangent, float theta,
+											 b3Vec3* normalOut )
+{
+	b3Vec3 normal = b3Add( b3MulSV( cosf( theta ), a ), b3MulSV( sinf( theta ), tangent ) );
+	normal = b3Normalize( normal );
+	if ( normalOut != NULL )
+	{
+		*normalOut = normal;
+	}
+
+	// Every normal inside the convex edge cone has this complete edge as the
+	// hull's minimum support feature. Re-scanning all hull vertices here is
+	// redundant and made the first correct implementation roughly 100x slower.
+	b3Vec3 wheelSupport = b3ComputeWheelSupportFromProfile( wheel, profile, profileCount, normal );
+	return b3Dot( normal, edgePoint ) - b3Dot( normal, wheelSupport );
+}
+
+// Search the inward normal cone of one convex hull edge. The wheel support is
+// analytic, so this samples only candidate AXES; it does not facet the wheel or
+// make the contact depend on spin phase. A local refinement around the best
+// sample removes the angular quantization from the returned normal.
+static float b3WheelHullEdgeAxis( const b3Wheel* wheel, const b3Vec2* profile, int profileCount, b3Vec3 edgePoint,
+								  b3Vec3 inward1, b3Vec3 inward2, b3Vec3* normalOut )
+{
+	float cosine = b3ClampFloat( b3Dot( inward1, inward2 ), -1.0f, 1.0f );
+	float angle = acosf( cosine );
+	b3Vec3 tangent = b3Sub( inward2, b3MulSV( cosine, inward1 ) );
+	float tangentLength = b3Length( tangent );
+	if ( angle <= B3_WHEEL_EPS || tangentLength <= B3_WHEEL_EPS )
+	{
+		*normalOut = inward1;
+		return b3WheelHullEdgeAxisSeparation( wheel, profile, profileCount, edgePoint, inward1, b3Vec3_zero, 0.0f, normalOut );
+	}
+	tangent = b3MulSV( 1.0f / tangentLength, tangent );
+
+	enum
+	{
+		B3_WHEEL_EDGE_AXIS_SAMPLES = 4,
+		B3_WHEEL_EDGE_AXIS_REFINEMENTS = 5,
+	};
+	float step = angle / (float)B3_WHEEL_EDGE_AXIS_SAMPLES;
+	float bestSeparation = -FLT_MAX;
+	float bestTheta = 0.0f;
+	int bestSample = 0;
+	for ( int i = 0; i <= B3_WHEEL_EDGE_AXIS_SAMPLES; ++i )
+	{
+		float theta = step * (float)i;
+		float separation = b3WheelHullEdgeAxisSeparation( wheel, profile, profileCount, edgePoint, inward1, tangent, theta, NULL );
+		if ( separation > bestSeparation )
+		{
+			bestSeparation = separation;
+			bestTheta = theta;
+			bestSample = i;
+		}
+	}
+
+	float left = step * (float)b3MaxInt( 0, bestSample - 1 );
+	float right = step * (float)b3MinInt( B3_WHEEL_EDGE_AXIS_SAMPLES, bestSample + 1 );
+	for ( int i = 0; i < B3_WHEEL_EDGE_AXIS_REFINEMENTS; ++i )
+	{
+		float third = ( right - left ) / 3.0f;
+		float theta1 = left + third;
+		float theta2 = right - third;
+		float separation1 =
+			b3WheelHullEdgeAxisSeparation( wheel, profile, profileCount, edgePoint, inward1, tangent, theta1, NULL );
+		float separation2 =
+			b3WheelHullEdgeAxisSeparation( wheel, profile, profileCount, edgePoint, inward1, tangent, theta2, NULL );
+		if ( separation1 < separation2 )
+		{
+			left = theta1;
+		}
+		else
+		{
+			right = theta2;
+		}
+	}
+	float refinedTheta = 0.5f * ( left + right );
+	b3Vec3 refinedNormal;
+	float refinedSeparation =
+		b3WheelHullEdgeAxisSeparation( wheel, profile, profileCount, edgePoint, inward1, tangent, refinedTheta, &refinedNormal );
+	if ( refinedSeparation > bestSeparation )
+	{
+		bestSeparation = refinedSeparation;
+		bestTheta = refinedTheta;
+	}
+	b3WheelHullEdgeAxisSeparation( wheel, profile, profileCount, edgePoint, inward1, tangent, bestTheta, normalOut );
+	return bestSeparation;
+}
+
+static float b3WheelHullVertexAxisSeparation( const b3Wheel* wheel, const b3Vec2* profile, int profileCount,
+											 b3Vec3 vertexPoint, b3Vec3 normal )
+{
+	b3Vec3 wheelSupport = b3ComputeWheelSupportFromProfile( wheel, profile, profileCount, normal );
+	return b3Dot( normal, vertexPoint ) - b3Dot( normal, wheelSupport );
+}
+
+// Maximize separation inside one hull vertex normal cone. Every candidate is
+// a normalized positive combination of the incident inward face normals, so
+// the same hull vertex remains a valid minimum-support feature. Edge and face
+// boundaries are queried separately; this search covers only the cone interior.
+static float b3WheelHullVertexAxis( const b3Wheel* wheel, const b3Vec2* profile, int profileCount,
+									 b3Vec3 vertexPoint, const b3Vec3* coneNormals, int coneCount,
+									 b3Vec3* normalOut )
+{
+	b3Vec3 sum = b3Vec3_zero;
+	for ( int i = 0; i < coneCount; ++i )
+	{
+		sum = b3Add( sum, coneNormals[i] );
+	}
+
+	float length = b3Length( sum );
+	if ( coneCount <= 0 || length <= B3_WHEEL_EPS )
+	{
+		*normalOut = b3Vec3_zero;
+		return -FLT_MAX;
+	}
+
+	b3Vec3 bestNormal = b3MulSV( 1.0f / length, sum );
+	float bestSeparation =
+		b3WheelHullVertexAxisSeparation( wheel, profile, profileCount, vertexPoint, bestNormal );
+
+	// Repeated convex blends from the cone interior can represent any positive
+	// weight vector. Evaluate all extreme rays from the same anchor per round so
+	// face ordering cannot bias the result, then reduce the step on convergence.
+	enum
+	{
+		B3_WHEEL_VERTEX_AXIS_ITERATIONS = 9,
+	};
+	float blend = 0.5f;
+	for ( int iteration = 0; iteration < B3_WHEEL_VERTEX_AXIS_ITERATIONS; ++iteration )
+	{
+		b3Vec3 anchor = bestNormal;
+		b3Vec3 roundNormal = bestNormal;
+		float roundSeparation = bestSeparation;
+		for ( int i = 0; i < coneCount; ++i )
+		{
+			b3Vec3 candidate = b3Lerp( anchor, coneNormals[i], blend );
+			float candidateLength = b3Length( candidate );
+			if ( candidateLength <= B3_WHEEL_EPS )
+			{
+				continue;
+			}
+			candidate = b3MulSV( 1.0f / candidateLength, candidate );
+			float separation =
+				b3WheelHullVertexAxisSeparation( wheel, profile, profileCount, vertexPoint, candidate );
+			if ( separation > roundSeparation )
+			{
+				roundSeparation = separation;
+				roundNormal = candidate;
+			}
+		}
+
+		if ( roundSeparation > bestSeparation + 1.0e-7f )
+		{
+			bestSeparation = roundSeparation;
+			bestNormal = roundNormal;
+		}
+		else
+		{
+			blend *= 0.5f;
+		}
+	}
+
+	*normalOut = bestNormal;
+	return bestSeparation;
+}
+
+static void b3ConsiderWheelHullAxis( b3WheelHullAxis* best, b3Vec3 normal, float separation, b3WheelHullFeatureType featureType,
+									 int featureIndex, float tolerance )
+{
+	if ( separation > best->separation + tolerance )
+	{
+		best->normal = normal;
+		best->separation = separation;
+		best->featureType = featureType;
+		best->featureIndex = featureIndex;
+	}
+}
+
 void b3CollideWheelAndHull( b3LocalManifold* manifold, int capacity, const b3Wheel* wheelA, const b3HullData* hullB,
 							b3Transform transformBtoA )
 {
 	manifold->pointCount = 0;
+	int manifoldCapacity = b3MinInt( capacity, B3_MAX_MANIFOLD_POINTS );
+	if ( manifoldCapacity <= 0 || hullB->vertexCount <= 0 || hullB->vertexCount > UINT8_MAX ||
+		 hullB->edgeCount <= 0 || hullB->edgeCount > UINT8_MAX || hullB->faceCount <= 0 ||
+		 hullB->faceCount > UINT8_MAX )
+	{
+		return;
+	}
 
 	const b3Plane* planes = b3GetHullPlanes( hullB );
-	int faceCount = hullB->faceCount;
-	if ( planes == NULL || faceCount == 0 )
+	const b3HullFace* faces = b3GetHullFaces( hullB );
+	const b3HullHalfEdge* edges = b3GetHullEdges( hullB );
+	const b3HullVertex* vertices = b3GetHullVertices( hullB );
+	const b3Vec3* localPoints = b3GetHullPoints( hullB );
+	if ( planes == NULL || faces == NULL || edges == NULL || vertices == NULL || localPoints == NULL )
 	{
 		return;
 	}
 
-	// Face-normal SAT using the wheel's analytic support. The reference face is
-	// the one the wheel is least deep into.
-	float bestSeparation = -FLT_MAX;
-	b3Vec3 bestNormal = b3Vec3_zero;
-	float bestOffset = 0.0f;
-
-	for ( int i = 0; i < faceCount; ++i )
+	b3Vec3 hullPoints[UINT8_MAX];
+	for ( int i = 0; i < hullB->vertexCount; ++i )
 	{
-		b3Vec3 normal = b3RotateVector( transformBtoA.q, planes[i].normal );
-		b3Vec3 pointOnPlane = b3TransformPoint( transformBtoA, b3MulSV( planes[i].offset, planes[i].normal ) );
-		float offset = b3Dot( normal, pointOnPlane );
+		hullPoints[i] = b3TransformPoint( transformBtoA, localPoints[i] );
+	}
 
-		b3Vec3 support = b3ComputeWheelSupport( wheelA, b3Neg( normal ) );
-		float separation = b3Dot( normal, support ) - offset;
+	b3Vec2 profile[B3_MAX_WHEEL_PROFILE_POINTS];
+	int profileCount = b3GetWheelProfile( wheelA, profile );
+	b3WheelHullAxis bestFace = {
+		.normal = b3Vec3_zero,
+		.separation = -FLT_MAX,
+		.featureIndex = B3_NULL_INDEX,
+		.featureType = b3_wheelHullFace,
+	};
 
-		if ( separation > bestSeparation )
+	// Hull face axes are exact. Find the least-penetrating reference face and
+	// reject immediately if any face plane separates the two convex bodies.
+	for ( int faceIndex = 0; faceIndex < hullB->faceCount; ++faceIndex )
+	{
+		b3Vec3 outward = b3RotateVector( transformBtoA.q, planes[faceIndex].normal );
+		b3Vec3 normal = b3Neg( outward );
+		b3Vec3 pointOnPlane =
+			b3TransformPoint( transformBtoA, b3MulSV( planes[faceIndex].offset, planes[faceIndex].normal ) );
+		float hullProjection = b3Dot( normal, pointOnPlane );
+		b3Vec3 wheelSupport = b3ComputeWheelSupportFromProfile( wheelA, profile, profileCount, normal );
+		float separation = hullProjection - b3Dot( normal, wheelSupport );
+		if ( separation > B3_SPECULATIVE_DISTANCE )
 		{
-			bestSeparation = separation;
-			bestNormal = normal;
-			bestOffset = offset;
+			return;
 		}
+		b3ConsiderWheelHullAxis( &bestFace, normal, separation, b3_wheelHullFace, faceIndex, 0.0f );
 	}
 
-	if ( bestSeparation > B3_SPECULATIVE_DISTANCE )
+	if ( bestFace.featureIndex == B3_NULL_INDEX )
 	{
 		return;
 	}
 
-	b3CollideWheelAndPlane( manifold, capacity, wheelA, bestNormal, bestOffset );
+	// Fast path and topology authority for a real face contact. The old code
+	// treated this plane as infinite; keep only support points whose projection
+	// lies inside the finite face polygon. A valid finite face needs no edge or
+	// vertex search, which keeps ordinary wall/plate contact near baseline cost.
+	b3Vec3 outward = b3Neg( bestFace.normal );
+	b3Vec3 pointOnPlane = b3TransformPoint(
+		transformBtoA, b3MulSV( planes[bestFace.featureIndex].offset, planes[bestFace.featureIndex].normal ) );
+	float offset = b3Dot( outward, pointOnPlane );
+	b3CollideWheelAndPlane( manifold, manifoldCapacity, wheelA, outward, offset );
+
+	int kept = 0;
+	for ( int i = 0; i < manifold->pointCount; ++i )
+	{
+		b3LocalManifoldPoint point = manifold->points[i];
+		b3Vec3 projected = b3MulSub( point.point, b3Dot( outward, point.point ) - offset, outward );
+		if ( b3WheelPointInHullFace( hullB, bestFace.featureIndex, transformBtoA, outward, projected ) == false )
+		{
+			continue;
+		}
+		point.pair.owner1 = 0;
+		point.pair.owner2 = 1;
+		point.pair.index2 = (uint8_t)bestFace.featureIndex;
+		manifold->points[kept++] = point;
+	}
+	manifold->pointCount = kept;
+	if ( kept > 0 &&
+		 b3WheelInsideHullFacePrism( wheelA, profile, profileCount, hullB, bestFace.featureIndex, transformBtoA, outward ) )
+	{
+		return;
+	}
+
+	// A finite face manifold is not by itself proof that the face normal is
+	// the least-penetrating SAT axis for an anisotropic wheel. Walk the hull's
+	// normal fan from the reference face instead of blindly scanning every
+	// feature: vertices reached by a better edge or by an exact support query
+	// are queued, and each undirected edge is evaluated at most once.
+	b3WheelHullAxis bestBoundary = {
+		.normal = b3Vec3_zero,
+		.separation = -FLT_MAX,
+		.featureIndex = B3_NULL_INDEX,
+		.featureType = b3_wheelHullEdge,
+	};
+
+	bool visitedEdges[UINT8_MAX] = { false };
+	bool queuedVertices[UINT8_MAX] = { false };
+	int vertexQueue[UINT8_MAX];
+	int queueHead = 0;
+	int queueTail = 0;
+
+	int seedEdge = faces[bestFace.featureIndex].edge;
+	int firstSeedEdge = seedEdge;
+	do
+	{
+		int vertexIndex = edges[seedEdge].origin;
+		if ( queuedVertices[vertexIndex] == false )
+		{
+			queuedVertices[vertexIndex] = true;
+			vertexQueue[queueTail++] = vertexIndex;
+		}
+		seedEdge = edges[seedEdge].next;
+	}
+	while ( seedEdge != firstSeedEdge );
+
+	while ( queueHead < queueTail )
+	{
+		int vertexIndex = vertexQueue[queueHead++];
+		b3Vec3 normal;
+		b3Vec3 coneNormals[UINT8_MAX];
+		int coneCount = 0;
+		int coneEdge = vertices[vertexIndex].edge;
+		int firstConeEdge = coneEdge;
+		int coneGuard = 0;
+		do
+		{
+			if ( coneEdge < 0 || coneEdge >= hullB->edgeCount || edges[coneEdge].origin != vertexIndex )
+			{
+				return;
+			}
+			coneNormals[coneCount++] =
+				b3Neg( b3RotateVector( transformBtoA.q, planes[edges[coneEdge].face].normal ) );
+			coneEdge = edges[edges[coneEdge].twin].next;
+			coneGuard += 1;
+			if ( coneGuard > hullB->edgeCount )
+			{
+				return;
+			}
+		}
+		while ( coneEdge != firstConeEdge );
+
+		float coneSeparation = b3WheelHullVertexAxis( wheelA, profile, profileCount, hullPoints[vertexIndex],
+											 coneNormals, coneCount, &normal );
+		if ( coneSeparation > B3_SPECULATIVE_DISTANCE )
+		{
+			return;
+		}
+		b3ConsiderWheelHullAxis( &bestBoundary, normal, coneSeparation, b3_wheelHullVertex, vertexIndex, 0.0f );
+
+		if ( b3WheelAxisTowardPoint( wheelA, profile, profileCount, hullPoints[vertexIndex], &normal ) )
+		{
+			int minimumIndex = B3_NULL_INDEX;
+			float separation = b3WheelHullSeparation( wheelA, hullPoints, hullB->vertexCount, normal, &minimumIndex );
+			if ( separation > B3_SPECULATIVE_DISTANCE )
+			{
+				return;
+			}
+			if ( minimumIndex != B3_NULL_INDEX )
+			{
+				b3ConsiderWheelHullAxis( &bestBoundary, normal, separation, b3_wheelHullVertex, minimumIndex, 0.0f );
+				if ( queuedVertices[minimumIndex] == false )
+				{
+					queuedVertices[minimumIndex] = true;
+					vertexQueue[queueTail++] = minimumIndex;
+				}
+			}
+		}
+
+		int incidentEdge = vertices[vertexIndex].edge;
+		int firstIncidentEdge = incidentEdge;
+		int incidentGuard = 0;
+		do
+		{
+			if ( incidentEdge < 0 || incidentEdge >= hullB->edgeCount || edges[incidentEdge].origin != vertexIndex )
+			{
+				return;
+			}
+
+			const b3HullHalfEdge* edge = edges + incidentEdge;
+			const b3HullHalfEdge* twin = edges + edge->twin;
+			int stableEdgeIndex = b3MinInt( incidentEdge, edge->twin );
+			if ( visitedEdges[stableEdgeIndex] == false )
+			{
+				visitedEdges[stableEdgeIndex] = true;
+				b3Vec3 inward1 = b3Neg( b3RotateVector( transformBtoA.q, planes[edge->face].normal ) );
+				b3Vec3 inward2 = b3Neg( b3RotateVector( transformBtoA.q, planes[twin->face].normal ) );
+				b3Vec3 edgePoint = hullPoints[edge->origin];
+				float previousBest = bestBoundary.separation;
+				float separation =
+					b3WheelHullEdgeAxis( wheelA, profile, profileCount, edgePoint, inward1, inward2, &normal );
+				if ( separation > B3_SPECULATIVE_DISTANCE )
+				{
+					return;
+				}
+				b3ConsiderWheelHullAxis( &bestBoundary, normal, separation, b3_wheelHullEdge, stableEdgeIndex, 0.0f );
+
+				// Follow an improving edge to its opposite endpoint. This turns the
+				// search into a deterministic ascent over the hull graph while the
+				// visited sets bound the worst case to one pass over the hull.
+				int otherVertex = twin->origin;
+				if ( separation > previousBest && queuedVertices[otherVertex] == false )
+				{
+					queuedVertices[otherVertex] = true;
+					vertexQueue[queueTail++] = otherVertex;
+				}
+			}
+
+			incidentEdge = edges[edge->twin].next;
+			incidentGuard += 1;
+			if ( incidentGuard > hullB->edgeCount )
+			{
+				return;
+			}
+		}
+		while ( incidentEdge != firstIncidentEdge );
+	}
+
+	if ( bestBoundary.featureIndex == B3_NULL_INDEX )
+	{
+		return;
+	}
+
+	// Prefer the wider and more persistent face manifold unless the finite
+	// boundary axis is clearly better. One quarter of linear slop provides the
+	// generic hull manifold's topology hysteresis while keeping the chosen separation
+	// within the collision tolerance. An empty clipped face has no authority.
+	if ( kept > 0 && bestBoundary.separation <= bestFace.separation + 0.25f * B3_LINEAR_SLOP )
+	{
+		return;
+	}
+
+	b3Vec3 wheelPoint = b3ComputeWheelSupportFromProfile( wheelA, profile, profileCount, bestBoundary.normal );
+	b3Vec3 hullPoint;
+	if ( bestBoundary.featureType == b3_wheelHullEdge )
+	{
+		const b3HullHalfEdge* edge = edges + bestBoundary.featureIndex;
+		const b3HullHalfEdge* twin = edges + edge->twin;
+		b3Vec3 p1 = hullPoints[edge->origin];
+		b3Vec3 p2 = hullPoints[twin->origin];
+		hullPoint = b3PointToSegmentDistance( p1, p2, wheelPoint );
+	}
+	else
+	{
+		int vertexIndex = bestBoundary.featureIndex;
+		if ( vertexIndex < 0 || vertexIndex >= hullB->vertexCount )
+		{
+			return;
+		}
+		hullPoint = hullPoints[vertexIndex];
+	}
+
+	float axial = b3Dot( bestBoundary.normal, wheelA->axis );
+	b3Vec3 radial = b3MulSub( bestBoundary.normal, axial, wheelA->axis );
+	int profileIndex = b3WheelProfileSupport( profile, profileCount, axial, b3Length( radial ) );
+	b3FeaturePair pair = { 0 };
+	if ( bestBoundary.featureType == b3_wheelHullEdge )
+	{
+		pair.owner1 = 1;
+		pair.index1 = (uint8_t)bestBoundary.featureIndex;
+		pair.owner2 = 0;
+		pair.index2 = (uint8_t)profileIndex;
+	}
+	else
+	{
+		pair.owner1 = 1;
+		pair.index1 = (uint8_t)bestBoundary.featureIndex;
+		pair.owner2 = 1;
+		pair.index2 = (uint8_t)profileIndex;
+	}
+
+	manifold->normal = bestBoundary.normal;
+	manifold->points[0].point = b3MulSV( 0.5f, b3Add( wheelPoint, hullPoint ) );
+	manifold->points[0].separation = bestBoundary.separation;
+	manifold->points[0].pair = pair;
+	manifold->points[0].triangleIndex = 0;
+	manifold->pointCount = 1;
 }
 
 void b3CollideWheelAndTriangle( b3LocalManifold* manifold, int capacity, const b3Wheel* wheelA, b3Vec3 v1, b3Vec3 v2,

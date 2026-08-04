@@ -26,7 +26,7 @@
       "activation_boundary": "Nowa ścieżka jest wybierana wyłącznie dla b3_wheelShape; istniejące typy brył pozostają na swoich dotychczasowych gałęziach.",
       "zero_delta_contract": "Przy braku b3_wheelShape zachowanie stockowych typów ma pozostać niezmienione; potwierdzają to lokalne testy i jawny przegląd diffu względem comparison_base.",
       "upstream_update_dry_run": "required-before-rebase",
-      "notes": "Obejmuje pierwszy typ koła, integrację mesh/query/debug, profil bieżni do 5b92e9c, limit pojemności manifoldu, WHEEL-RIGID-01 strict support oraz WHEEL-SEAM-02A: jednostronny finite triangle face/edge/vertex fallback i warunkowy tylko dla b3Wheel wybór normalnej najgłębszego manifoldu w klastrze mesha. Wheel–hull SAT/clipping, niezależne zmiany solvera i per-contact softness wymagają osobnego checkpointu lub patch_id."
+      "notes": "Obejmuje pierwszy typ koła, integrację mesh/query/debug, profil bieżni do 5b92e9c, limit pojemności manifoldu, WHEEL-RIGID-01 strict support oraz WHEEL-SEAM-02A: jednostronny finite triangle face/edge/vertex fallback i warunkowy tylko dla b3Wheel wybór normalnej najgłębszego manifoldu w klastrze mesha. WHEEL-HULL-02B: finite face clipping, konserwatywny face-prism fast path, deterministyczny feature walk oraz numeryczne osie edge/vertex-cone. Niezależne zmiany solvera i per-contact softness wymagają osobnego checkpointu lub patch_id."
     }
   ],
   "comparison_base": "959aefb78587ce60cf2b8eb03ff82797a4165142",

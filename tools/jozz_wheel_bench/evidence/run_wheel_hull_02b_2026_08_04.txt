@@ -1,0 +1,108 @@
+WHEEL-HULL-02B — finite hull face/edge/vertex contact
+Date: 2026-08-04
+Baseline HEAD: a3751430ba1b713aebb41d8a9bc5be89b47d4495 (a375143 package base)
+Primary variable: wheel-vs-hull finite contact topology and axis selection.
+Frozen: wheel profile, cornerRadius, mass, friction, world softness, solver substeps, vehicle setup.
+
+PRE-FIX FAILURES REPRODUCED
+- Infinite face plane created a contact outside a finite box polygon.
+- Deep corner selected a non-nearest boundary edge.
+- Best-face-local search missed a remote hull vertex; face separation -0.49465 m versus dense global -0.42456 m.
+- Edge-only search missed a maximum inside a three-face vertex normal cone.
+- Vertex iterations 6, 7 and 8 failed permanent random case 172 by more than the 3 mm audit tolerance; 9 and 10 passed.
+
+FINAL ALGORITHM CONTRACT
+- Exact hull face axes and finite clipping of wheel-plane points to the face polygon.
+- Conservative fast return only when the entire wheel projection lies inside every side plane of the face prism.
+- Deterministic feature walk over the hull graph, each valid half-edge pair evaluated at most once.
+- Numerical edge normal-cone search: 4 coarse samples + 5 ternary refinements.
+- Numerical vertex normal-cone search: 9 deterministic convex-blend iterations.
+- Stable, disjoint face/edge/vertex feature-pair encoding.
+- This is a controlled bounded numerical search, not a claim of an analytic exact SAT proof.
+
+TARGETED AND RANDOM VALIDATION
+- Permanent WheelShapeTest: 32 subtests, including 16 hull-specific tests.
+- Explicit regressions: remote support vertex and constrained vertex-cone interior maximum.
+- Final temporary audit: 2000 deterministic random oriented boxes, 8192 dense reference directions each.
+- Permanent arbitrary-hull audit: 60 deterministic non-orthogonal convex hulls, 8192 dense reference directions each.
+- Acceptance: returned separation is not more than 3 mm worse than dense global reference.
+- Loaded world transition: face -> edge -> vertex, both directions, spin phases 0.00 and 0.73 rad; no gap, adjacent normal dot > 0.85, each topology carries > 0.1 N*s total normal impulse.
+
+FINAL 2000-CASE WHEEL TEST OUTPUT (tail)
+test skipped: RecordingTest
+test skipped: ShapeTest
+test skipped: TableTest
+test skipped: WorldTest
+  subtest passed: WheelCrownUsesOneStrictSupportVertex
+  subtest passed: WheelFlatTreadUsesTwoSupportEndpoints
+  subtest passed: WheelSupportFeaturesSurviveSpin
+  subtest passed: WheelCamberSelectsOneEndpoint
+  subtest passed: WheelManifoldHonorsCallerCapacity
+  subtest passed: WheelOutsideSpeculativeDistanceHasNoContact
+  subtest passed: WheelTriangleBackFaceDoesNotCollide
+  subtest passed: WheelTriangleEdgeFallbackKeepsContact
+  subtest passed: WheelTriangleVertexFallbackKeepsContact
+  subtest passed: WheelTriangleEdgeFeatureSurvivesSpin
+  subtest passed: WheelTriangleDistantBoundaryHasNoContact
+  subtest passed: WheelCrossesCoplanarTriangleSeamWithoutGap
+  subtest passed: WheelWorldMeshBoundaryUsesFiniteEdge
+  subtest passed: WheelWorldMeshSeamHasNoContactGap
+  subtest passed: WheelWorldFoldedMeshSeamKeepsNormalAndImpulseContinuous
+  subtest passed: WheelWorldFeaturePersistsWhileSpinning
+  subtest passed: WheelHullDoesNotUseInfiniteFaceOutsideBox
+  subtest passed: WheelHullCornerUsesFiniteEdgeNormal
+  subtest passed: WheelHullRejectedFaceFallsBackToBoundaryFeature
+  subtest passed: WheelHullDeepCornerChoosesNearestBoundary
+  subtest passed: WheelHullShoulderCornerOutsideRoundedProfileDoesNotCollide
+  subtest passed: WheelHullFaceKeepsFlatSupportSegment
+  subtest passed: WheelHullEdgeFeatureSurvivesSpin
+  subtest passed: WheelHullVertexConeFindsThreeAxisCorner
+  subtest passed: WheelHullVertexConeRejectsDiagonalGap
+  subtest passed: WheelHullFeatureWalkReachesRemoteVertex
+  subtest passed: WheelHullVertexConeFindsConstrainedInteriorMaximum
+  subtest passed: WheelHullSATMatchesDenseGlobalDirectionSearch
+  subtest passed: WheelHullSATMatchesDenseSearchForRandomConvexHulls
+  subtest passed: WheelWorldHullCornerDoesNotCreateGhostContact
+  subtest passed: WheelWorldHullEdgeContactPersistsWhileSpinning
+  subtest passed: WheelWorldHullLoadedFaceEdgeVertexTransitionIsContinuous
+test passed: WheelShapeTest
+======================================
+All Box3D tests passed!
+Test duration = 3.43 s
+
+FULL GATES
+- Full Debug unit suite: PASS, duration 5.11 s.
+- Full ASan unit suite: PASS, duration 13.44 s, detect_leaks=1, halt_on_error=1.
+- Scalar UBSan WheelShapeTest: PASS, duration 0.54 s.
+- Default-SIMD full UBSan is NOT claimed green: existing alignment failure occurs in mesh SIMD before this path; tracked separately.
+- Fresh offline headless jozz_vehicle_validation from current source: 19 probes + 2 map probes, OK.
+
+RELEASE MICROBENCHMARK (GCC -O3 -DNDEBUG, 200000 calls/case)
+RUN 1
+wide-face: 728.4 ns/call, contacts=200000 sink=-40118.176
+small-face: 11807.8 ns/call, contacts=200000 sink=-40118.176
+edge-contact: 11500.1 ns/call, contacts=200000 sink=-3827.010
+diagonal-miss: 1588.1 ns/call, contacts=0 sink=1.500
+RUN 2
+wide-face: 759.8 ns/call, contacts=200000 sink=-40118.176
+small-face: 12066.2 ns/call, contacts=200000 sink=-40118.176
+edge-contact: 11534.9 ns/call, contacts=200000 sink=-3827.010
+diagonal-miss: 1703.1 ns/call, contacts=0 sink=1.500
+RUN 3
+wide-face: 780.8 ns/call, contacts=200000 sink=-40118.176
+small-face: 12140.2 ns/call, contacts=200000 sink=-40118.176
+edge-contact: 11676.7 ns/call, contacts=200000 sink=-3827.010
+diagonal-miss: 1535.6 ns/call, contacts=0 sink=1.500
+Reference old face-only implementation: about 0.36-0.38 us/call, but its diagonal-miss case returned a phantom contact and is not an equivalent correctness baseline.
+
+FINAL SOURCE SHA-256 (pre-documentation candidate)
+084a8fe02857c33b8669ca0b18952000b58830159c2ca830106262d6418f6594  src/wheel_shape.c
+2b3d9d9a7f40c954cf0ba161a31dc18de4b3547cb6df0fbe3841e4534d798ac5  test/test_wheel_shape.c
+
+FINAL LOG SHA-256
+0323625023b71bb390b36cb00e9ccf2d1489bceabad8f9621e23187227997b49  /mnt/data/jv_hull_final_debug.log
+ac4913bc20b8b1c9a318fd0702a0db817b0f19087ea3d7aeb9e398e568b200cd  /mnt/data/jv_hull_final_asan.log
+c7c1a3e48ccb47640c72e220c57215ffb3c9335602369f156f94162b6f833408  /mnt/data/jv_hull_final_ubsan_scalar.log
+396c7304983ceca3532a4a0bb558fc51346ea62d63a75a49a9bf1e34ce65f6e0  /mnt/data/jv_validation_hull_current/validator_final.log
+52f9a84df57cf97fc95b4380f9ba5f46f0be58399f43a8583f830386877cdfbd  /tmp/jv_final_2000.log
+40dcd9aea327fdaf5b5934eff5e9d29fbeb6c5d28fa01f96ca716cbff8183796  /tmp/jv_wheel_hull_bench_final.log

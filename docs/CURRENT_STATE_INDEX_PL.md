@@ -47,6 +47,17 @@ oknie `20%`; wheel-only wybór normalnej najgłębszego manifoldu usunął zmier
 przed poprawką, zależny od fazy skok `+36,4%`. Dwa świeże przebiegi pełnego
 walidatora produktu pozostały bajtowo identyczne (`19 + 2`, `OK`).
 
+
+`WHEEL-HULL-02B` zamknął kontrolowany zakres skończonych hullów (`F-42`, `F-43`).
+Face manifold jest clipowany do polygonu; zwykła szeroka ściana ma konserwatywny
+certyfikat całej projekcji koła, a przypadki brzegowe przechodzą deterministyczny
+feature walk z osobnymi face/edge/vertex IDs. Obciążone przejście
+face→edge→vertex przechodzi w obu kierunkach i dwóch fazach. Audit obejmuje 2000
+orientowanych boxów oraz 60 nieortogonalnych hullów względem 8192 kierunków
+referencyjnych; dopuszczalny błąd osi wynosi 3 mm. Pełny validator produktu
+pozostał zielony (`19 + 2`, `OK`). Search edge/vertex jest numeryczny, nie jest
+formalnym dowodem analitycznie dokładnego SAT.
+
 ## 3. Najbliższy program badawczy
 
 Front door programu: `KOLA_00_INDEX_PL.md`.
@@ -75,14 +86,16 @@ już w ramach seam/soft, bez ponownego otwierania topologii plane.
 - przejście `triangleIndex` może dać jeden jawny reset `persisted`, ale bez luki
   kontaktu, zmiany feature ID ani churnu po obu stronach.
 
-### Etap B2 — hully i narożniki — AKTYWNY NASTĘPNY KROK (`WHEEL-HULL-02B`)
+### Etap B2 — hully i narożniki — ZAMKNIĘTY (`WHEEL-HULL-02B`)
 
-- ograniczyć manifold nieskończonej płaszczyzny do polygonu ściany hulla;
-- dodać istotne osie edge/axis dla pełnego convex–convex rozdzielenia;
-- zablokować phantom contacts przy krawędziach i narożnikach;
-- powtórzyć obciążone przejścia w obu kierunkach i kilku fazach koła.
+- face manifold jest ograniczony do polygonu ściany;
+- pełna projekcja koła certyfikuje tani fast path tylko dla rzeczywistej ściany;
+- feature walk dociera do odległych krawędzi i wierzchołków normal fan;
+- osobne feature IDs przeżywają spin, a obciążone face→edge→vertex nie ma luki;
+- numeryczny search jest walidowany względem gęstego globalnego odniesienia,
+  lecz pozostaje kontrolowanym przybliżeniem z progiem 3 mm.
 
-### Etap C — A/B podatności
+### Etap C — A/B podatności — AKTYWNY NASTĘPNY KROK (`WHEEL-SOFT-03`)
 
 Ta sama geometria, te same feature IDs, punkty manifoldu, masa, tarcie,
 zawieszenie i podkroki:
@@ -105,8 +118,9 @@ powierzchnię zapytań. Nie wracać do wielu niezależnych stockowych collideró
 
 - testy triangle/mesh obejmują kontrolowane płaskie i łagodnie załamane szwy,
   lecz nie dowodzą poprawności dowolnej siatki ani bardzo ostrych cech;
-- wheel–hull opiera się głównie na normalnych ścian i płaszczyźnie, bez pełnego
-  clippingu do wielokąta ściany i kompletnego SAT;
+- wheel–hull używa numerycznego searchu w stożkach normalnych krawędzi i
+  wierzchołków; audit ogranicza znany błąd do 3 mm, ale nie jest formalnym dowodem
+  globalnej optymalności, a ciężka ścieżka narożnika kosztuje około 12 us/call;
 - masa koła jest przybliżeniem walca obwiedniowego; pojazd zamraża ją osobno;
 - raycast jest konserwatywny, nie jest dokładnym przecięciem profilu;
 - generic shape-cast/overlap używa konserwatywnego proxy, nie pełnej geometrii;

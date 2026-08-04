@@ -9,17 +9,17 @@ koła i opony.
 
 Baseline programu koła `jozz-scan-terrain-f0` @ `5b92e9c` zawiera własny typ
 `b3Wheel`: obrotowo symetryczną bryłę z profilem bieżni, dedykowanymi kontaktami,
-obsługą mesha, raycastem i debug draw. To jest wartościowy fundament, ale jeszcze
-nie pełny model opony. Obecny manifold może poszerzać „ślad” przez aktywowanie
-punktów znajdujących się w dystansie spekulacyjnym; trzeba oddzielić ten efekt od
-prawdziwej podatności.
+obsługą mesha, raycastem i debug draw. `WHEEL-RIGID-01`, `WHEEL-SEAM-02A` oraz
+`WHEEL-HULL-02B` zamknęły sztywną topologię supportu i kontrolowane przejścia po
+trójkątach, ścianach, krawędziach i narożnikach. To jest wartościowy fundament,
+ale jeszcze nie model podatnej opony.
 
 Najbliższy program pracy:
 
 ```text
-sztywny manifold bez sztucznego odcisku
-→ poprawność na szwach i krawędziach terenu
-→ A/B lokalnej podatności przy identycznej topologii
+sztywny manifold bez sztucznego odcisku — DONE
+→ szwy triangle/mesh oraz finite hull face/edge/vertex — DONE
+→ A/B lokalnej podatności przy identycznej topologii — NEXT
 → decyzja, czy potrzebna jest opona strukturalna
 ```
 

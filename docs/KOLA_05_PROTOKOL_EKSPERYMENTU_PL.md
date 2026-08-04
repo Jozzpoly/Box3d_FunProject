@@ -125,7 +125,7 @@ normalnej klastra; pre-fix anomalia `+36,4%` była więc czerwona, nie została
 zaakceptowana przez dostrojenie progu. Surowy przebieg i komendy są w
 `tools/jozz_wheel_bench/evidence/run_wheel_seam_02a_2026_08_04.txt`.
 
-## 7. `WHEEL-HULL-02B`
+## 7. `WHEEL-HULL-02B` — ZAMKNIĘTY
 
 Scena minimalna: skończona ściana hulla, przejście przez jej krawędź, narożnik
 oraz kontrola negatywna, w której support nieskończonej płaszczyzny leży poza
@@ -140,6 +140,13 @@ Bramka wymaga:
 - obu kierunków, kilku faz koła i obciążonego testu impulsu.
 
 Softness, profil, masa, tarcie i parametry solvera pozostają zamrożone.
+
+Wynik: finite face clipping, konserwatywny face-prism fast path oraz feature
+walk z numerycznym szukaniem osi edge/vertex. Obciążone przejście face→edge→vertex
+przechodzi w obu kierunkach i dwóch fazach; finalny audit 2000 boxów i 60
+nieortogonalnych hullów pozostaje w granicy 3 mm względem 8192 kierunków.
+Surowe komendy, pomiary kosztu i ograniczenia są w
+`tools/jozz_wheel_bench/evidence/run_wheel_hull_02b_2026_08_04.txt`.
 
 ## 8. `WHEEL-SOFT-03`
 

@@ -15,14 +15,6 @@ override wheel–ground, więc „miękka opona” miesza się z miękkością c
 **Spłata:** per-wheel lub per-material normal softness, wybierana w obu ścieżkach
 prepare contact; A/B przy identycznym manifoldzie.
 
-## P1-1 — Wheel–hull nie jest pełnym kontaktem convex–convex
-
-Wybór ściany i manifold płaszczyzny nie ograniczają wszystkich punktów do
-wielokąta ściany i nie pokrywają kompletu osi rozdzielających. Ryzyko fałszywych
-kontaktów przy krawędziach i narożnikach.
-
-**Spłata:** clipping do face polygon + testy edge/axis po ustabilizowaniu mesha.
-
 ## P1-2 — Niepełne zapytania geometrii `b3Wheel`
 
 Generic proxy jest konserwatywną sferą; shape cast/overlap nie mają wszędzie
@@ -39,14 +31,36 @@ rzeczywistego profilu.
 **Spłata:** albo dokładne całkowanie bryły obrotowej, albo jawny kontrakt
 „collision-only; mass supplied by caller”. Nie zmieniać przed testem topologii.
 
-## P2-1 — Pełny UBSan zatrzymuje się w `compound.c`
+## P2-1 — Pełny UBSan ma niezależny dług wyrównania
 
-Pełny zestaw testów pod UBSan zatrzymuje się w `src/compound.c:582` na
-misaligned `b3HullData*` store. Ten sam błąd został odtworzony na czystym
-checkpointcie `8472512`; `WheelShapeTest` przechodzi pod UBSan.
+Domyślny build SIMD zatrzymuje się przed ścieżką koła na niealigned `_mm_load_sd`
+w `src/mesh.c` / `src/simd.h`. Wcześniejszy przebieg bez tego punktu ujawnił też
+misaligned `b3HullData*` store w `src/compound.c:582`. Scalar `WheelShapeTest`
+przechodzi czysto pod UBSan, więc pakiet hulla nie jest źródłem tych zgłoszeń.
 
-**Spłata:** osobny minimalny reproduktor i poprawka layoutu/alokacji compound,
-bez mieszania jej z geometrią koła.
+**Spłata:** osobne minimalne reproduktory i jawny kontrakt wyrównania SIMD oraz
+compound; nie mieszać z podatnością opony.
+
+## P2-2 — Wheel–hull używa numerycznego searchu normal fan
+
+Face clipping i phantom-corner cases są zamknięte, lecz maksimum na łuku krawędzi
+i wewnątrz stożka wierzchołka jest szukane w ograniczonej liczbie iteracji.
+Audit 2000 boxów + 60 nieortogonalnych hullów utrzymuje błąd do 3 mm, ale nie jest
+formalnym dowodem globalnej optymalności. Ciężka ścieżka małej ściany/narożnika
+kosztuje około 12 us/call wobec około 0,7 us dla certyfikowanej szerokiej ściany.
+
+**Spłata:** dopiero po profilu produktu: analityczny/constrained optimizer albo
+większy dowód i profiler wielu pojazdów. Nie blokuje `WHEEL-SOFT-03`.
+
+## P2-3 — Headless validator jest splątany z zależnościami GUI
+
+Główny `samples/CMakeLists.txt` inicjalizuje ImGui/NFD/GTK przed utworzeniem
+`jozz_vehicle_validation`, mimo że target nie linkuje GUI. Na Linuxie wymusza to
+GTK lub sieć nawet dla czystej walidacji headless; obecny pakiet został sprawdzony
+świeżym minimalnym targetem z dokładnej listy `JOZZ_VEHICLE_CORE_FILES`.
+
+**Spłata:** wydzielić headless validation przed GUI dependencies albo do osobnego
+CMakeLists, z testem konfiguracji offline.
 
 ## P3-1 — Historyczne ograniczenia pojazdu
 
