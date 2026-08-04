@@ -78,7 +78,7 @@ static const char* g_exeSha = BENCH_EXE_SHA256;
 #define UNSPRUNG_KG JOZZ_RIG_UNSPRUNG_KG
 #define PI JOZZ_RIG_PI
 
-// Real corner of the M6 vehicle, from docs/M7_REAL_FORCES_FOUNDATION_PL.md.
+// Real corner of the M6 vehicle, from docs/archive/vehicle_legacy_2026-07/M7_REAL_FORCES_FOUNDATION_PL.md.
 // v1 measured a free 44 kg wheel = ~432 N, i.e. about a quarter of this.
 // Uzywane wylacznie przez sekcje A-G; Q2A liczy obciazenie z grawitacji swiata.
 #define CORNER_LOAD_N 1900.0f

@@ -400,14 +400,15 @@ void JozzVehicleM6RigLab::DrawSuspensionTab()
 							"Więcej = opona wypukła jak w motocyklu albo w terenówce: na płaskim dotyka tylko "
 							"środkiem, więc stopa jest węższa, ale przy przechyle koło przetacza się na bok bieżni "
 							"zamiast wchodzić na ostry brzeg.\n\n"
-							"Im mocniej koło jest dociśnięte do ziemi, tym więcej punktów bieżni dotyka - stopa "
-							"rośnie z obciążeniem, jak w prawdziwej oponie.\n\n"
+							"UWAGA BADAWCZA: obecny manifold aktywuje wierzchołki profilu mieszczące się w "
+							"dystansie spekulacyjnym. Więcej punktów przy większym overlapie może więc wynikać z "
+							"próbkowania kontaktu - NIE jest jeszcze dowodem deformacji ani rosnącego śladu opony.\n\n"
 							"Zmierzone w TYM aucie (trzęsienie nadwozia m/s2 | punktów styku na koło):\n"
 							"  prosto 58 km/h:  0mm 0,023|2,00   3mm 0,024|2,94   10mm 0,034|2,16   30mm 0,022|1,00\n"
 							"  ZAKRĘT 43 km/h:  0mm 0,603|2,00   3mm 0,447|2,43   10mm 0,459|1,53   30mm 0,468|1,00\n"
-							"Czyli: na prostej wysklepienie nic nie daje, ale w zakręcie 3 mm zbija szarpanie o 26%, "
-							"bo koło dostaje WIĘCEJ punktów styku, nie mniej. Przy 30 mm zostaje jeden punkt - to "
-							"znowu kulka.\n\n"
+							"Raport: na prostej crown prawie nic nie daje, a w zakręcie 3 mm koreluje ze spadkiem "
+							"szarpania o 26% i większą liczbą punktów. Przyczyna NIE jest rozstrzygnięta: profil i "
+							"topologia manifoldu są jeszcze zmieszane. Przy 30 mm zostaje jeden punkt.\n\n"
 							"Domyślnie 0. Jak ma jeździć auto, to Twoja decyzja, nie moja." );
 
 				edited |= ImGui::SliderInt( "Punkty przekroju", &m_editWheelProfilePoints, 2, B3_MAX_WHEEL_PROFILE_POINTS );
@@ -1182,7 +1183,7 @@ void JozzVehicleM6RigLab::BuiltinFragmentSpawn( JozzWorldLayout::JozzMapFragment
 	// Per-fragment spawn UI (2026-07-24), drawn inside each Mapa segment. Set from
 	// the car's current spot: "Respawn tutaj" arms the SESSION default (nietrwały,
 	// klawisz "R" wraca w to miejsce); "Zapisz jako domyślny" writes the PERSISTENT
-	// default to the committed assets/vehicle_spawns.txt. Scratch X/Z is the working
+	// default to the tracked assets/vehicle_spawns.txt. Scratch X/Z is the working
 	// value both actions consume, seeded once from the effective spawn.
 void JozzVehicleM6RigLab::DrawFragmentSpawnControls( JozzWorldLayout::JozzMapFragment fragment )
 	{

@@ -23,7 +23,7 @@ void JozzVehicleM6RigLab::SaveDebugViewState()
 		file << "armTint=" << ( m_armTint ? 1 : 0 ) << "\n";
 		// Not a view toggle, but the same class: a sample-level preference that
 		// is NOT vehicle config, so it belongs here (survives "R", never leaks
-		// into a preset). See SUBSYSTEM_UI_PRESETS_PL.md §1b (TECH_DEBT #12).
+		// into a preset). See docs/SUBSYSTEM_UI_PRESETS_PL.md §5.
 		file << "invertSteering=" << ( m_invertSteering ? 1 : 0 ) << "\n";
 		// Whether the body mesh is drawn at all - a pure view toggle. WHICH body
 		// is selected is m_config.bodyVisualModel (vehicle identity, Etap 2).

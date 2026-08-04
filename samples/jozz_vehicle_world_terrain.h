@@ -3,7 +3,7 @@
 
 #pragma once
 
-// Fundament terenu (Etap 1 of docs/PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md): the
+// Fundament terenu (Etap 1 of docs/MAPA_INDEX_PL.md): the
 // 3x3-tile flat plate plus the offroad FBM heightfield chunk that dips under
 // its east edge. Pure content/course building, shared by both the M5 and M6
 // labs; kept out of jozz_vehicle_validation (this is scenery for interactive

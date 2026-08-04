@@ -75,7 +75,7 @@ static const char* kPresetDirectory = "assets/vehicle_presets";
 // frontSuspensionVisualModel are NOT view toggles - they are vehicle IDENTITY
 // (BeamNG pattern: a preset describes the whole car), so they live IN
 // JozzVehicleM6Config and DO travel with presets/sessions/R (see
-// docs/PLAN_FINALIZACJA_NADWOZIA_I_RIGU_2026_07_11_PL.md §2.2). This file
+// docs/archive/vehicle_legacy_2026-07/PLAN_FINALIZACJA_NADWOZIA_I_RIGU_2026_07_11_PL.md §2.2). This file
 // keeps only true view state: whether the body mesh is drawn at all
 // (m_showBodyVisual), diagnostic lines, arm tint, mesh visibility.
 static const char* kDebugSessionFilePath = "build/jozz_vehicle_m6_debug_session.txt";
@@ -123,7 +123,7 @@ public:
 	// Rigid chassis-frame skin, fixed in the chassis body's local frame; which
 	// skin (or none) is m_config.bodyVisualModel, a registry key (see
 	// jozz_vehicle_body_registry.h). Drawn only when m_showBodyVisual is on. See
-	// docs/FINALIZACJA_ETAP_1_MODEL_I_UI_PL.md.
+	// docs/archive/vehicle_legacy_2026-07/FINALIZACJA_ETAP_1_MODEL_I_UI_PL.md.
 	void ApplyBodyVisualFromConfig();
 	void DrawBodyVisual();
 	static bool CornerIsLeft( int corner );
@@ -184,7 +184,7 @@ public:
 	void DrawFragmentSpawnControls( JozzWorldLayout::JozzMapFragment fragment );
 	const char* EffectiveFragmentSpawn( JozzWorldLayout::JozzMapFragment fragment, float* outX, float* outZ ) const;
 	void BuiltinFragmentSpawn( JozzWorldLayout::JozzMapFragment fragment, float* outX, float* outZ ) const;
-	void SaveFragmentSpawns() const; // persistent tier -> committed assets/vehicle_spawns.txt
+	void SaveFragmentSpawns() const; // persistent tier -> tracked assets/vehicle_spawns.txt
 	void LoadFragmentSpawns();		 // constructor restore
 	// Scan island (fundament v3, M1). Reads a photogrammetry pack into m_scanTiles,
 	// builds ONE Terrain body north of the plate, and teleports onto it. The no-arg
@@ -235,11 +235,11 @@ public:
 	// JOZZ_M6_AUTODRIVE: headless drive-through testing aid (Etap 1) - forces
 	// full-throttle straight-line drive every Step so map gates (seam/tile
 	// joins at speed) can be verified without a human at the keyboard. See
-	// docs/MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md.
+	// docs/MAPA_INDEX_PL.md.
 	bool m_autoDrive = false;
 	// JOZZ_M6_PERF_DUMP: step number at which to printf one line of averaged
 	// step-cost profiler numbers to stdout (headless performance measurement -
-	// the perf table in docs/MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md was filled this
+	// the perf table in docs/MAPA_INDEX_PL.md was filled this
 	// way, no GUI graph-reading needed). -1 == disabled / already printed.
 	int m_perfDumpAtStep = -1;
 	// JOZZ_M6_REGEN_COUNT: same idea, but regenerates the offroad chunk N times
@@ -272,7 +272,7 @@ public:
 
 	// Which front-suspension visual model this car wears is vehicle IDENTITY
 	// (Jozz, 2026-07-11), so it lives in the config, not a member bool - see
-	// docs/FINALIZACJA_ETAP_1_MODEL_I_UI_PL.md §4. JOZZ_M6_STEERING_RIG env and
+	// docs/archive/vehicle_legacy_2026-07/FINALIZACJA_ETAP_1_MODEL_I_UI_PL.md §4. JOZZ_M6_STEERING_RIG env and
 	// the Debug checkbox both just snprintf into m_config.frontSuspensionVisualModel.
 	bool UseSteeringRig() const
 	{

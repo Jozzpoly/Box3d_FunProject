@@ -2,7 +2,14 @@
 
 Data: 2026-07-28
 Podstawa: `KOLA_01` §7.9 (dwanaście wad stendu v2) + audyt zewnętrzny 2026-07-27
-Status: **PROTOKÓŁ ZAPROJEKTOWANY, NIEURUCHOMIONY**
+Status: **CZĘŚCIOWO URUCHOMIONY** — Q3, kalibracje i manifesty weszły do narzędzi; pełna drabina Q0–Q4 oraz transfer do Q4 nie są zamknięte.
+
+
+> **Korekta 2026-08-04.** Dokument nie jest już czystym planem przed pierwszym
+> runem: quarter-car Q3, sonda `Q3-1`, config `.qc`, powtórzenia i część bramek
+> zostały wykonane. Zachowujemy pierwotny protokół jako kontrakt, ale każda
+> sekcja musi być czytana razem z nowszymi wynikami w `KOLA_FINDINGS.json` i
+> `CURRENT_STATE_INDEX_PL.md`. „Q3 działa” nie znaczy „Q0–Q4 zwalidowane”.
 
 > **Reguła tego dokumentu.** Protokół powstaje i jest opisany **przed** pierwszym
 > przebiegiem. Powód jest bolesny i zmierzony: stend v2 dał liczby, które przez

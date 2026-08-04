@@ -46,7 +46,7 @@ public:
 			m_camera->SetView( -135.0f, 14.0f, 13.0f, { 0.0f, 1.2f, 0.0f } );
 		}
 
-		// Mapa Etap 1 (docs/MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md): the same 3x3-tile
+		// Mapa Etap 1 (docs/MAPA_INDEX_PL.md): the same 3x3-tile
 		// plate + offroad FBM chunk the M6 lab uses, built with the engine
 		// default category (1) since this lab's single-sphere wheel model has
 		// no split envelope to key on JOZZ_M6_TERRAIN_CATEGORY. Replaces the old
@@ -584,7 +584,7 @@ public:
 			}
 		}
 
-		// Etap 2 obstacle-kit station labels (docs/MAPA_ETAP_2_PRZESZKODY_I_POLIGONY_PL.md
+		// Etap 2 obstacle-kit station labels (docs/MAPA_INDEX_PL.md
 		// §5/R11 - both labs share the course); distance-culled against the
 		// camera so a far-off view doesn't drown the HUD in text.
 		{

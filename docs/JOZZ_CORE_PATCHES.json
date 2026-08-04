@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "scope": [
+    "src",
+    "include"
+  ],
+  "patches": [
+    {
+      "patch_id": "B3X-WHEEL-001",
+      "class": "X",
+      "status": "experimental-active",
+      "question": "Czy Box3D potrzebuje natywnej, obrotowo symetrycznej bryły koła, aby połączyć gładkie toczenie z rzeczywistą szerokością bieżni?",
+      "owner": "docs/KOLA_00_INDEX_PL.md",
+      "files": [
+        "include/box3d/box3d.h",
+        "include/box3d/collision.h",
+        "include/box3d/types.h",
+        "src/CMakeLists.txt",
+        "src/contact.c",
+        "src/mesh_contact.c",
+        "src/physics_world.c",
+        "src/shape.c",
+        "src/shape.h",
+        "src/wheel_shape.c"
+      ],
+      "activation_boundary": "Nowa ścieżka jest wybierana wyłącznie dla b3_wheelShape; istniejące typy brył pozostają na swoich dotychczasowych gałęziach.",
+      "zero_delta_contract": "Przy braku b3_wheelShape zachowanie stockowych typów ma pozostać niezmienione; potwierdzają to lokalne testy i jawny przegląd diffu względem comparison_base.",
+      "upstream_update_dry_run": "required-before-rebase",
+      "notes": "Obejmuje pierwszy typ koła, integrację mesh/query/debug oraz profil bieżni do 5b92e9c. Kolejne niezależne zmiany solvera lub per-contact softness wymagają osobnego patch_id."
+    }
+  ],
+  "comparison_base": "959aefb78587ce60cf2b8eb03ff82797a4165142",
+  "upstream_reference": "d421e45c828f6f853a145f726f0b9425d31146eb"
+}

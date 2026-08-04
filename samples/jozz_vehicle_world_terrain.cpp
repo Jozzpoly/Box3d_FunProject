@@ -17,7 +17,8 @@ namespace
 
 // --- Deterministic value noise (iq-style integer hash + quintic blend) -----
 // Not b3CreateWave: that generator is a single sine product (one frequency,
-// see PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md §3) and cannot produce "three
+// see docs/archive/map_scan_2026-07/PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md
+// §3) and cannot produce "three
 // different noise scales" layered together. This is a small from-scratch
 // generator instead, seeded so the same seed always reproduces the same
 // terrain (P7 - "Przebuduj teren" is a deliberate re-roll, not randomness).

@@ -1,6 +1,6 @@
 # ADR 0005 — M5 First Drivable precedes M4C visual polish
 
-Status: Accepted  
+Status: Completed historical sequencing decision; not a current roadmap
 Date: 2026-07-05
 
 ## Decision

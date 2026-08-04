@@ -660,7 +660,13 @@ class EvidenceChainTest(unittest.TestCase):
         res = self.sb.run("register")
         self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
         manifest = json.loads((self.sb.evidence / "RAW_MANIFEST.json").read_text(encoding="utf-8"))
-        self.assertEqual(sorted(manifest["runs"]), ["2026_07_25_baseline", "2026_07_27_v2"])
+        # The evidence set grows over time. The contract is not "exactly the two
+        # runs that existed when this test was written"; it is "every tracked
+        # run_*.txt in the fixture is registered, and nothing else is".
+        expected_runs = sorted(
+            path.stem.removeprefix("run_") for path in self.sb.evidence.glob("run_*.txt")
+        )
+        self.assertEqual(sorted(manifest["runs"]), expected_runs)
         self.assertEqual(self.sb.run("extract").returncode, 0)
         self.assertEqual(self.sb.run("check").returncode, 0)
 

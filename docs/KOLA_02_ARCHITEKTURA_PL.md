@@ -2,7 +2,14 @@
 
 Data: 2026-07-25 | Korekta po audycie: 2026-07-28
 Wejście: `KOLA_01_DOWODY_PL.md` (wszystkie liczby stamtąd, statusy §7 `PROVISIONAL`)
-Status: **PROPOZYCJA** — nic z tego nie jest zaimplementowane.
+Status: **MIESZANY** — kontrakty W1/W3/W4 pozostają propozycją; warstwa W2 ma już pierwszy natywny backend `b3Wheel`, ale nie realizuje pełnego `WheelSpec`/`TireSpec`.
+
+
+> **Korekta 2026-08-04.** Commity `9800af9…5b92e9c` zaimplementowały pierwszy
+> backend W2: obrotowo symetryczny `b3Wheel` z profilem bieżni. Nie oznacza to,
+> że cała architektura z tego dokumentu została przyjęta. `WheelSpec`, model
+> materiału W3 i wielopoziomowe fidelity nadal są hipotezami. Najbliższy krok
+> dotyczy poprawności manifoldu i lokalnej podatności, nie rozbudowy kontraktów.
 
 > **Ten plik NIE jest dziś źródłem prawdy o kierunku.** Powstał przed pomiarami
 > z 2026-07-27 i przed audytem z 2026-07-28. Trwałe są w nim: podział na warstwy

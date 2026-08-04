@@ -1,327 +1,64 @@
-# TECH_DEBT — Jozz Vehicle Box3D Native
+# TECH_DEBT — Jozz Vehicle
 
-Rejestr znanego długu technicznego, ryzyk i świadomie odłożonej pracy.
-Utworzony 2026-07-08 w ramach przeglądu porządkującego. Każda pozycja ma:
-**opis → ryzyko → plan**. Przeczytaj to przed „sprzątaniem" projektu — część
-rzeczy wygląda na bałagan, a jest świadomą decyzją.
+Data odświeżenia: 2026-08-04
+Ten plik zawiera **wyłącznie otwarty dług**. Zamknięte i historyczne punkty są w
+`archive/ledgers/TECH_DEBT_LEGACY_2026-07_PL.md` oraz w Git.
 
-Legenda ryzyka: 🔴 wysokie · 🟠 średnie · 🟡 niskie.
+Skala: **P0** blokuje wiarygodność badań, **P1** blokuje następny etap produktu,
+**P2** ważne, ale może poczekać, **P3** dziedzictwo JV bez wpływu na JES.
 
----
+## P0-1 — Topologia manifoldu udaje odcisk opony
 
-## 1. ✅ ROZWIĄZANE — Cała praca M7+M8 była NIEZACOMMITOWANA
+`b3CollideWheelAndPlane` aktywuje wierzchołki profilu mieszczące się w dystansie
+spekulacyjnym. Liczba punktów zależy więc od overlapu i próbkowania profilu.
+Wynik 3 mm crown nie izoluje geometrii od topologii kontaktu.
 
-**Opis (historyczny):** do 2026-07-08 ostatni commit to był `f09139b` (M6,
-2026-07-06). M7 real forces, M8 rig/poza/droop, system zrzutów,
-`jozz_vehicle_m6_config_io`, presety, przebudowa UI, poprawka fontu, naprawa
-bugów zakładek/sesji — 25 niezacommitowanych plików, ~tydzień pracy poza
-historią gita.
+**Spłata:** rygorystyczny support vertex/segment + sonda kontakt count/persistence.
 
-**Rozwiązanie (2026-07-08):** pogrupowane w 2 commity (`1446c9d` kod+narzędzia,
-`d2da267` dokumentacja) i wypchnięte na `jozz-vehicle-sandbox-m0`. Przy okazji
-Jozz ustanowił trwałą zasadę: **agenci odtąd samodzielnie commitują i pushują
-na `jozz-vehicle-sandbox-m0`**, gdy bramka (build+walidator+test) jest zielona
-— nie czekają na osobną prośbę per commit. `main` zostaje wyłącznie dla Jozza.
-Zasada opisana w README_FOR_AGENTS §4/§5.
+## P0-2 — Brak czystego eksperymentu podatności
 
-**Watch-item na przyszłość:** ten scenariusz (tydzień pracy bez commitów) nie
-powinien się już powtórzyć przy nowej zasadzie — jeśli się powtórzy, to sygnał
-że agent nie stosuje bramki/dyscypliny z README.
+Globalne `contactHertz` zmienia wszystkie kontakty świata. Nie istnieje lokalny
+override wheel–ground, więc „miękka opona” miesza się z miękkością całej sceny.
 
----
+**Spłata:** per-wheel lub per-material normal softness, wybierana w obu ścieżkach
+prepare contact; A/B przy identycznym manifoldzie.
 
-## 2. 🟠 Dokumentacja spóźnia się o ~1 kamień i się rozrasta
+## P0-3 — Nieciągłość wheel–triangle na szwach
 
-**Opis:** wzorzec pracy był „każdy kamień = nowy `docs/*_PL.md` + dopisanie do
-dwóch indeksów, bez przycinania". Efekt: **~40 plików w `docs/`**, dwa nakładające
-się pliki wejściowe (README_FOR_AGENTS był na M6, CURRENT_STATE_INDEX na M7 —
-kod jest na M8), zdublowane 40-punktowe listy czytania, README wprost zaprzeczał
-kodowi (mówił o „self-align assist" którego M7 usunął).
+Kontakty z płaszczyzną trójkąta są odrzucane poza barycentrą; brak kompletnego
+fallbacku do krawędzi i wierzchołka. Koło może zgubić kontakt na szwie mesha.
 
-**Ryzyko:** nowy agent czyta nieaktualny front i albo powiela zrobioną pracę,
-albo łamie zasadę, albo traci godziny na archeologię M3B/M4.
+**Spłata:** minimalny seam probe, potem edge/vertex fallback i trwałe IDs.
 
-**Plan (częściowo zrobiony w tym przeglądzie):** README_FOR_AGENTS przepisany na
-jeden chudy, aktualny front (M8). CURRENT_STATE_INDEX odchudzony i skorygowany.
-**Do zrobienia dalej:** trzymać dyscyplinę — po realnej zmianie aktualizować
-§2 README + ledger, a NOWY `docs/*.md` tworzyć tylko dla znaczącego kamienia, nie
-per drobiazg. Rozważyć przeniesienie plików M0–M5 do `docs/archive/` (odłożone —
-duży szum w gicie, decyzja Jozza).
+## P1-1 — Wheel–hull nie jest pełnym kontaktem convex–convex
 
----
+Wybór ściany i manifold płaszczyzny nie ograniczają wszystkich punktów do
+wielokąta ściany i nie pokrywają kompletu osi rozdzielających. Ryzyko fałszywych
+kontaktów przy krawędziach i narożnikach.
 
-## 3. 🟠 System UI + presetów nie ma własnego raportu
+**Spłata:** clipping do face polygon + testy edge/axis po ustabilizowaniu mesha.
 
-**Opis:** przebudowa UI (polski, 6 zakładek, poprawka fontu Segoe UI + `/utf-8`),
-system presetów (`jozz_vehicle_m6_config_io`, `assets/vehicle_presets/`,
-auto-zapis sesji naprawiający „R" kasujące strojenie) oraz naprawione bugi
-(niestabilne ID zakładek ImGui, combo bez zaznaczenia, brak potwierdzenia resetu)
-— to praca z 2026-07-08 opisana **tylko** w README §2 i w prywatnej pamięci agenta
-Claude. Raport M8 kończy się na 2026-07-07 (opadające wahacze).
+## P1-2 — Niepełne zapytania geometrii `b3Wheel`
 
-**Ryzyko:** agent inny niż Claude (albo Claude w świeżym projekcie bez pamięci)
-nie ma repo-widocznego zapisu jak działa system presetów/sesji ani czemu UI
-wygląda tak jak wygląda.
+Generic proxy jest konserwatywną sferą; shape cast/overlap nie mają wszędzie
+pełnej, dokładnej ścieżki wheel. Raycast jest konserwatywnym walcem, nie profilem.
 
-**✅ ZAMKNIĘTE (2026-07-08):** `docs/SUBSYSTEM_UI_PRESETS_PL.md` — zwięzła mapa
-trzech plików zapisu (sesja/presety/debug-session) i dlaczego, kolejność
-zakładek, wzorzec `###stableID`. Podpięte w README §9.
+**Spłata:** jawna macierz API: exact / conservative / unsupported, potem testy.
 
----
+## P1-3 — Model masy jest przybliżony
 
-## 4. 🟡 Rozrost env-hooków w `jozz_vehicle_m6_rig_lab.cpp`
+`b3ComputeWheelMass` używa walca obwiedniowego. M6 zamraża masę do wartości
+referencyjnej, co chroni porównania pojazdu, ale API kształtu nie opisuje masy
+rzeczywistego profilu.
 
-**Opis:** 15 zmiennych `JOZZ_M6_*` w jednym pliku, wymieszane bez oznaczenia:
+**Spłata:** albo dokładne całkowanie bryły obrotowej, albo jawny kontrakt
+„collision-only; mass supplied by caller”. Nie zmieniać przed testem topologii.
 
-- **Stabilne narzędzia** (zostają): `JOZZ_M6_CAM`, `JOZZ_M6_DIAG`, `JOZZ_M6_WHEEL`,
-  `JOZZ_M6_DUMPER`, `JOZZ_M6_MOUNT`, `JOZZ_M6_HERTZ`, `JOZZ_M6_DAMP`,
-  `JOZZ_M6_PRELOAD`, `JOZZ_M6_DROOP`, `JOZZ_M6_PRESET`, `JOZZ_M6_TAB`,
-  `JOZZ_M6_DUMP`, `JOZZ_M6_ARMTINT`.
-- **Jednorazowe sondy regresji** (można usunąć): `JOZZ_M6_DIRTY_AT_FRAME`
-  (weryfikacja bugu ID zakładek), `JOZZ_M6_TEST_RESET_MODAL` (weryfikacja modala).
-  Ich bugi są naprawione i zweryfikowane; są nieszkodliwe (env-gated, domyślnie
-  off), ale to rusztowanie testowe.
+## P3-1 — Historyczne ograniczenia pojazdu
 
-**Ryzyko:** niskie (nieszkodliwe), ale nowy agent nie odróżni narzędzia od
-rusztowania; powierzchnia rośnie organicznie.
+Sufit droop około 16°, sztywne bump-stopy, delikatny residual pull, niedokończony
+rig kierowniczy oraz manualny odbiór mapy pozostają znanymi ograniczeniami JV.
+Nie blokują obecnego badania koła ani clean-room transferu do JES.
 
-**Plan:** albo usunąć dwie sondy testowe (mała zmiana + rebuild + walidator), albo
-zostawić i traktować ten wpis jako ich dokumentację. Świadomie ZOSTAWIONE w tym
-przeglądzie (nie ruszam runtime kodu bez powodu) — do decyzji przy okazji.
-
----
-
-## 5. 🟠 Sufit droop 16° (over-center Ackermanna) — fizyka
-
-**Opis:** agresywne opadanie wahaczy > ~16° wpycha trapez kierowniczy w martwy
-punkt (over-center): zmierzono podwojone przełożenie kierownicy (69° zamiast 32°)
-i camber lądowania 13.6°, niedeterministycznie. 15° to zweryfikowany bezpieczny
-sufit dla obecnej geometrii (UI klamruje suwak na 16° z ostrzeżeniem).
-
-**Ryzyko:** pełna agresywna poza (poziom referencji Blockbench, którą Jozz
-pokazywał) jest niedostępna bez przeprojektowania geometrii kierownicy
-(`steeringArmBack`, `ackermannFraction`, bump-steer lift dopasowany do większego
-kąta). Jozz wybrał ten kierunek, ale to wieloetapowa, ostrożna robota.
-
-**Plan:** odłożone. Gdy wracamy — współprojektować kierownicę z wahaczami krok po
-kroku, weryfikując walidatorem po każdym kroku (NIE ufać samemu `OK`, czytać
-drukowane kąty). Opisane w `M8_SUSPENSION_RIG_REPAIR_PLAN_PL.md` §9.
-
----
-
-## 6. 🟡 Pasek „Zastosuj" może zjechać poza widok
-
-**Opis:** panel prawy jest przycięty do wysokości viewportu i przy przekroczeniu
-scrolluje się w CAŁOŚCI. Po rozwinięciu wszystkich sekcji „Zaawansowane" w
-zakładce Zawieszenie na niższym ekranie pasek „Zastosuj (przebuduj pojazd)" na
-dole może zniknąć poza widokiem — użytkownik ma niezastosowane zmiany i nie widzi
-przycisku.
-
-**Ryzyko:** niskie-średnie UX; user może myśleć że Apply nie działa.
-
-**Plan:** rozważyć osobny scrollowalny `BeginChild` na treść zakładek, a pasek
-presetów (góra) i pasek Apply (dół) trzymać zawsze widoczne poza scrollem.
-Odłożone (drobna, ale realna zmiana UI; Jozz właśnie zaakceptował layout).
-
----
-
-## 7. 🟡 Trzy pliki ~1500–2000 linii (watch-item, nie refactor teraz)
-
-**Opis:** `jozz_vehicle_visual_mesh.cpp` (1941), `jozz_vehicle_m6_rig_lab.cpp`
-(1632), `jozz_vehicle_m6_suspension_rig.cpp` (1482). `rig_lab` miesza najwięcej
-odpowiedzialności (input, kamera, UI 6 zakładek, render modeli, telemetria,
-presety, env-hooki). `config_io` i `m5_test_course` już wydzielone (dobrze).
-
-**Ryzyko:** niskie dziś, rośnie z każdą zakładką/funkcją UI dokładaną do `rig_lab`.
-
-**Plan:** NIE refaktoryzować teraz (kod zaakceptowany, refactor = szum + ryzyko
-regresji). Watch-item: gdy `rig_lab` znów urośnie, wydzielić rysowanie zakładek do
-osobnego TU. `visual_mesh` jest duży, ale spójny (ładowanie+rysowanie glTF) —
-zostawić.
-
-**✅ ADRESOWANE dla `rig_lab` (R3, 2026-07-11):** wielki refactor wykonał ten
-watch-item i więcej — `rig_lab.cpp` (2003 l.) podzielony move-only na nagłówek
-wewnętrzny (klasa) + 4 TU per odpowiedzialność (main / `_ui_tabs` / `_persistence`
-/ `_mount_visual`), zweryfikowany `-DiffBaseline` + quad + 6 zrzutów zakładek
-identycznych.
-
-**✅ ADRESOWANE dla `visual_mesh` (R4, 2026-07-11):** `jozz_vehicle_visual_mesh.cpp`
-(1968 l.) podzielony move-only na `_loader.cpp` (1761 l.: parser glTF/skin/kości +
-`LoadStaticGltf`/`LoadSkinnedGltf`/`Destroy`/`IsLoaded`/`PartCount`) i `_draw.cpp`
-(232 l.: `Draw*`, placement (`JozzVehicleComputeArmPlacement`/`MapAuthoredPoint`),
-`DrawTelescopingDamper`, `ComputeJozzVehicleWheelVisualCorrection`). Publiczny
-nagłówek bez zmian. `-DiffBaseline` + quad IDENTYCZNE.
-
-**✅ ADRESOWANE dla `suspension_rig` (R5, 2026-07-11):** 6 publicznych funkcji
-world-free (hardpointy/rack-stroke/dead-point/DefaultConfig/TrailingArm/Sanitize)
-wyciągnięte move-only z `suspension_rig.cpp` (1758→1404 l.) do nowego
-`jozz_vehicle_m6_geometry.{h,cpp}` (w `JOZZ_VEHICLE_CORE_FILES` — linkowane do
-samples I walidatora). `-DiffBaseline` walidator 349 linii IDENTYCZNE + quad
-IDENTYCZNY. Zakres świadomie zawężony (zgoda Jozza): 3 helpery wewnętrzne
-`static` zostały jako impl-detale fizyki (patrz status R5 w planie). **Cała seria
-strukturalna R1–R5 zamknięta**; pozostają opcjonalne R6 (katalogi) / R7 (solver
-kontaktu, #12) za osobną zgodą.
-
----
-
-## 8. 🟠 Dwa narzędzia agentowe (Codex + Claude), rozdzielona pamięć
-
-**Opis:** projekt był prowadzony przez agentów **Codex** (handoffy
-`docs/CODEX_*`) i **Claude Code** (prywatna pamięć w `~/.claude`, aktualna do M8).
-Nie ma jednego źródła prawdy, które oba czytają: repo-docs były Codex-era i
-spóźnione, pamięć Claude jest aktualna, ale prywatna i niewidoczna dla Codeksa.
-
-**Ryzyko:** średnie dla ciągłości wielo-agentowej — stan zależy od tego, który
-agent i czy ma pamięć.
-
-**Plan (częściowo zrobiony):** `README_FOR_AGENTS.md` jest teraz repo-widocznym,
-aktualnym, wspólnym źródłem prawdy dla OBU narzędzi. Trzymać go jako front — każdy
-agent aktualizuje jego §2 po realnej zmianie stanu, niezależnie od prywatnej
-pamięci.
-
----
-
-## 9. ✅ ROZWIĄZANE / FANTOM — „zakleszczenie kierownicy" to poprawna fizyka spoczynku (brak samocentrowania na postoju)
-
-**Wniosek (2026-07-08, głęboka reanaliza na prośbę Jozza — OBALA wcześniejszą
-narrację tego punktu):** nie ma żadnego „zatrzasku geometrycznego bez drogi
-powrotu". „Zakleszczenie", które łapała moja sonda P1, to po prostu BRAK
-siły centrującej na postoju — a to jest fizycznie POPRAWNE (potwierdził Jozz:
-„czy to czasem nie tak działają prawdziwe samochody"). Wcześniejsza hipoteza
-o drugiej gałęzi `sqrt` w `ComputeJozzVehicleM6RackStroke` była BŁĘDNA.
-
-**Decydujący dowód (nowa metoda — porównanie kolumna vs wahacz + odczyt
-maglownicy + jazda):**
-1. Ten sam boczny udar V=14 m/s: KOLUMNA (`b3WheelJoint`, jednowartościowe
-   sterowanie) prawie nie drgnęła (1.7°), WAHACZ „zakleszczył się" na -29°.
-   Ale przy zakleszczeniu **maglownica stoi na swoim LIMICIE (-0.0811 m ≈
-   -rackTravel 0.0807), NIE w centrum** — więc to nie jest „środek maglownicy
-   przy skręconym kole" (co byłoby drugą gałęzią drążka). To maglownica
-   dojechana do końca skoku i przytrzymana tarciem.
-2. **Jazda do przodu centruje koło NATYCHMIAST:** -29° w spoczynku → **1.4°
-   przy 12.7 m/s**. Koło porusza się też swobodnie na komendę (do +32.8°).
-   Nie ma żadnej blokady.
-
-**Mechanizm (poprawny):** hands-off maglownica NIE ma sprężyny — jedyną siłą
-centrującą jest wleczenie casterem, które przy zerowej prędkości jest ZEROWE
-(caster działa dopiero, gdy opona się toczy). Więc mocny boczny udar na
-stojącym aucie przepycha maglownicę do końca skoku i tarcie ją tam trzyma —
-dokładnie jak w prawdziwym aucie z wyłączonym silnikiem: kopnięte koło
-zostaje kopnięte. To NIE jest bug; to jest ten sam powód, dla którego M7
-usunął sztuczny „self-align" (README §1).
-
-**Błąd był w SONDZIE, nie w rigu:** kryterium „koło wraca do prostej po 300
-krokach" mierzyłem na NIERUCHOMYM aucie — żądałem samocentrowania bez
-jakiejkolwiek siły centrującej. Sonda P1 (`RunP1SteeringFenceProbe`) jest
-teraz naprawiona: uderzenie → JAZDA → asercja, że koło centruje się w ruchu
-(< 8°; zmierzone ~1.3° dla V=6/10/14). To jest realne, przechodzące kryterium
-zamiast mylącego „did NOT return".
-
-**Realny problem Jozza (zrywanie skrętu pod małą siłą podczas JAZDY) — nadal
-naprawiony** przez P2 (poprawny limit maglownicy) + P1 (płot z konfiguracji);
-Jozz potwierdził ~10 min ekstremalnej jazdy bez nawrotu. Ten punkt nigdy nie
-dotyczył tego, co Jozz zgłaszał — dotyczył artefaktu mojej sondy na postoju.
-
-**Opcjonalne wspomaganie (dodane w tej samej reanalizie):** dla graczy, którzy
-CHCĄ centrowania na postoju (arcade), jest suwak `rackCenteringHertz`
-(domyślnie 0 = OFF = realistycznie). Uwaga fizyczna zmierzona przy okazji:
-słaba sprężyna NIE wystarczy — wycentrowanie stojącej, obciążonej opony wymaga
-przetarcia jej o ziemię (moment parkingowy), więc suwak zaczyna działać
-dopiero od ~10 Hz (hz=2 nic, hz=6 połowicznie, hz≥10 pełne centrowanie). Gdy
-włączony, tarcie statyczne ustępuje sprężynie (bo „chcę centrowanie" = przeciw
-„trzymaj krzywo"). To jest opt-in, jak wspomaganie pionowania — świadomie NIE
-domyślny mechanizm (walczy z uczciwym kontra-skrętem casterem w poślizgu).
-
-**Osobna, WCIĄŻ AKTUALNA notatka o tarciu kinetycznym (z P4):** niezależnie
-od powyższego, tarcie kinetyczne maglownicy poniżej ~200N realnie destabilizuje
-TWARDE LĄDOWANIE z rampy (sonda `RunM7LandingIntegrityProbe` 3.5 m: camber
-11-12° i znos nadwozia poniżej progu; powyżej ~200N zdrowo). To osobny, realny
-efekt (wstrząs całego zawieszenia, nie sterowanie), dlatego default kinetic =
-200N i **przy przyszłym obniżaniu tarcia zębatki ZAWSZE sprawdź sondę
-lądowania 3.5 m**, nie tylko impuls boczny.
-
----
-
-## 10. 🟡 Bump-stopy są sztywne — granica API silnika (P6.4)
-
-**Opis (2026-07-08, sprawdzone w P6):** limity długości coilovera (`b3DistanceJoint`)
-to twarde stopy — box3d nie wystawia API miękkiego limitu (sprężyny odboju) dla
-distance jointa (jest tylko `SetSpringForceRange`, co ogranicza siłę sprężyny
-głównej, nie robi progresywnego odboju). „Twardość odbojów" jako suwak wymagałaby
-zmian w `src/` (nietykalne) albo emulacji drugim, krótkim distance jointem ze
-sprężyną — odłożone, bo stress matrix P6 (w tym drop 2 m na najsztywniejszym
-setupie) nie wykazał problemu z twardymi stopami.
-
-**Plan:** nic teraz. Jeśli kiedyś twarde dobicie zacznie przeszkadzać w feelu
-(np. przy soft-tire M7.4), rozważyć emulację krótkim jointem-odbojem per narożnik.
-
----
-
-## 11. 🟡 Resztkowe delikatne ściąganie na wprost (zaakceptowane)
-
-**Opis (2026-07-09):** po naprawie systematycznego ściągania w lewo (P4b —
-tarcie racka zależne od obciążenia; było +14°/10 s, jest ±2.7° wolnej wędrówki
-wokół zera) pojazd przy dłuższej jeździe na wprost nadal delikatnie znosi —
-prawie wolny rack podąża za drobnymi perturbacjami w OBE strony (to nie jest
-jednostronny marsz). Jozz przetestował ręcznie i zaakceptował jako
-wystarczające („dla mnie jest teraz wystarczająco okej").
-
-**Strażnik:** sonda straight-pull bramkuje |heading| < 6° i |znos| < 5 m po
-10 s — regres do systematycznego ściągania nie przejdzie.
-
-**Plan:** nic teraz. Naturalna dalsza poprawa przyjdzie z modelem opony
-(M7.4 — pneumatic trail/slip stiffness da mocniejsze samocentrowanie przy
-małych kątach) i ewentualnie z redukcją biasu solvera (kolejność narożników).
-
----
-
-## 12. 🟡 CZĘŚCIOWO ROZWIĄZANE — pola poza configiem a „R"
-
-**Opis (2026-07-09):** `m_contactHertz/Damping/Speed` (Świat → Solver
-kontaktu) i `m_invertSteering` (Kierownica) to pola sampla, nie
-`JozzVehicleM6Config` — nie wpadały do sesji/presetów, więc „R" cicho
-przywracał im defaulty. Mniejsza klasa niż bug presetów (nic nie „zapisuje się
-bez pozwolenia", tylko nie persystuje).
-
-**✅ Zrobione (Porządki E, 2026-07-09):** `invertSteering` persystuje w
-debug-session txt — czytane przy inpucie, więc zero ryzyka fizyki.
-
-**⏸ Odłożone z powodem — solver kontaktu:** poprawna persystencja wymaga
-APLIKOWANIA wartości przy starcie, a `ApplyContactTuning()` jest dziś wołane
-TYLKO przy ruchu suwaka (świat startuje na domyślnych silnika, nie na 30/10/3
-z UI). Dodanie aplikacji startowej to zmiana fizyki-startu — poza zakresem
-porządków strukturalnych. Kandydat na wielki refactor albo osobną skupioną
-zmianę za zgodą Jozza. Mapa w `SUBSYSTEM_UI_PRESETS_PL.md §1b`.
-
----
-
-## 14. 🟡 Nowy rig kierowniczy — przy skręcie części zbyt mocno się rozjeżdżają (rozgrzewka edytora)
-
-**Opis (2026-07-11, potwierdzone przez Jozza na żywym teście G1):** rozdział
-WheelCenter/ChassisMount_b działa poprawnie — przy skręcie WheelCenter+koło
-obracają się, a ChassisMount_b i ramiona stoją (dokładnie tak, jak wymaga reguła
-Jozza). ALE dynamicznie rozdział jest „zbyt osobny": przy skręcie części
-przesuwają się/dislokują względem siebie ZA BARDZO i wizualnie się przemieszają
-(Jozz zaznaczył to na screenie z G1). Chodzi o wizualną spójność sąsiadujących
-części pod skrętem, nie o fizykę (fizyka jest realna i poprawna — to skóra na
-żywych ciałach).
-
-**Ryzyko:** niskie/kosmetyczne dziś (przód nowego rigu jest za przełącznikiem
-`JOZZ_M6_STEERING_RIG`, domyślnie OFF; walidator nietknięty). Ale to jest dokładnie
-klasa problemu, który edytor rigu ma rozwiązywać — pivot/punkt obrotu i zależność
-rodzica per część decydują, jak bardzo dwie części „rozjeżdżają się" pod ruchem.
-
-**Plan:** świadomie ODŁOŻONE (decyzja Jozza: „chyba nie zajmujmy się tym teraz").
-Kandydat na wczesny test przyszłego edytora — gdy będzie kontrola pivota per część,
-sprawdzić, czy da się dostroić rozdział tak, by sąsiednie części trzymały się przy
-skręcie. Powiązane odkrycia O1–O5 w `EDYTOR_RIGU_WYMAGANIA_I_AUDYT_PL.md`.
-
----
-
-## 13. Świadomie odłożone (roadmapa, nie „dług") — żeby nie zaskoczyło
-
-Nie są zepsute, są planowo poza zakresem v0. Wypisane, żeby nikt nie „odkrył" ich
-jako braków: soft-tire (deformacja opony), drivetrain (dyfry/split momentu/engine
-brake), model opony (krzywa poślizgu, wrażliwość na obciążenie), import
-hardpointów wahaczy z markerów assetu, dwa boczne dampery. Kolejność w
-README_FOR_AGENTS §7.
+**Spłata:** tylko gdy wrócą do aktywnego celu produktu; nie refaktoryzować przy
+okazji pracy nad oponą.

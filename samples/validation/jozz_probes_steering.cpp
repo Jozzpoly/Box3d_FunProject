@@ -17,7 +17,7 @@
 // (ComputeJozzVehicleM6RackStroke) and must be recomputed whenever that
 // geometry changes, or the rack limit silently goes stale (the linkage can
 // then overshoot its own tie-rod dead point before the joint limit stops it -
-// see AUDIT_PHYSICS_STEERING_2026_07_08_PL.md). This does not assert on the
+// see docs/archive/vehicle_legacy_2026-07/AUDIT_PHYSICS_STEERING_2026_07_08_PL.md). This does not assert on the
 // tripwire's stdout line directly (it is a printf, not a bool, by design -
 // see the "NIE assert" note in the plan); instead it proves recomputing
 // actually changes the number, which is the thing ApplyPendingStructuralSetup
@@ -162,7 +162,7 @@ bool RunP4CenteringAssistProbe( const JozzVehiclePrimitiveDefaults& defaults )
 // History worth keeping straight: earlier this section measured "does the
 // wheel return to straight while hands-off and STATIONARY" and reported it
 // "did NOT return" - which got written up as a scary unresolved branch-lock
-// (old TECH_DEBT #9). A deeper root-cause test (2026-07-08, decisive
+// (historyczny wpis #9 w docs/archive/ledgers/TECH_DEBT_LEGACY_2026-07_PL.md). A deeper root-cause test (2026-07-08, decisive
 // strut-vs-wishbone comparison + rack-translation readout) DISPROVED that:
 // when "jammed" the rack is simply pinned at its travel LIMIT (-rackTravel)
 // held by friction, NOT centered-with-offset-wheel, and the wheel moves
@@ -541,7 +541,7 @@ bool RunP4SteeringReturnProbe( const JozzVehiclePrimitiveDefaults& defaults )
 		std::printf( "  speed %.1f m/s, release %.2f deg, overshoot(min) %.2f deg, final %.2f deg, last-60 amp %.2f deg\n",
 					 speed, releaseAngleDeg, minAngleDeg, lastAngleDeg, amplitudeDeg );
 		// NOT gated - see the function comment above (unachievable in this
-		// range without reactivating the TECH_DEBT #9 branch-snap).
+		// range without reactivating the historical branch-snap failure).
 		std::printf( "  overshoot %s (min angle %.2f deg)\n", minAngleDeg < -1.0f ? "YES" : "no", minAngleDeg );
 		ok &= CheckTrue( "p4 settles near straight", std::fabs( lastAngleDeg ) < 3.0f );
 		ok &= CheckTrue( "p4 no sustained oscillation (shimmy) after settling", amplitudeDeg < 1.0f );

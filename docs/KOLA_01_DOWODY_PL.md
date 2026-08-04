@@ -1,8 +1,10 @@
 # Koła i opony — fundament wiedzy (zmierzony)
 
-Data: 2026-07-25 | Branch `jozz-scan-terrain-f0` @ `959aefb` | Working tree: czysty
-Wszystkie liczby w tym pliku pochodzą z uruchomień wykonanych tego dnia, nie z pamięci
-ani z dokumentacji historycznej. Surowe wydruki: `tools/jozz_wheel_bench/evidence/`.
+Data założenia: 2026-07-25 | Baseline pierwszej rundy: `959aefb`
+Status: akumulowany korpus dowodów; kolejne sekcje mają własną datę i provenance.
+Liczby mają pochodzić z zachowanych uruchomień, nie z pamięci ani ręcznego
+przepisywania. Surowe wydruki: `tools/jozz_wheel_bench/evidence/`; aktualny status
+findingów: `KOLA_FINDINGS.json`. Bieżący stan implementacji: `CURRENT_STATE_INDEX_PL.md`.
 
 ---
 
@@ -889,3 +891,68 @@ Zakres: model swobodnego ciała z siłą przyłożoną w środku masy. Rig Q2A t
 założenie **spełnia**. Koło na zawieszeniu go **nie spełnia** — `b3WheelJoint`
 wnosi własną siłę pionową o własnej dynamice. `P-17` nie jest więc granicą
 produktu, tylko granicą **tego rigu**, i tak ma być cytowane.
+
+## 9. Katalog rejestru findingow (generowany)
+
+<!-- FINDINGS_CATALOG:BEGIN -->
+
+> Ta sekcja jest generowana z `KOLA_FINDINGS.json`. Status i treść
+> zmieniają się w rejestrze, a następnie odtwarza poleceniem
+> `python tools/docs_audit.py --fix-findings`.
+
+- **F-01** · `ENGINE_FACT` — Format hulla: 6N polkrawedzi <= 255 -> pryzmat max 42 scianki, profil 4-pierscieniowy max 18.
+- **F-02** · `ENGINE_FACT` — Masa i bezwladnosc pochodza z objetosci collidera, wiec zmieniaja sie 1.58-1.87x miedzy obwiedniami.
+- **F-03** · `BENCH_PRELIMINARY` — Model 'wiecej scianek = gladziej' jest falszywy: prism-42 toczy sie gorzej niz cylinder-32.
+- **F-04** · `OWNER_DECISION` — Split envelope wedlug kategorii powierzchni odpada produktowo.
+- **F-05** · `BENCH_PRELIMINARY` — Metryki nie zgadzaja sie ze soba; ranking wariantow zalezy od wybranej metryki.
+- **F-06** · `BENCH_PRELIMINARY` — Ranking reprezentacji zmienia sie miedzy stendem a pojazdem.
+- **F-07** · `SUPERSEDED` — Liczba scianek nie kosztuje nic; kosztuje liczba shape'ow.
+- **F-08** · `BENCH_PRELIMINARY` — Koszt kranowy jednego kola: sfera 1.13 us (box) / 2.12 us (mesh); najdrozszy phased union-4 3.88 / 12.24 us.
+- **F-09** · `BENCH_PRELIMINARY` — Pod stalym dociskiem 1900 N ranking wariantow odwraca sie wzgledem 440 N.
+- **F-10** · `MODEL_INFERENCE` — Churn tozsamosci kontaktu jest jednym z mechanizmow agitacji fasetowanego kola.
+- **F-11** · `MODEL_FACT` — Strata energii toczacego sie wielokata ~ 4pi^2 (mR^2/I_c)/N na obrot, I_c = I_cm + mR^2. Dla N=32: 1.13% omegi i 2.25% energii na wierzcholek.
+- **F-12** · `BENCH_PRELIMINARY` — Globalny sweep stockowego contactHertz nie naprawia fasetowanych hulli w tym rigu.
+- **F-13** · `MATH_FACT` — Laboratorium profilu: krzywizna obwodu, camber, elipsoida, Lame, swept-disk - czysta geometria bez silnika.
+- **F-14** · `DESIGN_INFERENCE` — Asymetria kierunkow: dyskretyzacja w poprzek biezni jest tansza niz wzdluz obwodu.
+- **F-15** · `ENGINE_FACT` — b3Collide wykonuje sie RAZ na b3World_Step, poza petla podkrokow; podkroki dzialaja wewnatrz b3Solve i przesolwowuja ten sam manifold. Rozdzielczosc kontaktu w czasie to dt, nie dt/podkroki.
+- **F-16** · `ENGINE_FACT` — contactHertz = min(world->contactHertz, 0.125*inv_h), gdzie inv_h = podkroki/dt. Przy domyslnym contactHertz=30, dt=1/60 i 4 podkrokach ograniczenie wypada dokladnie na 30 Hz; przy 2 podkrokach schodzi do 15 Hz. Liczba podkrokow zmienia TWARDOSC kontaktu, nie tylko dokladnosc solvera.
+- **F-18** · `ENGINE_FACT` — b3WheelJoint: `suspensionHertz` jest czestotliwoscia wlasna MASY ZREDUKOWANEJ wiezu, nie masy resorowanej. Zmierzona sztywnosc = m_red*(2pi*f)^2 co do 5 cyfr znaczacych dla f w [0.5, 6] Hz. Rzeczywista czestotliwosc resorowania = hertz * sqrt(m_red/m_sprung); dla 150+44 kg to hertz/2.0998, czyli ustawienie 6 Hz daje resor 2.86 Hz.
+- **F-19** · `ENGINE_FACT` — Sztywnosc statyczna zawieszenia jest NIEZALEZNA od liczby podkrokow: 1/2/4/8 podkrokow daje 3021.9 N/m identycznie do 5 cyfr. Czestotliwosc wlasna zmienia sie o 1.9% (0.689 -> 0.702 Hz).
+- **F-20** · `BENCH_PRELIMINARY` — Silnik obrotu b3WheelJoint przy nasyceniu dostarcza 2.018x zadanego `maxSpinTorque` (4 podkroki; 1.996x przy 1, 2.022x przy 8). Zaleznosc od tau idealnie liniowa (100/500/1000 N*m daja ten sam iloraz). Bezwladnosc obrotowa nadwozia NIE wplywa na wynik.
+- **F-21** · `BENCH_PRELIMINARY` — Nowa obwiednia `torus-N` (pierscien N kapsul o osi rownoleglej do osi kola) bije pryzmat w Q3 przy 4.0 m/s na plaskiej plycie. torus-64 vs prism-42 (dzisiejsze kolo produktu): moc strat 425.7 vs 638.7 W (-33.3%), sprung_accel_rms 0.055 vs 0.332 m/s2 (-83.4%), contact_churn 0.0% vs 89.7%. Polowa rozrzutu z 3 powtorzen: 0.00 dla obu kandydatow.
+- **F-22** · `BENCH_PRELIMINARY` — Tetnienie promienia obwiedni NIE rzadzi jakoscia toczenia. Przy TEJ SAMEJ liczbie elementow (N=32) torus ma o 57% WIEKSZE tetnienie niz pryzmat (3.896 vs 2.476 mm), a mimo to o 42% mniejsza moc strat (523 vs 903 W), o 67% mniejsze sprung_accel_rms (0.177 vs 0.531) i o rzad wielkosci mniejszy churn (8.6% vs 70.1%). Roznica lezy w OSTRYCH KRAWEDZIACH, nie w amplitudzie odchylki promienia.
+- **F-23** · `BENCH_PRELIMINARY` — Cena gladkosci jest w CPU, nie w pamieci ani w budzecie hulla: torus-64 kosztuje 0.094 ms na krok swiata wobec 0.007 ms dla pryzmatu (13x), torus-32 0.036 ms (5x). Pryzmat jest jednym ksztaltem, pierscien kapsul ma ich N.
+- **F-24** · `BENCH_PRELIMINARY` — Przy 13 m/s pojedynczy przebieg Q3 nie jest powtarzalny na poziomie progu wazności. Zmiana wysokosci mocowania nadwozia o 0.35 m - geometrycznie NEUTRALNA dla tego wiezu (os pionowa, oba zaczepy na osi, zerowe ramie) - przerzucila `airborne_fraction` dla torus-32 z 6.0% na 10.8%, czyli przez prog 10% z par. 8 kontraktu.
+- **F-25** · `BENCH_PRELIMINARY` — Promien korony torusa NIE jest kompromisem na plaskiej plycie. W zakresie 0.04-0.19 m (torus-64, 4.0 m/s) moc strat spada MONOTONICZNIE 795.2 -> 457.1 W (-43%), churn 26.9% -> 0.0%, sprung_accel_rms 0.076 -> 0.050 (-34%), a tetnienie promienia 8.031 -> 1.057 mm. Zwezenie plaskiej biezni z 358 do 58 mm nie kosztuje tu NIC mierzalnego. Cena jest gdzie indziej: koszt CPU rosnie 0.048 -> 0.082 ms/krok (1.7x), bo wieksze kapsuly daja wiecej punktow styku.
+- **F-26** · `SUPERSEDED` — WYCOFANE 2026-08-03, zastapione przez F-27 i F-28. Twierdzenie brzmialo: "Q3 na plaskiej plycie NIE WIDZI profilu poprzecznego korony". Bylo oparte na przemiataniu liczby rzedow 1->9, ktore NIE ZMIENIALO BRYLY: przemiatanie ustawia wylacznie `crown_rows`, a zwis zostal wtedy domyslny, czyli ZEROWY - przy zwisie 0 wszystkie rzedy leza na jednym promieniu, wiec ich unia to dokladnie ta sama kapsula co przy jednym rzedzie. Mierzono piec razy te sama opone o rosnacym koszcie CPU. Opis findingu podawal przy tym "zwis 0.08 m", ktorego zaden z tych przebiegow nie mial - liczba zostala wziete z kontekstu pracy, a nie z naglowka przebiegu. Druga polowa (przemiatanie zwisu) byla prawdziwym przemiataniem ksztaltu, ale na drodze JEDNORODNEJ W POPRZEK, gdzie zaden profil poprzeczny nie ma jak zadzialac.
+- **F-27** · `BENCH_PRELIMINARY` — Sama LICZBA KSZTALTOW przesuwa wynik Q3, przy IDENTYCZNEJ obwiedni. torus-64, crown_r 0.05, zwis 0, plaska plyta, 4 m/s, rzedy 1/3/5/7/9: wszystkie piec punktow ma ten sam odcisk obwiedni (5f587854) i to samo tetnienie 6.046 mm, a mimo to strata idzie MONOTONICZNIE 775.0 / 797.6 / 798.8 / 802.7 / 816.1 W (+5.3%) razem ze srednia liczba punktow kontaktu niosacych obciazenie 2.84 / 6.51 / 10.95 / 14.79 / 18.55. Koszt CPU 0.050 -> 1.176 ms/krok (24x). Rozrzut miedzy 3 powtorzeniami zerowy w kazdym punkcie.
+- **F-28** · `BENCH_PRELIMINARY` — Q3 WIDZI profil poprzeczny opony, gdy droga przestaje byc jednorodna w poprzek. Ta sama bryla (odcisk 1ee68a41: torus-64, crown_r 0.05, 5 rzedow, zwis 0.08 m), grzebien waskich kamieni 30 mm o polowie szerokosci 40 mm, przesuwanych w bok z 0 na 0.20 m: a_rms 1.548 / 1.548 / 1.553 / 1.112 / 0.079 m/s2 i strata 974.0 / 977.9 / 968.8 / 916.9 / 789.4 W. Zmienia sie WYLACZNIE polozenie kamienia pod bieznia. Przy progu na cala szerokosc plyty (dotychczasowa droga Q3) profil poprzeczny nie ma jak zadzialac - i to bylo prawdziwa przyczyna wyniku wycofanego jako F-26.
+- **F-29** · `BENCH_PRELIMINARY` — Podzial pasm korony ROWNY PO ZWISIE bije podzial rowny po szerokosci przy tym samym koszcie: przy 9 rzedach i zwisie 0.08 m odchylka zbudowanego przekroju od zamowionego luku spada 18.1 -> 9.0 mm, a przebieg fizyczny przestaje skakac (strata przy 3/5/7/9 rzedach: 973.8 / 916.9 / 879.3 / 869.9 W monotonicznie, zamiast 788.9 / 895.6 / 845.5 / 878.5 W). Jednoczesnie ZWIS przy stalej liczbie rzedow NIE jest monotonicznym pokretlem miekkosci: na kamieniu lezacym tuz za srodkiem biezni (z 0.15 m) a_rms idzie 1.541 / 0.956 / 1.112 / 1.312 / 1.489 m/s2 dla zwisu 0 / 0.04 / 0.08 / 0.12 / 0.16 m. Kontrola przy 2.5x mniejszym promieniu barku (crown_r 0.02, N=96) daje ten sam ksztalt krzywej: 1.491 / 0.912 / 1.224 / 1.439 / 1.541.
+- **F-30** · `DESIGN_INFERENCE` — Rozdzielczosc POPRZECZNA obwiedni `torus-N` jest ograniczona przez promien barku, nie przez liczbe rzedow. Czasza kapsuly o promieniu crownR trzyma sie w granicy h od pelnego promienia az do sqrt(2*crownR*h) w bok: dla crownR 50 mm i h 30 mm to 55 mm, dla crownR 20 mm - 35 mm. Zeby rozroznic w poprzek przeszkode o wysokosci h, promien barku musi byc znaczaco mniejszy niz h. Szczelnosc pierscienia wymaga wtedy N >= pi/asin(crownR/ringR): przy crownR 10 mm stend podaje minimum 159 kapsul, czyli z 9 rzedami 1431 ksztaltow na jedno kolo.
+- **F-31** · `BENCH_PRELIMINARY` — Sztywna bryla w tym rigu NIE daje odcisku: caly ciezar stoi na 1-3 punktach efektywnych, a rekord calej rodziny to ~5. Miara: `nios` = (suma p)^2 / suma p^2 po impulsach normalnych punktow, `max%` = udzial najwiekszego punktu. Kontrola miary przechodzi - `sphere` daje dokladnie nios 1.00 / max 100.0%, czyli tyle, ile ma z geometrii. Na plycie przy 4 podkrokach: prism-Nmax nios 1.66 / max 71.4%, prism-32 1.53 / 76.8%, torus-32 1.73 / 72.1%, torus-64 2.03 / 61.3%. Przy 13 m/s torus-32 przekracza prog degeneracji falsyfikatora R1 (nios 1.19, max 92.2%). Liczba punktow i liczba podkrokow dzialaja MULTIPLIKATYWNIE, obie sa konieczne: 64 ksztalty / 4 podkroki -> nios 1.56; 576 ksztaltow / 4 podkroki -> 2.87; 64 ksztalty / 32 podkroki -> 2.83; 576 ksztaltow / 32 podkroki -> 5.23 (max% odpowiednio 76.3 / 55.8 / 52.8 / 39.0).
+- **F-32** · `BENCH_PRELIMINARY` — Podloga szumu z F-27 (sama liczba ksztaltow przesuwa strate o 5.3% przy identycznej obwiedni) jest efektem NIEDOZBIEZNOSCI solvera, a nie wlasnoscia liczby ksztaltow. Ten sam kontrast 64 vs 576 ksztaltow na tej samej obwiedni: przy 4 podkrokach 775.0 -> 816.1 W (5.3%), przy 32 podkrokach 636.0 -> 634.4 W (0.25%, czyli ponizej progu rozroznialnosci). Rownolegle rosnie rozklad obciazenia: nios 1.56 -> 2.87 przy 4 podkrokach i 2.83 -> 5.23 przy 32, wiec dodatkowe ksztalty naprawde przejmuja czesc nacisku, tylko przy 4 podkrokach solver nie zdazy tego rozdzielic i placi za to strata.
+- **F-33** · `BENCH_PRELIMINARY` — Styk z ziemia na PRAWDZIWEJ SZEROKOSCI wzbudza szarpanie ukladu kierowniczego w POJEZDZIE - i nie jest to wina liczby ksztaltow. Walidator produktowy, ta sama konfiguracja, zmieniana wylacznie obwiednia kola: sfera 0/18 czerwonych i 0.31 st oscylacji po puszczeniu kierownicy, mieszana sfera+walec (domyslna) 0/18 i 0.31 st, torus-64 3/18 i 4.66 st, walec 8/18 i 6.71 st. JEDEN ksztalt (walec) wypada gorzej niz piecdziesiat kilka (pierscien kapsul). Amplituda idzie za szerokoscia plaskiej biezni: 337 / 238 / 137 / 38 mm biezni daje 6 / 6 / 5 / 3 czerwonych sond. Obwiednia domyslna dotyka terenu SFERA, czyli jednym punktem na plaszczyznie symetrii kola.
+- **F-34** · `BENCH_PRELIMINARY` — Koszt CPU pierscienia kapsul w PELNYM pojezdzie na terenie MESHOWYM jest maly w liczbach bezwzglednych. Cztery kola, mapa produktu, jazda pod JOZZ_M6_AUTODRIVE, Release /O2, mediana z 3 przebiegow po 600 krokach, ms na krok fizyki: sama sfera 0.099, mieszana (domyslna) 0.105, opona 16 kapsul 0.143, opona 32 kapsuly 0.197, opona 64 kapsuly 0.403. Liczba kontaktow w swiecie rosnie 4 -> 15 -> 28 -> 60. Wzgledem dzisiejszego kola to 1.4x / 1.9x / 3.8x, ale najdrozszy wariant bierze 2.4% budzetu klatki 16.7 ms.
+- **F-35** · `VEHICLE_MEASURED` — Domyslne kolo produktu jest w jezdzie fizycznie SFERA. Sonda jazdy porownala obwiednie SPHERE i SPLIT_SPHERE_SIDEWALL w dziesieciu warunkach (3 predkosci na wprost + zakret, oraz sweep podkrokow) i WSZYSTKIE liczby sa identyczne co do ostatniej cyfry: a_rms 0.018 / 0.061 / 0.088 na wprost, 0.861 w zakrecie, pkt/kolo 1.00, swieze 0.0%. Boczny walec obwiedni dzielonej nigdy nie wchodzi w kontakt z gruntem.
+- **F-36** · `VEHICLE_MEASURED` — Na IDEALNIE PLASKIEJ plycie, przy predkosci, kazda obwiednia o powierzchni innej niz kulista szarpie 25-40x mocniej od sfery, i NIE zalezy to od liczby ksztaltow. a_rms przy 16 m/s na wprost: sfera 0.061, walec 1 ksztalt 2.434, union 3 warstwy 2.382, opona 16 kapsul 2.757, 32 kapsuly 2.233, 64 kapsuly 2.244. Roznica miedzy 1 a 64 ksztaltami (2.434 vs 2.244) jest mniejsza niz roznica miedzy dowolnym z nich a sfera (37x). Kolo traci styk z ziemia: pkt/kolo 0.35-1.31 wobec dokladnie 1.00 dla sfery. Zbior punktow styku jest budowany od nowa w kazdym kroku (swieze 100.0% wobec 0.0% dla sfery). W zakrecie dystans zostaje (sfera 0.861 wobec 3.6-4.7; a_max 2.7 wobec 11.2-16.8). Predkosc maksymalna: sfera 17.3 m/s, reszta scina sie na 12.4-14.0.
+- **F-37** · `VEHICLE_MEASURED` — Podkroki solvera NIE lecza szarpania obwiedni fasetowanej - pogarszaja je. Przy 16 m/s na wprost, podkroki 4/8/16/32: sfera 0.061 -> 0.025 -> 0.009 -> 0.004 (monotonicznie w dol), opona-32 2.233 -> 2.095 -> 2.576 -> 3.233 (w gore). Ruch zawieszenia opony rosnie razem z tym: 9.79 -> 10.52 -> 13.06 -> 14.65 mm/krok.
+- **P-01** · `ENGINE_FACT` — Limit formatu hulla.
+- **P-02** · `ENGINE_FACT` — Masa z objetosci collidera.
+- **P-03** · `MODEL_INFERENCE` — Churn rosnie z liczba scianek, amplituda tarki maleje jak 1/N^2.
+- **P-04** · `MODEL_FACT` — Strata energii wielokata.
+- **P-05** · `BENCH_PRELIMINARY` — Globalny contactHertz nie zastepuje geometrii.
+- **P-06** · `MATH_FACT` — Bryla obrotowa ma krzywizne obwodu R; hull ma tam narozek.
+- **P-07** · `MATH_FACT` — Elipsoida: rho korony = (W/2)^2/R = 0.093 m. Zero swobodnych parametrow profilu.
+- **P-08** · `MATH_FACT` — Revolved Lame nie ma czlonka o koronie posredniej: p=2 daje rho=0.093, kazde p>2 daje krzywizne 0 w apeksie.
+- **P-09** · `MATH_FACT` — Plaska korona powoduje, ze pochylone kolo robi sie WIEKSZE (prism-42: 0.514 -> 0.558 przy 20 st.).
+- **P-10** · `DESIGN_INFERENCE` — Asymetria kierunkow.
+- **P-11** · `ENGINE_FACT` — Tarcie liniowe jest CENTRALNE na manifold - jeden frictionImpulse niezaleznie od liczby punktow; b3ManifoldPoint NIE ma per-point tangentialImpulse.
+- **P-12** · `ENGINE_FACT` — b3_compoundShape nie ma zarejestrowanej pary z mesh ani height.
+- **P-13** · `ENGINE_FACT` — Telemetria manifoldu (featureId, persisted, impulsy) jest dostepna publicznym API; zaden patch core nie jest do tego potrzebny.
+- **P-14** · `ENGINE_FACT` — Promien oporu toczenia: sphere -> sphere.radius, capsule -> capsule.radius, hull -> 0.25 * hull->innerRadius, pozostale -> 0.
+- **P-15** · `ENGINE_FACT` — Efektywny contactHertz = min(zadany, 0.125 * inv_h), gdzie inv_h = subStepCount * inv_dt.
+- **P-16** · `ENGINE_FACT` — Tarcie pary jest srednia geometryczna: sqrtf(frictionA * frictionB).
+- **P-17** · `MODEL_FACT` — Predkosc graniczna ciaglego styku sztywnego wielokata: v_kryt = sqrt((load/m)*R), NIEZALEZNA od liczby scianek. Dla kontraktu Q2A 4.71 m/s przy celu 13 m/s, czyli 2.76x powyzej granicy.
+- **P-18** · `ENGINE_FACT` — Manifold Box3D miesci NAJWYZEJ 4 punkty kontaktu (`B3_MAX_MANIFOLD_POINTS` = 4, include/box3d/constants.h:114; `b3Manifold.pointCount` jest udokumentowane jako 0..4). Tarcie liniowe (`frictionImpulse`), tarcie skretne (`twistImpulse`) i opor toczenia (`rollingImpulse`) sa polami MANIFOLDU, nie punktu - czyli jedna para ksztaltow ma jedna kotwice tarcia niezaleznie od tego, iloma punktami sie styka (to samo stwierdzenie co P-11, tu z jawnym limitem punktow).
+
+<!-- FINDINGS_CATALOG:END -->

@@ -477,7 +477,7 @@ b3BodyId CreateControlArm( b3WorldId worldId, JozzVehicleM6* vehicle, b3Vec3 fro
 	// +-70 deg, well past the tie-rod linkage's own over-center dead point, so
 	// a hard steering impact could push the knuckle past the dead point and
 	// the rack would clamp it there with no way back (audit
-	// AUDIT_PHYSICS_STEERING_2026_07_08_PL.md).
+	// docs/archive/vehicle_legacy_2026-07/AUDIT_PHYSICS_STEERING_2026_07_08_PL.md).
 	{
 		b3SphericalJointDef def = b3DefaultSphericalJointDef();
 		def.base.bodyIdA = armId;
@@ -576,7 +576,7 @@ void CreateWishboneCorner( b3WorldId worldId, JozzVehicleM6* vehicle, int corner
 	// P1 fix: the ball-joint twist limit must sit just past the tie-rod
 	// linkage's own over-center dead point, not at a flat +-70 deg that let a
 	// hard steering impact push the knuckle past that dead point with no way
-	// back (see AUDIT_PHYSICS_STEERING_2026_07_08_PL.md). Front corners steer;
+	// back (see docs/archive/vehicle_legacy_2026-07/AUDIT_PHYSICS_STEERING_2026_07_08_PL.md). Front corners steer;
 	// their fence tracks the configured max steering angle plus a margin.
 	// Rear corners do not steer at all, so a small fixed fence is enough and
 	// stays far from the dead point regardless of front steering config.

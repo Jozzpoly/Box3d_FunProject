@@ -296,7 +296,7 @@ float ComputeJozzVehicleM6RackStroke( const JozzVehicleM6WishboneGeometry& geome
 
 // The tie-rod/rack-and-arm linkage has an over-center "dead point" - a steer
 // angle past which the rack stroke stops increasing with angle (P1, see
-// AUDIT_PHYSICS_STEERING_2026_07_08_PL.md K1). Returns that angle in degrees
+// docs/archive/vehicle_legacy_2026-07/AUDIT_PHYSICS_STEERING_2026_07_08_PL.md K1). Returns that angle in degrees
 // for the given geometry, found by walking the stroke curve until it stops
 // climbing. Shared by the P1 ball-joint twist fence, the validator, and the
 // live UI clamp on "Maksymalny skręt kół" (P5) - all three must agree on
@@ -363,7 +363,7 @@ struct JozzVehicleM6Config
 	// code multiplied preload BY the stiffness scale, coupling ride height to
 	// spring rate in the wrong direction (a stiffness change silently moved ride
 	// height, and there was no way to set height independent of stiffness or
-	// independent per axle - see AUDIT_PHYSICS_STEERING_2026_07_08_PL.md K3).
+	// independent per axle - see docs/archive/vehicle_legacy_2026-07/AUDIT_PHYSICS_STEERING_2026_07_08_PL.md K3).
 	// Ride height and stiffness are now two independent dials.
 	float suspensionPreloadFront;
 	float suspensionPreloadRear;

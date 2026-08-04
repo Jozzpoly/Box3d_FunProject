@@ -3,8 +3,8 @@
 
 #include "jozz_vehicle_m6_rig_lab_internal.h"
 
-// Rig-editor warm-up, gejt G1 (patrz docs/PLAN_EDYTOR_RIGU_ROZGRZEWKA_2026_07_11_PL.md
-// + docs/EDYTOR_RIGU_WYMAGANIA_I_AUDYT_PL.md). Importuje NOWY model
+// Rig-editor warm-up, gejt G1 (patrz docs/archive/vehicle_legacy_2026-07/PLAN_EDYTOR_RIGU_ROZGRZEWKA_2026_07_11_PL.md
+// + docs/archive/vehicle_legacy_2026-07/EDYTOR_RIGU_WYMAGANIA_I_AUDYT_PL.md). Importuje NOWY model
 // OneSided_Steering_Suspension_Rig na PRZEDNIE narożniki jeżdżącego pojazdu M6,
 // tak by przód (nowy rig sterujący) i tył (obecny mount) dało się testować razem
 // (decyzja D1a). Czysto WIZUALNIE: te same żywe ciała, które już napędza fizyka -

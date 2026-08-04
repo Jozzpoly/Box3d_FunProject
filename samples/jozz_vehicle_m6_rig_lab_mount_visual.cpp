@@ -84,7 +84,7 @@ void JozzVehicleM6RigLab::LoadMountVisual()
 	// m_config.bodyVisualModel (constructor after session load, preset load, the
 	// Nadwozie-tab combo, factory reset, env overrides) must funnel through here,
 	// or the mesh on screen silently diverges from the config (plan risk R4,
-	// docs/FINALIZACJA_ETAP_1_MODEL_I_UI_PL.md §3). Unlike the suspension parts
+	// docs/archive/vehicle_legacy_2026-07/FINALIZACJA_ETAP_1_MODEL_I_UI_PL.md §3). Unlike the suspension parts
 	// the frame does NOT articulate, so its placement is one constant transform
 	// in the chassis body's LOCAL frame - m_bodyVisualOffset (see DrawBodyVisual)
 	// is applied at draw time instead of baked in here, so the offset sliders

@@ -1,0 +1,3 @@
+# Trwałe spawny JV per fragment mapy.
+# Brak wpisu oznacza użycie wbudowanego fallbacku, więc ten pusty szablon nie
+# zmienia zachowania. UI zapisuje: plate=x,z | offroad=x,z | scan.<packId>=x,z

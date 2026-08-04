@@ -1,7 +1,8 @@
 # ADR 0003 — Physics v0 uses Box3D wheel joint
 
-Status: Accepted  
+Status: Superseded as the final suspension architecture; retained as the v0 decision
 Date: 2026-07-03
+Superseded: M6 introduced the multi-body wishbone/trailing-arm rig, while each wheel still uses a wheel joint for suspension/spin semantics.
 
 ## Decision
 

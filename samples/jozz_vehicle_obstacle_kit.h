@@ -3,7 +3,7 @@
 
 #pragma once
 
-// Mapa Etap 2 (docs/MAPA_ETAP_2_PRZESZKODY_I_POLIGONY_PL.md): a parametric
+// Mapa Etap 2 (docs/MAPA_INDEX_PL.md): a parametric
 // library of static drivable obstacles used to assemble the suspension-test
 // lane poligon (and, later, Etap 3's track curbs/berms). Every Add* function
 // builds exactly ONE static body named "kit_<type>" and tags every shape it

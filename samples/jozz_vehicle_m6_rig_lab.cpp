@@ -27,7 +27,7 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		m_savedEnableContinuous = context->enableContinuous;
 		context->enableContinuous = false;
 
-		// Mapa Etap 1 (docs/MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md): a 400x400 m,
+		// Mapa Etap 1 (docs/MAPA_INDEX_PL.md): a 400x400 m,
 		// 3x3-tile plate plus a 400x400 m offroad heightfield chunk (ridged/warp
 		// noise + a central mountain) that dips under its east edge. Tagged with
 		// the terrain category so the split wheel envelope can separate rolling
@@ -98,7 +98,7 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		// (Jozz's feedback - "R" was teleporting him back to Start and quietly
 		// swapping the regenerated terrain for the default-seed one).
 		LoadDebugViewState();
-		// Per-fragment persistent spawns (committed assets/vehicle_spawns.txt) into
+		// Per-fragment persistent spawns (tracked assets/vehicle_spawns.txt) into
 		// memory. Does NOT move the car: boot keeps the last checkpoint (m_spawnAnchor
 		// restored above); a fragment's default spawn is an explicit target the Mapa
 		// UI teleports to on demand.
@@ -187,7 +187,7 @@ JozzVehicleM6RigLab::JozzVehicleM6RigLab( SampleContext* context )
 		//             (jozz_vehicle_world_layout.h kWorldAnchors, exact match, e.g. "Start")
 		//   AUTODRIVE 0/1  force full-throttle straight-line drive every Step - headless
 		//             drive-through testing (map seam/tile-join gates) with no human at
-		//             the keyboard; see docs/MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md
+		//             the keyboard; see docs/MAPA_INDEX_PL.md
 		//   PERF_DUMP step  printf one averaged step_ms/fps/counters line to stdout once
 		//             m_stepCount reaches this value (headless performance measurement)
 		//   REGEN_SEED int  rebuild the offroad chunk with this seed right after boot
@@ -915,7 +915,7 @@ void JozzVehicleM6RigLab::Render()
 					  GetJozzVehicleM6WheelTelemetry( m_vehicle, JOZZ_M6_REAR_LEFT ).groundContact ? "T" : "-",
 					  GetJozzVehicleM6WheelTelemetry( m_vehicle, JOZZ_M6_REAR_RIGHT ).groundContact ? "T" : "-" );
 
-		// Etap 2 obstacle-kit station labels (docs/MAPA_ETAP_2_PRZESZKODY_I_POLIGONY_PL.md
+		// Etap 2 obstacle-kit station labels (docs/MAPA_INDEX_PL.md
 		// §5): collected once at course-build time, distance-culled here so a
 		// distant camera doesn't drown the HUD in text (§7 risk).
 		{

@@ -5,8 +5,9 @@
 
 #include <cstdint>
 
-// Single source of truth for the map layout (docs/MAPA_ETAP_1_FUNDAMENT_TERENU_PL.md
-// and PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md §5). Etap 2-6 read these constants
+// Single source of truth for the map layout. Current entry point:
+// docs/MAPA_INDEX_PL.md. Historical rationale: docs/archive/map_scan_2026-07/PLAN_PRZEBUDOWA_MAPY_2026_07_11_PL.md §5.
+// Etap 2-6 read these constants
 // instead of re-deriving zone rectangles; nothing here allocates or touches
 // box3d state.
 //

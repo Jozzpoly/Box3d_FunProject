@@ -9,7 +9,7 @@
 // scan would happily offer Cardan_shaft.gltf as a "body". Adding a body =
 // adding a row (+ the asset under assets/source/). Lab-only (GUI target);
 // the headless validator does not link this file - see plan risk R4/R7 in
-// docs/PLAN_FINALIZACJA_NADWOZIA_I_RIGU_2026_07_11_PL.md.
+// docs/archive/vehicle_legacy_2026-07/PLAN_FINALIZACJA_NADWOZIA_I_RIGU_2026_07_11_PL.md.
 struct JozzVehicleBodyModelDef
 {
 	const char* key;	   // stable ID stored in configs/presets ([a-z0-9_])

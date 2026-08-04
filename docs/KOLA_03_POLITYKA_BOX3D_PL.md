@@ -19,14 +19,20 @@ którą proponuję ja, wraz z tym, co właściciel faktycznie ma rozstrzygnąć 
 
 ---
 
-## 1. Punkt wyjścia jest idealny i nie powtórzy się
+## 1. Punkt wyjścia był zerowy; dziś delta jest jawna
 
-```
-git diff <merge-base upstream/main>..HEAD -- src include   ->   PUSTE
+Przy tworzeniu polityki w lipcu diff `src/`/`include/` względem baseline gałęzi
+był pusty. Ten moment jest historyczny. Dziś aktywny patch `B3X-WHEEL-001`
+obejmuje 10 plików i — dla snapshotu `5b92e9c` względem `959aefb` — około
+`+1062/-1` linii. Aktualną liczbę wylicza, a nie przepisuje, polecenie:
+
+```text
+python tools/jozz_core_delta.py
 ```
 
-Zero linii delty w silniku po 200 commitach projektu. Dyscyplinę forka ustawiamy
-**przed pierwszym patchem**, nie po dziesiątym.
+To jest koszt świadomie zaakceptowanego natywnego typu koła. Celem polityki nie
+jest powrót do „zero zmian za wszelką cenę”, lecz utrzymanie każdej delty jako
+nazwanego, mierzalnego i odwracalnego zobowiązania.
 
 ---
 
@@ -135,15 +141,19 @@ przenoszonej przez `memcpy`/`sizeof` może zmienić układ pamięci, wyrównanie
 i kolejność operacji nawet przy neutralnej wartości pola — dlatego ZDO-B jest
 pomiarem, nie argumentem.
 
-Maszynowa weryfikacja (do zbudowania razem z pierwszym patchem):
+Maszynowy audit pokrycia diffu działa przez `tools/jozz_core_delta.py`, ale
+pełny eksperyment STOCK kontra PATCHED/OFF pozostaje osobną bramką semantyczną:
 
 ```
-1. zbuduj wariant STOCK  (patch fizycznie usunięty / gałąź bez patcha)
-2. zbuduj wariant PATCHED (patch obecny, funkcja OFF)
-3. przepuść zestaw scen determinizmu przez oba
-4. porównaj hasze stanu świata krok po kroku
-5. dowolna różnica = patch odrzucony, nie „do zbadania"
+1. zbuduj wariant z baseline comparison_base
+2. zbuduj wariant patched, bez tworzenia b3_wheelShape
+3. przepuść te same stockowe sceny, seed, worker count i flagi
+4. porównaj hashe oraz snapshoty właściwe dla klasy patcha
+5. różnicę sklasyfikuj; nie nazywaj jej automatycznie dopuszczalną
 ```
+
+Strażnik manifestu nie udaje tego testu. On dowodzi wyłącznie, że cała fizyczna
+delta ma właściciela i nie rozszerzyła się po cichu.
 
 Repo ma już `test_determinism.c` i haszowanie stanu w `world_snapshot.c` —
 infrastruktura istnieje. To jest tania i bardzo mocna gwarancja: sprawia, że
@@ -151,61 +161,44 @@ włączenie naszych funkcji jest zawsze **opcją**, a nie rozwidleniem silnika.
 
 ---
 
-## 5. Sentinele i ledger
+## 5. Manifest i strażnik zmian rdzenia
 
-Każda zmiana w `src/`/`include/` opakowana:
+Pierwotny plan zakładał pary sentinelów wokół każdego hunka. W poprzednim stanie
+repo strażnik nie istniał, a zaimplementowany `b3Wheel` nie używał tego formatu.
+Utrzymywanie fikcyjnej bramki byłoby gorsze niż jawna korekta procesu, dlatego
+obecny mechanizm opiera się na manifestowanej własności całych plików.
 
-```c
-// >>> JOZZ-PATCH B3X-XXXXXX-001 (klasa <A|H|I|X>, <U|E|J>) : <jedno zdanie>
-//     powod: <konkretny brak w publicznym API - warunek C1>
-//     wylacznik: <warunek, ktory przywraca sciezke stockowa>
-//     ledger: docs/KOLA_03_POLITYKA_BOX3D_PL.md §5.1
-... nasze linie ...
-// <<< JOZZ-PATCH B3X-XXXXXX-001
+Obowiązuje teraz manifest `docs/JOZZ_CORE_PATCHES.json` oraz lokalny strażnik:
+
+```text
+python tools/jozz_core_delta.py
 ```
 
-> Szablon jest celowo bez nazwy kandydata. Wcześniejsza wersja pokazywała tu
-> `B3X-ELLIPSOID-001 (klasa I)`, co było **sprzeczne z ledgerem §5.1**, gdzie
-> ten sam patch ma klasę `X`. Przykład jest częścią polityki i musi być zgodny,
-> a nazwy kandydatów nie trafiają do polityki przed przejściem V1b.
+Strażnik:
 
-Do walidatora dopinamy strażnika (`tools/jozz_core_delta`), który:
+1. używa zamrożonego `comparison_base` z manifestu, czyli czystego baseline gałęzi badawczej;
+2. wylicza rzeczywisty diff `src/` i `include/`;
+3. wymaga, aby każdy zmieniony plik miał dokładnie jednego właściciela `patch_id`;
+4. wykrywa pliki niepokryte i martwe wpisy manifestu;
+5. sprawdza wymagane pola kontraktu i podaje aktualny koszt forka.
 
-```
-1. liczy `git diff <upstream_base>..HEAD -- src include`
-2. FAIL, jeśli jakikolwiek hunk leży poza parą sentineli
-3. FAIL, jeśli jakikolwiek patch_id nie ma wiersza w ledgerze
-4. FAIL, jeśli wiersz ledgeru nie ma wypełnionego update_dry_run
-5. wypisuje AKTUALNY KOSZT FORKA: liczba patchy per klasa + linie per plik
-```
+To nie zastępuje testu semantycznego ani Zero-Delta-Off. Manifest odpowiada na
+pytanie „co i dlaczego utrzymujemy”, testy odpowiadają „czy zachowanie jest
+poprawne”. Kolejna niezależna zmiana — np. lokalna softness kontaktu — dostaje
+osobny `patch_id`, nawet gdy dotyka tego samego pliku.
 
-Bez maszynowego strażnika dyscyplina forka rozpada się w trzy tygodnie — to jest
-ta sama lekcja, która stoi w programie JES („każda reguła potrzebuje strażnika").
+### 5.1 Aktualny ledger
 
-### 5.1 Ledger (pusty — pierwszy wiersz powstanie dopiero po `D-CORE-01`)
+Maszynowym właścicielem ledgeru jest `docs/JOZZ_CORE_PATCHES.json`.
+Bieżący wpis:
 
-| patch_id | klasa | pytanie | upstream_base | pliki | wyłącznik | Zero-Delta-Off | update_dry_run | status |
-|---|---|---|---|---|---|---|---|---|
-| _(brak)_ | | | | | | | | |
+- `B3X-WHEEL-001`, klasa `X`, status `experimental-active`;
+- zakres: natywny `b3Wheel`, integracja kontaktów/query/debug i profil bieżni;
+- baseline porównania i upstream reference: osobne commity zapisane w manifeście;
+- przed rebase na nowszy upstream wymagany jest dry-run aktualizacji patcha.
 
-Kandydaci zgłoszeni, niezatwierdzeni (klasy SKORYGOWANE 2026-07-26):
-
-```
-B3X-ELLIPSOID-001  klasa X (bylo bledne "I")  niejednorodna skala sfery
-     powod korekty: src/world_snapshot.c:489 zapisuje `b3Sphere` BAJTOWO
-     (`b3SnapW_Bytes(buf, &src->sphere, sizeof(b3Sphere))`). Dodanie pola do
-     tej struktury zmienia publiczne ABI ORAZ format snapshotu -> wedlug
-     wlasnej definicji z §3 to jest klasa X, nie I.
-B3X-SWEPTDISK-001  klasa X   analityczny profil disk+odcinek+promien (S4b)
-B3X-TIREFRAME-001  klasa I   wlasna baza styczna + elipsa tarcia (T1)
-B3X-CONTACTOBS-001 WYCOFANY  telemetria manifoldu NIE wymaga patcha:
-     `b3Body_GetContactData` (body.c:464) zwraca pelne `contact->manifolds`
-     z featureId, persisted, normalImpulse i totalNormalImpulse.
-```
-
-**Reguła dodana po audycie:** zanim jakikolwiek kandydat trafi do ledgeru,
-trzeba nazwać **konkretne brakujące pole albo zdarzenie** publicznego API.
-„Przydałoby się" nie jest uzasadnieniem patcha.
+Historyczne kandydatury elipsoidy/swept-disk/tire-frame pozostają w Git i
+archiwalnych rewizjach dokumentu. Nie są aktywnymi wpisami ledgeru.
 
 ---
 

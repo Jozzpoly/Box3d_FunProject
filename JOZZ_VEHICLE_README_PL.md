@@ -1,73 +1,44 @@
-# Jozz Vehicle Box3D Native — README PL
+# Jozz Vehicle — README PL
 
-Data: 2026-07-05  
-Branch: `jozz-vehicle-sandbox-m0`
+JV to natywne laboratorium pojazdów rozwijane na forku Box3D. Projekt służy do
+budowania i sprawdzania realnie działających mechanizmów: zawieszenia, układu
+kierowniczego, mapy, importu skanów oraz przede wszystkim nowych reprezentacji
+koła i opony.
 
-## Co to jest
+## Gdzie jesteśmy
 
-To repozytorium jest forkiem/gałęzią eksperymentalną na fundamencie Box3D
-(https://github.com/erincatto/box3d).
+Baseline programu koła `jozz-scan-terrain-f0` @ `5b92e9c` zawiera własny typ
+`b3Wheel`: obrotowo symetryczną bryłę z profilem bieżni, dedykowanymi kontaktami,
+obsługą mesha, raycastem i debug draw. To jest wartościowy fundament, ale jeszcze
+nie pełny model opony. Obecny manifold może poszerzać „ślad” przez aktywowanie
+punktów znajdujących się w dystansie spekulacyjnym; trzeba oddzielić ten efekt od
+prawdziwej podatności.
 
-Cel projektu: natywny sandbox pojazdów Jozza — docelowo gra o budowaniu
-samochodów z komponentów projektowanych w Blockbenchu — rozwijany małymi,
-sprawdzalnymi bramkami (gates) na stabilnym baseline fizyki.
-
-Ważne: główny `README.md` nadal opisuje upstream Box3D. To nie jest błąd.
-Rdzeń silnika (`src/`, `include/`) pozostaje nietknięty; cała warstwa Jozz
-żyje w `samples/jozz_vehicle_*`, `assets/`, `tools/` i `docs/`.
-
-## Gdzie jest aktualny stan projektu
-
-Ten plik celowo NIE utrzymuje kopii statusu. Jedno źródło prawdy:
+Najbliższy program pracy:
 
 ```text
-docs/CURRENT_STATE_INDEX_PL.md   <- aktualny stan, baseline, hotkeys, komendy
-README_FOR_AGENTS.md             <- wejście dla agentów AI, no-go listy
+sztywny manifold bez sztucznego odcisku
+→ poprawność na szwach i krawędziach terenu
+→ A/B lokalnej podatności przy identycznej topologii
+→ decyzja, czy potrzebna jest opona strukturalna
 ```
 
-Historia decyzji: `docs/adr/0001..0005`. Raporty milestone'ów: `docs/M*_PL.md`.
+Pełny stan: `docs/CURRENT_STATE_INDEX_PL.md`.
+Program koła: `docs/KOLA_00_INDEX_PL.md`.
 
-## Szybki start
+## JV a JES
 
-```powershell
-cmake --build --preset windows-debug --target samples
-cmake --build --preset windows-debug --target jozz_vehicle_validation
-build\bin\Debug\jozz_vehicle_validation.exe   # musi kończyć się: OK
-build\bin\Debug\samples.exe                   # uruchamiać z katalogu repo
-```
+JES jest osobnym, młodszym projektem. JV ma dostarczać mu zweryfikowane
+zdolności, dowody, porażki i metody badawcze — nie cały kod ani historyczną
+strukturę repo. Macierz dziedzictwa: `docs/JV_JES_HERITAGE_PL.md`.
 
-W pickerze sampli (kategoria `Jozz Vehicle`):
+## Dokumentacja
 
-```text
-M5 First Drivable         <- jeżdżący pojazd: W/S/A/D, Space, T
-Lab M2 Primitive Corner   <- izolowany narożnik zawieszenia (M2.5+M3+M4)
-Lab M1 Smoke              <- historyczny smoke test
-```
+- `README_FOR_AGENTS.md` — start dla agenta;
+- `docs/JV_DOCS_INDEX_PL.md` — mapa dokumentacji;
+- `docs/CHECKPOINTS_PL.md` — najnowsze zmiany;
+- `docs/TECH_DEBT_PL.md` — otwarte ryzyka;
+- `docs/archive/` — dawne plany i raporty, zachowane jako historia.
 
-Uwaga środowiskowa: wrapper `cmd /c "set PATH=& ..."` z wcześniejszych wersji
-tego README nie działa w Git Bash (cicho nic nie robi). Wołaj cmake
-bezpośrednio; szczegóły w `docs/CURRENT_STATE_INDEX_PL.md` sekcja 9.
-
-## Najważniejsza lekcja fizyki (niezmienna)
-
-```text
-b3WheelJoint ma implicit rest translation = 0.
-Frame A = rest wheel-center anchor na chassis.
-Frame B = centrum koła.
-Rest drop jest jawny; wizualne sockety nie są frame'ami fizyki.
-```
-
-Nie wracamy do modelu, w którym Frame A jest wizualnym mountem
-amortyzatora/chassis (błąd M2.3).
-
-## Assety
-
-```text
-assets/source/     modele źródłowe glTF (research/startup, nie finalne)
-assets/contracts/  sidecar kontrakty *.asset.json (runtime binding source)
-assets/reports/    raporty audytu (tylko diagnostyka)
-```
-
-Duplikaty nazw node'ów w glTF są faktem — nie ufać nazwom bez
-indeksu/ścieżki/parent chain. Audyt: `py tools\asset_audit.py` (świadomie —
-nadpisuje raporty w repo).
+Główny `README.md` pozostaje upstreamowym README Box3D. To celowe: JV jest
+forkiem silnika i nie udaje, że upstreamowa dokumentacja API przestała istnieć.

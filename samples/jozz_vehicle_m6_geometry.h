@@ -12,7 +12,7 @@
 // is exactly what a future rig editor needs to compute hardpoints and the
 // over-center dead point WITHOUT building a physics world.
 //
-// SCOPE NOTE (deliberate, see PLAN_WIELKI_REFACTOR_2026_07_09_PL.md R5):
+// SCOPE NOTE (deliberate, see docs/archive/vehicle_legacy_2026-07/PLAN_WIELKI_REFACTOR_2026_07_09_PL.md R5):
 // only these six already-public functions moved out of suspension_rig.cpp.
 // The internal helpers HingeSwingLimit / SteeringLinkDroopLift /
 // SteeringArmWithToe stay in suspension_rig.cpp: they are internal-linkage
