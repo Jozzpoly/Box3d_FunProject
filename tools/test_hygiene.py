@@ -10,6 +10,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -119,7 +120,40 @@ class HygieneToolsTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("proposal completeness", result.stdout)
         self.assertIn("documentation authority and routing", result.stdout)
-        self.assertIn("evidence regressions shard k", result.stdout)
+        shard_keys = re.findall(r"evidence regressions shard ([a-k])", result.stdout)
+        self.assertEqual(shard_keys, list("abcdefghijk"))
+
+    def test_jv_gate_resume_is_bounded_and_token_locked(self) -> None:
+        first = run(
+            sys.executable, str(JV_GATE), "quick", "--stop-after", "1", cwd=REPO
+        )
+        self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+        self.assertIn("jv-gate: PARTIAL OK", first.stdout)
+        match = re.search(r"Proposal token: ([0-9a-f]{40}:[0-9a-f]{40})", first.stdout)
+        self.assertIsNotNone(match, first.stdout)
+        token = match.group(1)
+        self.assertIn("--start-at 2", first.stdout)
+        self.assertIn(f"--proposal-token {token}", first.stdout)
+
+        missing = run(
+            sys.executable, str(JV_GATE), "quick", "--start-at", "2", "--stop-after", "2", cwd=REPO
+        )
+        self.assertNotEqual(missing.returncode, 0)
+        self.assertIn("requires --proposal-token", missing.stderr)
+
+        wrong = run(
+            sys.executable, str(JV_GATE), "quick", "--start-at", "2", "--stop-after", "2",
+            "--proposal-token", "0" * 40 + ":" + "0" * 40, cwd=REPO
+        )
+        self.assertNotEqual(wrong.returncode, 0)
+        self.assertIn("does not match", wrong.stderr)
+
+        resumed = run(
+            sys.executable, str(JV_GATE), "quick", "--start-at", "2", "--stop-after", "2",
+            "--proposal-token", token, cwd=REPO
+        )
+        self.assertEqual(resumed.returncode, 0, resumed.stdout + resumed.stderr)
+        self.assertIn("gates 2..2 passed", resumed.stdout)
 
     def test_evidence_runner_partitions_the_suite(self) -> None:
         result = run(sys.executable, str(EVIDENCE_RUNNER), "--list", cwd=REPO)

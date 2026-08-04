@@ -111,6 +111,39 @@ def proposal_complete() -> tuple[bool, str]:
 
     return True, "worktree matches the staged proposal (or is clean)"
 
+
+def git_value(*args: str) -> tuple[bool, str]:
+    result = subprocess.run(
+        ["git", *args], cwd=str(ROOT), capture_output=True, text=True,
+        encoding="utf-8", check=False,
+    )
+    if result.returncode != 0:
+        return False, result.stderr.strip() or f"git {' '.join(args)} failed"
+    return True, result.stdout.strip()
+
+
+def proposal_token() -> tuple[bool, str]:
+    """Fingerprint the exact HEAD + staged tree validated by the gate."""
+    ok, head = git_value("rev-parse", "HEAD")
+    if not ok:
+        return False, head
+    ok, tree = git_value("write-tree")
+    if not ok:
+        return False, tree
+    return True, f"{head}:{tree}"
+
+
+def proposal_still_matches(expected_token: str) -> tuple[bool, str]:
+    complete, message = proposal_complete()
+    if not complete:
+        return False, message
+    ok, token = proposal_token()
+    if not ok:
+        return False, token
+    if token != expected_token:
+        return False, f"proposal changed during the gate: expected {expected_token}, now {token}"
+    return True, "proposal token unchanged"
+
 def run_gate(gate: Gate) -> int:
     print(f"\n===== {gate.name} =====", flush=True)
     print("$ " + " ".join(gate.command), flush=True)
@@ -128,7 +161,18 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("profile", nargs="?", choices=("quick", "deep", "wheel", "full"), default="quick")
     parser.add_argument("--list", action="store_true", help="show gates in the selected profile")
-    parser.add_argument("--start-at", type=int, default=1, help="resume at this 1-based gate number after proposal check")
+    parser.add_argument(
+        "--start-at", type=int, default=1,
+        help="resume at this 1-based gate number; values above 1 require the printed --proposal-token",
+    )
+    parser.add_argument(
+        "--stop-after", type=int,
+        help="stop after this 1-based gate number and report PARTIAL OK instead of claiming the full profile passed",
+    )
+    parser.add_argument(
+        "--proposal-token",
+        help="HEAD:index-tree fingerprint printed by the first run; proves a resumed run uses the same proposal",
+    )
     args = parser.parse_args()
 
     gates = full_profile() if args.profile == "full" else PROFILES[args.profile]
@@ -145,22 +189,72 @@ def main() -> int:
         return 1
     print(f"proposal: OK — {message}")
 
+    token_ok, token = proposal_token()
+    if not token_ok:
+        print(f"jv-gate: FAIL — cannot fingerprint proposal: {token}", file=sys.stderr)
+        return 2
+    print(f"Proposal token: {token}")
+
     if args.start_at < 1 or args.start_at > len(gates):
         print(f"jv-gate: FAIL — --start-at must be in 1..{len(gates)}", file=sys.stderr)
         return 2
+    stop_after = len(gates) if args.stop_after is None else args.stop_after
+    if stop_after < args.start_at or stop_after > len(gates):
+        print(
+            f"jv-gate: FAIL — --stop-after must be in {args.start_at}..{len(gates)}",
+            file=sys.stderr,
+        )
+        return 2
+    if args.proposal_token is not None and args.proposal_token != token:
+        print(
+            f"jv-gate: FAIL — --proposal-token does not match the current proposal\n"
+            f"expected: {token}\nprovided: {args.proposal_token}",
+            file=sys.stderr,
+        )
+        return 2
+    if args.start_at > 1 and args.proposal_token is None:
+        print(
+            "jv-gate: FAIL — resuming with --start-at above 1 requires "
+            f"--proposal-token {token}",
+            file=sys.stderr,
+        )
+        return 2
 
-    print(f"JV gate profile: {args.profile} ({len(gates)} gates), starting at {args.start_at}")
+    print(
+        f"JV gate profile: {args.profile} ({len(gates)} gates), "
+        f"executing {args.start_at}..{stop_after}"
+    )
     for index, gate in enumerate(gates, start=1):
-        if index < args.start_at:
+        if index < args.start_at or index > stop_after:
             print(f"SKIP {index}. {gate.name}")
             continue
         print(f"GATE {index}/{len(gates)}", flush=True)
         rc = run_gate(gate)
         if rc != 0:
-            print(f"Resume unchanged proposal with: python tools/jv_gate.py {args.profile} --start-at {index}", file=sys.stderr)
+            print(
+                f"Resume the same proposal with: python tools/jv_gate.py {args.profile} "
+                f"--start-at {index} --proposal-token {token}",
+                file=sys.stderr,
+            )
             return rc
+        stable, stable_message = proposal_still_matches(token)
+        if not stable:
+            print(f"jv-gate: FAIL — {gate.name} modified or escaped the proposal: {stable_message}", file=sys.stderr)
+            return 1
 
-    executed = len(gates) - args.start_at + 1
+    executed = stop_after - args.start_at + 1
+    if stop_after < len(gates):
+        next_gate = stop_after + 1
+        print(
+            f"\njv-gate: PARTIAL OK — gates {args.start_at}..{stop_after} passed "
+            f"({executed} executed); profile {args.profile} is NOT complete"
+        )
+        print(
+            f"Resume the same proposal with: python tools/jv_gate.py {args.profile} "
+            f"--start-at {next_gate} --proposal-token {token}"
+        )
+        return 0
+
     print(f"\njv-gate: OK — profile {args.profile} passed ({executed} executed gates)")
     return 0
 

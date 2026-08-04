@@ -3,11 +3,17 @@
 Krótki dziennik najnowszego stanu. Wpis ma maksymalnie: CO / CZEMU / EFEKT / DALEJ.
 Starsze wpisy: `archive/ledgers/CHECKPOINTS_2026-07_PL.md`.
 
+## 2026-08-04 · Domknięcie wznawialnej bramki
+- CO: dodano fingerprint `HEAD:index-tree`, obowiązkowy token wznowienia i ograniczenie `--stop-after`.
+- CZEMU: samo `--start-at` nie dowodziło niezmienności propozycji i mogło ponownie przekroczyć limit pojedynczego uruchomienia.
+- EFEKT: wznowienie nie omija starych gate’ów po zmianie staged tree; częściowy przebieg jawnie kończy się `PARTIAL OK`.
+- DALEJ: zamknąć eksport tej rekurencji, potem wrócić do `WHEEL-RIGID-01`.
+
 ## 2026-08-04 · Rekurencja konkursowa dokumentacji
 - CO: scalono kontrakty assetów, osie rigu z dokumentem rigu, hotkeys z UI oraz zastąpiono przed-`b3Wheel` architekturę i protokół v2.1 bieżącymi kontraktami.
 - CZEMU: sześć aktywnych plików miało nakładających się właścicieli albo historyczny status wyglądający jak instrukcja.
-- EFEKT: aktywne dokumenty projektu spadły z 18 do 15 i z 3627 do 2673 linii; `quick`, 9/9 testów higieny i 43/43 testy evidence przechodzą w sześciu resumowalnych shardach.
-- DALEJ: wyeksportować commit/patch/report; kolejna paczka ma audytować wielki ledger `KOLA_01`, bez ruszania fizyki.
+- EFEKT: aktywne dokumenty projektu spadły z 18 do 15 i z 3627 do 2673 linii; `quick`, 11/11 testów higieny i 43/43 testy evidence przechodzą w 11 wznawialnych shardach.
+- DALEJ: domknąć bezpieczne wznowienia bramki; późniejszy audyt `KOLA_01` pozostaje osobną paczką.
 
 ## 2026-08-04 · Fundament dokumentacji i archiwum
 - CO: jedna hierarchia źródeł prawdy, archiwum, bridge JV→JES, aktualne kontrakty subsystemów oraz cztery lokalne bramki higieny.

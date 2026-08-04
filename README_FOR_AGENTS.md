@@ -104,10 +104,12 @@ dzięki temu worktree i index opisują te same bajty.
 
 `quick` sprawdza routing dokumentacji, higienę commitowanego drzewa, jawność
 delty rdzenia, integralność evidence i whitespace worktree/index. `deep` dodaje
-negatywne testy regresji narzędzi oraz sześć małych shardów łańcucha dowodowego.
-Po przerwaniu można wznowić niezmienioną staged proposal przez `--start-at N`;
-każda bramka drukuje swój numer. Pojedyncze „OK” składnika nie zastępuje całego
-profilu.
+negatywne testy regresji narzędzi oraz małe, wznawialne shardy łańcucha
+dowodowego. Bramka drukuje token `HEAD:index-tree`. Po przerwaniu wznowienie od
+`--start-at N` wymaga podania tego samego `--proposal-token`; zmieniona propozycja
+nie może ominąć wcześniejszych kontroli. `--stop-after N` wykonuje ograniczony
+zakres i kończy komunikatem `PARTIAL OK`, nigdy fałszywym sukcesem całego profilu.
+Pojedyncze „OK” składnika nie zastępuje pełnego profilu.
 
 Czystą paczkę źródłową twórz przez `python tools/export_source.py`; skrypt czyta
 bajty wyłącznie z commitowanego drzewa `HEAD`, więc nie pakuje brudnego worktree,
