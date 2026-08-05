@@ -34,15 +34,18 @@ rzeczywistego profilu.
 **Spłata:** albo dokładne całkowanie bryły obrotowej, albo jawny kontrakt
 „collision-only; mass supplied by caller”. Nie zmieniać przed testem topologii.
 
-## P2-1 — Pełny UBSan ma niezależny dług wyrównania
+## P2-1 — Pełny UBSan ma niezależne długi wyrównania i zero-size API
 
 Domyślny build SIMD zatrzymuje się przed ścieżką koła na niealigned `_mm_load_sd`
 w `src/mesh.c` / `src/simd.h`. Wcześniejszy przebieg bez tego punktu ujawnił też
-misaligned `b3HullData*` store w `src/compound.c:582`. Scalar `WheelShapeTest`
-przechodzi czysto pod UBSan, więc pakiet hulla nie jest źródłem tych zgłoszeń.
+misaligned `b3HullData*` store w `src/compound.c:582`. Pełny scalar suite zgłasza
+również przekazanie null pointera do operacji o rozmiarze zero w ścieżce
+`src/core.c:238` / `src/compound.c:273`. Ten sam problem odtwarza się już na
+`241fe10`, więc nie jest regresją odzyskanej softness. Scalar `WheelShapeTest` i
+headless Q2 przechodzą czysto pod UBSan.
 
-**Spłata:** osobne minimalne reproduktory i jawny kontrakt wyrównania SIMD oraz
-compound; nie mieszać z podatnością opony.
+**Spłata:** osobne minimalne reproduktory i jawny kontrakt wyrównania SIMD,
+compound oraz operacji zero-size; nie mieszać z podatnością opony.
 
 ## P2-2 — Wheel–hull używa numerycznego searchu normal fan
 

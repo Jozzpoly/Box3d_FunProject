@@ -352,6 +352,9 @@ b3BodyId CreateWheelBody( b3WorldId worldId, const JozzVehicleM6Config& config, 
 	shapeDef.baseMaterial.friction = config.wheelFriction;
 	shapeDef.baseMaterial.restitution = 0.02f;
 	shapeDef.baseMaterial.rollingResistance = config.wheelRollingResistance;
+	shapeDef.contactHertz = config.wheelContactHertz;
+	// Damping stays inherited from the world during the first Hertz-only A/B.
+	shapeDef.contactDampingRatio = 0.0f;
 	shapeDef.filter.groupIndex = config.filterGroupIndex;
 
 	*outShapeCount = CreateJozzVehicleM6WheelEnvelope( wheelId, &shapeDef, &config.wheelEnvelope, outShapeIds );

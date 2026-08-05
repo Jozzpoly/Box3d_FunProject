@@ -31,9 +31,11 @@ Najbliższa praca nie polega na dalszym strojeniu `wheelCrownDrop` ani ponownym
 otwieraniu topologii. `WHEEL-RIGID-01`, `WHEEL-SEAM-02A` i `WHEEL-HULL-02B`
 zamknęły kontrolowany baseline sztywny dla plane, triangle/mesh oraz finite hull.
 
-Następny pakiet to `WHEEL-SOFT-03`: A/B lokalnej podatności przy identycznej
-geometrii, feature IDs i punktach manifoldu. Dopiero jego wynik może uzasadnić
-strukturalną oponę. Feeling i domyślne parametry nadal wymagają decyzji Jozza.
+`WHEEL-SOFT-03` jest zamkniętym kalibratorem mechanizmu z decyzją
+`INCONCLUSIVE`: potwierdził monotoniczną podatność, lecz nie komfort przejazdu.
+Następny pakiet to `WHEEL-SOFT-03R`: statyczny bump mesh i road-input A/B przy
+identycznej geometrii, feature IDs i punktach manifoldu. Feeling i wartości
+domyślne nadal wymagają decyzji Jozza.
 
 ## 2. Źródła prawdy
 
@@ -96,7 +98,7 @@ python tools/jv_gate.py wheel  # dodatkowo lokalny Wheel Scope z gotowym buildem
 python tools/jv_gate.py full   # pełna bramka produktu na Windows
 
 python tools/jv_lab.py next    # najbliższy wykonywalny/odblokowywany eksperyment
-python tools/jv_lab.py plan tools/research/experiments/WHEEL-SOFT-03.json
+python tools/jv_lab.py plan tools/research/experiments/WHEEL-SOFT-03R.json
 ```
 
 Przed checkpointem stage'uj kompletną propozycję. Bramka odmawia pracy, gdy
@@ -119,8 +121,9 @@ bajty wyłącznie z commitowanego drzewa `HEAD`, więc nie pakuje brudnego workt
 `build/`, cache ani sesji.
 
 Dla zmian shippingowego JV na Windows profil `full` uruchamia istniejący
-`tools/gate.ps1`. Zawsze czytaj pełny log pod kątem ostrzeżeń, nawet gdy kod
-wyjścia jest zerowy.
+`tools/gate.ps1`. Unit executable ma target i nazwę pliku `box3d_unit_tests`; standardowe
+`ctest` uruchamia go jako `box3d_unit`. Zawsze
+czytaj pełny log pod kątem ostrzeżeń, nawet gdy kod wyjścia jest zerowy.
 
 ## 6. Dokumentowanie bez ponownego bałaganu
 

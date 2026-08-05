@@ -141,7 +141,12 @@ if(PROJECT_IS_TOP_LEVEL)
 	if(NOT BUILD_SHARED_LIBS AND BOX3D_UNIT_TESTS)
 		message(STATUS "Adding Box3D unit tests")
 		add_subdirectory(test)
-		set_target_properties(test PROPERTIES XCODE_GENERATE_SCHEME TRUE)
+		set_target_properties(box3d_unit_tests PROPERTIES XCODE_GENERATE_SCHEME TRUE)
+		# CTest reserves the build target name `test`, so both the executable target
+		# and output file use the unambiguous name box3d_unit_tests.
+		enable_testing()
+		add_test(NAME box3d_unit COMMAND $<TARGET_FILE:box3d_unit_tests>)
+		set_tests_properties(box3d_unit PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 	else()
 		message(STATUS "Skipping Box3D unit tests")
 	endif()

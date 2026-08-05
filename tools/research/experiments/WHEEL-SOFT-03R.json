@@ -42,17 +42,25 @@
     "manifold_topology": "strict rigid support and unchanged feature IDs",
     "contact_damping_ratio": "world value during the Hertz sweep",
     "ground_contact_class": "static road geometry; no kinematic ground body",
-    "road_profile": "one frozen C2-continuous bump mesh and traversal speed",
+    "road_profile": "one frozen analytic bump profile represented by at least two declared mesh resolutions; traversal speed is identical",
     "quarter_car": "same sprung/unsprung masses, suspension and initial pose",
     "friction_and_tangent_model": "unchanged",
-    "time_step_substeps_seed": "identical for every paired run"
+    "time_step_substeps_seed": "identical for every paired run",
+    "traversal_mechanism": "static road stays static; vehicle motion method must pass flat-road parity and must not inject vertical constraint work",
+    "sampling_contract": "frame and substep sampling rates are declared; peak metrics require temporal-convergence evidence"
   },
   "confounds": [
     "A kinematic road body uses dynamic-contact softness and is not equivalent to JV static terrain.",
     "A direct force pulse calibrates compliance but does not measure geometric road-input comfort.",
     "Changing bump shape, speed or suspension together with Hertz would destroy attribution.",
     "Teleporting the road or vehicle can inject discontinuities that masquerade as tire response.",
-    "Retuning steering or suspension before the wheel decision can hide the measured transfer."
+    "Retuning steering or suspension before the wheel decision can hide the measured transfer.",
+    "A C2 analytic profile becomes piecewise planar after triangulation; a result that changes with mesh resolution is facet filtering, not tire compliance.",
+    "A kinematic carriage or towing constraint can inject vertical work; flat-road parity must prove neutral traversal before the bump sweep.",
+    "Solver totalNormalImpulse is not automatically physical force or work; its conversion must be calibrated against known static load before interpretation.",
+    "Frame-level peaks can alias substep transients; the effect must survive temporal-resolution convergence.",
+    "Zero is an inheritance sentinel and cannot represent true zero damping; damping sweeps require a separate activation contract.",
+    "The shape-wide override affects every b3Wheel contact, including dynamic obstacles; Q2R only validates static-road transfer."
   ],
   "levels": [
     {
@@ -75,17 +83,21 @@
     }
   ],
   "metrics": [
-    "road input position/velocity/acceleration hash and tracking error",
-    "wheel and chassis vertical acceleration rms/peak",
+    "analytic road profile hash, mesh-resolution id and sampled input trace hash",
+    "flat-road parity: vertical acceleration, energy drift, speed drift and topology before any bump run",
+    "wheel and chassis vertical acceleration rms/peak with temporal-convergence comparison",
     "static and dynamic contact compression",
     "suspension travel rms/peak",
-    "normal force/impulse and work exchange",
+    "calibrated normal load plus solver impulse diagnostic; work from explicit energy accounting",
     "contact gaps, point count and feature-ID persistence",
     "settling time and residual oscillation",
     "physics step mean/p95/p99"
   ],
   "promotion_rules": [
-    "The static road input must be byte-identical between variants and fresh processes.",
+    "The analytic road input and traversal trace must be byte-identical between variants and fresh processes.",
+    "Effect sign and approximate magnitude must agree across at least two mesh resolutions of the same analytic profile.",
+    "Traversal must pass flat-road parity before any bump result is admissible.",
+    "Peak conclusions require a declared temporal-convergence check; frame-only peaks are not sufficient.",
     "A candidate with topology drift, contact gaps, non-finite metrics or excessive static compression cannot advance.",
     "Q2R is interpreted by paired repeats; the runner never selects a winner automatically.",
     "Q3 may receive at most baseline plus two Q2R-supported candidates.",
@@ -97,7 +109,9 @@
   ],
   "blockers": [
     "Implement a static-road Q2R runner without kinematic-ground contact-class drift.",
-    "Freeze and hash one C2-continuous bump mesh, traversal speed and carriage input trace.",
+    "Freeze and hash one analytic bump profile at two mesh resolutions, traversal speed and motion trace.",
+    "Prove flat-road parity for the traversal mechanism before executing bump variants.",
+    "Calibrate impulse/load semantics and add temporal-convergence telemetry.",
     "Add an adapter that validates repeated-world agreement, input identity, topology and guardrails before immutable execution."
   ]
 }

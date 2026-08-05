@@ -37,7 +37,7 @@ function Fail([string]$stage, [string]$detail) {
 }
 
 $val = "build\bin\Debug\jozz_vehicle_validation.exe"
-$test = "build\bin\Debug\test.exe"
+$test = "build\bin\Debug\box3d_unit_tests.exe"
 $samples = "build\bin\Debug\samples.exe"
 
 # --- R0 baseline helpers -----------------------------------------------------
@@ -75,7 +75,7 @@ function New-GateQuad([string]$outPng) {
 Get-Process samples -ErrorAction SilentlyContinue | Stop-Process -Force
 
 # 1. Build the three targets. Filter to real compiler/linker errors.
-foreach ($target in @("samples", "jozz_vehicle_validation", "test")) {
+foreach ($target in @("samples", "jozz_vehicle_validation", "box3d_unit_tests")) {
     $out = cmake --build --preset windows-debug --target $target 2>&1
     $errs = $out | Select-String -Pattern "error C\d|error LNK|fatal error"
     if ($errs) { Fail "build ($target)" $errs[0].Line }

@@ -343,6 +343,11 @@ struct JozzVehicleM6Config
 	float wheelDensity;
 	float wheelFriction;
 	float wheelRollingResistance;
+	// LAB-ONLY experiment knob. Zero inherits the world's contact Hertz and is
+	// the exact zero-delta baseline. Positive values affect only b3Wheel shapes.
+	// Deliberately runtime-only: presets must not silently turn experimental
+	// softness into a vehicle default.
+	float wheelContactHertz;
 
 	// Suspension (per-axle scales multiply the base values, like M5).
 	float suspensionHertz;

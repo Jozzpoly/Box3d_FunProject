@@ -119,9 +119,11 @@ void ReadString( std::string_view json, const std::vector<jsmntok_t>& tokens, in
 // Deliberately NOT a reflection of JozzVehicleM6Config: rackTravel is
 // DERIVED (recomputed from wishbone geometry after every load - see the
 // "stale rackTravel" tripwire in jozz_vehicle_m6_suspension_rig.cpp and the
-// validator's p2 rackTravel regression probe) and filterGroupIndex is
-// runtime-only. Neither belongs in a saved file; both are absent from the
-// table below on purpose, exactly as they were absent from the old
+// validator's p2 rackTravel regression probe). filterGroupIndex and
+// wheelContactHertz are runtime-only; the latter is an explicit lab experiment
+// that must never leak into a preset as a silent vehicle default. None belongs
+// in a saved file; all are absent from the table below on purpose, exactly as
+// they were absent from the old
 // hand-written Write*/Read* call sequence.
 //
 // One array, not "plain arrays per type": the JSON key order interleaves

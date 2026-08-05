@@ -349,6 +349,7 @@ public:
 	float m_editEnvelopeCrownRadius;
 	float m_editWheelCrownDrop;
 	int m_editWheelProfilePoints;
+	float m_editWheelContactHertz;
 	float m_editStrutCasterDeg;
 	float m_editMaxSteeringAngleDegrees;
 	float m_editFrontToeDeg;

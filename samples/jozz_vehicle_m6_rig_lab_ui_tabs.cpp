@@ -416,6 +416,54 @@ void JozzVehicleM6RigLab::DrawSuspensionTab()
 							"linii i silnik wyrzuca zbędne.\n\n"
 							"Dla płaszczyzny strict manifold bierze jeden support vertex albo dwa końce prawdziwego "
 							"support segment. Pozostałe punkty kształtują bryłę, nie sztuczną szerokość kontaktu." );
+
+				ImGui::Separator();
+				ImGui::TextColored( ImVec4( 0.95f, 0.70f, 0.30f, 1.0f ),
+								 "EKSPERYMENT: lokalna podatnosc kontaktu opony" );
+				bool softnessEdited = ImGui::SliderFloat(
+					"Lokalny Hertz opony (wymaga Zastosuj)", &m_editWheelContactHertz, 0.0f, 100.0f, "%.1f Hz" );
+				if ( ImGui::Button( "Dziedzicz swiat##WheelSoftWorld" ) )
+				{
+					m_editWheelContactHertz = 0.0f;
+					softnessEdited = true;
+				}
+				ImGui::SameLine();
+				if ( ImGui::Button( "0.75x##WheelSoft075" ) )
+				{
+					m_editWheelContactHertz = 0.75f * m_contactHertz;
+					softnessEdited = true;
+				}
+				ImGui::SameLine();
+				if ( ImGui::Button( "0.50x##WheelSoft050" ) )
+				{
+					m_editWheelContactHertz = 0.50f * m_contactHertz;
+					softnessEdited = true;
+				}
+				ImGui::SameLine();
+				if ( ImGui::Button( "0.25x##WheelSoft025" ) )
+				{
+					m_editWheelContactHertz = 0.25f * m_contactHertz;
+					softnessEdited = true;
+				}
+				edited |= softnessEdited;
+				if ( m_editWheelContactHertz > 0.0f )
+				{
+					ImGui::TextDisabled( "Swiat: %.1f Hz | opona: %.1f Hz | damping dziedziczony",
+								 m_contactHertz, m_editWheelContactHertz );
+				}
+				else
+				{
+					ImGui::TextDisabled( "Swiat: %.1f Hz | opona: dziedziczy swiat | damping dziedziczony",
+								 m_contactHertz );
+				}
+				HelpMarker( "To jest reczny punkt walidacji odzyskanego WHEEL-SOFT-03, nie nowy domyslny model opony.\n\n"
+							"0 Hz oznacza DOKLADNE dziedziczenie ustawienia swiata i zachowuje stary baseline. "
+							"Przy domyslnych 30 Hz przyciski ustawiaja kolejno 22.5, 15 i 7.5 Hz - te same skale, "
+							"ktore przeszedl headless Q2. Zmienia sie tylko normalna podatnosc kontaktu b3Wheel; geometria, "
+							"manifold, feature IDs, tarcie, masa, zawieszenie i damping pozostaja zamrozone.\n\n"
+							"Q2 potwierdzilo monotoniczne uginanie, ale NIE udowodnilo lepszego komfortu - dlatego obserwuj "
+							"zapadanie, odbicie, stabilnosc i feeling, bez traktowania nizszego Hertz jako automatycznie lepszego. "
+							"Parametr nie jest zapisywany w presetach ani sesji; po restarcie wraca do 0. Dziala tylko dla trybu KOLO (b3Wheel)." );
 			}
 			if ( m_editEnvelopeMode == JOZZ_M6_ENVELOPE_PHASED_UNION )
 			{

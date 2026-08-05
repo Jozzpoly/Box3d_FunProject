@@ -401,6 +401,7 @@ JozzVehicleM6Config JozzVehicleM6DefaultConfig( float wheelRadius, float wheelWi
 	config.wheelDensity = 80.0f;
 	config.wheelFriction = 1.25f;
 	config.wheelRollingResistance = 0.02f;
+	config.wheelContactHertz = 0.0f; // experiment OFF: exact world-softness baseline
 
 	// Same reasoning as M5: the joint spring stiffness follows the constraint's
 	// effective mass (dominated by the light unsprung side), so the hertz sits

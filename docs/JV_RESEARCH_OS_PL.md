@@ -16,6 +16,7 @@ zmienić kodu, macierzy wariantów ani poziomu rigu bez pozostawienia śladu.
 Research OS nie jest kolejnym benchmarkiem koła. Jest wspólnym protokołem dla:
 
 - `WHEEL-SOFT-03`;
+- `WHEEL-SOFT-03R`;
 - wielopojazdowego `VEHICLE-FLEET-STRESS-04`;
 - późniejszych badań zawieszenia, kierownicy, mapy i dziedzictwa JES.
 
@@ -94,8 +95,8 @@ Decyzja jest związana hashem z konkretnym packetem i proposal tokenem.
 ```text
 python tools/jv_lab.py list
 python tools/jv_lab.py next
-python tools/jv_lab.py validate tools/research/experiments/WHEEL-SOFT-03.json
-python tools/jv_lab.py plan tools/research/experiments/WHEEL-SOFT-03.json
+python tools/jv_lab.py validate tools/research/experiments/WHEEL-SOFT-03R.json
+python tools/jv_lab.py plan tools/research/experiments/WHEEL-SOFT-03R.json
 
 # Headless Q2 build bez Samples/GUI:
 cmake --preset linux-research
@@ -126,6 +127,9 @@ chroni `evidence.py`; kompletność propozycji przed checkpointem chroni
 `jv_gate.py`.
 
 ## 9. Aktualna kolejka
+
+Zamknięty kontrakt kalibracyjny: `tools/research/experiments/WHEEL-SOFT-03.json`.
+Aktywny kontrakt następnego kroku: `tools/research/experiments/WHEEL-SOFT-03R.json`.
 
 1. `WHEEL-SOFT-03` — `complete` z opublikowanym Q2 i decyzją `INCONCLUSIVE`; mechanizm compliance jest potwierdzony, komfort nie;
 2. `WHEEL-SOFT-03R` — aktywny następny kontrakt, zablokowany do czasu statycznego bump rigu;

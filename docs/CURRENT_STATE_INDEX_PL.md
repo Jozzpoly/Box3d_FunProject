@@ -110,8 +110,11 @@ persistence, zerowych lukach i zerowym topology drift (`F-44`). Decyzja ma statu
 komfort przejazdu po nieruchomej geometrii drogi (`F-45`). `WHEEL-SOFT-03` ma
 stan `complete`, lecz nie otwiera Q3.
 
-Opublikowany run pozostaje kalibratorem mechanizmu. Następną aktywną bramką
-jest osobny `WHEEL-SOFT-03R`: quarter-car ma przejechać po zamrożonym,
+Opublikowany run pozostaje kalibratorem mechanizmu. Laboratorium M6 udostępnia
+teraz jawnie eksperymentalny, runtime-only lokalny Hertz dla `b3Wheel`, aby Jozz
+mógł ręcznie porównać 1.00/0.75/0.50/0.25x. Domyślne `0` dziedziczy świat
+dokładnie, parametr nie trafia do presetów i nie zmienia shippingowego baseline'u.
+Następną aktywną bramką jest osobny `WHEEL-SOFT-03R`: quarter-car ma przejechać po zamrożonym,
 **statycznym** bump mesh, aby zachować tę samą klasę static-contact softness co
 teren JV. Kinematyczne podłoże jest jawnie zakazanym confoundem. Dopiero Q2R może
 ocenić transfer road→wheel→chassis i ewentualnie otworzyć Q3.

@@ -1,5 +1,12 @@
 # Checkpoints / handoff — Jozz Vehicle
 
+## 2026-08-05 — Preflight ręcznej walidacji softness
+
+- CTest uruchamia realny `box3d_unit` zamiast kończyć pustym sukcesem.
+- README i audit wskazują aktywny `WHEEL-SOFT-03R`, nie zamknięty kalibrator 03.
+- M6 lab ma runtime-only lokalny Hertz `b3Wheel` (0 = dokładny baseline; nie zapisuje się w presetach).
+- Kontrakt 03R wymaga flat-road parity, mesh/time convergence i kalibracji impulsu.
+
 ## 2026-08-05 · WHEEL-SOFT-03 Q2 — immutable kalibrator opublikowany (RECONSTRUCTED)
 - CO: wykonano i opublikowano czterowariantowy run Q2 dla skal Hertz 1.00/0.75/0.50/0.25; decyzja append-only ma status `INCONCLUSIVE`.
 - CZEMU: sam hook solvera nie wystarczał; potrzebny był trwały dowód mechanizmu oraz jawne rozdzielenie kalibracji compliance od komfortu drogowego.

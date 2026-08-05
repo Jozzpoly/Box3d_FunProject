@@ -266,6 +266,11 @@ class ExperimentSystemTests(unittest.TestCase):
         self.assertEqual(road["state"], "blocked")
         self.assertEqual(road["depends_on_experiments"], ["WHEEL-SOFT-03"])
         self.assertTrue(any("static" in blocker.lower() for blocker in road["blockers"]))
+        self.assertTrue(any("mesh resolutions" in rule for rule in road["promotion_rules"]))
+        self.assertTrue(any("flat-road parity" in rule.lower() for rule in road["promotion_rules"]))
+        self.assertTrue(any("temporal-convergence" in rule for rule in road["promotion_rules"]))
+        readme = (HERE.parents[1] / "README_FOR_AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn("Następny pakiet to `WHEEL-SOFT-03R`", readme)
 
     def test_higher_level_requires_sealed_promotable_parent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

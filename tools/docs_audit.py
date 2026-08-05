@@ -116,7 +116,7 @@ REQUIRED_ROUTES = {
     DOCS / "KOLA_02_ARCHITEKTURA_PL.md": ["KOLA_03_POLITYKA_BOX3D_PL.md"],
     DOCS / "KOLA_04_PETLA_BADAWCZA_PL.md": ["KOLA_05_PROTOKOL_EKSPERYMENTU_PL.md"],
     DOCS / "KOLA_05_PROTOKOL_EKSPERYMENTU_PL.md": ["JV_RESEARCH_OS_PL.md"],
-    DOCS / "JV_RESEARCH_OS_PL.md": ["tools/jv_lab.py", "tools/research/experiments/WHEEL-SOFT-03.json"],
+    DOCS / "JV_RESEARCH_OS_PL.md": ["tools/jv_lab.py", "tools/research/experiments/WHEEL-SOFT-03.json", "tools/research/experiments/WHEEL-SOFT-03R.json"],
     DOCS / "SUBSYSTEM_RIG_DAMPER_MOUNT_PL.md": ["ASSET_CONTRACT_PL.md"],
 }
 
@@ -302,6 +302,39 @@ def fix_findings_catalog() -> None:
     updated = replace_findings_catalog(text, catalog)
     FINDINGS_DOC.write_text(updated, encoding="utf-8", newline="\n")
 
+
+def check_research_front_door(errors: list[str]) -> None:
+    """Keep README's declared next package aligned with the executable DAG."""
+    spec_dir = ROOT / "tools" / "research" / "experiments"
+    try:
+        specs = []
+        for path in spec_dir.glob("*.json"):
+            value = json.loads(path.read_text("utf-8"))
+            if isinstance(value, dict):
+                specs.append(value)
+        specs.sort(key=lambda item: (item.get("order", 2**31 - 1), item.get("id", "")))
+        states = {item.get("id"): item.get("state") for item in specs}
+        expected = None
+        for item in specs:
+            if item.get("state") == "complete":
+                continue
+            dependencies = item.get("depends_on_experiments", [])
+            if all(states.get(dep) == "complete" for dep in dependencies):
+                expected = item.get("id")
+                break
+        if expected is None:
+            return
+        readme = (ROOT / "README_FOR_AGENTS.md").read_text("utf-8")
+        match = re.search(r"Następny pakiet to `([A-Z0-9-]+)`", readme)
+        if match is None:
+            errors.append("BADANIA: README_FOR_AGENTS nie deklaruje 'Następny pakiet to `...`'")
+        elif match.group(1) != expected:
+            errors.append(
+                f"BADANIA: README wskazuje {match.group(1)}, ale wykonywalny DAG wskazuje {expected}"
+            )
+    except (OSError, json.JSONDecodeError) as exc:
+        errors.append(f"BADANIA: nie można sprawdzić aktywnego eksperymentu: {exc}")
+
 def check() -> list[str]:
     errors: list[str] = []
 
@@ -423,6 +456,7 @@ def check() -> list[str]:
             )
 
     check_findings_catalog(errors)
+    check_research_front_door(errors)
     return errors
 
 

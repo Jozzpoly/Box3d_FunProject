@@ -34,6 +34,8 @@ bool RunP6MassAndLimitSanityProbe( const JozzVehiclePrimitiveDefaults& defaults 
 
 	JozzVehicleM6Config config =
 		JozzVehicleM6DefaultConfig( defaults.wheelRadius, defaults.wheelWidth, defaults.assetSuspensionTravelHint );
+	ok &= CheckTrue( "p6 experimental wheel softness defaults to exact world inheritance",
+					 config.wheelContactHertz == 0.0f );
 
 	b3WorldDef worldDef = b3DefaultWorldDef();
 	b3WorldId worldId = b3CreateWorld( &worldDef );
@@ -391,6 +393,9 @@ bool RunPresetDeterminismProbe( const JozzVehiclePrimitiveDefaults& defaults )
 	fiddled.frontToeDeg = 3.0f;
 	// ...and one it DOES define (must come back as the preset's value).
 	fiddled.suspensionHertz = 11.0f;
+	// Runtime-only manual validation knob: it must never leak into a preset or
+	// session file and silently become a new vehicle default.
+	fiddled.wheelContactHertz = 7.5f;
 	// Etap 2 (persystencja, 2026-07-11): visual identity is now config, not
 	// UI-only state - offroad.json doesn't define these either, so they must
 	// return to factory the same as any other unlisted field. The fiddled
@@ -427,6 +432,8 @@ bool RunPresetDeterminismProbe( const JozzVehiclePrimitiveDefaults& defaults )
 						 loaded.frontToeDeg == factory.frontToeDeg );
 		ok &= CheckTrue( "preset determinism: listed suspensionHertz takes the preset value",
 						 std::fabs( loaded.suspensionHertz - 3.5f ) < 1.0e-4f );
+		ok &= CheckTrue( "preset determinism: runtime-only wheel softness returns to exact baseline",
+						 loaded.wheelContactHertz == factory.wheelContactHertz && loaded.wheelContactHertz == 0.0f );
 		ok &= CheckTrue( "preset determinism: unlisted bodyVisualModel returns to factory",
 						 std::strcmp( loaded.bodyVisualModel, factory.bodyVisualModel ) == 0 );
 		ok &= CheckTrue( "preset determinism: unlisted bodyVisualOffset returns to factory",
@@ -462,6 +469,8 @@ bool RunPresetDeterminismProbe( const JozzVehiclePrimitiveDefaults& defaults )
 						 std::strcmp( reloaded.frontSuspensionVisualModel, fiddled.frontSuspensionVisualModel ) == 0 );
 		ok &= CheckTrue( "preset determinism: round-trip suspensionHertz (control field, unrelated segment)",
 						 std::fabs( reloaded.suspensionHertz - fiddled.suspensionHertz ) < 1.0e-4f );
+		ok &= CheckTrue( "preset determinism: round-trip omits runtime-only wheel softness",
+						 reloaded.wheelContactHertz == 0.0f );
 	}
 
 	std::printf( "preset determinism probe: %s\n", ok ? "ok" : "FAILED" );
