@@ -5,9 +5,11 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import time
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -479,6 +481,162 @@ def seal_run(run_dir: Path) -> Path:
     atomic_write(run_dir / "decision_packet.md", "\n".join(lines))
     return packet_path
 
+
+
+def _safe_component(value: str, label: str) -> str:
+    if not value or Path(value).name != value or value in {".", ".."}:
+        raise ExperimentError(f"{label} ma niebezpieczną wartość: {value!r}")
+    return value
+
+
+def _verify_sealed_run_for_publish(
+    run_dir: Path,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any], Path]:
+    lock, spec = load_run(run_dir)
+    packet_path = run_dir / "decision_packet.json"
+    packet_md_path = run_dir / "decision_packet.md"
+    decision_path = run_dir / "human_decision.json"
+    if not packet_path.is_file() or not packet_md_path.is_file():
+        raise ExperimentError("run nie ma kompletnego decision packet; najpierw wykonaj seal")
+    if not decision_path.is_file():
+        raise ExperimentError("publikacja wymaga jawnej decyzji człowieka")
+
+    packet = load_json(packet_path)
+    decision = load_json(decision_path)
+    for label, value, expected in (
+        ("packet run_id", packet.get("run_id"), lock.get("run_id")),
+        ("packet experiment_id", packet.get("experiment_id"), lock.get("experiment_id")),
+        ("packet proposal_token", packet.get("proposal_token"), lock.get("proposal_token")),
+        ("decision run_id", decision.get("run_id"), lock.get("run_id")),
+        ("decision experiment_id", decision.get("experiment_id"), lock.get("experiment_id")),
+        ("decision proposal_token", decision.get("proposal_token"), lock.get("proposal_token")),
+    ):
+        if value != expected:
+            raise ExperimentError(f"{label} jest niespójny z run.lock.json")
+    if decision.get("decision_packet_sha256") != sha256_file(packet_path):
+        raise ExperimentError("decyzja wskazuje inną wersję decision packet")
+
+    packet_cases = {item.get("case_id"): item for item in packet.get("cases", [])}
+    case_paths = sorted((run_dir / "cases").glob("*/case.json"))
+    if not case_paths or set(packet_cases) != {path.parent.name for path in case_paths}:
+        raise ExperimentError("decision packet nie odpowiada aktualnemu zestawowi case'ów")
+    for case_path in case_paths:
+        case = read_case(case_path)
+        result_path = case_path.parent / "result.json"
+        if not result_path.is_file():
+            raise ExperimentError(f"{case['case_id']}: brak result.json")
+        result = load_json(result_path)
+        current = verify_case_integrity(case_path.parent, case, result)
+        recorded = packet_cases[case["case_id"]].get("raw_files", [])
+        if current != recorded:
+            raise ExperimentError(f"{case['case_id']}: surowe pliki zmieniły się po seal")
+
+    decision_hash = sha256_file(decision_path)
+    history_matches = [
+        path for path in sorted((run_dir / "decisions").glob("*.json"))
+        if sha256_file(path) == decision_hash
+    ]
+    if len(history_matches) != 1:
+        raise ExperimentError("bieżąca decyzja nie ma jednoznacznego wpisu w append-only history")
+    return lock, spec, packet, decision, history_matches[0]
+
+
+def publish_run(run_dir: Path, destination_root: Path | None = None) -> Path:
+    run_dir = run_dir.resolve()
+    lock, spec, packet, decision, current_history = _verify_sealed_run_for_publish(run_dir)
+    experiment_id = _safe_component(str(lock["experiment_id"]), "experiment_id")
+    run_id = _safe_component(str(lock["run_id"]), "run_id")
+    root = (destination_root or (ROOT / "tools" / "research" / "evidence")).resolve()
+    destination = root / experiment_id / run_id
+    if destination.exists():
+        raise ExperimentError(f"publikacja już istnieje i nie zostanie nadpisana: {destination}")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temp_dir = Path(tempfile.mkdtemp(prefix=f".{run_id}.publish-", dir=destination.parent))
+
+    copied: list[dict[str, Any]] = []
+    omitted_empty: list[dict[str, Any]] = []
+
+    def copy_verified(source: Path, published_relative: Path) -> None:
+        if not source.is_file():
+            raise ExperimentError(f"brak pliku publikacji: {source.relative_to(run_dir)}")
+        target = temp_dir / published_relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+        if source.stat().st_size != target.stat().st_size or sha256_file(source) != sha256_file(target):
+            raise ExperimentError(f"kopiowanie zmieniło plik: {source.relative_to(run_dir)}")
+        copied.append({
+            "source_path": str(source.relative_to(run_dir)).replace("\\", "/"),
+            "published_path": str(published_relative).replace("\\", "/"),
+            "bytes": target.stat().st_size,
+            "sha256": sha256_file(target),
+        })
+
+    try:
+        for name in ("run.lock.json", "status.json", "decision_packet.json", "decision_packet.md"):
+            copy_verified(run_dir / name, Path(name))
+        for history in sorted((run_dir / "decisions").glob("*.json")):
+            copy_verified(history, Path("decisions") / history.name)
+
+        for case_path in sorted((run_dir / "cases").glob("*/case.json")):
+            case_dir = case_path.parent
+            case_id = _safe_component(case_dir.name, "case_id")
+            result = load_json(case_dir / "result.json")
+            copy_verified(case_path, Path("cases") / case_id / "case.json")
+            copy_verified(case_dir / "result.json", Path("cases") / case_id / "result.json")
+            for artifact in result.get("artifacts", []):
+                if artifact.get("exists"):
+                    relative = Path(artifact["path"])
+                    if relative.is_absolute() or ".." in relative.parts:
+                        raise ExperimentError(f"{case_id}: niebezpieczna ścieżka artefaktu {relative}")
+                    copy_verified(case_dir / relative, Path("cases") / case_id / relative)
+            for log_name in ("stdout.log", "stderr.log"):
+                source = case_dir / log_name
+                if source.stat().st_size == 0:
+                    omitted_empty.append({
+                        "source_path": str(source.relative_to(run_dir)).replace("\\", "/"),
+                        "bytes": 0,
+                        "sha256": sha256_file(source),
+                        "reason": "empty_log",
+                    })
+                else:
+                    copy_verified(
+                        source,
+                        Path("cases") / case_id / (Path(log_name).stem + ".txt"),
+                    )
+
+        manifest = {
+            "schema": "jv-published-run/v1",
+            "published_utc": utc_now(),
+            "experiment_id": experiment_id,
+            "run_id": run_id,
+            "level": lock["level"],
+            "proposal_token": lock["proposal_token"],
+            "execution_state": packet["execution_state"],
+            "decision_status": decision["status"],
+            "decision_packet_sha256": sha256_file(run_dir / "decision_packet.json"),
+            "current_decision_path": str(
+                (Path("decisions") / current_history.name)
+            ).replace("\\", "/"),
+            "spec_sha256": lock["spec_sha256"],
+            "spec_snapshot": spec,
+            "files": sorted(copied, key=lambda item: item["published_path"]),
+            "omitted_empty_files": sorted(omitted_empty, key=lambda item: item["source_path"]),
+            "not_copied": [
+                {"source_path": "spec.snapshot.json", "reason": "embedded_in_manifest"},
+                {"source_path": "human_decision.json", "reason": "points_to_append_only_history"},
+            ],
+        }
+        atomic_write(temp_dir / "PUBLISH_MANIFEST.json", json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
+
+        for record in copied:
+            target = temp_dir / record["published_path"]
+            if target.stat().st_size != record["bytes"] or sha256_file(target) != record["sha256"]:
+                raise ExperimentError(f"weryfikacja publikacji nie przeszła: {record['published_path']}")
+        os.replace(temp_dir, destination)
+    except Exception:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise
+    return destination
 
 def decision_stamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")

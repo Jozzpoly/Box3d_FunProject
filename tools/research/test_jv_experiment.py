@@ -319,5 +319,70 @@ class ExperimentSystemTests(unittest.TestCase):
             self.assertIn("Brak automatycznego werdyktu", packet["note"])
 
 
+    def test_publish_copies_curated_sealed_run_and_refuses_overwrite(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            helper = self.write_helper(root)
+            spec = self.good_spec(script=helper)
+            path = root / "spec.json"
+            path.write_text(json.dumps(spec), encoding="utf-8")
+            with mock.patch.object(runner, "proposal_complete", return_value=(True, "ok")), \
+                 mock.patch.object(runner, "git_snapshot", return_value=self.snapshot()):
+                run_dir = runner.create_run(path, spec, "Q2", None, root / "runs")
+                self.assertEqual(runner.execute_cases(run_dir), 0)
+            runner.seal_run(run_dir)
+            decision_history = runner.record_decision(run_dir, "INCONCLUSIVE", "tester", "needs road input")
+
+            published = runner.publish_run(run_dir, root / "published")
+            manifest = json.loads((published / "PUBLISH_MANIFEST.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["schema"], "jv-published-run/v1")
+            self.assertEqual(manifest["decision_status"], "INCONCLUSIVE")
+            self.assertEqual(manifest["spec_snapshot"], spec)
+            self.assertEqual(manifest["current_decision_path"], f"decisions/{decision_history.name}")
+            self.assertTrue((published / manifest["current_decision_path"]).is_file())
+            self.assertFalse((published / "spec.snapshot.json").exists())
+            self.assertFalse((published / "human_decision.json").exists())
+            self.assertTrue(list((published / "cases").glob("*/metrics.json")))
+            self.assertFalse(list((published / "cases").glob("*/stdout.log")))
+            self.assertFalse(list((published / "cases").glob("*/stderr.log")))
+            self.assertEqual(len(manifest["omitted_empty_files"]), 4)
+            with self.assertRaisesRegex(jv.ExperimentError, "nie zostanie nadpisana"):
+                runner.publish_run(run_dir, root / "published")
+
+    def test_publish_rejects_artifact_mutated_after_seal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            helper = self.write_helper(root)
+            spec = self.good_spec(script=helper)
+            path = root / "spec.json"
+            path.write_text(json.dumps(spec), encoding="utf-8")
+            with mock.patch.object(runner, "proposal_complete", return_value=(True, "ok")), \
+                 mock.patch.object(runner, "git_snapshot", return_value=self.snapshot()):
+                run_dir = runner.create_run(path, spec, "Q2", None, root / "runs")
+                self.assertEqual(runner.execute_cases(run_dir), 0)
+            runner.seal_run(run_dir)
+            runner.record_decision(run_dir, "INCONCLUSIVE", "tester", "needs more evidence")
+            artifact = next((run_dir / "cases").glob("*/metrics.json"))
+            artifact.write_text('{"scale": 999}\n', encoding="utf-8")
+            with self.assertRaisesRegex(jv.ExperimentError, "artefakt zmieniony"):
+                runner.publish_run(run_dir, root / "published")
+
+    def test_publish_requires_explicit_decision(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            helper = self.write_helper(root)
+            spec = self.good_spec(script=helper)
+            path = root / "spec.json"
+            path.write_text(json.dumps(spec), encoding="utf-8")
+            with mock.patch.object(runner, "proposal_complete", return_value=(True, "ok")), \
+                 mock.patch.object(runner, "git_snapshot", return_value=self.snapshot()):
+                run_dir = runner.create_run(path, spec, "Q2", None, root / "runs")
+                self.assertEqual(runner.execute_cases(run_dir), 0)
+            runner.seal_run(run_dir)
+            with self.assertRaisesRegex(jv.ExperimentError, "jawnej decyzji"):
+                runner.publish_run(run_dir, root / "published")
+
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -9,7 +9,7 @@ from .core import (
     DECISION_STATUSES, DEFAULT_SPEC_DIR, ExperimentError, load_json, load_spec, print_plan,
 )
 from .runner import (
-    DEFAULT_RUN_ROOT, create_run, execute_cases, print_status, record_decision, seal_run,
+    DEFAULT_RUN_ROOT, create_run, execute_cases, print_status, publish_run, record_decision, seal_run,
 )
 
 def spec_paths() -> list[Path]:
@@ -104,6 +104,10 @@ def main(argv: list[str] | None = None) -> int:
     decide.add_argument("--decided-by", required=True)
     decide.add_argument("--note", required=True)
 
+    publish = sub.add_parser("publish", help="opublikuj zapieczętowany run jako kuratorowane evidence")
+    publish.add_argument("run_dir", type=Path)
+    publish.add_argument("--destination-root", type=Path)
+
     args = parser.parse_args(argv)
     try:
         if args.command == "list":
@@ -135,6 +139,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "seal":
             packet = seal_run(args.run_dir.resolve())
             print(f"Decision packet: {packet}")
+            return 0
+        if args.command == "publish":
+            destination = publish_run(
+                args.run_dir.resolve(),
+                args.destination_root.resolve() if args.destination_root else None,
+            )
+            print(f"Published evidence: {destination}")
             return 0
         if args.command == "decide":
             decision = record_decision(

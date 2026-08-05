@@ -107,6 +107,7 @@ python tools/jv_lab.py status <run-dir>
 python tools/jv_lab.py resume <run-dir> [--retry-failed]
 python tools/jv_lab.py seal <run-dir>
 python tools/jv_lab.py decide <run-dir> --status SUPPORTED --decided-by Jozz --note "..."
+python tools/jv_lab.py publish <run-dir>
 ```
 
 Poziom zależny otrzymuje wcześniejsze runy przez powtarzalne `--parent-run`.
@@ -114,9 +115,11 @@ Poziom zależny otrzymuje wcześniejsze runy przez powtarzalne `--parent-run`.
 ## 8. Relacja do repo i evidence
 
 `build/research_runs/` jest warsztatem, nie automatycznie publikowanym dowodem.
-Po decyzji wartościowy raw log przechodzi świadomą promocję do właściwego
-katalogu evidence i istniejącego manifestu. Nie kopiujemy całych runów do Git,
-nie zapisujemy buildów ani cache.
+Po decyzji wartościowy run przechodzi świadomą promocję poleceniem `publish`.
+Publikacja jest kuratorowana: zachowuje metryki, trace, case/result, packet, token
+i append-only historię decyzji; pomija puste logi, osadza snapshot specyfikacji
+w manifeście i odmawia nadpisania istniejącego evidence. Nie kopiujemy buildów
+ani cache.
 
 Niezmienność aktywnego runu chroni `jv_lab`; integralność opublikowanego wyniku
 chroni `evidence.py`; kompletność propozycji przed checkpointem chroni
