@@ -98,11 +98,12 @@ class ExperimentSystemTests(unittest.TestCase):
         self.assertGreaterEqual(len(paths), 2)
         specs = [jv.load_spec(path) for path in paths]
         self.assertEqual(
-            [spec["id"] for spec in specs[:3]],
-            ["WHEEL-SOFT-03", "WHEEL-SOFT-03R", "VEHICLE-FLEET-STRESS-04"],
+            [spec["id"] for spec in specs[:4]],
+            ["WHEEL-SOFT-03", "B3WHEEL-STEER-01C", "WHEEL-SOFT-03R", "VEHICLE-FLEET-STRESS-04"],
         )
         self.assertLess(specs[0]["order"], specs[1]["order"])
         self.assertLess(specs[1]["order"], specs[2]["order"])
+        self.assertLess(specs[2]["order"], specs[3]["order"])
 
     def test_rejects_more_than_one_primary_parameter(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -264,13 +265,20 @@ class ExperimentSystemTests(unittest.TestCase):
 
         road = jv.load_spec(HERE / "experiments" / "WHEEL-SOFT-03R.json")
         self.assertEqual(road["state"], "blocked")
-        self.assertEqual(road["depends_on_experiments"], ["WHEEL-SOFT-03"])
+        self.assertEqual(road["depends_on_experiments"], ["WHEEL-SOFT-03", "B3WHEEL-STEER-01C"])
         self.assertTrue(any("static" in blocker.lower() for blocker in road["blockers"]))
         self.assertTrue(any("mesh resolutions" in rule for rule in road["promotion_rules"]))
         self.assertTrue(any("flat-road parity" in rule.lower() for rule in road["promotion_rules"]))
         self.assertTrue(any("temporal-convergence" in rule for rule in road["promotion_rules"]))
         readme = (HERE.parents[1] / "README_FOR_AGENTS.md").read_text(encoding="utf-8")
-        self.assertIn("Następny pakiet to `WHEEL-SOFT-03R`", readme)
+        steering = jv.load_spec(HERE / "experiments" / "B3WHEEL-STEER-01C.json")
+        self.assertEqual(steering["state"], "blocked")
+        self.assertEqual(steering["primary_factor"], "release_intervention")
+        self.assertEqual(len(steering["variants"]), 6)
+        self.assertIn("artificial_centering", steering["locked_factors"])
+        self.assertIn("forbidden", steering["locked_factors"]["artificial_centering"].lower())
+        self.assertTrue(any("pre-release receipt" in metric.lower() for metric in steering["metrics"]))
+        self.assertIn("Następny pakiet to `B3WHEEL-STEER-01C`", readme)
 
     def test_higher_level_requires_sealed_promotable_parent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

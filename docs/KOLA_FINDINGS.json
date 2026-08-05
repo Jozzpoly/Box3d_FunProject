@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "purpose": "Jedyne miejsce, w ktorym zyje AKTUALNY status kazdego findingu F-xx / P-xx. Dokumenty KOLA_*.md moga finding OPISYWAC, ale nie moga nadawac mu statusu. Sprawdzane przez tools/evidence/evidence.py check.",
-  "updated": "2026-08-05",
+  "updated": "2026-08-06",
   "statuses": {
     "ENGINE_FACT": "Wlasciwosc kodu Box3D, weryfikowalna przez odczyt zrodla. Nie wymaga transferu Q2-Q4.",
     "MATH_FACT": "Czysta matematyka badanych funkcji, bez silnika. Nie wymaga transferu.",
@@ -578,6 +578,33 @@
         "none"
       ],
       "code": "tools/research/native/steering_release_probe.cpp; immutable run: tools/research/evidence/B3WHEEL-STEER-01/20260805T220437Z-4b6eb95/EVIDENCE_MANIFEST.json; traces sphere_p100.csv, sphere_m100.csv, torus_p100.csv, torus_m100.csv"
+    },
+    "F-48": {
+      "status": "VEHICLE_MEASURED",
+      "claim": "B3WHEEL-STEER-01B: gęsty sweep pełnego headless M6 wyznacza dwa osobne monotoniczne przedziały przejścia tego rigu — skręt dodatni wraca przy +0,44 i nie wraca przy +0,45, a ujemny wraca przy -0,41 i nie wraca przy -0,42.",
+      "scope": "Release Linux, 60 Hz, 4 substeps, identyczny protokół jednoczesnego puszczenia gazu i kierownicy. Dwa niezależne gęste przebiegi mają bajtowo identyczne summary i 28 trace CSV. To nie są uniwersalne progi opony ani shippingowe wartości; asymetria kierunkowa pozostaje częścią problemu.",
+      "evidence": [
+        "none"
+      ],
+      "code": "tools/research/native/steering_release_probe.cpp @ 380378e; immutable run: tools/research/evidence/B3WHEEL-STEER-01/20260805T231329Z-380378e/EVIDENCE_MANIFEST.json"
+    },
+    "F-49": {
+      "status": "VEHICLE_MEASURED",
+      "claim": "B3WHEEL-STEER-01B: ogranicznik twist przegubu kulowego nie inicjuje granicznego antycentrowania. Dla +0,45 trwałe przejście zaczyna się przy 0,5000 s, a limit wchodzi przy 0,7333 s; dla -0,42 odpowiednio 0,4167 s i 0,6333 s.",
+      "scope": "W chwili przejścia dominująca strona ma nadal około 19,9° oraz 18,5° dodatniego zapasu twist. Limit może później utrwalać pełny skręt, lecz ten run nie dowodzi, że jest obojętny dla końcowego stanu. Porównanie dotyczy wyłącznie zbadanych przypadków granicznych.",
+      "evidence": [
+        "none"
+      ],
+      "code": "tools/research/evidence/B3WHEEL-STEER-01/20260805T231329Z-380378e/EVIDENCE_MANIFEST.json; traces b3Wheel_p045.csv and b3Wheel_m042.csv"
+    },
+    "F-50": {
+      "status": "VEHICLE_MEASURED",
+      "claim": "B3WHEEL-STEER-01B: w chwili trwałego przejścia reakcja spin-joint na zwrotnicę koła niosącego dominujący impuls normalny ma znak zgodny z dalszym skrętem, podczas gdy motor racka i moment dominującego drążka działają przeciwnie. Geometryczny środek impulsu normalnego leży wtedy bardziej z przodu osi skrętu niż w sąsiednim przypadku wracającym.",
+      "scope": "To source-signature correlation, nie dowód konkretnego błędu solvera. Kontakt, spin-joint, drążek i grawitacja opisują ten sam układ na różnych poziomach i nie są bezpośrednio addytywne. `contact_trail_positive_behind` jest geometrią środka impulsu, nie pneumatic trail ani modelem odkształcenia opony.",
+      "evidence": [
+        "none"
+      ],
+      "code": "tools/research/evidence/B3WHEEL-STEER-01/20260805T231329Z-380378e/EVIDENCE_MANIFEST.json; matched boundary traces b3Wheel_p044/p045 and b3Wheel_m041/m042"
     }
   }
 }

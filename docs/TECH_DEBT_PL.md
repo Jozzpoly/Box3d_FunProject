@@ -1,6 +1,6 @@
 # TECH_DEBT — Jozz Vehicle
 
-Data odświeżenia: 2026-08-05
+Data odświeżenia: 2026-08-06
 Ten plik zawiera **wyłącznie otwarty dług**. Zamknięte i historyczne punkty są w
 `archive/ledgers/TECH_DEBT_LEGACY_2026-07_PL.md` oraz w Git.
 
@@ -10,15 +10,19 @@ Skala: **P0** blokuje wiarygodność badań, **P1** blokuje następny etap produ
 ## P0-3 — Nieudowodniony fizyczny powrót kierownicy z pełnego skrętu
 
 Ręczny przypadek jednoczesnego puszczenia gazu i kierownicy nie był objęty
-istniejącą sondą P4. W odzyskanym M6 `b3Wheel` wraca przy małej amplitudzie, lecz
-przy większej może generować moment w stronę pełnego skrętu. Wstępna sonda
-ujawnia również asymetrię kierunku dla sfery; torus pozostaje kontrolnym
-wariantem wracającym obustronnie. To evidence rozwojowe, nie zaakceptowany
-baseline produktu.
+istniejącą sondą P4. Reprodukcja i source localization są już zamknięte. W tym
+rigu `b3Wheel` ma osobne przedziały przejścia: `+0,44/+0,45` oraz
+`-0,41/-0,42`. Limit twist włącza się po rozpoczęciu trwałej wady. Podpis
+momentu przechodzi przez dominująco obciążone koło i spin-joint, podczas gdy
+rack i drążek przeciwdziałają dalszemu skrętowi. Normalno-impulsowy środek
+kontaktu przesuwa się bardziej przed oś. To nadal lokalizacja, nie przyczyna ani
+zaakceptowany baseline produktu.
 
-**Spłata:** `B3WHEEL-STEER-01`: deterministyczny reproduktor, rozkład rack/drążki/
-kontakt względem osi zwrotnicy, następnie poprawka fizycznego modelu. Zakazane są
-ukryte sprężyny, serva do zera, moment zależny od puszczenia wejścia i globalne
+**Spłata:** `B3WHEEL-STEER-01C`: probe-only fork at release i pojedyncze
+interwencje wykluczające — limity twist, coast, load-friction racka, friction
+kontaktu oraz no-contact. Dopiero po rozdzieleniu normalnego/stycznego kontaktu
+i constraintów wolno projektować minimalną zmianę modelu. Zakazane są ukryte
+sprężyny, serva do zera, moment zależny od puszczenia wejścia i globalne
 obniżenie gripu tylko po to, by zazielenić test.
 
 ## P0-2 — Brak uczciwego bodźca drogowego dla podatności

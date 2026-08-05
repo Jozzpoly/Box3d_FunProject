@@ -3,7 +3,8 @@
   "id": "WHEEL-SOFT-03R",
   "order": 35,
   "depends_on_experiments": [
-    "WHEEL-SOFT-03"
+    "WHEEL-SOFT-03",
+    "B3WHEEL-STEER-01C"
   ],
   "title": "Podatność koła pod geometrycznym bodźcem statycznej drogi",
   "state": "blocked",

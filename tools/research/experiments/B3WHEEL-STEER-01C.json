@@ -1,0 +1,109 @@
+{
+  "schema": "jv-experiment/v1",
+  "id": "B3WHEEL-STEER-01C",
+  "order": 32,
+  "depends_on_experiments": [],
+  "title": "Interwencje przyczynowe fizycznego powrotu kierownicy",
+  "state": "blocked",
+  "question": "Który kanał inicjuje trwałe antycentrowanie b3Wheel po jednoczesnym puszczeniu gazu i kierownicy: normalny kontakt, styczny kontakt czy wewnętrzne constrainty pojazdu?",
+  "hypothesis": "Pojedyncze interwencje zastosowane dokładnie w chwili release, przy bitowo identycznym stanie pre-release, rozdzielą źródło antycentrowania bez zmiany shippingowej fizyki i bez sztucznego centrowania.",
+  "primary_factor": "release_intervention",
+  "baseline_variant": "A_BASELINE",
+  "variants": [
+    {
+      "id": "A_BASELINE",
+      "parameters": {
+        "release_intervention": "none"
+      }
+    },
+    {
+      "id": "B_NO_BALL_TWIST_LIMITS",
+      "parameters": {
+        "release_intervention": "disable_ball_twist_limits"
+      }
+    },
+    {
+      "id": "C_NO_COAST_TORQUE",
+      "parameters": {
+        "release_intervention": "coast_torque_zero"
+      }
+    },
+    {
+      "id": "D_NO_RACK_LOAD_FRICTION",
+      "parameters": {
+        "release_intervention": "rack_friction_load_coeff_zero"
+      }
+    },
+    {
+      "id": "E_NO_FRONT_TANGENTIAL_FRICTION",
+      "parameters": {
+        "release_intervention": "front_wheel_friction_zero"
+      }
+    },
+    {
+      "id": "F_NO_FRONT_CONTACT",
+      "parameters": {
+        "release_intervention": "disable_front_contact"
+      }
+    }
+  ],
+  "locked_factors": {
+    "source_revision": "one clean commit/tree with dirty=false provenance",
+    "pre_release_state": "identical deterministic world state and byte-identical receipt immediately before drive=0 and steer=0",
+    "steering_inputs": "boundary defects +0.45/-0.42 and adjacent return controls +0.44/-0.41",
+    "intervention_timing": "exactly at simultaneous throttle and steering release",
+    "vehicle_geometry": "unchanged M6 chassis, suspension, steering, wheel geometry, mass and inertia",
+    "solver_schedule": "60 Hz, four substeps, identical seed and case order",
+    "shipping_defaults": "never written or changed by the probe",
+    "artificial_centering": "forbidden: no centering spring, servo-to-zero or input-state-dependent torque"
+  },
+  "confounds": [
+    "Changing more than one release intervention in a variant destroys causal attribution.",
+    "Rebuilding the world separately for each variant can produce different pre-release states; variants must fork from an identical receipt.",
+    "Disabling contact before release changes the acceleration and steering history and is not an admissible control.",
+    "Treating rack or coast controls as candidate fixes would confuse exclusion controls with product design.",
+    "A friction-zero result cannot by itself distinguish slip-force, pneumatic-trail absence or manifold geometry.",
+    "Constraint force and contact impulse channels are not independent additive torques and must not be double-counted.",
+    "A result on Linux headless is not Windows visual parity or owner-feel acceptance.",
+    "Tuning the tested steering amplitudes to obtain a green result would invalidate the frozen transition controls."
+  ],
+  "levels": [
+    {
+      "id": "C1",
+      "rig": "full native M6 headless probe forked from one frozen pre-release state",
+      "purpose": "Separate normal contact, tangential contact and internal-constraint contributions without modifying shipping physics.",
+      "depends_on": [],
+      "entry_gate": "B3WHEEL-STEER-01 source-localization evidence exists; adapter proves identical pre-release receipts and one intervention per case.",
+      "exit_gate": "Two fresh processes are byte-identical; all variants preserve the receipt; result narrows the source and records negative controls plus explicit non-conclusions."
+    }
+  ],
+  "metrics": [
+    "pre-release receipt SHA-256 and exact equality across all variants",
+    "steering angle, rack translation and sustained anti-centering onset",
+    "left/right spin-joint reaction torque and tie-rod moment about the live steering axes",
+    "contact normal/tangential impulse, centroid trail/scrub and loaded manifold topology",
+    "ball-joint twist/cone margins and first limit engagement",
+    "vehicle speed, yaw rate, lateral speed and wheel slip angle",
+    "repeatability hashes for summary and every raw trace"
+  ],
+  "promotion_rules": [
+    "Every variant changes only release_intervention and starts from the same byte-identical pre-release receipt.",
+    "Baseline must reproduce the published +0.45/-0.42 defects and +0.44/-0.41 returning controls before interventions are interpreted.",
+    "No-contact and friction-zero variants are diagnostic controls, never shipping candidates.",
+    "A source category may be selected only when two fresh runs agree byte-for-byte and adjacent controls remain interpretable.",
+    "The result must distinguish measured observations, causal inference and unresolved alternatives.",
+    "No core Box3D or shipping vehicle change may be included in C1.",
+    "The runner never chooses a product fix or marks owner feeling as accepted automatically."
+  ],
+  "manual_gates": [
+    "Jozz reviews the causal conclusion and approves which minimal physical mechanism may be researched next.",
+    "Any later product candidate requires a native Windows build, visible debug geometry and manual feel validation without hidden assistance."
+  ],
+  "blockers": [
+    "Implement a probe-only fork from one frozen pre-release state without rebuilding or re-driving each intervention variant.",
+    "Add an adapter that validates exact receipt equality, one intervention per case and immutable raw artifacts.",
+    "Define contact-disable and friction-zero interventions so they begin exactly at release and cannot leak into the pre-release trajectory.",
+    "Add red tests proving combinations, shipping-default writes and artificial centering are rejected.",
+    "Run two fresh deterministic matrices and seal a decision packet before any core/contact modification."
+  ]
+}

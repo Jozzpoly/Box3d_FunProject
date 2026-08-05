@@ -1,6 +1,6 @@
 # Current State Index — Jozz Vehicle
 
-Data odświeżenia: 2026-08-05
+Data odświeżenia: 2026-08-06
 Snapshot bazowy odzysku: `recovery/jv-reconstruction` @ odczytaj z Git; owner-feel source zachowany tagiem `checkpoint/owner-feel-source-5b92e9c`
 Status: bieżące źródło prawdy; historia w `archive/` i Git.
 
@@ -122,17 +122,33 @@ ocenić transfer road→wheel→chassis i ewentualnie otworzyć Q3.
 ### Interlock S — fizyczny powrót kierownicy — AKTYWNY BLOKER (`B3WHEEL-STEER-01`)
 
 Ręczna walidacja ujawniła brak powrotu po jednoczesnym puszczeniu gazu i
-kierownicy przy większym skręcie. Dotychczasowy `RunP4SteeringReturnProbe`
-puszczał tylko kierownicę i pozostawiał gaz, więc nie obejmował rzeczywistego
-przypadku. Naprawa nie może używać ukrytej sprężyny, serva do zera ani momentu
-zależnego od stanu wejścia.
+kierownicy przy większym skręcie. Naprawa nie może używać ukrytej sprężyny,
+serva do zera ani momentu zależnego od stanu wejścia.
 
-Pierwszym pakietem jest wyłącznie headless instrumentacja: dokładny M6 core,
-sfera/torus/`b3Wheel`, oba kierunki i przedział przejścia amplitudy, z pomiarem racka, drążków,
-kontaktów oraz impulsu momentu względem osi zwrotnicy. Zielony evidence lock
-oznacza tylko, że znana wada została odtworzona deterministycznie; nie jest
-akceptacją produktu ani poprawką fizyki. Dopiero rozkład sił może otworzyć zmianę
-modelu kontaktu/opony.
+Pakiety A/B są zamknięte bez zmiany fizyki. Headless M6 odtwarza wadę
+bajtowo deterministycznie, a gęsty sweep wyznacza osobne przedziały tego rigu:
+
+```text
+skręt dodatni:  +0,44 wraca; +0,45 nie wraca
+skręt ujemny:   -0,41 wraca; -0,42 nie wraca
+```
+
+Ogranicznik twist wchodzi później niż trwałe przejście graniczne. W chwili
+przejścia reakcja spin-joint koła niosącego dominujące obciążenie ma znak zgodny
+z dalszym skrętem, natomiast rack i dominujący drążek działają przeciwnie.
+Normalno-impulsowy środek kontaktu jest wtedy bardziej przesunięty przed oś
+skrętu niż w sąsiednim przypadku wracającym. To source localization, nie dowód
+konkretnego równania ani poprawka.
+
+Evidence:
+`tools/research/evidence/B3WHEEL-STEER-01/20260805T231329Z-380378e/EVIDENCE_MANIFEST.json`.
+Raport przekazania:
+`archive/B3WHEEL_STEER_01_SOURCE_LOCALIZATION_HANDOFF_2026_08_06_PL.md`.
+
+Najbliższy pakiet `B3WHEEL-STEER-01C` ma wykonać probe-only interwencje dokładnie
+w chwili release, przy identycznym deterministycznym pre-release i jednej
+zmiennej na wariant. Dopiero wynik ma prawo otworzyć minimalny eksperyment w
+rdzeniu kontaktu/opony.
 
 ### Etap C2 — geometryczny bodziec statycznej drogi — W KOLEJCE PO INTERLOCKU (`WHEEL-SOFT-03R`)
 
@@ -181,16 +197,20 @@ Szczegóły: `JV_JES_HERITAGE_PL.md`.
 
 ## 7. Minimalna bramka następnego commita
 
-Najbliższy commit `B3WHEEL-STEER-01A` ma zbudować wyłącznie reproduktor i instrumentację, bez zmiany fizyki:
+Najbliższy commit `B3WHEEL-STEER-01C1` ma rozszerzyć wyłącznie sondę, bez zmiany shippingowej fizyki:
 
-- jednoczesne `drive=0` i `steer=0` po kontrolowanym skręcie;
-- sfera, torus i `b3Wheel`, lewo/prawo oraz jawny przedział przejścia amplitudy;
-- osobne kąty obu przednich kół, rack, yaw/sideslip, siły drążków i impulsy kontaktowe względem osi skrętu;
-- brak `rackCenteringHertz`, ukrytego serva i jakiegokolwiek momentu zależnego od puszczenia wejścia;
+- identyczny deterministyczny pre-release dla `+0,44/+0,45` i `-0,41/-0,42`;
+- probe-only fork dokładnie przy jednoczesnym `drive=0` i `steer=0`;
+- osobne warianty: baseline, brak limitów twist, `coastTorque=0`,
+  `rackFrictionLoadCoeff=0`, front friction `0` oraz front no-contact;
+- jedna zmienna na wariant, bez kombinacji i bez zapisu do presetów/defaultów;
+- wszystkie warianty raportują ten sam pre-release receipt;
 - dwa świeże przebiegi muszą być bajtowo identyczne;
-- wynik ma jawnie raportować `product_acceptance=false`.
+- wynik ma rozdzielić normalny kontakt, styczny kontakt i wewnętrzne constrainty;
+- sztuczne centrowanie, globalne obniżenie gripu i strojenie progu są zakazane;
+- `product_acceptance=false` pozostaje obowiązkowe.
 
-Po zamknięciu instrumentacji pakiet `WHEEL-SOFT-03R-1` ma zbudować wyłącznie uczciwy statyczny bodziec drogowy, bez wyboru wartości shippingowej:
+Dopiero po zamknięciu interlocku pakiet `WHEEL-SOFT-03R-1` ma zbudować wyłącznie uczciwy statyczny bodziec drogowy, bez wyboru wartości shippingowej:
 
 - bump jest nieruchomym statycznym meshem; kinematyczne podłoże jest zabronione;
 - input trace, profil bumpa, prędkość i timestep mają jawny hash;

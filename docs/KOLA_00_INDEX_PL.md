@@ -2,8 +2,12 @@
 
 Status: własny `b3Wheel` jest zintegrowany; `WHEEL-RIGID-01`,
 `WHEEL-SEAM-02A` i `WHEEL-HULL-02B` zamknęły kontrolowany baseline sztywny dla
-plane, triangle/mesh oraz finite hull. Kalibrator `WHEEL-SOFT-03` zakończył się decyzją `INCONCLUSIVE`; najbliższa bramka to `WHEEL-SOFT-03R` ze statycznym bump mesh. Historyczny baseline
-przed porządkami: `5b92e9c`; rewizję roboczą odczytaj z Git.
+plane, triangle/mesh oraz finite hull. Kalibrator `WHEEL-SOFT-03` zakończył się
+decyzją `INCONCLUSIVE`; `WHEEL-SOFT-03R` czeka za aktywnym interlockiem
+`B3WHEEL-STEER-01`. Reprodukcja i source localization kierownicy są zamknięte;
+najbliższa bramka to probe-only macierz przyczynowa `B3WHEEL-STEER-01C` bez
+sztucznego centrowania. Historyczny baseline przed porządkami: `5b92e9c`;
+rewizję roboczą odczytaj z Git.
 
 > Sztywny manifold nie udaje już rosnącego śladu. Crown 3 mm zachował poprawę
 > w zakręcie przy stałym `1,00 all/kolo` i `1,00 nios/kolo`, więc wcześniejszy
@@ -50,8 +54,8 @@ WHEEL-HULL-02B — DONE
 WHEEL-SOFT-03 — COMPLETE / INCONCLUSIVE
   mechanizm compliance potwierdzony; load-pulse nie dowodzi komfortu drogowego
 
-B3WHEEL-STEER-01 — ACTIVE BLOCKER
-  jednoczesne puszczenie gazu i kierownicy; instrumentacja momentu zamiast sztucznego centrowania
+B3WHEEL-STEER-01 — ACTIVE BLOCKER / SOURCE LOCALIZED
+  A/B: reprodukcja i rozkład źródeł zamknięte; C: probe-only interwencje przyczynowe
 
 WHEEL-SOFT-03R — QUEUED AFTER STEERING EVIDENCE
   statyczny bump mesh, hashowane wejście i road→wheel→chassis transfer

@@ -1,5 +1,11 @@
 # Checkpoints / handoff — Jozz Vehicle
 
+## 2026-08-06 · B3WHEEL-STEER-01B — source localization i handoff
+- CO: rozszerzono headless M6 o gęsty sweep, chronologię przejścia oraz reakcje kontakt/rack/drążek/spin-joint/przeguby bez zmiany fizyki.
+- CZEMU: sam końcowy kąt nie rozdzielał źródła antycentrowania od późniejszego zakleszczenia na ograniczniku.
+- EFEKT: osobne monotoniczne przedziały `+0,44→+0,45` i `-0,41→-0,42`; limit twist wchodzi później, a podpis źródła przechodzi przez dominująco obciążone koło i spin-joint. Dwa gęste runy i 28 trace’ów są bajtowo identyczne.
+- DALEJ: `B3WHEEL-STEER-01C` — probe-only interwencje przy identycznym pre-release; żadnej poprawki solvera ani sztucznego centrowania przed wynikiem.
+
 ## 2026-08-05 — Preflight ręcznej walidacji softness
 
 - CTest uruchamia realny `box3d_unit` zamiast kończyć pustym sukcesem.

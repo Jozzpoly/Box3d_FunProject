@@ -33,9 +33,12 @@ zamknęły kontrolowany baseline sztywny dla plane, triangle/mesh oraz finite hu
 
 `WHEEL-SOFT-03` jest zamkniętym kalibratorem mechanizmu z decyzją
 `INCONCLUSIVE`: potwierdził monotoniczną podatność, lecz nie komfort przejazdu.
-Następny pakiet to `WHEEL-SOFT-03R`: statyczny bump mesh i road-input A/B przy
-identycznej geometrii, feature IDs i punktach manifoldu. Feeling i wartości
-domyślne nadal wymagają decyzji Jozza.
+`WHEEL-SOFT-03R` pozostaje w kolejce. Aktywnym blokerem jest
+`B3WHEEL-STEER-01`: po jednoczesnym puszczeniu gazu i kierownicy większy skręt
+`b3Wheel` przechodzi w trwałe antycentrowanie. Reprodukcja i lokalizacja źródła
+są zamknięte. Następny pakiet to `B3WHEEL-STEER-01C`: probe-only interwencje
+przyczynowe bez zmiany shippingowej fizyki. Feeling i wartości domyślne nadal
+wymagają decyzji Jozza.
 
 ## 2. Źródła prawdy
 
