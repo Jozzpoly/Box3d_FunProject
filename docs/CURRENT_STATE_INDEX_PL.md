@@ -1,7 +1,7 @@
 # Current State Index — Jozz Vehicle
 
 Data odświeżenia: 2026-08-05
-Snapshot bazowy: `jozz-scan-terrain-f0` @ `5b92e9c`
+Snapshot bazowy odzysku: `recovery/jv-reconstruction` @ odczytaj z Git; owner-feel source zachowany tagiem `checkpoint/owner-feel-source-5b92e9c`
 Status: bieżące źródło prawdy; historia w `archive/` i Git.
 
 ## 1. Najważniejszy stan
@@ -119,7 +119,22 @@ Następną aktywną bramką jest osobny `WHEEL-SOFT-03R`: quarter-car ma przejec
 teren JV. Kinematyczne podłoże jest jawnie zakazanym confoundem. Dopiero Q2R może
 ocenić transfer road→wheel→chassis i ewentualnie otworzyć Q3.
 
-### Etap C2 — geometryczny bodziec statycznej drogi — AKTYWNY NASTĘPNY KROK (`WHEEL-SOFT-03R`)
+### Interlock S — fizyczny powrót kierownicy — AKTYWNY BLOKER (`B3WHEEL-STEER-01`)
+
+Ręczna walidacja ujawniła brak powrotu po jednoczesnym puszczeniu gazu i
+kierownicy przy większym skręcie. Dotychczasowy `RunP4SteeringReturnProbe`
+puszczał tylko kierownicę i pozostawiał gaz, więc nie obejmował rzeczywistego
+przypadku. Naprawa nie może używać ukrytej sprężyny, serva do zera ani momentu
+zależnego od stanu wejścia.
+
+Pierwszym pakietem jest wyłącznie headless instrumentacja: dokładny M6 core,
+sfera/torus/`b3Wheel`, oba kierunki i przedział przejścia amplitudy, z pomiarem racka, drążków,
+kontaktów oraz impulsu momentu względem osi zwrotnicy. Zielony evidence lock
+oznacza tylko, że znana wada została odtworzona deterministycznie; nie jest
+akceptacją produktu ani poprawką fizyki. Dopiero rozkład sił może otworzyć zmianę
+modelu kontaktu/opony.
+
+### Etap C2 — geometryczny bodziec statycznej drogi — W KOLEJCE PO INTERLOCKU (`WHEEL-SOFT-03R`)
 
 - osobny kontrakt eksperymentu zależy od zakończonego 03;
 - zmieniany jest tylko `wheel_contact_hertz_scale`;
@@ -166,7 +181,16 @@ Szczegóły: `JV_JES_HERITAGE_PL.md`.
 
 ## 7. Minimalna bramka następnego commita
 
-Pakiet `WHEEL-SOFT-03R-1` ma zbudować wyłącznie uczciwy statyczny bodziec drogowy, bez wyboru wartości shippingowej:
+Najbliższy commit `B3WHEEL-STEER-01A` ma zbudować wyłącznie reproduktor i instrumentację, bez zmiany fizyki:
+
+- jednoczesne `drive=0` i `steer=0` po kontrolowanym skręcie;
+- sfera, torus i `b3Wheel`, lewo/prawo oraz jawny przedział przejścia amplitudy;
+- osobne kąty obu przednich kół, rack, yaw/sideslip, siły drążków i impulsy kontaktowe względem osi skrętu;
+- brak `rackCenteringHertz`, ukrytego serva i jakiegokolwiek momentu zależnego od puszczenia wejścia;
+- dwa świeże przebiegi muszą być bajtowo identyczne;
+- wynik ma jawnie raportować `product_acceptance=false`.
+
+Po zamknięciu instrumentacji pakiet `WHEEL-SOFT-03R-1` ma zbudować wyłącznie uczciwy statyczny bodziec drogowy, bez wyboru wartości shippingowej:
 
 - bump jest nieruchomym statycznym meshem; kinematyczne podłoże jest zabronione;
 - input trace, profil bumpa, prędkość i timestep mają jawny hash;

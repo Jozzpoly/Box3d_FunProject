@@ -1,11 +1,25 @@
 # TECH_DEBT — Jozz Vehicle
 
-Data odświeżenia: 2026-08-04
+Data odświeżenia: 2026-08-05
 Ten plik zawiera **wyłącznie otwarty dług**. Zamknięte i historyczne punkty są w
 `archive/ledgers/TECH_DEBT_LEGACY_2026-07_PL.md` oraz w Git.
 
 Skala: **P0** blokuje wiarygodność badań, **P1** blokuje następny etap produktu,
 **P2** ważne, ale może poczekać, **P3** dziedzictwo JV bez wpływu na JES.
+
+## P0-3 — Nieudowodniony fizyczny powrót kierownicy z pełnego skrętu
+
+Ręczny przypadek jednoczesnego puszczenia gazu i kierownicy nie był objęty
+istniejącą sondą P4. W odzyskanym M6 `b3Wheel` wraca przy małej amplitudzie, lecz
+przy większej może generować moment w stronę pełnego skrętu. Wstępna sonda
+ujawnia również asymetrię kierunku dla sfery; torus pozostaje kontrolnym
+wariantem wracającym obustronnie. To evidence rozwojowe, nie zaakceptowany
+baseline produktu.
+
+**Spłata:** `B3WHEEL-STEER-01`: deterministyczny reproduktor, rozkład rack/drążki/
+kontakt względem osi zwrotnicy, następnie poprawka fizycznego modelu. Zakazane są
+ukryte sprężyny, serva do zera, moment zależny od puszczenia wejścia i globalne
+obniżenie gripu tylko po to, by zazielenić test.
 
 ## P0-2 — Brak uczciwego bodźca drogowego dla podatności
 
@@ -67,6 +81,15 @@ GTK lub sieć nawet dla czystej walidacji headless; obecny pakiet został sprawd
 
 **Spłata:** wydzielić headless validation przed GUI dependencies albo do osobnego
 CMakeLists, z testem konfiguracji offline.
+
+## P2-4 — `b3Wheel` jest niewidoczny w debug draw
+
+Koło uczestniczy w fizyce, lecz bieżący Windows runtime nie pokazuje oczekiwanej
+geometrii prymitywu po włączeniu debug shapes. Utrudnia to walidację aktywnej
+reprezentacji i manifoldów; pochodzenie starej binarki nie było osadzone w UI.
+
+**Spłata:** odtworzyć na buildzie z jawnym commit/tree/build type, prześledzić
+adapter debug draw i dodać mały test bez zmiany zachowania kolizji.
 
 ## P3-1 — Historyczne ograniczenia pojazdu
 

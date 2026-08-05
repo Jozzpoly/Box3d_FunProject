@@ -50,7 +50,10 @@ WHEEL-HULL-02B — DONE
 WHEEL-SOFT-03 — COMPLETE / INCONCLUSIVE
   mechanizm compliance potwierdzony; load-pulse nie dowodzi komfortu drogowego
 
-WHEEL-SOFT-03R — ACTIVE NEXT
+B3WHEEL-STEER-01 — ACTIVE BLOCKER
+  jednoczesne puszczenie gazu i kierownicy; instrumentacja momentu zamiast sztucznego centrowania
+
+WHEEL-SOFT-03R — QUEUED AFTER STEERING EVIDENCE
   statyczny bump mesh, hashowane wejście i road→wheel→chassis transfer
 
 WHEEL-STRUCT-04
@@ -98,6 +101,7 @@ Nie zaczynaj kolejnej rekurencji przed zamknięciem poprzedniej.
 - `tools/evidence/evidence.py` — rejestracja, ekstrakcja, render i kontrola raw;
 - `tools/jozz_wheel_bench/check_all.py` — istniejące bramki instrumentu;
 - `tools/jv_gate.py` — jedno wejście do profili jakości;
+- target `jv_steering_release_probe` (`tools/research/native/steering_release_probe.cpp`) — headless reproduktor jednoczesnego puszczenia gazu i kierownicy; evidence lock, nie test akceptacji produktu;
 - `tools/jozz_core_delta.py` — własność i zakres zmian rdzenia;
 - `samples/validation/` — sondy pojazdu i mapy.
 

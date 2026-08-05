@@ -103,7 +103,8 @@
       "configurePreset": "windows-research",
       "configuration": "Release",
       "targets": [
-        "jv_wheel_soft_q2"
+        "jv_wheel_soft_q2",
+        "jv_steering_release_probe"
       ]
     },
     {
@@ -128,7 +129,8 @@
       "name": "linux-research",
       "configurePreset": "linux-research",
       "targets": [
-        "jv_wheel_soft_q2"
+        "jv_wheel_soft_q2",
+        "jv_steering_release_probe"
       ]
     }
   ]
