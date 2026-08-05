@@ -560,6 +560,24 @@
         "none"
       ],
       "code": "tools/research/evidence/WHEEL-SOFT-03/20260805T100714313031Z-bf1264ed-b6de28ae/decision_packet.json; published run: tools/research/evidence/WHEEL-SOFT-03/20260805T100714313031Z-bf1264ed-b6de28ae/PUBLISH_MANIFEST.json"
+    },
+    "F-46": {
+      "status": "VEHICLE_MEASURED",
+      "claim": "B3WHEEL-STEER-01: w pełnym headless M6 po jednoczesnym puszczeniu gazu i kierownicy b3Wheel wraca w obu kierunkach dla wejścia ±0.40, lecz dla ±0.50 przechodzi w stan ANTI_CENTERING_OR_HOLD. Przejście jest tylko ograniczone zbadanym przedziałem 0.40–0.50; dokładny punkt nie został wyznaczony. Przy ±1.00 koła nie schodzą poniżej 3° w ciągu 4 s i pojazd nadal porusza się około 4 m/s.",
+      "scope": "Płaskie podłoże, domyślny pełny M6, Release Linux, 60 Hz, 4 substeps, 260 kroków rozpędzania, 60 kroków skrętu i 240 kroków jednoczesnego release. Dwa przebiegi mają bajtowo identyczne summary i 10 trace CSV. To known-defect evidence lock, nie shipping fix, manualny feeling ani dokładny próg bifurkacji.",
+      "evidence": [
+        "none"
+      ],
+      "code": "tools/research/native/steering_release_probe.cpp; target jv_steering_release_probe; immutable run: tools/research/evidence/B3WHEEL-STEER-01/20260805T220437Z-4b6eb95/EVIDENCE_MANIFEST.json"
+    },
+    "F-47": {
+      "status": "VEHICLE_MEASURED",
+      "claim": "B3WHEEL-STEER-01 reference envelopes nie tworzą prostego porządku „stare dobre, nowe złe”: w tym samym protokole torus wraca obustronnie, natomiast sfera jest kierunkowo asymetryczna — +1.00 wraca, a -1.00 pozostaje przy około -34° podczas dalszego ruchu.",
+      "scope": "Ten sam run co F-46. Wynik jest kontrolą diagnostyczną dla envelope/contact i nie dowodzi, że torus jest poprawnym modelem opony ani kandydatem shippingowym. Asymetria sfery wymaga osobnego rozkładu źródła; nie wolno jej ukryć uśrednieniem lewo/prawo.",
+      "evidence": [
+        "none"
+      ],
+      "code": "tools/research/native/steering_release_probe.cpp; immutable run: tools/research/evidence/B3WHEEL-STEER-01/20260805T220437Z-4b6eb95/EVIDENCE_MANIFEST.json; traces sphere_p100.csv, sphere_m100.csv, torus_p100.csv, torus_m100.csv"
     }
   }
 }
