@@ -4,7 +4,7 @@
   "order": 30,
   "depends_on_experiments": [],
   "title": "Lokalna podatność normalna koła przy zamrożonym manifoldzie",
-  "state": "blocked",
+  "state": "ready",
   "question": "Czy lokalna podatność normalnego kontaktu wheel-ground zmniejsza drgania i szczyty obciążenia bez zmiany geometrii, topologii manifoldu ani zachowania stycznego?",
   "hypothesis": "Zmniejszenie wheel-specific contact Hertz da mierzalne ugięcie i obniży pionowe piki, a zakres pośredni zachowa energię, trwałość kontaktu oraz sterowanie lepiej niż skrajnie miękki wariant.",
   "primary_factor": "wheel_contact_hertz_scale",
@@ -56,11 +56,11 @@
   "levels": [
     {
       "id": "Q2",
-      "rig": "single loaded wheel / quarter-car contact rig",
-      "purpose": "Isolate normal compliance, compression and energy response before vehicle coupling.",
+      "rig": "headless native b3Wheel quarter-car under a deterministic contact-load pulse",
+      "purpose": "Calibrate normal compliance, static compression and load-pulse transfer before road/vehicle coupling.",
       "depends_on": [],
       "entry_gate": "Zero-override parity with 241fe10 and identical manifold IDs/counts.",
-      "exit_gate": "Repeatable compression curve, finite metrics, no topology drift and at least one candidate distinguishable from baseline."
+      "exit_gate": "Repeatable force-compression response, finite metrics, zero topology drift and at least one candidate distinguishable from baseline."
     },
     {
       "id": "Q3",
@@ -108,10 +108,22 @@
     "Any feeling change is recorded but does not automatically reject the mechanism because the current vehicle tune is provisional.",
     "A visible or audible regression must be reproducible before reopening manifold geometry."
   ],
-  "blockers": [
-    "Implement a wheel-local normal softness override with zero/default parity in both convex and mesh contact preparation paths.",
-    "Expose machine-readable Q2 metrics without changing the existing baseline scene.",
-    "Add a headless command contract for one case that writes metrics.json into {case_dir}.",
-    "Add tests proving local softness does not alter friction, manifold topology, feature IDs or non-wheel contacts."
-  ]
+  "blockers": [],
+  "execution": {
+    "command": [
+      "{python}",
+      "{repo}/tools/research/adapters/wheel_soft_q2.py",
+      "--case-dir",
+      "{case_dir}",
+      "--variant",
+      "{variant}",
+      "--hertz-scale",
+      "{param:wheel_contact_hertz_scale}"
+    ],
+    "timeout_seconds": 120,
+    "expected_artifacts": [
+      "metrics.json",
+      "trace.csv"
+    ]
+  }
 }

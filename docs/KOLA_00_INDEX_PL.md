@@ -49,7 +49,7 @@ WHEEL-HULL-02B — DONE
   finite face clipping, feature walk, edge/vertex normal cones i brak phantom corners
 
 WHEEL-SOFT-03 — ACTIVE
-  runtime hook i zero-delta DONE; następny jest headless Q2 `metrics.json`
+  runtime hook, zero-delta i headless Q2 DONE; następny jest immutable sweep + decyzja
 
 WHEEL-STRUCT-04
   decyzja o lokalnych stanach strukturalnych dopiero po wyniku A/B

@@ -3,6 +3,12 @@
 Krótki dziennik najnowszego stanu. Wpis ma maksymalnie: CO / CZEMU / EFEKT / DALEJ.
 Starsze wpisy: `archive/ledgers/CHECKPOINTS_2026-07_PL.md`.
 
+## 2026-08-05 · WHEEL-SOFT-03A-2 — headless kalibrator Q2 (RECONSTRUCTED)
+- CO: dodano niezależny target `jv_wheel_soft_q2`, adapter Research OS, presety `windows-research`/`linux-research` oraz kontrakt `metrics.json` + `trace.csv`.
+- CZEMU: sam hook solvera nie dostarczał odtwarzalnego pomiaru kompresji, impulsu i trwałości manifoldu.
+- EFEKT: baseline i trzy skale Hertz dają historycznie zgodne metryki; 2 punkty, zero luk/driftu i 100% persistence. Rig kalibruje mechanizm podatności, ale nie dowodzi poprawy komfortu jazdy.
+- DALEJ: wykonać immutable run czterech wariantów, zapieczętować wynik i podjąć jawną decyzję przed awansem do bodźca drogowego.
+
 ## 2026-08-05 · WHEEL-SOFT-03A-1 — lokalna normalna softness koła (RECONSTRUCTED)
 - CO: dodano wheel-local `contactHertz`/`contactDampingRatio`, zapis shape/recording oraz wspólny selektor używany przez convex i mesh prepare paths.
 - CZEMU: globalne `contactHertz` zmieniało wszystkie kontakty świata i nie pozwalało na czyste A/B opony.

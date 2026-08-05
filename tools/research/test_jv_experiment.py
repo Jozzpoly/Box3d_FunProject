@@ -16,6 +16,7 @@ if str(HERE) not in sys.path:
 from jv_research import core as jv  # noqa: E402
 from jv_research import runner  # noqa: E402
 from jv_research import cli as lab_cli  # noqa: E402
+from adapters import wheel_soft_q2  # noqa: E402
 
 
 class ExperimentSystemTests(unittest.TestCase):
@@ -168,14 +169,92 @@ class ExperimentSystemTests(unittest.TestCase):
             self.assertEqual(status["state"], "EXECUTED_WITH_FAILURES")
 
     def test_blocked_cli_is_controlled_failure_without_traceback(self) -> None:
-        spec = HERE / "experiments" / "WHEEL-SOFT-03.json"
-        result = subprocess.run(
-            [sys.executable, str(HERE.parent / "jv_lab.py"), "start", str(spec), "--level", "Q2"],
-            cwd=str(HERE.parents[1]), capture_output=True, text=True, encoding="utf-8", check=False,
-        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            spec = self.good_spec(state="blocked")
+            path = root / "blocked.json"
+            path.write_text(json.dumps(spec), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(HERE.parent / "jv_lab.py"), "start", str(path), "--level", "Q2"],
+                cwd=str(HERE.parents[1]), capture_output=True, text=True, encoding="utf-8", check=False,
+            )
         self.assertEqual(result.returncode, 2)
         self.assertIn("run zablokowany", result.stderr)
         self.assertNotIn("Traceback", result.stderr)
+
+    def test_wheel_soft_adapter_forwards_one_case_and_validates_metrics(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            case_dir = root / "case"
+            case_dir.mkdir()
+            fake = root / "jv_wheel_soft_q2"
+            fake.write_text(
+                "#!/usr/bin/env python3\n"
+                "from pathlib import Path\n"
+                "import json, sys\n"
+                "args = dict(zip(sys.argv[1::2], sys.argv[2::2]))\n"
+                "case_dir = Path(args['--case-dir'])\n"
+                "(case_dir / 'trace.csv').write_text('header\\n', encoding='utf-8')\n"
+                "(case_dir / 'metrics.json').write_text(json.dumps({"
+                "'schema':'jv-wheel-soft-q2/v1',"
+                "'variant':args['--variant'],"
+                "'wheel_contact_hertz_scale':float(args['--hertz-scale']),"
+                "'finite':True,"
+                "'manifold':{'topology_drift_steps':0},"
+                "'rig':{},'softness':{},'equilibrium':{},"
+                "'static_window':{'effective_contact_stiffness_n_per_m':1.0},"
+                "'response_window':{},'performance':{}"
+                "}) + '\\n', encoding='utf-8')\n",
+                encoding="utf-8",
+            )
+            fake.chmod(0o755)
+            rc = wheel_soft_q2.main([
+                "--binary", str(fake),
+                "--case-dir", str(case_dir),
+                "--variant", "B_LOCAL_0_50",
+                "--hertz-scale", "0.5",
+            ])
+            self.assertEqual(rc, 0)
+            metrics = json.loads((case_dir / "metrics.json").read_text(encoding="utf-8"))
+            self.assertEqual(metrics["schema"], "jv-wheel-soft-q2/v1")
+            self.assertEqual(metrics["variant"], "B_LOCAL_0_50")
+            self.assertEqual(metrics["wheel_contact_hertz_scale"], 0.5)
+
+    def test_wheel_soft_adapter_rejects_semantically_invalid_metrics(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            case_dir = root / "case"
+            case_dir.mkdir()
+            fake = root / "jv_wheel_soft_q2"
+            fake.write_text(
+                "#!/usr/bin/env python3\n"
+                "from pathlib import Path\n"
+                "import json, sys\n"
+                "args = dict(zip(sys.argv[1::2], sys.argv[2::2]))\n"
+                "case_dir = Path(args['--case-dir'])\n"
+                "(case_dir / 'trace.csv').write_text('header\\n', encoding='utf-8')\n"
+                "(case_dir / 'metrics.json').write_text("
+                "json.dumps({'schema':'jv-wheel-soft-q2/v1','finite':False}) + '\\n', encoding='utf-8')\n",
+                encoding="utf-8",
+            )
+            fake.chmod(0o755)
+            rc = wheel_soft_q2.main([
+                "--binary", str(fake),
+                "--case-dir", str(case_dir),
+                "--variant", "B_LOCAL_0_50",
+                "--hertz-scale", "0.5",
+            ])
+            self.assertNotEqual(rc, 0)
+
+    def test_wheel_soft_repository_spec_declares_q2_execution_contract(self) -> None:
+        spec = jv.load_spec(HERE / "experiments" / "WHEEL-SOFT-03.json")
+        self.assertEqual(spec["state"], "ready")
+        self.assertEqual(spec["blockers"], [])
+        self.assertEqual(spec["execution"]["expected_artifacts"], ["metrics.json", "trace.csv"])
+        command = spec["execution"]["command"]
+        self.assertIn("{case_dir}", command)
+        self.assertIn("{variant}", command)
+        self.assertIn("{param:wheel_contact_hertz_scale}", command)
 
     def test_higher_level_requires_sealed_promotable_parent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

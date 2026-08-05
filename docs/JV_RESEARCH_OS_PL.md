@@ -97,7 +97,11 @@ python tools/jv_lab.py next
 python tools/jv_lab.py validate tools/research/experiments/WHEEL-SOFT-03.json
 python tools/jv_lab.py plan tools/research/experiments/WHEEL-SOFT-03.json
 
-# Dostępne dopiero po usunięciu blokad i ustawieniu state=ready:
+# Headless Q2 build bez Samples/GUI:
+cmake --preset linux-research
+cmake --build --preset linux-research
+# Windows: odpowiednio `windows-research`.
+
 python tools/jv_lab.py start <spec> --level Q2
 python tools/jv_lab.py status <run-dir>
 python tools/jv_lab.py resume <run-dir> [--retry-failed]
@@ -120,8 +124,7 @@ chroni `evidence.py`; kompletność propozycji przed checkpointem chroni
 
 ## 9. Aktualna kolejka
 
-1. `WHEEL-SOFT-03` — aktywny następny eksperyment, obecnie `blocked` do czasu
-   lokalnego hooka softness i kontraktu `metrics.json`;
+1. `WHEEL-SOFT-03` — aktywny eksperyment `ready`; lokalny hook i headless kalibrator Q2 istnieją, a następny krok to immutable sweep oraz jawna decyzja;
 2. `VEHICLE-FLEET-STRESS-04` — zaplanowany system skali i zabawy, zależny od
    jawnego modelu kontaktu po 03A oraz headless CMake bez GUI.
 

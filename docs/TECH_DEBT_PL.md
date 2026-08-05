@@ -14,10 +14,10 @@ Globalne `contactHertz` zmienia wszystkie kontakty świata. Warstwa runtime
 `b3_wheelShape`, wspólny dla convex i mesh prepare paths; `0/0` zachowuje
 precomputed world softness, a non-wheel shapes nie mogą wpływać na wybór.
 
-Otwarta blokada to teraz headless Q2 runner, maszynowy `metrics.json`, powtarzalny
+Headless Q2 runner i maszynowe `metrics.json`/`trace.csv` są odtworzone. Otwarta blokada to teraz zapieczętowany, powtarzalny
 sweep oraz decyzja na podstawie zachowanych wyników — nie sam hook solvera.
 
-**Spłata:** zbudować Q2 i przeprowadzić A/B przy identycznym manifoldzie; nie
+**Spłata:** przeprowadzić immutable A/B Q2 przy identycznym manifoldzie, zachować wynik i dopiero po decyzji projektować bodziec drogowy; nie
 zmieniać jeszcze wartości domyślnych pojazdu.
 
 ## P1-2 — Niepełne zapytania geometrii `b3Wheel`

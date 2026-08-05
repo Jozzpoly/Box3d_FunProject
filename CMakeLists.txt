@@ -117,6 +117,7 @@ if(PROJECT_IS_TOP_LEVEL)
 	option(BOX3D_PROFILE "Enable profiling with Tracy" OFF)
 	option(BOX3D_VALIDATE "Enable heavy validation" ON)
 	option(BOX3D_UNIT_TESTS "Build the Box3D unit tests" ON)
+	option(BOX3D_RESEARCH_TOOLS "Build headless JV research tools" OFF)
 
 	# Enable this for shader development using sokol-shdc.
 	# This can be a large download, so this is disabled by default.
@@ -157,6 +158,10 @@ if(PROJECT_IS_TOP_LEVEL)
 			set_target_properties(samples PROPERTIES
 				XCODE_GENERATE_SCHEME TRUE
 				XCODE_SCHEME_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+	endif()
+
+	if(BOX3D_RESEARCH_TOOLS)
+		add_subdirectory(tools/research/native)
 	endif()
 
 	if(BOX3D_BENCHMARKS)

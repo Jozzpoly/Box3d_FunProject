@@ -105,8 +105,7 @@ warianty i awans Q2→Q3→Q4 obsługuje `python tools/jv_lab.py`.
 Warstwa runtime `WHEEL-SOFT-03A-1` jest odtworzona: shape koła może nadpisać
 normal-contact Hertz i damping, a `0/0` dziedziczy dokładnie globalną softness.
 Ten sam selektor działa w convex i mesh prepare paths, a test świata potwierdza
-większą kompresję bez zmiany topologii i feature IDs. Eksperyment pozostaje
-`blocked` wyłącznie do czasu headless Q2 commandu i kontraktu `metrics.json`.
+większą kompresję bez zmiany topologii i feature IDs. Headless Q2 command jest odtworzony jako osobny target bez GUI. Adapter zapisuje i waliduje `metrics.json` oraz `trace.csv`, więc kontrakt `WHEEL-SOFT-03` ma stan `ready`. Ten kalibrator dowodzi mechanizmu kompresji i czystości topologii, nie poprawy komfortu na nierówności.
 
 Ta sama geometria, te same feature IDs, punkty manifoldu, masa, tarcie,
 zawieszenie i podkroki:
@@ -135,7 +134,7 @@ powierzchnię zapytań. Nie wracać do wielu niezależnych stockowych collideró
 - masa koła jest przybliżeniem walca obwiedniowego; pojazd zamraża ją osobno;
 - raycast jest konserwatywny, nie jest dokładnym przecięciem profilu;
 - generic shape-cast/overlap używa konserwatywnego proxy, nie pełnej geometrii;
-- lokalny parametr koła istnieje, lecz brak jeszcze headless Q2 runnera i opublikowanych metryk A/B.
+- lokalny parametr i headless Q2 runner istnieją; brak jeszcze zapieczętowanego, opublikowanego runu A/B oraz decyzji o awansie do bodźca drogowego.
 
 Pełny rejestr: `TECH_DEBT_PL.md`.
 
@@ -165,8 +164,8 @@ podatności, bez strojenia wyniku:
 - wheel-local Hertz/damping jest wybierany w obu prepare paths: convex i mesh;
 - nie zmienia tarcia, rolling resistance, geometrii, liczby punktów ani feature IDs;
 - non-wheel contacts nadal używają wyłącznie ustawień świata;
-- Q2 zapisuje maszynowy `metrics.json` do `{case_dir}`;
-- `WHEEL-SOFT-03.json` przechodzi ze stanu `blocked` do `ready` dopiero po tych testach;
+- Q2 zapisuje maszynowe `metrics.json` i `trace.csv` do `{case_dir}`;
+- `WHEEL-SOFT-03.json` jest `ready`, lecz awans wymaga immutable runu i jawnej decyzji;
 - `python tools/research/test_jv_experiment.py`;
 - `python tools/jv_gate.py deep`;
 - pełny validator produktu na Windows;

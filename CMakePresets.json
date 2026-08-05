@@ -1,41 +1,135 @@
 {
   "version": 3,
-  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
   "configurePresets": [
     {
       "name": "windows",
       "displayName": "Windows (default Visual Studio)",
-      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
       "binaryDir": "${sourceDir}/build"
+    },
+    {
+      "name": "windows-research",
+      "displayName": "Windows headless JV research tools",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "binaryDir": "${sourceDir}/build-research",
+      "cacheVariables": {
+        "BOX3D_SAMPLES": "OFF",
+        "BOX3D_UNIT_TESTS": "OFF",
+        "BOX3D_RESEARCH_TOOLS": "ON",
+        "BUILD_SHARED_LIBS": "OFF"
+      }
     },
     {
       "name": "linux-debug",
       "displayName": "Linux Debug",
-      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
       "binaryDir": "${sourceDir}/build",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
     },
     {
       "name": "linux-release",
       "displayName": "Linux Release",
-      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
       "binaryDir": "${sourceDir}/build",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "linux-research",
+      "displayName": "Linux headless JV research tools",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "binaryDir": "${sourceDir}/build-research",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BOX3D_SAMPLES": "OFF",
+        "BOX3D_UNIT_TESTS": "OFF",
+        "BOX3D_RESEARCH_TOOLS": "ON",
+        "BUILD_SHARED_LIBS": "OFF"
+      }
     },
     {
       "name": "macos",
       "displayName": "macOS (Xcode)",
       "generator": "Xcode",
-      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin" },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
       "binaryDir": "${sourceDir}/build"
     }
   ],
   "buildPresets": [
-    { "name": "windows-debug",   "configurePreset": "windows",     "configuration": "Debug" },
-    { "name": "windows-release", "configurePreset": "windows",     "configuration": "Release" },
-    { "name": "linux-debug",     "configurePreset": "linux-debug" },
-    { "name": "linux-release",   "configurePreset": "linux-release" },
-    { "name": "macos-debug",     "configurePreset": "macos",       "configuration": "Debug" },
-    { "name": "macos-release",   "configurePreset": "macos",       "configuration": "Release" }
+    {
+      "name": "windows-debug",
+      "configurePreset": "windows",
+      "configuration": "Debug"
+    },
+    {
+      "name": "windows-release",
+      "configurePreset": "windows",
+      "configuration": "Release"
+    },
+    {
+      "name": "windows-research",
+      "configurePreset": "windows-research",
+      "configuration": "Release",
+      "targets": [
+        "jv_wheel_soft_q2"
+      ]
+    },
+    {
+      "name": "linux-debug",
+      "configurePreset": "linux-debug"
+    },
+    {
+      "name": "linux-release",
+      "configurePreset": "linux-release"
+    },
+    {
+      "name": "macos-debug",
+      "configurePreset": "macos",
+      "configuration": "Debug"
+    },
+    {
+      "name": "macos-release",
+      "configurePreset": "macos",
+      "configuration": "Release"
+    },
+    {
+      "name": "linux-research",
+      "configurePreset": "linux-research",
+      "targets": [
+        "jv_wheel_soft_q2"
+      ]
+    }
   ]
 }
