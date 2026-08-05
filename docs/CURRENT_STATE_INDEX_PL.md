@@ -100,8 +100,13 @@ już w ramach seam/soft, bez ponownego otwierania topologii plane.
 Maszynowy kontrakt eksperymentu istnieje w
 `tools/research/experiments/WHEEL-SOFT-03.json`, a wspólny cykl opisuje
 `JV_RESEARCH_OS_PL.md`. Jego kolejność, blokady,
-warianty i awans Q2→Q3→Q4 obsługuje `python tools/jv_lab.py`. Stan pozostaje
-`blocked` do czasu lokalnego hooka softness i command contractu `metrics.json`.
+warianty i awans Q2→Q3→Q4 obsługuje `python tools/jv_lab.py`.
+
+Warstwa runtime `WHEEL-SOFT-03A-1` jest odtworzona: shape koła może nadpisać
+normal-contact Hertz i damping, a `0/0` dziedziczy dokładnie globalną softness.
+Ten sam selektor działa w convex i mesh prepare paths, a test świata potwierdza
+większą kompresję bez zmiany topologii i feature IDs. Eksperyment pozostaje
+`blocked` wyłącznie do czasu headless Q2 commandu i kontraktu `metrics.json`.
 
 Ta sama geometria, te same feature IDs, punkty manifoldu, masa, tarcie,
 zawieszenie i podkroki:
@@ -130,7 +135,7 @@ powierzchnię zapytań. Nie wracać do wielu niezależnych stockowych collideró
 - masa koła jest przybliżeniem walca obwiedniowego; pojazd zamraża ją osobno;
 - raycast jest konserwatywny, nie jest dokładnym przecięciem profilu;
 - generic shape-cast/overlap używa konserwatywnego proxy, nie pełnej geometrii;
-- świat ma globalną miękkość kontaktu, brak jeszcze lokalnego parametru opony.
+- lokalny parametr koła istnieje, lecz brak jeszcze headless Q2 runnera i opublikowanych metryk A/B.
 
 Pełny rejestr: `TECH_DEBT_PL.md`.
 

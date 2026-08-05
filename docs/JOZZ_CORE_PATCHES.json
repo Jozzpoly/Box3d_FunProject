@@ -26,7 +26,24 @@
       "activation_boundary": "Nowa ścieżka jest wybierana wyłącznie dla b3_wheelShape; istniejące typy brył pozostają na swoich dotychczasowych gałęziach.",
       "zero_delta_contract": "Przy braku b3_wheelShape zachowanie stockowych typów ma pozostać niezmienione; potwierdzają to lokalne testy i jawny przegląd diffu względem comparison_base.",
       "upstream_update_dry_run": "required-before-rebase",
-      "notes": "Obejmuje pierwszy typ koła, integrację mesh/query/debug, profil bieżni do 5b92e9c, limit pojemności manifoldu, WHEEL-RIGID-01 strict support oraz WHEEL-SEAM-02A: jednostronny finite triangle face/edge/vertex fallback i warunkowy tylko dla b3Wheel wybór normalnej najgłębszego manifoldu w klastrze mesha. WHEEL-HULL-02B: finite face clipping, konserwatywny face-prism fast path, deterministyczny feature walk oraz numeryczne osie edge/vertex-cone. Niezależne zmiany solvera i per-contact softness wymagają osobnego checkpointu lub patch_id."
+      "notes": "Obejmuje pierwszy typ koła, integrację mesh/query/debug, profil bieżni do 5b92e9c, limit pojemności manifoldu, WHEEL-RIGID-01 strict support oraz WHEEL-SEAM-02A: jednostronny finite triangle face/edge/vertex fallback i warunkowy tylko dla b3Wheel wybór normalnej najgłębszego manifoldu w klastrze mesha. WHEEL-HULL-02B: finite face clipping, konserwatywny face-prism fast path, deterministyczny feature walk oraz numeryczne osie edge/vertex-cone. Niezależne zmiany solvera i per-contact softness wymagają osobnego checkpointu lub patch_id. WHEEL-SOFT-03A-1 dodaje pola shape/type współdzielone z natywnym kołem; ich aktywacja pozostaje wheel-only, natomiast solver i recording są własnością osobnego B3X-WHEEL-SOFT-002."
+    },
+    {
+      "patch_id": "B3X-WHEEL-SOFT-002",
+      "class": "X",
+      "status": "experimental-active",
+      "question": "Czy lokalna normalna softness koła daje mierzalną podatność bez zmiany geometrii, manifoldu i pozostałych kontaktów świata?",
+      "owner": "docs/KOLA_00_INDEX_PL.md",
+      "files": [
+        "src/contact_solver.c",
+        "src/contact_solver.h",
+        "src/recording.c",
+        "src/recording_replay.c"
+      ],
+      "activation_boundary": "Selektor honoruje override wyłącznie gdy jedna strona kontaktu ma typ b3_wheelShape; convex i mesh używają tego samego wyboru.",
+      "zero_delta_contract": "Wartości 0/0 zwracają istniejący precomputed world contact/static softness bez ponownego liczenia; non-wheel shapes ignorują pola override.",
+      "upstream_update_dry_run": "required-before-rebase",
+      "notes": "Pola publicznego b3ShapeDef i wewnętrznego b3Shape są współdzielone z B3X-WHEEL-001, który pozostaje właścicielem include/box3d/types.h oraz src/shape.*. Ten wpis posiada niezależną zmianę solvera i serializacji."
     }
   ],
   "comparison_base": "959aefb78587ce60cf2b8eb03ff82797a4165142",

@@ -9,14 +9,16 @@ Skala: **P0** blokuje wiarygodność badań, **P1** blokuje następny etap produ
 
 ## P0-2 — Brak czystego eksperymentu podatności
 
-Globalne `contactHertz` zmienia wszystkie kontakty świata. Nie istnieje lokalny
-override wheel–ground, więc „miękka opona” miesza się z miękkością całej sceny.
-Maszynowy plan A/B i drabina awansu istnieją już jako
-`tools/research/experiments/WHEEL-SOFT-03.json`; otwarta blokada jest teraz
-wyłącznie w runtime/telemetrii, nie w organizacji eksperymentu.
+Globalne `contactHertz` zmienia wszystkie kontakty świata. Warstwa runtime
+`WHEEL-SOFT-03A-1` dodaje już lokalny override normalnej softness wyłącznie dla
+`b3_wheelShape`, wspólny dla convex i mesh prepare paths; `0/0` zachowuje
+precomputed world softness, a non-wheel shapes nie mogą wpływać na wybór.
 
-**Spłata:** per-wheel lub per-material normal softness, wybierana w obu ścieżkach
-prepare contact; A/B przy identycznym manifoldzie.
+Otwarta blokada to teraz headless Q2 runner, maszynowy `metrics.json`, powtarzalny
+sweep oraz decyzja na podstawie zachowanych wyników — nie sam hook solvera.
+
+**Spłata:** zbudować Q2 i przeprowadzić A/B przy identycznym manifoldzie; nie
+zmieniać jeszcze wartości domyślnych pojazdu.
 
 ## P1-2 — Niepełne zapytania geometrii `b3Wheel`
 

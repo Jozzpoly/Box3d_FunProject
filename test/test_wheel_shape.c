@@ -8,6 +8,59 @@
 #include "box3d/constants.h"
 #include "box3d/math_functions.h"
 
+#include "contact_solver.h"
+#include "physics_world.h"
+#include "shape.h"
+
+
+static int WheelLocalSoftnessSelectionHonorsZeroDelta( void )
+{
+	b3World world = { 0 };
+	world.contactHertz = 30.0f;
+	world.contactDampingRatio = 10.0f;
+
+	b3StepContext context = { 0 };
+	context.world = &world;
+	context.h = 1.0f / 240.0f;
+	context.inv_h = 240.0f;
+	float cappedWorldHertz = b3MinFloat( world.contactHertz, 0.125f * context.inv_h );
+	context.contactSoftness = b3MakeSoft( cappedWorldHertz, world.contactDampingRatio, context.h );
+	context.staticSoftness = b3MakeSoft( 2.0f * cappedWorldHertz, 0.5f * world.contactDampingRatio, context.h );
+
+	b3Shape ground = { 0 };
+	ground.type = b3_hullShape;
+	b3Shape wheel = { 0 };
+	wheel.type = b3_wheelShape;
+
+	b3Softness zeroStatic = b3SelectContactSoftness( &context, &ground, &wheel, true );
+	ENSURE( memcmp( &zeroStatic, &context.staticSoftness, sizeof( b3Softness ) ) == 0 );
+	b3Softness zeroDynamic = b3SelectContactSoftness( &context, &ground, &wheel, false );
+	ENSURE( memcmp( &zeroDynamic, &context.contactSoftness, sizeof( b3Softness ) ) == 0 );
+
+	wheel.contactHertz = 15.0f;
+	b3Softness expectedStatic = b3MakeSoft( 30.0f, 5.0f, context.h );
+	b3Softness localStatic = b3SelectContactSoftness( &context, &ground, &wheel, true );
+	ENSURE( memcmp( &localStatic, &expectedStatic, sizeof( b3Softness ) ) == 0 );
+
+	b3Softness expectedDynamic = b3MakeSoft( 15.0f, 10.0f, context.h );
+	b3Softness localDynamic = b3SelectContactSoftness( &context, &ground, &wheel, false );
+	ENSURE( memcmp( &localDynamic, &expectedDynamic, sizeof( b3Softness ) ) == 0 );
+
+	wheel.contactHertz = 0.0f;
+	wheel.contactDampingRatio = 4.0f;
+	b3Softness expectedDamping = b3MakeSoft( 60.0f, 2.0f, context.h );
+	b3Softness localDamping = b3SelectContactSoftness( &context, &ground, &wheel, true );
+	ENSURE( memcmp( &localDamping, &expectedDamping, sizeof( b3Softness ) ) == 0 );
+
+	b3Shape sphere = { 0 };
+	sphere.type = b3_sphereShape;
+	sphere.contactHertz = 1.0f;
+	sphere.contactDampingRatio = 0.1f;
+	b3Softness nonWheel = b3SelectContactSoftness( &context, &ground, &sphere, true );
+	ENSURE( memcmp( &nonWheel, &context.staticSoftness, sizeof( b3Softness ) ) == 0 );
+	return 0;
+}
+
 static b3Wheel MakeCrownedWheel( void )
 {
 	// Odd point count gives one real crown vertex. The shoulders are close
@@ -1470,8 +1523,119 @@ static int WheelWorldHullLoadedFaceEdgeVertexTransitionIsContinuous( void )
 	return 0;
 }
 
+
+typedef struct WheelSoftnessRun
+{
+	float compression;
+	int pointCount;
+	uint32_t featureIds[4];
+	bool ok;
+} WheelSoftnessRun;
+
+static WheelSoftnessRun RunWheelSoftnessCompression( bool useMesh, float contactHertz )
+{
+	WheelSoftnessRun result = { 0 };
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.gravity = ( b3Vec3 ){ 0.0f, -10.0f, 0.0f };
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3MeshData* meshData = NULL;
+	b3BodyDef groundBodyDef = b3DefaultBodyDef();
+	if ( useMesh == false )
+	{
+		groundBodyDef.position = ( b3Pos ){ 0.0f, -0.10f, 0.0f };
+	}
+	b3BodyId groundBodyId = b3CreateBody( worldId, &groundBodyDef );
+	b3ShapeDef groundShapeDef = b3DefaultShapeDef();
+	groundShapeDef.baseMaterial.friction = 0.0f;
+	if ( useMesh )
+	{
+		meshData = b3CreateGridMesh( 1, 1, 2.0f, 0, true );
+		if ( meshData == NULL )
+		{
+			b3DestroyWorld( worldId );
+			return result;
+		}
+		b3CreateMeshShape( groundBodyId, &groundShapeDef, meshData, b3Vec3_one );
+	}
+	else
+	{
+		b3BoxHull ground = b3MakeBoxHull( 2.0f, 0.10f, 2.0f );
+		b3CreateHullShape( groundBodyId, &groundShapeDef, &ground.base );
+	}
+
+	b3Wheel wheel = MakeFlatWheel();
+	b3BodyDef wheelBodyDef = b3DefaultBodyDef();
+	wheelBodyDef.type = b3_dynamicBody;
+	wheelBodyDef.position = ( b3Pos ){ 0.0f, wheel.radius + 0.04f, 0.0f };
+	wheelBodyDef.motionLocks.linearX = true;
+	wheelBodyDef.motionLocks.linearZ = true;
+	wheelBodyDef.motionLocks.angularX = true;
+	wheelBodyDef.motionLocks.angularY = true;
+	wheelBodyDef.motionLocks.angularZ = true;
+	wheelBodyDef.enableSleep = false;
+	b3BodyId wheelBodyId = b3CreateBody( worldId, &wheelBodyDef );
+	b3ShapeDef wheelShapeDef = b3DefaultShapeDef();
+	wheelShapeDef.density = 80.0f;
+	wheelShapeDef.baseMaterial.friction = 0.0f;
+	wheelShapeDef.contactHertz = contactHertz;
+	b3ShapeId wheelShapeId = b3CreateWheelShape( wheelBodyId, &wheelShapeDef, &wheel );
+
+	for ( int step = 0; step < 360; ++step )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	}
+
+	b3Pos position = b3Body_GetPosition( wheelBodyId );
+	result.compression = wheel.radius - (float)position.y;
+	b3ContactData contacts[4];
+	int contactCount = b3Shape_GetContactData( wheelShapeId, contacts, ARRAY_COUNT( contacts ) );
+	for ( int contactIndex = 0; contactIndex < contactCount; ++contactIndex )
+	{
+		for ( int manifoldIndex = 0; manifoldIndex < contacts[contactIndex].manifoldCount; ++manifoldIndex )
+		{
+			const b3Manifold* manifold = contacts[contactIndex].manifolds + manifoldIndex;
+			for ( int pointIndex = 0; pointIndex < manifold->pointCount && result.pointCount < 4; ++pointIndex )
+			{
+				result.featureIds[result.pointCount] = manifold->points[pointIndex].featureId;
+				result.pointCount += 1;
+			}
+		}
+	}
+	result.ok = contactCount >= 1 && result.pointCount == 2 && b3IsValidFloat( result.compression );
+
+	b3DestroyWorld( worldId );
+	if ( meshData != NULL )
+	{
+		b3DestroyMesh( meshData );
+	}
+	return result;
+}
+
+static int WheelLocalSoftnessAffectsConvexAndMeshWithoutTopologyDrift( void )
+{
+	for ( int useMesh = 0; useMesh < 2; ++useMesh )
+	{
+		WheelSoftnessRun inherited = RunWheelSoftnessCompression( useMesh != 0, 0.0f );
+		WheelSoftnessRun local = RunWheelSoftnessCompression( useMesh != 0, 7.5f );
+		ENSURE( inherited.ok );
+		ENSURE( local.ok );
+		ENSURE( inherited.pointCount == local.pointCount );
+		for ( int i = 0; i < inherited.pointCount; ++i )
+		{
+			ENSURE( inherited.featureIds[i] == local.featureIds[i] );
+		}
+		// Lower Hertz must measurably increase static contact compression while
+		// leaving the strict support topology untouched.
+		ENSURE( local.compression > inherited.compression + 0.0005f );
+	}
+	return 0;
+}
+
 int WheelShapeTest( void )
 {
+	RUN_SUBTEST( WheelLocalSoftnessSelectionHonorsZeroDelta );
+	RUN_SUBTEST( WheelLocalSoftnessAffectsConvexAndMeshWithoutTopologyDrift );
 	RUN_SUBTEST( WheelCrownUsesOneStrictSupportVertex );
 	RUN_SUBTEST( WheelFlatTreadUsesTwoSupportEndpoints );
 	RUN_SUBTEST( WheelSupportFeaturesSurviveSpin );

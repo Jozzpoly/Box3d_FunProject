@@ -3,6 +3,12 @@
 Krótki dziennik najnowszego stanu. Wpis ma maksymalnie: CO / CZEMU / EFEKT / DALEJ.
 Starsze wpisy: `archive/ledgers/CHECKPOINTS_2026-07_PL.md`.
 
+## 2026-08-05 · WHEEL-SOFT-03A-1 — lokalna normalna softness koła (RECONSTRUCTED)
+- CO: dodano wheel-local `contactHertz`/`contactDampingRatio`, zapis shape/recording oraz wspólny selektor używany przez convex i mesh prepare paths.
+- CZEMU: globalne `contactHertz` zmieniało wszystkie kontakty świata i nie pozwalało na czyste A/B opony.
+- EFEKT: `0/0` zwraca dokładnie precomputed world softness; niższy lokalny Hertz zwiększa kompresję na hull i mesh bez zmiany dwóch support points ani feature IDs; non-wheel override jest ignorowany.
+- DALEJ: osobny headless Q2 runner i `metrics.json`; ten checkpoint nie wybiera jeszcze wartości softness ani nie zmienia pojazdu.
+
 ## 2026-08-05 · JV Research OS — wykonywalne eksperymenty
 - CO: dodano `jv_lab.py`, kontrakty `WHEEL-SOFT-03`/`VEHICLE-FLEET-STRESS-04`, immutable runy, resume po tokenie proposal, wymagane artefakty i jawne decyzje parent-run.
 - CZEMU: bramki jakości i evidence nie prowadziły aktywnego A/B ani nie wymuszały jednej zmiennej i awansu rigów.

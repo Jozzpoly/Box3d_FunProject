@@ -12,11 +12,43 @@
 #include "platform.h"
 #include "solver_set.h"
 
-#if B3_ENABLE_VALIDATION
 #include "shape.h"
-#endif
 
 #define FIXED_ANCHORS 1
+
+b3Softness b3SelectContactSoftness( const b3StepContext* context, const b3Shape* shapeA, const b3Shape* shapeB,
+									 bool isStaticContact )
+{
+	const b3Shape* wheelShape = NULL;
+	if ( shapeA->type == b3_wheelShape )
+	{
+		wheelShape = shapeA;
+	}
+	else if ( shapeB->type == b3_wheelShape )
+	{
+		wheelShape = shapeB;
+	}
+
+	if ( wheelShape == NULL || ( wheelShape->contactHertz == 0.0f && wheelShape->contactDampingRatio == 0.0f ) )
+	{
+		return isStaticContact ? context->staticSoftness : context->contactSoftness;
+	}
+
+	const b3World* world = context->world;
+	float hertz = wheelShape->contactHertz > 0.0f ? wheelShape->contactHertz : world->contactHertz;
+	float dampingRatio = wheelShape->contactDampingRatio > 0.0f ? wheelShape->contactDampingRatio : world->contactDampingRatio;
+
+	// Match the world path exactly: cap the base Hertz by the sub-step rate,
+	// then apply the existing static-contact strengthening.
+	hertz = b3MinFloat( hertz, 0.125f * context->inv_h );
+	if ( isStaticContact )
+	{
+		hertz *= 2.0f;
+		dampingRatio *= 0.5f;
+	}
+
+	return b3MakeSoft( hertz, dampingRatio, context->h );
+}
 
 // contact separation for sub-stepping
 // s = s0 + dot(cB + rB - cA - rA, normal)
@@ -155,8 +187,10 @@ void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 			contactConstraint->invIB = iB;
 			contactConstraint->invMassB = mB;
 			contactConstraint->rollingMass = b3InvertMatrix( b3AddMM( iA, iB ) );
-			contactConstraint->softness =
-				( contact->flags & b3_contactStaticFlag ) != 0 ? context->staticSoftness : context->contactSoftness;
+			const b3Shape* shapeA = b3Array_Get( world->shapes, contact->shapeIdA );
+			const b3Shape* shapeB = b3Array_Get( world->shapes, contact->shapeIdB );
+			bool isStaticContact = ( contact->flags & b3_contactStaticFlag ) != 0;
+			contactConstraint->softness = b3SelectContactSoftness( context, shapeA, shapeB, isStaticContact );
 			contactConstraint->friction = contact->friction;
 			contactConstraint->restitution = contact->restitution;
 			contactConstraint->rollingResistance = contact->rollingResistance;
@@ -1624,10 +1658,6 @@ void b3PrepareContacts_Convex( b3SolverBlock block, b3StepContext* context )
 	b3WidePrepareSpan* spans = context->widePrepareSpans;
 	b3ContactConstraintWide* wideBase = context->wideConstraints;
 
-	// Stiffer for static contacts to avoid bodies getting pushed through the ground
-	b3Softness contactSoftness = context->contactSoftness;
-	b3Softness staticSoftness = context->staticSoftness;
-
 	float warmStartScale = world->enableWarmStarting ? 1.0f : 0.0f;
 
 	int wideIndex = block.startIndex;
@@ -1750,7 +1780,10 @@ void b3PrepareContacts_Convex( b3SolverBlock block, b3StepContext* context )
 				( (float*)&constraint->invIB.cyz )[lane] = iB.cy.z;
 				( (float*)&constraint->invIB.czz )[lane] = iB.cz.z;
 
-				b3Softness soft = ( indexA == B3_NULL_INDEX || indexB == B3_NULL_INDEX ) ? staticSoftness : contactSoftness;
+				const b3Shape* shapeA = b3Array_Get( world->shapes, contact->shapeIdA );
+				const b3Shape* shapeB = b3Array_Get( world->shapes, contact->shapeIdB );
+				bool isStaticContact = indexA == B3_NULL_INDEX || indexB == B3_NULL_INDEX;
+				b3Softness soft = b3SelectContactSoftness( context, shapeA, shapeB, isStaticContact );
 
 				b3Vec3 normal = manifold->normal;
 				( (float*)&constraint->normal.X )[lane] = normal.x;

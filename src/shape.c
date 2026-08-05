@@ -112,6 +112,9 @@ static b3Shape* b3CreateShapeInternal( b3World* world, b3Body* body, b3WorldTran
 									   const void* geometry, b3ShapeType shapeType, b3Transform shapeTransform, b3Vec3 scale,
 									   bool haveShapeTransform )
 {
+	B3_ASSERT( b3IsValidFloat( def->contactHertz ) && def->contactHertz >= 0.0f );
+	B3_ASSERT( b3IsValidFloat( def->contactDampingRatio ) && def->contactDampingRatio >= 0.0f );
+
 	int shapeId = b3AllocId( &world->shapeIdPool );
 
 	if ( shapeId == world->shapes.count )
@@ -188,6 +191,8 @@ static b3Shape* b3CreateShapeInternal( b3World* world, b3Body* body, b3WorldTran
 	shape->type = shapeType;
 	shape->density = def->density;
 	shape->explosionScale = def->explosionScale;
+	shape->contactHertz = def->contactHertz;
+	shape->contactDampingRatio = def->contactDampingRatio;
 	shape->filter = def->filter;
 	shape->userData = def->userData;
 	shape->userShape = NULL;

@@ -6,6 +6,8 @@
 #include "math_internal.h"
 #include "solver.h"
 
+typedef struct b3Shape b3Shape;
+
 typedef struct b3ManifoldConstraintPoint
 {
 	b3Vec3 rA, rB;
@@ -50,6 +52,11 @@ typedef struct b3ContactConstraint
 	float rollingResistance;
 	int manifoldCount;
 } b3ContactConstraint;
+
+// Select normal-contact softness. A zero/default wheel override returns the
+// precomputed world softness exactly; non-wheel shapes cannot affect selection.
+b3Softness b3SelectContactSoftness( const b3StepContext* context, const b3Shape* shapeA, const b3Shape* shapeB,
+									 bool isStaticContact );
 
 int b3GetWideContactConstraintByteCount( void );
 

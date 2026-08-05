@@ -477,6 +477,16 @@ typedef struct b3ShapeDef
 	/// Explosion scale for b3World_Explode. non-dimensional
 	float explosionScale;
 
+	/// Advanced local normal-contact stiffness for wheel shapes, in Hertz.
+	/// Zero inherits b3WorldDef::contactHertz. During WHEEL-SOFT-03 this is
+	/// intentionally ignored for every shape type except b3_wheelShape.
+	float contactHertz;
+
+	/// Advanced local normal-contact damping ratio for wheel shapes.
+	/// Zero inherits b3WorldDef::contactDampingRatio. During WHEEL-SOFT-03 this
+	/// is intentionally ignored for every shape type except b3_wheelShape.
+	float contactDampingRatio;
+
 	/// Contact filtering data.
 	b3Filter filter;
 
