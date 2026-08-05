@@ -1,0 +1,103 @@
+{
+  "schema": "jv-experiment/v1",
+  "id": "WHEEL-SOFT-03R",
+  "order": 35,
+  "depends_on_experiments": [
+    "WHEEL-SOFT-03"
+  ],
+  "title": "Podatność koła pod geometrycznym bodźcem statycznej drogi",
+  "state": "blocked",
+  "question": "Czy wheel-local contact Hertz zmniejsza transfer przyspieszenia z nieruchomej geometrii drogi do masy resorowanej bez zmiany topologii kontaktu, klasy static-contact ani zachowania stycznego?",
+  "hypothesis": "Pośredni zakres lokalnej podatności obniży RMS i peak odpowiedzi nadwozia na kontrolowany bump statycznej drogi, zachowując ciągłość kontaktu, ograniczoną kompresję statyczną i podobny bilans energii.",
+  "primary_factor": "wheel_contact_hertz_scale",
+  "baseline_variant": "A_WORLD_1_00",
+  "variants": [
+    {
+      "id": "A_WORLD_1_00",
+      "parameters": {
+        "wheel_contact_hertz_scale": 1.0
+      }
+    },
+    {
+      "id": "B_LOCAL_0_75",
+      "parameters": {
+        "wheel_contact_hertz_scale": 0.75
+      }
+    },
+    {
+      "id": "B_LOCAL_0_50",
+      "parameters": {
+        "wheel_contact_hertz_scale": 0.5
+      }
+    },
+    {
+      "id": "B_LOCAL_0_25",
+      "parameters": {
+        "wheel_contact_hertz_scale": 0.25
+      }
+    }
+  ],
+  "locked_factors": {
+    "wheel_geometry": "identical b3Wheel profile, cornerRadius, mass and inertia",
+    "manifold_topology": "strict rigid support and unchanged feature IDs",
+    "contact_damping_ratio": "world value during the Hertz sweep",
+    "ground_contact_class": "static road geometry; no kinematic ground body",
+    "road_profile": "one frozen C2-continuous bump mesh and traversal speed",
+    "quarter_car": "same sprung/unsprung masses, suspension and initial pose",
+    "friction_and_tangent_model": "unchanged",
+    "time_step_substeps_seed": "identical for every paired run"
+  },
+  "confounds": [
+    "A kinematic road body uses dynamic-contact softness and is not equivalent to JV static terrain.",
+    "A direct force pulse calibrates compliance but does not measure geometric road-input comfort.",
+    "Changing bump shape, speed or suspension together with Hertz would destroy attribution.",
+    "Teleporting the road or vehicle can inject discontinuities that masquerade as tire response.",
+    "Retuning steering or suspension before the wheel decision can hide the measured transfer."
+  ],
+  "levels": [
+    {
+      "id": "Q2R",
+      "rig": "headless quarter-car translated over a frozen static bump mesh",
+      "purpose": "Measure road-to-wheel-to-chassis transfer while preserving the same static contact class as JV terrain.",
+      "depends_on": [],
+      "entry_gate": "Published WHEEL-SOFT-03 Q2 result exists; static-road rig proves identical input trace and zero topology drift.",
+      "exit_gate": "Three fresh repeats per variant, finite metrics, exact road-input hash, zero gaps/topology drift and predeclared compression/energy guardrails."
+    },
+    {
+      "id": "Q3",
+      "rig": "full JV vehicle over the same static bump contract",
+      "purpose": "Transfer only candidates supported by Q2R without retuning the vehicle.",
+      "depends_on": [
+        "Q2R"
+      ],
+      "entry_gate": "Q2R has a sealed SUPPORTED or STRONGLY_SUPPORTED decision.",
+      "exit_gate": "Effect sign repeats in the full vehicle and no steering/contact regression appears."
+    }
+  ],
+  "metrics": [
+    "road input position/velocity/acceleration hash and tracking error",
+    "wheel and chassis vertical acceleration rms/peak",
+    "static and dynamic contact compression",
+    "suspension travel rms/peak",
+    "normal force/impulse and work exchange",
+    "contact gaps, point count and feature-ID persistence",
+    "settling time and residual oscillation",
+    "physics step mean/p95/p99"
+  ],
+  "promotion_rules": [
+    "The static road input must be byte-identical between variants and fresh processes.",
+    "A candidate with topology drift, contact gaps, non-finite metrics or excessive static compression cannot advance.",
+    "Q2R is interpreted by paired repeats; the runner never selects a winner automatically.",
+    "Q3 may receive at most baseline plus two Q2R-supported candidates.",
+    "No shipping vehicle defaults change inside this experiment."
+  ],
+  "manual_gates": [
+    "Jozz reviews only candidates that pass Q2R and checks for visible sinking, delayed rebound or sticky contact in Q3.",
+    "A subjective feeling difference is recorded separately from technical guardrail failures."
+  ],
+  "blockers": [
+    "Implement a static-road Q2R runner without kinematic-ground contact-class drift.",
+    "Freeze and hash one C2-continuous bump mesh, traversal speed and carriage input trace.",
+    "Add an adapter that validates repeated-world agreement, input identity, topology and guardrails before immutable execution."
+  ]
+}

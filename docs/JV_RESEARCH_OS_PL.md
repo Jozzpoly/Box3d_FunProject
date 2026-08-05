@@ -127,8 +127,9 @@ chroni `evidence.py`; kompletność propozycji przed checkpointem chroni
 
 ## 9. Aktualna kolejka
 
-1. `WHEEL-SOFT-03` — aktywny eksperyment `ready`; lokalny hook i headless kalibrator Q2 istnieją, a następny krok to immutable sweep oraz jawna decyzja;
-2. `VEHICLE-FLEET-STRESS-04` — zaplanowany system skali i zabawy, zależny od
+1. `WHEEL-SOFT-03` — `complete` z opublikowanym Q2 i decyzją `INCONCLUSIVE`; mechanizm compliance jest potwierdzony, komfort nie;
+2. `WHEEL-SOFT-03R` — aktywny następny kontrakt, zablokowany do czasu statycznego bump rigu;
+3. `VEHICLE-FLEET-STRESS-04` — zaplanowany system skali i zabawy, zależny od
    jawnego modelu kontaktu po 03A oraz headless CMake bez GUI.
 
 ## 10. Plan rozwoju systemu

@@ -1,0 +1,13 @@
+{
+  "schema": "jv-human-decision/v1",
+  "decided_utc": "2026-08-05T10:07:20Z",
+  "experiment_id": "WHEEL-SOFT-03",
+  "run_id": "20260805T100714313031Z-bf1264ed-b6de28ae",
+  "level": "Q2",
+  "proposal_token": "bf1264ed5a1f5b79ce9d865e61628af109cb94c9:6960840e6c199f025ca0ecaea4d0864037290cef",
+  "decision_packet_sha256": "0e89f38a624cb0c9e7e34b0391f533b56b470409b8805c8f518a1b2fb553973d",
+  "status": "INCONCLUSIVE",
+  "decided_by": "JV Recovery Audit",
+  "note": "Mechanizm lokalnej podatności i monotoniczna kompresja są potwierdzone przy niezmiennej topologii, lecz impulsowy kalibrator Q2 nie dowodzi poprawy komfortu na nierówności; awans do Q3 jest zablokowany do osobnego bodźca drogowego.",
+  "supersedes_sha256": null
+}

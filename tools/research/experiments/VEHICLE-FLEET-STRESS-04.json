@@ -3,7 +3,7 @@
   "id": "VEHICLE-FLEET-STRESS-04",
   "order": 40,
   "depends_on_experiments": [
-    "WHEEL-SOFT-03"
+    "WHEEL-SOFT-03R"
   ],
   "title": "Wielopojazdowy stress lab i wspólne sterowanie",
   "state": "planned",
@@ -114,7 +114,7 @@
     "The lab visibly reports active fleet size, physics p95/p99 and contact pressure instead of only FPS."
   ],
   "blockers": [
-    "Finish WHEEL-SOFT-03A so fleet campaigns can lock an explicit wheel-contact model.",
+    "Finish WHEEL-SOFT-03R so fleet campaigns can lock an evidence-backed wheel-contact model.",
     "Refactor vehicle creation into a reusable fleet-safe spawn API.",
     "Add deterministic broadcast input trace and minimal autopilot independent of gameplay AI.",
     "Expose per-step physics/contact counters in a machine-readable headless result.",

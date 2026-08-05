@@ -1,5 +1,11 @@
 # Checkpoints / handoff — Jozz Vehicle
 
+## 2026-08-05 · WHEEL-SOFT-03 Q2 — immutable kalibrator opublikowany (RECONSTRUCTED)
+- CO: wykonano i opublikowano czterowariantowy run Q2 dla skal Hertz 1.00/0.75/0.50/0.25; decyzja append-only ma status `INCONCLUSIVE`.
+- CZEMU: sam hook solvera nie wystarczał; potrzebny był trwały dowód mechanizmu oraz jawne rozdzielenie kalibracji compliance od komfortu drogowego.
+- EFEKT: kompresja rośnie monotonicznie 0.155→2.488 mm przy 2 punktach, 100% persistence, zero luk i zero topology drift; evidence: `tools/research/evidence/WHEEL-SOFT-03/20260805T100714313031Z-bf1264ed-b6de28ae/PUBLISH_MANIFEST.json`.
+- DALEJ: osobny `WHEEL-SOFT-03R` ze statycznym bump mesh; Q3 pozostaje zablokowane.
+
 Krótki dziennik najnowszego stanu. Wpis ma maksymalnie: CO / CZEMU / EFEKT / DALEJ.
 Starsze wpisy: `archive/ledgers/CHECKPOINTS_2026-07_PL.md`.
 

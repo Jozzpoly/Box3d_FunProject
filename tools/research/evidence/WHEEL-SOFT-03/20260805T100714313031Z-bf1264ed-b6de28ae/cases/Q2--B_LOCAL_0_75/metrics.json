@@ -1,0 +1,23 @@
+{
+  "schema": "jv-wheel-soft-q2/v1",
+  "variant": "B_LOCAL_0_75",
+  "wheel_contact_hertz_scale": 0.75,
+  "finite": true,
+  "rig": {"dt": 0.016666666666666666, "substeps": 4, "gravity": 10, "wheel_mass_kg": 44, "sprung_mass_kg": 150, "kick_impulse_ns": -25},
+  "softness": {"world_hertz": 30, "world_damping_ratio": 10, "shape_hertz": 22.5, "inherits_world": false, "base_hertz_cap": 30, "selected_base_hertz": 22.5, "static_solver_hertz": 45, "static_solver_damping_ratio": 5},
+  "equilibrium": {"chassis_y": 1.3527124027411144, "reference_feature_ids": [259, 65795]},
+  "static_window": {
+    "compression_m": {"mean": 0.00027634177207946919, "rms": 0.00027634177368649789, "peak_abs": 0.00027637157440185689, "min": 0.0002763119697570815, "max": 0.00027637157440185689},
+    "normal_impulse_ns": {"mean": 64.666754213968915, "rms": 64.666754216343591, "peak_abs": 64.667423248291016, "min": 64.666057586669922, "max": 64.667423248291016}
+  },
+  "response_window": {
+    "compression_m": {"mean": 0.00027692771885130281, "rms": 0.00027695535123036533, "peak_abs": 0.00031535301208496236, "min": 0.0002763119697570815, "max": 0.00031535301208496236},
+    "chassis_acceleration_mps2": {"mean": -7.8170664134328638e-07, "rms": 0.00058672435306791686, "peak_abs": 0.007243690051836893, "min": -0.007243690051836893, "max": 0.0021341085084713995},
+    "suspension_travel_m": {"mean": 0.11111104968521346, "rms": 0.11111104979242879, "peak_abs": 0.111131739616394, "min": 0.11107714176177974, "max": 0.111131739616394},
+    "normal_impulse_ns": {"mean": 64.805621904797022, "rms": 64.858245310235887, "peak_abs": 114.29859161376953, "min": 64.587429046630859, "max": 114.29859161376953},
+    "settling_time_s": 0.5
+  },
+  "manifold": {"reference_loaded_points": 2, "topology_drift_steps": 0, "contact_gap_steps": 0, "persisted_point_ratio": 1},
+  "performance": {"step_ms_mean": 0.0073106553819444441, "step_ms_p95": 0.0078125, "step_ms_p99": 0.024658203125, "step_ms_max": 0.3115234375},
+  "residual": {"chassis_velocity_mps": -2.0005802525702165e-06, "wheel_velocity_mps": -4.0639740461756446e-09}
+}

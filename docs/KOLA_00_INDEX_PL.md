@@ -2,8 +2,7 @@
 
 Status: własny `b3Wheel` jest zintegrowany; `WHEEL-RIGID-01`,
 `WHEEL-SEAM-02A` i `WHEEL-HULL-02B` zamknęły kontrolowany baseline sztywny dla
-plane, triangle/mesh oraz finite hull. Najbliższa bramka to `WHEEL-SOFT-03`:
-lokalna podatność A/B bez zmiany geometrii i topologii. Historyczny baseline
+plane, triangle/mesh oraz finite hull. Kalibrator `WHEEL-SOFT-03` zakończył się decyzją `INCONCLUSIVE`; najbliższa bramka to `WHEEL-SOFT-03R` ze statycznym bump mesh. Historyczny baseline
 przed porządkami: `5b92e9c`; rewizję roboczą odczytaj z Git.
 
 > Sztywny manifold nie udaje już rosnącego śladu. Crown 3 mm zachował poprawę
@@ -48,8 +47,11 @@ WHEEL-SEAM-02A — DONE
 WHEEL-HULL-02B — DONE
   finite face clipping, feature walk, edge/vertex normal cones i brak phantom corners
 
-WHEEL-SOFT-03 — ACTIVE
-  runtime hook, zero-delta i headless Q2 DONE; następny jest immutable sweep + decyzja
+WHEEL-SOFT-03 — COMPLETE / INCONCLUSIVE
+  mechanizm compliance potwierdzony; load-pulse nie dowodzi komfortu drogowego
+
+WHEEL-SOFT-03R — ACTIVE NEXT
+  statyczny bump mesh, hashowane wejście i road→wheel→chassis transfer
 
 WHEEL-STRUCT-04
   decyzja o lokalnych stanach strukturalnych dopiero po wyniku A/B

@@ -1,0 +1,307 @@
+{
+  "schema": "jv-decision-packet/v1",
+  "sealed_utc": "2026-08-05T10:07:19Z",
+  "experiment_id": "WHEEL-SOFT-03",
+  "run_id": "20260805T100714313031Z-bf1264ed-b6de28ae",
+  "proposal_token": "bf1264ed5a1f5b79ce9d865e61628af109cb94c9:6960840e6c199f025ca0ecaea4d0864037290cef",
+  "level": "Q2",
+  "execution_state": "EXECUTED",
+  "automatic_verdict": null,
+  "decision_state": "READY_FOR_ANALYSIS",
+  "question": "Czy lokalna podatność normalnego kontaktu wheel-ground zmniejsza drgania i szczyty obciążenia bez zmiany geometrii, topologii manifoldu ani zachowania stycznego?",
+  "hypothesis": "Zmniejszenie wheel-specific contact Hertz da mierzalne ugięcie i obniży pionowe piki, a zakres pośredni zachowa energię, trwałość kontaktu oraz sterowanie lepiej niż skrajnie miękki wariant.",
+  "primary_factor": "wheel_contact_hertz_scale",
+  "locked_factors": {
+    "geometry": "b3Wheel profile and cornerRadius bit-identical to 241fe10 baseline",
+    "manifold_topology": "strict rigid support; identical point count and feature IDs",
+    "contact_damping_ratio": "world value during first Hertz sweep",
+    "friction_and_rolling_resistance": "unchanged",
+    "wheel_mass_and_inertia": "unchanged",
+    "suspension_and_steering": "unchanged",
+    "time_step_and_substeps": "unchanged",
+    "ground_geometry": "identical within each paired run",
+    "random_seed": "fixed per scene"
+  },
+  "confounds": [
+    "Changing damping together with Hertz would prevent attribution.",
+    "Changing crown/profile or manifold point count would reintroduce the topology confound removed by WHEEL-RIGID-01.",
+    "Global world contact softness would affect chassis, props and every other collision.",
+    "Tuning vehicle feeling before the tire decision could mask the physical effect.",
+    "Comparing runs with different time step, substeps or warm-up windows would invalidate energy and peak metrics."
+  ],
+  "metrics": [
+    "normal compression mean/rms/peak",
+    "normal impulse and reconstructed force curve",
+    "sprung-mass vertical acceleration rms/peak",
+    "dynamic suspension travel rms/peak",
+    "contact point count, load-bearing point count and feature-ID persistence",
+    "energy loss per distance and terminal speed",
+    "settling time after controlled bump",
+    "physics step mean/p95/p99",
+    "steering angle/yaw response during Q4"
+  ],
+  "manual_gates": [
+    "Jozz checks for obvious sinking, delayed steering response, bouncing and unnatural sticky contact in Q4.",
+    "Any feeling change is recorded but does not automatically reject the mechanism because the current vehicle tune is provisional.",
+    "A visible or audible regression must be reproducible before reopening manifold geometry."
+  ],
+  "cases": [
+    {
+      "case_id": "Q2--A_WORLD_1_00",
+      "variant": "A_WORLD_1_00",
+      "parameters": {
+        "wheel_contact_hertz_scale": 1.0
+      },
+      "state": "PASSED",
+      "result": {
+        "schema": "jv-run/v1",
+        "case_id": "Q2--A_WORLD_1_00",
+        "attempt": 1,
+        "finished_utc": "2026-08-05T10:07:15Z",
+        "duration_seconds": 1.260882,
+        "returncode": 0,
+        "timed_out": false,
+        "artifacts": [
+          {
+            "path": "metrics.json",
+            "exists": true,
+            "bytes": 2077,
+            "sha256": "8c95a61d0a65d12cee3e4c73aa9a3eac4a0f28c906521b9ed1ac2aeabfb4d3c3"
+          },
+          {
+            "path": "trace.csv",
+            "exists": true,
+            "bytes": 94103,
+            "sha256": "6f1c6b12a49f75be24c24f643dc3176bf1d89c87801a755f10717fbf43a5650d"
+          }
+        ],
+        "success": true
+      },
+      "raw_files": [
+        {
+          "path": "case.json",
+          "bytes": 715,
+          "sha256": "33fec0a6f6fb4859e86d362849214d72cf91a017a25f8d9a7e238a218cb6159b"
+        },
+        {
+          "path": "metrics.json",
+          "bytes": 2077,
+          "sha256": "8c95a61d0a65d12cee3e4c73aa9a3eac4a0f28c906521b9ed1ac2aeabfb4d3c3"
+        },
+        {
+          "path": "result.json",
+          "bytes": 568,
+          "sha256": "881013bcdfab85a2e8d913fc4f0a851ababb95098a92548e74b322eaefae758c"
+        },
+        {
+          "path": "stderr.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "stdout.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "trace.csv",
+          "bytes": 94103,
+          "sha256": "6f1c6b12a49f75be24c24f643dc3176bf1d89c87801a755f10717fbf43a5650d"
+        }
+      ]
+    },
+    {
+      "case_id": "Q2--B_LOCAL_0_25",
+      "variant": "B_LOCAL_0_25",
+      "parameters": {
+        "wheel_contact_hertz_scale": 0.25
+      },
+      "state": "PASSED",
+      "result": {
+        "schema": "jv-run/v1",
+        "case_id": "Q2--B_LOCAL_0_25",
+        "attempt": 1,
+        "finished_utc": "2026-08-05T10:07:16Z",
+        "duration_seconds": 0.969872,
+        "returncode": 0,
+        "timed_out": false,
+        "artifacts": [
+          {
+            "path": "metrics.json",
+            "exists": true,
+            "bytes": 2071,
+            "sha256": "99d7bfd4129e18ed262313c72eeace53d89d101b5fb7553386f80392f0a771c9"
+          },
+          {
+            "path": "trace.csv",
+            "exists": true,
+            "bytes": 94484,
+            "sha256": "d1f1742096c0dd07f86feaf1de0e8d6a737f0fbd9115bfead757754f74fc6626"
+          }
+        ],
+        "success": true
+      },
+      "raw_files": [
+        {
+          "path": "case.json",
+          "bytes": 717,
+          "sha256": "3888d5a3fe8f5788b538f7cf41047d6ccb723d0976daf0c80dbdab34e49283df"
+        },
+        {
+          "path": "metrics.json",
+          "bytes": 2071,
+          "sha256": "99d7bfd4129e18ed262313c72eeace53d89d101b5fb7553386f80392f0a771c9"
+        },
+        {
+          "path": "result.json",
+          "bytes": 568,
+          "sha256": "f6ef204806a6de8fc0b53e65f358c96e35682fbbcd0f606675d0060beb52c073"
+        },
+        {
+          "path": "stderr.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "stdout.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "trace.csv",
+          "bytes": 94484,
+          "sha256": "d1f1742096c0dd07f86feaf1de0e8d6a737f0fbd9115bfead757754f74fc6626"
+        }
+      ]
+    },
+    {
+      "case_id": "Q2--B_LOCAL_0_50",
+      "variant": "B_LOCAL_0_50",
+      "parameters": {
+        "wheel_contact_hertz_scale": 0.5
+      },
+      "state": "PASSED",
+      "result": {
+        "schema": "jv-run/v1",
+        "case_id": "Q2--B_LOCAL_0_50",
+        "attempt": 1,
+        "finished_utc": "2026-08-05T10:07:17Z",
+        "duration_seconds": 0.969502,
+        "returncode": 0,
+        "timed_out": false,
+        "artifacts": [
+          {
+            "path": "metrics.json",
+            "exists": true,
+            "bytes": 2077,
+            "sha256": "a534ed467315738d4769fe8973600c7d862e85aad049b1b07e07c2322128b641"
+          },
+          {
+            "path": "trace.csv",
+            "exists": true,
+            "bytes": 94263,
+            "sha256": "0a320876e4b221a069b47b088cca2232984e286e9873381224bbd05518c79186"
+          }
+        ],
+        "success": true
+      },
+      "raw_files": [
+        {
+          "path": "case.json",
+          "bytes": 715,
+          "sha256": "6d3ac7fc676efe96b815c404ae45320441bb32bf3119cfdf8357d708dc414a72"
+        },
+        {
+          "path": "metrics.json",
+          "bytes": 2077,
+          "sha256": "a534ed467315738d4769fe8973600c7d862e85aad049b1b07e07c2322128b641"
+        },
+        {
+          "path": "result.json",
+          "bytes": 568,
+          "sha256": "cc84a0db6caf9b0f52b158d138b9e54c9743f0a5be29ece465bc5efd9f79be0c"
+        },
+        {
+          "path": "stderr.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "stdout.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "trace.csv",
+          "bytes": 94263,
+          "sha256": "0a320876e4b221a069b47b088cca2232984e286e9873381224bbd05518c79186"
+        }
+      ]
+    },
+    {
+      "case_id": "Q2--B_LOCAL_0_75",
+      "variant": "B_LOCAL_0_75",
+      "parameters": {
+        "wheel_contact_hertz_scale": 0.75
+      },
+      "state": "PASSED",
+      "result": {
+        "schema": "jv-run/v1",
+        "case_id": "Q2--B_LOCAL_0_75",
+        "attempt": 1,
+        "finished_utc": "2026-08-05T10:07:18Z",
+        "duration_seconds": 0.953585,
+        "returncode": 0,
+        "timed_out": false,
+        "artifacts": [
+          {
+            "path": "metrics.json",
+            "exists": true,
+            "bytes": 2097,
+            "sha256": "24a4263d602318f7e3f94aff9d5a789621a3523a06d248817b06009c48b2199e"
+          },
+          {
+            "path": "trace.csv",
+            "exists": true,
+            "bytes": 100245,
+            "sha256": "89d4288bcb4afedc0c367265dbcd20a35ce2ee705d73f9767155823bddec6f1c"
+          }
+        ],
+        "success": true
+      },
+      "raw_files": [
+        {
+          "path": "case.json",
+          "bytes": 717,
+          "sha256": "4147f75247fdf1e7795817e784b4b54f06da06a7462fbb417db36d24a39ff477"
+        },
+        {
+          "path": "metrics.json",
+          "bytes": 2097,
+          "sha256": "24a4263d602318f7e3f94aff9d5a789621a3523a06d248817b06009c48b2199e"
+        },
+        {
+          "path": "result.json",
+          "bytes": 569,
+          "sha256": "9545593b60960c33a718c0f1173b354a948e64a1163989a8fcb948cde6454322"
+        },
+        {
+          "path": "stderr.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "stdout.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "trace.csv",
+          "bytes": 100245,
+          "sha256": "89d4288bcb4afedc0c367265dbcd20a35ce2ee705d73f9767155823bddec6f1c"
+        }
+      ]
+    }
+  ],
+  "note": "Brak automatycznego werdyktu fizycznego. Packet zachowuje wykonanie do osobnej analizy i decyzji Jozza."
+}

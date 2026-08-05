@@ -4,7 +4,7 @@
   "order": 30,
   "depends_on_experiments": [],
   "title": "Lokalna podatność normalna koła przy zamrożonym manifoldzie",
-  "state": "ready",
+  "state": "complete",
   "question": "Czy lokalna podatność normalnego kontaktu wheel-ground zmniejsza drgania i szczyty obciążenia bez zmiany geometrii, topologii manifoldu ani zachowania stycznego?",
   "hypothesis": "Zmniejszenie wheel-specific contact Hertz da mierzalne ugięcie i obniży pionowe piki, a zakres pośredni zachowa energię, trwałość kontaktu oraz sterowanie lepiej niż skrajnie miękki wariant.",
   "primary_factor": "wheel_contact_hertz_scale",
@@ -125,5 +125,11 @@
       "metrics.json",
       "trace.csv"
     ]
+  },
+  "outcome": {
+    "status": "INCONCLUSIVE",
+    "run_id": "20260805T100714313031Z-bf1264ed-b6de28ae",
+    "evidence": "tools/research/evidence/WHEEL-SOFT-03/20260805T100714313031Z-bf1264ed-b6de28ae/PUBLISH_MANIFEST.json",
+    "summary": "Wheel-local Hertz gives monotonic, topology-clean compliance, but the direct load-pulse Q2 calibrator does not answer road-input comfort or justify Q3 promotion."
   }
 }

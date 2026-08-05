@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "purpose": "Jedyne miejsce, w ktorym zyje AKTUALNY status kazdego findingu F-xx / P-xx. Dokumenty KOLA_*.md moga finding OPISYWAC, ale nie moga nadawac mu statusu. Sprawdzane przez tools/evidence/evidence.py check.",
-  "updated": "2026-08-04",
+  "updated": "2026-08-05",
   "statuses": {
     "ENGINE_FACT": "Wlasciwosc kodu Box3D, weryfikowalna przez odczyt zrodla. Nie wymaga transferu Q2-Q4.",
     "MATH_FACT": "Czysta matematyka badanych funkcji, bez silnika. Nie wymaga transferu.",
@@ -542,6 +542,24 @@
         "none"
       ],
       "code": "test/test_wheel_shape.c WheelWorldHullLoadedFaceEdgeVertexTransitionIsContinuous / WheelHullSATMatchesDenseGlobalDirectionSearch / WheelHullSATMatchesDenseSearchForRandomConvexHulls"
+    },
+    "F-44": {
+      "status": "ENGINE_MEASURED",
+      "claim": "WHEEL-SOFT-03 Q2: wheel-local contact Hertz działa jako czysty parametr podatności normalnej. Przy skalach 1.00/0.75/0.50/0.25 statyczna kompresja wynosi odpowiednio 0.155/0.276/0.622/2.488 mm, przy zachowanych 2 punktach, zerowym topology drift, zerowych lukach i persisted ratio 1.0.",
+      "scope": "Cztery warianty jednego immutable headless quarter-car runu na commicie bf1264e, po trzy okna pomiarowe w tym samym deterministycznym przyrządzie. Wynik potwierdza mechanizm i zgodność convex/mesh hooku; nie dowodzi poprawy komfortu na geometrycznej nierówności ani transferu do pełnego auta.",
+      "evidence": [
+        "none"
+      ],
+      "code": "tools/research/native/wheel_soft_q2.c; tools/research/adapters/wheel_soft_q2.py; b3SelectContactSoftness; published run: tools/research/evidence/WHEEL-SOFT-03/20260805T100714313031Z-bf1264ed-b6de28ae/PUBLISH_MANIFEST.json"
+    },
+    "F-45": {
+      "status": "ENGINE_MEASURED",
+      "claim": "WHEEL-SOFT-03 Q2 nie rozstrzyga hipotezy komfortu. W kalibratorze z impulsem przyłożonym do koła niższy Hertz zwiększał zarówno kompresję, jak i RMS/peak przyspieszenia nadwozia; decyzja runu ma status INCONCLUSIVE i nie otwiera Q3.",
+      "scope": "Bodziec jest kontrolowanym load pulse, nie przejazdem po nieruchomej geometrii drogi. Peak normal impulse pozostaje zbliżony (114.46→112.41 N*s), więc run służy kalibracji compliance i wykrywaniu confoundów. Następne pytanie należy do osobnego WHEEL-SOFT-03R ze statycznym bumpem.",
+      "evidence": [
+        "none"
+      ],
+      "code": "tools/research/evidence/WHEEL-SOFT-03/20260805T100714313031Z-bf1264ed-b6de28ae/decision_packet.json; published run: tools/research/evidence/WHEEL-SOFT-03/20260805T100714313031Z-bf1264ed-b6de28ae/PUBLISH_MANIFEST.json"
     }
   }
 }

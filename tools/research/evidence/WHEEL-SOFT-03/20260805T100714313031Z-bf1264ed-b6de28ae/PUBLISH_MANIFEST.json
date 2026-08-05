@@ -1,0 +1,330 @@
+{
+  "schema": "jv-published-run/v1",
+  "published_utc": "2026-08-05T10:19:42Z",
+  "experiment_id": "WHEEL-SOFT-03",
+  "run_id": "20260805T100714313031Z-bf1264ed-b6de28ae",
+  "level": "Q2",
+  "proposal_token": "bf1264ed5a1f5b79ce9d865e61628af109cb94c9:6960840e6c199f025ca0ecaea4d0864037290cef",
+  "execution_state": "EXECUTED",
+  "decision_status": "INCONCLUSIVE",
+  "decision_packet_sha256": "0e89f38a624cb0c9e7e34b0391f533b56b470409b8805c8f518a1b2fb553973d",
+  "current_decision_path": "decisions/20260805T100720468437Z--INCONCLUSIVE.json",
+  "spec_sha256": "b6de28ae9b9bafed990b41d65aa7d88d6618d53aeadfe3f4401c239e0dd08c33",
+  "spec_snapshot": {
+    "schema": "jv-experiment/v1",
+    "id": "WHEEL-SOFT-03",
+    "order": 30,
+    "depends_on_experiments": [],
+    "title": "Lokalna podatność normalna koła przy zamrożonym manifoldzie",
+    "state": "ready",
+    "question": "Czy lokalna podatność normalnego kontaktu wheel-ground zmniejsza drgania i szczyty obciążenia bez zmiany geometrii, topologii manifoldu ani zachowania stycznego?",
+    "hypothesis": "Zmniejszenie wheel-specific contact Hertz da mierzalne ugięcie i obniży pionowe piki, a zakres pośredni zachowa energię, trwałość kontaktu oraz sterowanie lepiej niż skrajnie miękki wariant.",
+    "primary_factor": "wheel_contact_hertz_scale",
+    "baseline_variant": "A_WORLD_1_00",
+    "variants": [
+      {
+        "id": "A_WORLD_1_00",
+        "parameters": {
+          "wheel_contact_hertz_scale": 1.0
+        }
+      },
+      {
+        "id": "B_LOCAL_0_75",
+        "parameters": {
+          "wheel_contact_hertz_scale": 0.75
+        }
+      },
+      {
+        "id": "B_LOCAL_0_50",
+        "parameters": {
+          "wheel_contact_hertz_scale": 0.5
+        }
+      },
+      {
+        "id": "B_LOCAL_0_25",
+        "parameters": {
+          "wheel_contact_hertz_scale": 0.25
+        }
+      }
+    ],
+    "locked_factors": {
+      "geometry": "b3Wheel profile and cornerRadius bit-identical to 241fe10 baseline",
+      "manifold_topology": "strict rigid support; identical point count and feature IDs",
+      "contact_damping_ratio": "world value during first Hertz sweep",
+      "friction_and_rolling_resistance": "unchanged",
+      "wheel_mass_and_inertia": "unchanged",
+      "suspension_and_steering": "unchanged",
+      "time_step_and_substeps": "unchanged",
+      "ground_geometry": "identical within each paired run",
+      "random_seed": "fixed per scene"
+    },
+    "confounds": [
+      "Changing damping together with Hertz would prevent attribution.",
+      "Changing crown/profile or manifold point count would reintroduce the topology confound removed by WHEEL-RIGID-01.",
+      "Global world contact softness would affect chassis, props and every other collision.",
+      "Tuning vehicle feeling before the tire decision could mask the physical effect.",
+      "Comparing runs with different time step, substeps or warm-up windows would invalidate energy and peak metrics."
+    ],
+    "levels": [
+      {
+        "id": "Q2",
+        "rig": "headless native b3Wheel quarter-car under a deterministic contact-load pulse",
+        "purpose": "Calibrate normal compliance, static compression and load-pulse transfer before road/vehicle coupling.",
+        "depends_on": [],
+        "entry_gate": "Zero-override parity with 241fe10 and identical manifold IDs/counts.",
+        "exit_gate": "Repeatable force-compression response, finite metrics, zero topology drift and at least one candidate distinguishable from baseline."
+      },
+      {
+        "id": "Q3",
+        "rig": "full JV vehicle on plate and controlled bump",
+        "purpose": "Transfer the Q2 mechanism to sprung mass without changing vehicle tuning.",
+        "depends_on": [
+          "Q2"
+        ],
+        "entry_gate": "Q2 decision packet is READY_FOR_ANALYSIS and a candidate range is selected without changing locked factors.",
+        "exit_gate": "Straight and bump runs repeat; acceleration/travel/energy effects agree in sign with Q2 and contact persistence remains stable."
+      },
+      {
+        "id": "Q4",
+        "rig": "full vehicle on triangle mesh and controlled corner",
+        "purpose": "Check transfer to real terrain topology and steering load.",
+        "depends_on": [
+          "Q2",
+          "Q3"
+        ],
+        "entry_gate": "Q3 transfer succeeded without retuning suspension or steering.",
+        "exit_gate": "No new seam/corner regression, performance remains acceptable and Jozz completes manual feeling gate."
+      }
+    ],
+    "metrics": [
+      "normal compression mean/rms/peak",
+      "normal impulse and reconstructed force curve",
+      "sprung-mass vertical acceleration rms/peak",
+      "dynamic suspension travel rms/peak",
+      "contact point count, load-bearing point count and feature-ID persistence",
+      "energy loss per distance and terminal speed",
+      "settling time after controlled bump",
+      "physics step mean/p95/p99",
+      "steering angle/yaw response during Q4"
+    ],
+    "promotion_rules": [
+      "A level may advance only after its baseline and every promoted candidate are repeated from the same immutable proposal.",
+      "A candidate with topology drift, non-finite metrics or missing artifacts is INCONCLUSIVE, not a win.",
+      "Q2 must identify a mechanism before Q3 vehicle testing.",
+      "Q3 must preserve the sign of the Q2 effect before Q4 terrain testing.",
+      "No default vehicle parameter changes are allowed inside WHEEL-SOFT-03.",
+      "Status SUPPORTED or REFUTED is assigned after analysis, never by the runner."
+    ],
+    "manual_gates": [
+      "Jozz checks for obvious sinking, delayed steering response, bouncing and unnatural sticky contact in Q4.",
+      "Any feeling change is recorded but does not automatically reject the mechanism because the current vehicle tune is provisional.",
+      "A visible or audible regression must be reproducible before reopening manifold geometry."
+    ],
+    "blockers": [],
+    "execution": {
+      "command": [
+        "{python}",
+        "{repo}/tools/research/adapters/wheel_soft_q2.py",
+        "--case-dir",
+        "{case_dir}",
+        "--variant",
+        "{variant}",
+        "--hertz-scale",
+        "{param:wheel_contact_hertz_scale}"
+      ],
+      "timeout_seconds": 120,
+      "expected_artifacts": [
+        "metrics.json",
+        "trace.csv"
+      ]
+    }
+  },
+  "files": [
+    {
+      "source_path": "cases/Q2--A_WORLD_1_00/case.json",
+      "published_path": "cases/Q2--A_WORLD_1_00/case.json",
+      "bytes": 715,
+      "sha256": "33fec0a6f6fb4859e86d362849214d72cf91a017a25f8d9a7e238a218cb6159b"
+    },
+    {
+      "source_path": "cases/Q2--A_WORLD_1_00/metrics.json",
+      "published_path": "cases/Q2--A_WORLD_1_00/metrics.json",
+      "bytes": 2077,
+      "sha256": "8c95a61d0a65d12cee3e4c73aa9a3eac4a0f28c906521b9ed1ac2aeabfb4d3c3"
+    },
+    {
+      "source_path": "cases/Q2--A_WORLD_1_00/result.json",
+      "published_path": "cases/Q2--A_WORLD_1_00/result.json",
+      "bytes": 568,
+      "sha256": "881013bcdfab85a2e8d913fc4f0a851ababb95098a92548e74b322eaefae758c"
+    },
+    {
+      "source_path": "cases/Q2--A_WORLD_1_00/trace.csv",
+      "published_path": "cases/Q2--A_WORLD_1_00/trace.csv",
+      "bytes": 94103,
+      "sha256": "6f1c6b12a49f75be24c24f643dc3176bf1d89c87801a755f10717fbf43a5650d"
+    },
+    {
+      "source_path": "cases/Q2--B_LOCAL_0_25/case.json",
+      "published_path": "cases/Q2--B_LOCAL_0_25/case.json",
+      "bytes": 717,
+      "sha256": "3888d5a3fe8f5788b538f7cf41047d6ccb723d0976daf0c80dbdab34e49283df"
+    },
+    {
+      "source_path": "cases/Q2--B_LOCAL_0_25/metrics.json",
+      "published_path": "cases/Q2--B_LOCAL_0_25/metrics.json",
+      "bytes": 2071,
+      "sha256": "99d7bfd4129e18ed262313c72eeace53d89d101b5fb7553386f80392f0a771c9"
+    },
+    {
+      "source_path": "cases/Q2--B_LOCAL_0_25/result.json",
+      "published_path": "cases/Q2--B_LOCAL_0_25/result.json",
+      "bytes": 568,
+      "sha256": "f6ef204806a6de8fc0b53e65f358c96e35682fbbcd0f606675d0060beb52c073"
+    },
+    {
+      "source_path": "cases/Q2--B_LOCAL_0_25/trace.csv",
+      "published_path": "cases/Q2--B_LOCAL_0_25/trace.csv",
+      "bytes": 94484,
+      "sha256": "d1f1742096c0dd07f86feaf1de0e8d6a737f0fbd9115bfead757754f74fc6626"
+    },
+    {
+      "source_path": "cases/Q2--B_LOCAL_0_50/case.json",
+      "published_path": "cases/Q2--B_LOCAL_0_50/case.json",
+      "bytes": 715,
+      "sha256": "6d3ac7fc676efe96b815c404ae45320441bb32bf3119cfdf8357d708dc414a72"
+    },
+    {
+      "source_path": "cases/Q2--B_LOCAL_0_50/metrics.json",
+      "published_path": "cases/Q2--B_LOCAL_0_50/metrics.json",
+      "bytes": 2077,
+      "sha256": "a534ed467315738d4769fe8973600c7d862e85aad049b1b07e07c2322128b641"
+    },
+    {
+      "source_path": "cases/Q2--B_LOCAL_0_50/result.json",
+      "published_path": "cases/Q2--B_LOCAL_0_50/result.json",
+      "bytes": 568,
+      "sha256": "cc84a0db6caf9b0f52b158d138b9e54c9743f0a5be29ece465bc5efd9f79be0c"
+    },
+    {
+      "source_path": "cases/Q2--B_LOCAL_0_50/trace.csv",
+      "published_path": "cases/Q2--B_LOCAL_0_50/trace.csv",
+      "bytes": 94263,
+      "sha256": "0a320876e4b221a069b47b088cca2232984e286e9873381224bbd05518c79186"
+    },
+    {
+      "source_path": "cases/Q2--B_LOCAL_0_75/case.json",
+      "published_path": "cases/Q2--B_LOCAL_0_75/case.json",
+      "bytes": 717,
+      "sha256": "4147f75247fdf1e7795817e784b4b54f06da06a7462fbb417db36d24a39ff477"
+    },
+    {
+      "source_path": "cases/Q2--B_LOCAL_0_75/metrics.json",
+      "published_path": "cases/Q2--B_LOCAL_0_75/metrics.json",
+      "bytes": 2097,
+      "sha256": "24a4263d602318f7e3f94aff9d5a789621a3523a06d248817b06009c48b2199e"
+    },
+    {
+      "source_path": "cases/Q2--B_LOCAL_0_75/result.json",
+      "published_path": "cases/Q2--B_LOCAL_0_75/result.json",
+      "bytes": 569,
+      "sha256": "9545593b60960c33a718c0f1173b354a948e64a1163989a8fcb948cde6454322"
+    },
+    {
+      "source_path": "cases/Q2--B_LOCAL_0_75/trace.csv",
+      "published_path": "cases/Q2--B_LOCAL_0_75/trace.csv",
+      "bytes": 100245,
+      "sha256": "89d4288bcb4afedc0c367265dbcd20a35ce2ee705d73f9767155823bddec6f1c"
+    },
+    {
+      "source_path": "decision_packet.json",
+      "published_path": "decision_packet.json",
+      "bytes": 10527,
+      "sha256": "0e89f38a624cb0c9e7e34b0391f533b56b470409b8805c8f518a1b2fb553973d"
+    },
+    {
+      "source_path": "decision_packet.md",
+      "published_path": "decision_packet.md",
+      "bytes": 951,
+      "sha256": "71b148e5b5075173dde2d58fc5b2f9d82e65de547b04dd6f113f2a7e683f2d9a"
+    },
+    {
+      "source_path": "decisions/20260805T100720468437Z--INCONCLUSIVE.json",
+      "published_path": "decisions/20260805T100720468437Z--INCONCLUSIVE.json",
+      "bytes": 734,
+      "sha256": "6048c986b2d0f5b017f1092b4271bea871a83ab4d828b246bfd209e2f91a5c48"
+    },
+    {
+      "source_path": "run.lock.json",
+      "published_path": "run.lock.json",
+      "bytes": 707,
+      "sha256": "d6a548f41b891c17d9fac6e83bca4882496b9d618bafca845c6ee6f455576682"
+    },
+    {
+      "source_path": "status.json",
+      "published_path": "status.json",
+      "bytes": 301,
+      "sha256": "b6b65bd70f386c0caff822fbebf4057711ad0df4a6dcb13e079c27e15ee45715"
+    }
+  ],
+  "omitted_empty_files": [
+    {
+      "source_path": "cases/Q2--A_WORLD_1_00/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reason": "empty_log"
+    },
+    {
+      "source_path": "cases/Q2--A_WORLD_1_00/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reason": "empty_log"
+    },
+    {
+      "source_path": "cases/Q2--B_LOCAL_0_25/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reason": "empty_log"
+    },
+    {
+      "source_path": "cases/Q2--B_LOCAL_0_25/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reason": "empty_log"
+    },
+    {
+      "source_path": "cases/Q2--B_LOCAL_0_50/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reason": "empty_log"
+    },
+    {
+      "source_path": "cases/Q2--B_LOCAL_0_50/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reason": "empty_log"
+    },
+    {
+      "source_path": "cases/Q2--B_LOCAL_0_75/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reason": "empty_log"
+    },
+    {
+      "source_path": "cases/Q2--B_LOCAL_0_75/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reason": "empty_log"
+    }
+  ],
+  "not_copied": [
+    {
+      "source_path": "spec.snapshot.json",
+      "reason": "embedded_in_manifest"
+    },
+    {
+      "source_path": "human_decision.json",
+      "reason": "points_to_append_only_history"
+    }
+  ]
+}

@@ -95,28 +95,34 @@ już w ramach seam/soft, bez ponownego otwierania topologii plane.
 - numeryczny search jest walidowany względem gęstego globalnego odniesienia,
   lecz pozostaje kontrolowanym przybliżeniem z progiem 3 mm.
 
-### Etap C — A/B podatności — AKTYWNY NASTĘPNY KROK (`WHEEL-SOFT-03`)
+### Etap C1 — kalibracja lokalnej podatności — ZAMKNIĘTA, WYNIK NIEJEDNOZNACZNY (`WHEEL-SOFT-03`)
 
 Maszynowy kontrakt eksperymentu istnieje w
 `tools/research/experiments/WHEEL-SOFT-03.json`, a wspólny cykl opisuje
 `JV_RESEARCH_OS_PL.md`. Jego kolejność, blokady,
 warianty i awans Q2→Q3→Q4 obsługuje `python tools/jv_lab.py`.
 
-Warstwa runtime `WHEEL-SOFT-03A-1` jest odtworzona: shape koła może nadpisać
-normal-contact Hertz i damping, a `0/0` dziedziczy dokładnie globalną softness.
-Ten sam selektor działa w convex i mesh prepare paths, a test świata potwierdza
-większą kompresję bez zmiany topologii i feature IDs. Headless Q2 command jest odtworzony jako osobny target bez GUI. Adapter zapisuje i waliduje `metrics.json` oraz `trace.csv`, więc kontrakt `WHEEL-SOFT-03` ma stan `ready`. Ten kalibrator dowodzi mechanizmu kompresji i czystości topologii, nie poprawy komfortu na nierówności.
+Warstwa runtime `WHEEL-SOFT-03A-1` oraz headless Q2 są odtworzone. Immutable
+run czterech skal Hertz został zapieczętowany i opublikowany. Statyczna kompresja
+rośnie monotonicznie z `0,155` do `2,488 mm`, przy dokładnie 2 punktach, 100%
+persistence, zerowych lukach i zerowym topology drift (`F-44`). Decyzja ma status
+`INCONCLUSIVE`: load-pulse kalibruje compliance, ale nie odpowiada na pytanie o
+komfort przejazdu po nieruchomej geometrii drogi (`F-45`). `WHEEL-SOFT-03` ma
+stan `complete`, lecz nie otwiera Q3.
 
-Ta sama geometria, te same feature IDs, punkty manifoldu, masa, tarcie,
-zawieszenie i podkroki:
+Opublikowany run pozostaje kalibratorem mechanizmu. Następną aktywną bramką
+jest osobny `WHEEL-SOFT-03R`: quarter-car ma przejechać po zamrożonym,
+**statycznym** bump mesh, aby zachować tę samą klasę static-contact softness co
+teren JV. Kinematyczne podłoże jest jawnie zakazanym confoundem. Dopiero Q2R może
+ocenić transfer road→wheel→chassis i ewentualnie otworzyć Q3.
 
-- A: baseline kontaktu bez dodatkowej podatności opony;
-- B: lokalny override Hertz/tłumienia dla kontaktu wheel–ground.
+### Etap C2 — geometryczny bodziec statycznej drogi — AKTYWNY NASTĘPNY KROK (`WHEEL-SOFT-03R`)
 
-Mierzyć kompresję, normal impulse/force, energię, drgania, travel i trwałość
-kontaktu. Najpierw quarter-car, potem pełny pojazd na płycie, w zakręcie i na
-meshu. Dopiero ten test odpowie, czy lokalna podatność daje wartość niezależną od
-biasu topologii.
+- osobny kontrakt eksperymentu zależy od zakończonego 03;
+- zmieniany jest tylko `wheel_contact_hertz_scale`;
+- droga pozostaje statycznym bump meshem, a wejście ruchu jest hashowane;
+- trzy świeże światy na wariant muszą zgadzać się fizycznie;
+- awans wymaga jawnej decyzji `SUPPORTED` lub `STRONGLY_SUPPORTED`.
 
 ### Etap D — decyzja o oponie strukturalnej
 
@@ -134,7 +140,7 @@ powierzchnię zapytań. Nie wracać do wielu niezależnych stockowych collideró
 - masa koła jest przybliżeniem walca obwiedniowego; pojazd zamraża ją osobno;
 - raycast jest konserwatywny, nie jest dokładnym przecięciem profilu;
 - generic shape-cast/overlap używa konserwatywnego proxy, nie pełnej geometrii;
-- lokalny parametr i headless Q2 runner istnieją; brak jeszcze zapieczętowanego, opublikowanego runu A/B oraz decyzji o awansie do bodźca drogowego.
+- Q2 load-pulse jest opublikowane z decyzją `INCONCLUSIVE`; brak nadal uczciwego Q2R ze statycznym bodźcem drogi, więc Q3 pozostaje zamknięte.
 
 Pełny rejestr: `TECH_DEBT_PL.md`.
 
@@ -157,19 +163,18 @@ Szczegóły: `JV_JES_HERITAGE_PL.md`.
 
 ## 7. Minimalna bramka następnego commita
 
-Pakiet `WHEEL-SOFT-03A` ma zbudować wyłącznie infrastrukturę lokalnej
-podatności, bez strojenia wyniku:
+Pakiet `WHEEL-SOFT-03R-1` ma zbudować wyłącznie uczciwy statyczny bodziec drogowy, bez wyboru wartości shippingowej:
 
-- `0/default` zachowuje bitowo/metrycznie baseline `241fe10`;
-- wheel-local Hertz/damping jest wybierany w obu prepare paths: convex i mesh;
-- nie zmienia tarcia, rolling resistance, geometrii, liczby punktów ani feature IDs;
-- non-wheel contacts nadal używają wyłącznie ustawień świata;
-- Q2 zapisuje maszynowe `metrics.json` i `trace.csv` do `{case_dir}`;
-- `WHEEL-SOFT-03.json` jest `ready`, lecz awans wymaga immutable runu i jawnej decyzji;
+- bump jest nieruchomym statycznym meshem; kinematyczne podłoże jest zabronione;
+- input trace, profil bumpa, prędkość i timestep mają jawny hash;
+- baseline i trzy kandydaty używają identycznej topologii, mas, zawieszenia i tłumienia;
+- adapter odrzuca luki kontaktu, topology drift, niefinitywne metryki i różne wejścia;
+- run zawiera co najmniej trzy świeże powtórzenia na wariant;
+- `WHEEL-SOFT-03R.json` pozostaje `blocked` do czasu czerwono-zielonego testu rigu;
 - `python tools/research/test_jv_experiment.py`;
 - `python tools/jv_gate.py deep`;
 - pełny validator produktu na Windows;
 - wpis w `CHECKPOINTS_PL.md` i aktualizacja `TECH_DEBT_PL.md`.
 
-Nie zmieniać jeszcze wartości domyślnych pojazdu ani nie wybierać „najlepszej”
-miękkości w tym samym commicie.
+Nie zmieniać wartości domyślnych pojazdu ani nie wybierać „najlepszej”
+miękkości w commicie budującym rig.

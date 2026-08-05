@@ -1,0 +1,28 @@
+{
+  "case_id": "Q2--A_WORLD_1_00",
+  "level": "Q2",
+  "variant": "A_WORLD_1_00",
+  "parameters": {
+    "wheel_contact_hertz_scale": 1.0
+  },
+  "state": "PASSED",
+  "attempts": 1,
+  "command": [
+    "/opt/pyvenv/bin/python3",
+    "/mnt/data/jv_recovery_active/tools/research/adapters/wheel_soft_q2.py",
+    "--case-dir",
+    "/mnt/data/jv_recovery_active/build/research_runs/WHEEL-SOFT-03/20260805T100714313031Z-bf1264ed-b6de28ae/cases/Q2--A_WORLD_1_00",
+    "--variant",
+    "A_WORLD_1_00",
+    "--hertz-scale",
+    "1.0"
+  ],
+  "env": {},
+  "expected_artifacts": [
+    "metrics.json",
+    "trace.csv"
+  ],
+  "started_utc": "2026-08-05T10:07:14Z",
+  "finished_utc": "2026-08-05T10:07:15Z",
+  "last_returncode": 0
+}

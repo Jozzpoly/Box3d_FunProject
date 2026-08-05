@@ -1,0 +1,12 @@
+{
+  "schema": "jv-run/v1",
+  "run_id": "20260805T100714313031Z-bf1264ed-b6de28ae",
+  "updated_utc": "2026-08-05T10:07:21Z",
+  "state": "EXECUTED",
+  "cases": {
+    "Q2--A_WORLD_1_00": "PASSED",
+    "Q2--B_LOCAL_0_25": "PASSED",
+    "Q2--B_LOCAL_0_50": "PASSED",
+    "Q2--B_LOCAL_0_75": "PASSED"
+  }
+}

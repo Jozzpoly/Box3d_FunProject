@@ -97,8 +97,12 @@ class ExperimentSystemTests(unittest.TestCase):
         paths = lab_cli.spec_paths()
         self.assertGreaterEqual(len(paths), 2)
         specs = [jv.load_spec(path) for path in paths]
-        self.assertEqual([spec["id"] for spec in specs[:2]], ["WHEEL-SOFT-03", "VEHICLE-FLEET-STRESS-04"])
+        self.assertEqual(
+            [spec["id"] for spec in specs[:3]],
+            ["WHEEL-SOFT-03", "WHEEL-SOFT-03R", "VEHICLE-FLEET-STRESS-04"],
+        )
         self.assertLess(specs[0]["order"], specs[1]["order"])
+        self.assertLess(specs[1]["order"], specs[2]["order"])
 
     def test_rejects_more_than_one_primary_parameter(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -246,15 +250,22 @@ class ExperimentSystemTests(unittest.TestCase):
             ])
             self.assertNotEqual(rc, 0)
 
-    def test_wheel_soft_repository_spec_declares_q2_execution_contract(self) -> None:
+    def test_wheel_soft_repository_spec_preserves_q2_and_blocks_road_transfer(self) -> None:
         spec = jv.load_spec(HERE / "experiments" / "WHEEL-SOFT-03.json")
-        self.assertEqual(spec["state"], "ready")
+        self.assertEqual(spec["state"], "complete")
         self.assertEqual(spec["blockers"], [])
+        self.assertEqual(spec["outcome"]["status"], "INCONCLUSIVE")
+        self.assertIn("PUBLISH_MANIFEST.json", spec["outcome"]["evidence"])
         self.assertEqual(spec["execution"]["expected_artifacts"], ["metrics.json", "trace.csv"])
         command = spec["execution"]["command"]
         self.assertIn("{case_dir}", command)
         self.assertIn("{variant}", command)
         self.assertIn("{param:wheel_contact_hertz_scale}", command)
+
+        road = jv.load_spec(HERE / "experiments" / "WHEEL-SOFT-03R.json")
+        self.assertEqual(road["state"], "blocked")
+        self.assertEqual(road["depends_on_experiments"], ["WHEEL-SOFT-03"])
+        self.assertTrue(any("static" in blocker.lower() for blocker in road["blockers"]))
 
     def test_higher_level_requires_sealed_promotable_parent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

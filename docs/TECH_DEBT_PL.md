@@ -7,18 +7,16 @@ Ten plik zawiera **wyłącznie otwarty dług**. Zamknięte i historyczne punkty 
 Skala: **P0** blokuje wiarygodność badań, **P1** blokuje następny etap produktu,
 **P2** ważne, ale może poczekać, **P3** dziedzictwo JV bez wpływu na JES.
 
-## P0-2 — Brak czystego eksperymentu podatności
+## P0-2 — Brak uczciwego bodźca drogowego dla podatności
 
 Globalne `contactHertz` zmienia wszystkie kontakty świata. Warstwa runtime
 `WHEEL-SOFT-03A-1` dodaje już lokalny override normalnej softness wyłącznie dla
 `b3_wheelShape`, wspólny dla convex i mesh prepare paths; `0/0` zachowuje
 precomputed world softness, a non-wheel shapes nie mogą wpływać na wybór.
 
-Headless Q2 runner i maszynowe `metrics.json`/`trace.csv` są odtworzone. Otwarta blokada to teraz zapieczętowany, powtarzalny
-sweep oraz decyzja na podstawie zachowanych wyników — nie sam hook solvera.
+Headless Q2 runner, immutable sweep i publikacja evidence są zamknięte. Wynik potwierdza monotoniczną compliance, ale decyzja jest `INCONCLUSIVE`, ponieważ bezpośredni load pulse nie reprezentuje przejazdu po drodze.
 
-**Spłata:** przeprowadzić immutable A/B Q2 przy identycznym manifoldzie, zachować wynik i dopiero po decyzji projektować bodziec drogowy; nie
-zmieniać jeszcze wartości domyślnych pojazdu.
+**Spłata:** zbudować `WHEEL-SOFT-03R` z nieruchomym statycznym bump mesh, hashowanym input trace i powtórzeniami w świeżych światach; kinematyczne podłoże jest zakazanym confoundem. Nie zmieniać jeszcze wartości domyślnych pojazdu.
 
 ## P1-2 — Niepełne zapytania geometrii `b3Wheel`
 

@@ -1,0 +1,24 @@
+{
+  "schema": "jv-run/v1",
+  "case_id": "Q2--B_LOCAL_0_75",
+  "attempt": 1,
+  "finished_utc": "2026-08-05T10:07:18Z",
+  "duration_seconds": 0.953585,
+  "returncode": 0,
+  "timed_out": false,
+  "artifacts": [
+    {
+      "path": "metrics.json",
+      "exists": true,
+      "bytes": 2097,
+      "sha256": "24a4263d602318f7e3f94aff9d5a789621a3523a06d248817b06009c48b2199e"
+    },
+    {
+      "path": "trace.csv",
+      "exists": true,
+      "bytes": 100245,
+      "sha256": "89d4288bcb4afedc0c367265dbcd20a35ce2ee705d73f9767155823bddec6f1c"
+    }
+  ],
+  "success": true
+}
