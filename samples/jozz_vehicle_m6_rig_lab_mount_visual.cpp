@@ -321,7 +321,113 @@ void JozzVehicleM6RigLab::DumpCornerGeometry()
 					loChM.y, loChM.z );
 			printf( "   tireZband=[% .3f,% .3f] upBallZ=% .3f loBallZ=% .3f (inboard=|z|<|%.3f|)\n", wheelC.z - halfW,
 					wheelC.z + halfW, upBall.z, loBall.z, wheelC.z );
+
+			// Forensic G-RIG measurement only. No body, joint, config or visual
+			// transform is changed here. First verify that the two independent
+			// arm-side spherical anchors close onto the same knuckle-side points;
+			// only then compare them with the endpoint path the G1 visual executes.
+			bool isFront = corner == JOZZ_M6_FRONT_LEFT || corner == JOZZ_M6_FRONT_RIGHT;
+			if ( isFront && m_steeringCornerActive[corner] )
+			{
+				b3Vec3 upperHingeMid = b3MulSV( 0.5f, b3Add( hp.upperFrontChassis, hp.upperRearChassis ) );
+				b3Vec3 lowerHingeMid = b3MulSV( 0.5f, b3Add( hp.lowerFrontChassis, hp.lowerRearChassis ) );
+				b3Pos upBallArm =
+					b3Body_GetWorldPoint( runtime.upperArmId, b3Sub( hp.upperBallJoint, upperHingeMid ) );
+				b3Pos loBallArm =
+					b3Body_GetWorldPoint( runtime.lowerArmId, b3Sub( hp.lowerBallJoint, lowerHingeMid ) );
+				float upperClosureMm = 1000.0f * b3Length( b3SubPos( upBallArm, upBall ) );
+				float lowerClosureMm = 1000.0f * b3Length( b3SubPos( loBallArm, loBall ) );
+
+				const JozzVehicleRiggedMesh& steeringMesh =
+					CornerIsLeft( corner ) ? m_riggedSteeringL : m_riggedSteeringR;
+				if ( steeringMesh.IsLoaded() )
+				{
+					// Recreate the identical initial model placement relative to each
+					// physical arm. Rebuilding the lower-arm path is the control: it
+					// should reproduce m_steeringArmLocal. The upper-arm result measures
+					// parent sensitivity only; it is NOT declared a canonical fix.
+					b3WorldTransform steeringChassisWorld =
+						b3MulWorldTransforms( chassisLive, m_steeringChassisLocal[corner] );
+					b3WorldTransform upperArmRestWorld = chassisLive;
+					upperArmRestWorld.p = b3TransformWorldPoint( chassisLive, upperHingeMid );
+					b3WorldTransform lowerArmRestWorld = chassisLive;
+					lowerArmRestWorld.p = b3TransformWorldPoint( chassisLive, lowerHingeMid );
+
+					b3Transform upperModelLocal = b3InvMulWorldTransforms( upperArmRestWorld, steeringChassisWorld );
+					b3Transform lowerModelLocalControl =
+						b3InvMulWorldTransforms( lowerArmRestWorld, steeringChassisWorld );
+					b3WorldTransform currentLowerModelWorld =
+						b3MulWorldTransforms( b3Body_GetTransform( runtime.lowerArmId ), m_steeringArmLocal[corner] );
+					b3WorldTransform rebuiltLowerModelWorld =
+						b3MulWorldTransforms( b3Body_GetTransform( runtime.lowerArmId ), lowerModelLocalControl );
+					b3WorldTransform upperParentModelWorld =
+						b3MulWorldTransforms( b3Body_GetTransform( runtime.upperArmId ), upperModelLocal );
+
+					bool topFound = false;
+					bool bottomFound = false;
+					b3Pos topCurrent = {};
+					b3Pos topUpperParent = {};
+					b3Pos bottomCurrent = {};
+					b3Pos bottomLowerControl = {};
+
+					for ( int i = 0; i < steeringMesh.PartCount(); ++i )
+					{
+						int node = steeringMesh.parts[i].boneNodeIndex;
+						if ( node != 3 && node != 5 )
+						{
+							continue;
+						}
+
+						b3Vec3 chassisEnd;
+						b3Vec3 wheelEnd;
+						ArmEnds( steeringMesh.parts[i], CornerIsLeft( corner ), chassisEnd, wheelEnd );
+						if ( node == 3 )
+						{
+							topCurrent = b3TransformWorldPoint( currentLowerModelWorld, wheelEnd );
+							topUpperParent = b3TransformWorldPoint( upperParentModelWorld, wheelEnd );
+							topFound = true;
+						}
+						else
+						{
+							bottomCurrent = b3TransformWorldPoint( currentLowerModelWorld, wheelEnd );
+							bottomLowerControl = b3TransformWorldPoint( rebuiltLowerModelWorld, wheelEnd );
+							bottomFound = true;
+						}
+					}
+
+					JozzVehicleM6WheelTelemetry telemetry = GetJozzVehicleM6WheelTelemetry( m_vehicle, corner );
+					printf( "[G_RIG_MEASURE] %s state travel_mm=% .3f steer_deg=% .3f"
+							" joint_closure_mm upper=%.6f lower=%.6f\n",
+							names[corner], 1000.0f * telemetry.suspensionTravel,
+							180.0f / B3_PI * telemetry.steeringAngle, upperClosureMm, lowerClosureMm );
+
+					if ( topFound && bottomFound )
+					{
+						float topToUpperBallMm = 1000.0f * b3Length( b3SubPos( topCurrent, upBallArm ) );
+						float bottomToLowerBallMm = 1000.0f * b3Length( b3SubPos( bottomCurrent, loBallArm ) );
+						float topParentSensitivityMm =
+							1000.0f * b3Length( b3SubPos( topCurrent, topUpperParent ) );
+						float lowerRebuildControlMm =
+							1000.0f * b3Length( b3SubPos( bottomCurrent, bottomLowerControl ) );
+						printf( "[G_RIG_MEASURE] %s raw_outboard_to_ball_mm top=%.3f bottom=%.3f"
+								" parent_sensitivity_mm top_lower_vs_upper=%.3f"
+								" lower_rebuild_control=%.6f\n",
+								names[corner], topToUpperBallMm, bottomToLowerBallMm,
+								topParentSensitivityMm, lowerRebuildControlMm );
+					}
+					else
+					{
+						printf( "[G_RIG_MEASURE] %s INCOMPLETE visual arm nodes top=%d bottom=%d\n",
+								names[corner], topFound ? 1 : 0, bottomFound ? 1 : 0 );
+					}
+				}
+				else
+				{
+					printf( "[G_RIG_MEASURE] %s INCOMPLETE steering mesh not loaded"
+							" joint_closure_mm upper=%.6f lower=%.6f\n",
+							names[corner], upperClosureMm, lowerClosureMm );
+				}
+			}
 		}
 		fflush( stdout );
 	}
-
