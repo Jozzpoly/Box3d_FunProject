@@ -1,0 +1,66 @@
+name: JV_CORE Rendered Forensics
+
+on:
+  push:
+    branches:
+      - research/jv-core-rendered-forensics-2026-09-04
+
+jobs:
+  render-m6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install native sample dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dev libx11-dev libxi-dev libxcursor-dev libgtk-3-dev
+
+      - name: Configure exact donor samples
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBOX3D_SAMPLES=ON -DBOX3D_UNIT_TESTS=OFF -DBUILD_SHARED_LIBS=OFF
+
+      - name: Build sample host
+        run: cmake --build build --config Release --target samples -j2
+
+      - name: Capture M6 baseline visual
+        env:
+          JOZZ_M6_DIAG: "0"
+          JOZZ_M6_WHEEL: "1"
+          JOZZ_M6_MOUNT: "1"
+          JOZZ_M6_DUMPER: "1"
+          JOZZ_M6_ARMTINT: "0"
+          JOZZ_M6_STEERING_RIG: "0"
+          JOZZ_M6_CAM: "-135,14,6,0,0.8,0"
+        run: |
+          mkdir -p rendered-evidence
+          xvfb-run -a ./build/bin/samples --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot rendered-evidence/m6-baseline-visual.png
+
+      - name: Capture M6 diagnostic correspondence view
+        env:
+          JOZZ_M6_DIAG: "1"
+          JOZZ_M6_WHEEL: "1"
+          JOZZ_M6_MOUNT: "1"
+          JOZZ_M6_DUMPER: "1"
+          JOZZ_M6_ARMTINT: "1"
+          JOZZ_M6_STEERING_RIG: "0"
+          JOZZ_M6_CAM: "-135,14,6,0,0.8,0"
+        run: xvfb-run -a ./build/bin/samples --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot rendered-evidence/m6-diagnostic.png
+
+      - name: Capture M6 steering-rig view
+        env:
+          JOZZ_M6_DIAG: "1"
+          JOZZ_M6_WHEEL: "1"
+          JOZZ_M6_MOUNT: "1"
+          JOZZ_M6_DUMPER: "1"
+          JOZZ_M6_ARMTINT: "1"
+          JOZZ_M6_STEERING_RIG: "1"
+          JOZZ_M6_CAM: "-135,14,6,0,0.8,0"
+        run: xvfb-run -a ./build/bin/samples --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot rendered-evidence/m6-steering-rig.png
+
+      - name: Upload rendered evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: jv-core-m6-rendered-forensics
+          path: rendered-evidence/*.png
+          if-no-files-found: error
