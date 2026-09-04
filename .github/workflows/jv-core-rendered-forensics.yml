@@ -1,4 +1,4 @@
-name: JV_CORE Rendered Forensics
+name: JV_CORE Rendered Stress Forensics
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - research/jv-core-rendered-forensics-2026-09-04
 
 jobs:
-  render-m6:
+  render-m6-stress:
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
@@ -18,26 +18,27 @@ jobs:
           arch: x64
 
       - name: Configure exact donor samples
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBOX3D_SAMPLES=ON -DBOX3D_UNIT_TESTS=OFF -DBUILD_SHARED_LIBS=OFF
+        run: cmake -B build -DBOX3D_SAMPLES=ON -DBOX3D_UNIT_TESTS=OFF -DBUILD_SHARED_LIBS=OFF
 
       - name: Build sample host
         run: cmake --build build --config Release --target samples
 
-      - name: Capture M6 baseline visual
+      - name: Capture old mount at zero preload
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force rendered-evidence | Out-Null
-          $env:JOZZ_M6_DIAG = "0"
+          New-Item -ItemType Directory -Force rendered-stress | Out-Null
+          $env:JOZZ_M6_DIAG = "1"
           $env:JOZZ_M6_WHEEL = "1"
           $env:JOZZ_M6_MOUNT = "1"
           $env:JOZZ_M6_DUMPER = "1"
-          $env:JOZZ_M6_ARMTINT = "0"
+          $env:JOZZ_M6_ARMTINT = "1"
           $env:JOZZ_M6_STEERING_RIG = "0"
+          $env:JOZZ_M6_PRELOAD = "0.0"
           $env:JOZZ_M6_CAM = "-135,14,6,0,0.8,0"
-          & .\build\bin\Release\samples.exe --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot "rendered-evidence/m6-baseline-visual.png"
+          & .\build\bin\Release\samples.exe --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot "rendered-stress/m6-mount-preload-000.png"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Capture M6 diagnostic correspondence view
+      - name: Capture old mount at offroad-valid preload
         shell: pwsh
         run: |
           $env:JOZZ_M6_DIAG = "1"
@@ -46,11 +47,12 @@ jobs:
           $env:JOZZ_M6_DUMPER = "1"
           $env:JOZZ_M6_ARMTINT = "1"
           $env:JOZZ_M6_STEERING_RIG = "0"
+          $env:JOZZ_M6_PRELOAD = "0.15"
           $env:JOZZ_M6_CAM = "-135,14,6,0,0.8,0"
-          & .\build\bin\Release\samples.exe --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot "rendered-evidence/m6-diagnostic.png"
+          & .\build\bin\Release\samples.exe --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot "rendered-stress/m6-mount-preload-015.png"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Capture M6 steering-rig view
+      - name: Capture steering rig at zero preload
         shell: pwsh
         run: |
           $env:JOZZ_M6_DIAG = "1"
@@ -59,13 +61,28 @@ jobs:
           $env:JOZZ_M6_DUMPER = "1"
           $env:JOZZ_M6_ARMTINT = "1"
           $env:JOZZ_M6_STEERING_RIG = "1"
+          $env:JOZZ_M6_PRELOAD = "0.0"
           $env:JOZZ_M6_CAM = "-135,14,6,0,0.8,0"
-          & .\build\bin\Release\samples.exe --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot "rendered-evidence/m6-steering-rig.png"
+          & .\build\bin\Release\samples.exe --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot "rendered-stress/m6-steering-preload-000.png"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Upload rendered evidence
+      - name: Capture steering rig at offroad-valid preload
+        shell: pwsh
+        run: |
+          $env:JOZZ_M6_DIAG = "1"
+          $env:JOZZ_M6_WHEEL = "1"
+          $env:JOZZ_M6_MOUNT = "1"
+          $env:JOZZ_M6_DUMPER = "1"
+          $env:JOZZ_M6_ARMTINT = "1"
+          $env:JOZZ_M6_STEERING_RIG = "1"
+          $env:JOZZ_M6_PRELOAD = "0.15"
+          $env:JOZZ_M6_CAM = "-135,14,6,0,0.8,0"
+          & .\build\bin\Release\samples.exe --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot "rendered-stress/m6-steering-preload-015.png"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload stress evidence
         uses: actions/upload-artifact@v4
         with:
-          name: jv-core-m6-rendered-forensics
-          path: rendered-evidence/*.png
+          name: jv-core-m6-rendered-stress-forensics
+          path: rendered-stress/*.png
           if-no-files-found: error
