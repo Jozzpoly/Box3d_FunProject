@@ -1,4 +1,4 @@
-name: JV_CORE Rendered Stress Forensics
+name: JV_CORE Isolated Corner Forensics
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - research/jv-core-rendered-forensics-2026-09-04
 
 jobs:
-  render-m6-stress:
+  render-corner:
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
@@ -23,66 +23,77 @@ jobs:
       - name: Build sample host
         run: cmake --build build --config Release --target samples
 
-      - name: Capture old mount at zero preload
+      - name: Warm host settings without evidence capture
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force rendered-stress | Out-Null
+          $env:JOZZ_M6_PRELOAD = "0.07"
+          & .\build\bin\Release\samples.exe --sample-name "M6 Suspension Rig Lab" --frames 1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Capture isolated old mount at street preload
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force rendered-corner | Out-Null
           $env:JOZZ_M6_DIAG = "1"
-          $env:JOZZ_M6_WHEEL = "1"
+          $env:JOZZ_M6_WHEEL = "0"
           $env:JOZZ_M6_MOUNT = "1"
+          $env:JOZZ_M6_BODY = "0"
           $env:JOZZ_M6_DUMPER = "1"
           $env:JOZZ_M6_ARMTINT = "1"
           $env:JOZZ_M6_STEERING_RIG = "0"
-          $env:JOZZ_M6_PRELOAD = "0.0"
-          $env:JOZZ_M6_CAM = "-135,14,6,0,0.8,0"
-          & .\build\bin\Release\samples.exe --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot "rendered-stress/m6-mount-preload-000.png"
+          $env:JOZZ_M6_PRELOAD = "0.07"
+          $env:JOZZ_M6_CAM = "-135,12,4.2,0.70,0.45,-0.55"
+          & .\build\bin\Release\samples.exe --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot "rendered-corner/m6-mount-isolated-007.png"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Capture old mount at offroad-valid preload
+      - name: Capture isolated old mount at offroad preload
         shell: pwsh
         run: |
           $env:JOZZ_M6_DIAG = "1"
-          $env:JOZZ_M6_WHEEL = "1"
+          $env:JOZZ_M6_WHEEL = "0"
           $env:JOZZ_M6_MOUNT = "1"
+          $env:JOZZ_M6_BODY = "0"
           $env:JOZZ_M6_DUMPER = "1"
           $env:JOZZ_M6_ARMTINT = "1"
           $env:JOZZ_M6_STEERING_RIG = "0"
           $env:JOZZ_M6_PRELOAD = "0.15"
-          $env:JOZZ_M6_CAM = "-135,14,6,0,0.8,0"
-          & .\build\bin\Release\samples.exe --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot "rendered-stress/m6-mount-preload-015.png"
+          $env:JOZZ_M6_CAM = "-135,12,4.2,0.70,0.45,-0.55"
+          & .\build\bin\Release\samples.exe --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot "rendered-corner/m6-mount-isolated-015.png"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Capture steering rig at zero preload
+      - name: Capture isolated steering rig at street preload
         shell: pwsh
         run: |
           $env:JOZZ_M6_DIAG = "1"
-          $env:JOZZ_M6_WHEEL = "1"
+          $env:JOZZ_M6_WHEEL = "0"
           $env:JOZZ_M6_MOUNT = "1"
+          $env:JOZZ_M6_BODY = "0"
           $env:JOZZ_M6_DUMPER = "1"
           $env:JOZZ_M6_ARMTINT = "1"
           $env:JOZZ_M6_STEERING_RIG = "1"
-          $env:JOZZ_M6_PRELOAD = "0.0"
-          $env:JOZZ_M6_CAM = "-135,14,6,0,0.8,0"
-          & .\build\bin\Release\samples.exe --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot "rendered-stress/m6-steering-preload-000.png"
+          $env:JOZZ_M6_PRELOAD = "0.07"
+          $env:JOZZ_M6_CAM = "-135,12,4.2,0.70,0.45,-0.55"
+          & .\build\bin\Release\samples.exe --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot "rendered-corner/m6-steering-isolated-007.png"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Capture steering rig at offroad-valid preload
+      - name: Capture isolated steering rig at offroad preload
         shell: pwsh
         run: |
           $env:JOZZ_M6_DIAG = "1"
-          $env:JOZZ_M6_WHEEL = "1"
+          $env:JOZZ_M6_WHEEL = "0"
           $env:JOZZ_M6_MOUNT = "1"
+          $env:JOZZ_M6_BODY = "0"
           $env:JOZZ_M6_DUMPER = "1"
           $env:JOZZ_M6_ARMTINT = "1"
           $env:JOZZ_M6_STEERING_RIG = "1"
           $env:JOZZ_M6_PRELOAD = "0.15"
-          $env:JOZZ_M6_CAM = "-135,14,6,0,0.8,0"
-          & .\build\bin\Release\samples.exe --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot "rendered-stress/m6-steering-preload-015.png"
+          $env:JOZZ_M6_CAM = "-135,12,4.2,0.70,0.45,-0.55"
+          & .\build\bin\Release\samples.exe --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot "rendered-corner/m6-steering-isolated-015.png"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Upload stress evidence
+      - name: Upload isolated-corner evidence
         uses: actions/upload-artifact@v4
         with:
-          name: jv-core-m6-rendered-stress-forensics
-          path: rendered-stress/*.png
+          name: jv-core-m6-isolated-corner-forensics
+          path: rendered-corner/*.png
           if-no-files-found: error
