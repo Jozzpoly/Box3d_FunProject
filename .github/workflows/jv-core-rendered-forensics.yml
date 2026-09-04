@@ -7,56 +7,61 @@ on:
 
 jobs:
   render-m6:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install native sample dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb libgl1-mesa-dev libx11-dev libxi-dev libxcursor-dev libgtk-3-dev
+      - name: Setup MSVC dev command prompt
+        uses: TheMrMilchmann/setup-msvc-dev@v4
+        with:
+          arch: x64
 
       - name: Configure exact donor samples
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBOX3D_SAMPLES=ON -DBOX3D_UNIT_TESTS=OFF -DBUILD_SHARED_LIBS=OFF
 
       - name: Build sample host
-        run: cmake --build build --config Release --target samples -j2
+        run: cmake --build build --config Release --target samples
 
       - name: Capture M6 baseline visual
-        env:
-          JOZZ_M6_DIAG: "0"
-          JOZZ_M6_WHEEL: "1"
-          JOZZ_M6_MOUNT: "1"
-          JOZZ_M6_DUMPER: "1"
-          JOZZ_M6_ARMTINT: "0"
-          JOZZ_M6_STEERING_RIG: "0"
-          JOZZ_M6_CAM: "-135,14,6,0,0.8,0"
+        shell: pwsh
         run: |
-          mkdir -p rendered-evidence
-          xvfb-run -a ./build/bin/samples --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot rendered-evidence/m6-baseline-visual.png
+          New-Item -ItemType Directory -Force rendered-evidence | Out-Null
+          $env:JOZZ_M6_DIAG = "0"
+          $env:JOZZ_M6_WHEEL = "1"
+          $env:JOZZ_M6_MOUNT = "1"
+          $env:JOZZ_M6_DUMPER = "1"
+          $env:JOZZ_M6_ARMTINT = "0"
+          $env:JOZZ_M6_STEERING_RIG = "0"
+          $env:JOZZ_M6_CAM = "-135,14,6,0,0.8,0"
+          & .\build\bin\Release\samples.exe --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot "rendered-evidence/m6-baseline-visual.png"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Capture M6 diagnostic correspondence view
-        env:
-          JOZZ_M6_DIAG: "1"
-          JOZZ_M6_WHEEL: "1"
-          JOZZ_M6_MOUNT: "1"
-          JOZZ_M6_DUMPER: "1"
-          JOZZ_M6_ARMTINT: "1"
-          JOZZ_M6_STEERING_RIG: "0"
-          JOZZ_M6_CAM: "-135,14,6,0,0.8,0"
-        run: xvfb-run -a ./build/bin/samples --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot rendered-evidence/m6-diagnostic.png
+        shell: pwsh
+        run: |
+          $env:JOZZ_M6_DIAG = "1"
+          $env:JOZZ_M6_WHEEL = "1"
+          $env:JOZZ_M6_MOUNT = "1"
+          $env:JOZZ_M6_DUMPER = "1"
+          $env:JOZZ_M6_ARMTINT = "1"
+          $env:JOZZ_M6_STEERING_RIG = "0"
+          $env:JOZZ_M6_CAM = "-135,14,6,0,0.8,0"
+          & .\build\bin\Release\samples.exe --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot "rendered-evidence/m6-diagnostic.png"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Capture M6 steering-rig view
-        env:
-          JOZZ_M6_DIAG: "1"
-          JOZZ_M6_WHEEL: "1"
-          JOZZ_M6_MOUNT: "1"
-          JOZZ_M6_DUMPER: "1"
-          JOZZ_M6_ARMTINT: "1"
-          JOZZ_M6_STEERING_RIG: "1"
-          JOZZ_M6_CAM: "-135,14,6,0,0.8,0"
-        run: xvfb-run -a ./build/bin/samples --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot rendered-evidence/m6-steering-rig.png
+        shell: pwsh
+        run: |
+          $env:JOZZ_M6_DIAG = "1"
+          $env:JOZZ_M6_WHEEL = "1"
+          $env:JOZZ_M6_MOUNT = "1"
+          $env:JOZZ_M6_DUMPER = "1"
+          $env:JOZZ_M6_ARMTINT = "1"
+          $env:JOZZ_M6_STEERING_RIG = "1"
+          $env:JOZZ_M6_CAM = "-135,14,6,0,0.8,0"
+          & .\build\bin\Release\samples.exe --sample-name "M6 Suspension Rig Lab" --frames 120 --screenshot "rendered-evidence/m6-steering-rig.png"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload rendered evidence
         uses: actions/upload-artifact@v4
