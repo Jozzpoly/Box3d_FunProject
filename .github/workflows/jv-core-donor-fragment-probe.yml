@@ -1,0 +1,21 @@
+name: JV CORE donor fragment probe
+
+on:
+  push:
+    branches:
+      - research/jv-core-donor-fragment-probe-2026-09-04
+    paths:
+      - scripts/jv-core-donor-fragment-probe.py
+      - .github/workflows/jv-core-donor-fragment-probe.yml
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe exact Blockbench glTF rigid-bone ownership
+        run: python scripts/jv-core-donor-fragment-probe.py | tee jv-core-donor-fragment-report.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jv-core-donor-fragment-report
+          path: jv-core-donor-fragment-report.log
